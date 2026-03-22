@@ -104,6 +104,10 @@ export async function sendMessage(targetId: string, type: 'channel' | 'conversat
   return post(`/messages/${type}/${targetId}`, { text });
 }
 
-export async function markAsRead(targetId: string, type: 'channel' | 'conversation') {
-  return post(`/messages/${type}/${targetId}/read`);
+export async function markAsRead(targetId: string, type: 'channel' | 'conversation', messageId?: string) {
+  return post(`/messages/${type}/${targetId}/read`, messageId ? { messageId } : {});
+}
+
+export async function sendTyping(type: 'channel' | 'conversation', targetId: string) {
+  return post('/typing', { type, targetId });
 }

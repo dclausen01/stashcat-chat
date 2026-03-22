@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
+import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import Avatar from './Avatar';
 import MessageInput from './MessageInput';
 import type { ChatTarget, Message } from '../types';
@@ -13,13 +14,22 @@ interface ChatViewProps {
   chat: ChatTarget;
 }
 
+interface TypingUser {
+  userId: number;
+  name?: string;
+  at: number;
+}
+
 export default function ChatView({ chat }: ChatViewProps) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const chatRef = useRef(chat);
+  chatRef.current = chat;
 
   const userId = String((user as Record<string, unknown>)?.id || '');
 
@@ -27,9 +37,11 @@ export default function ChatView({ chat }: ChatViewProps) {
     setLoading(true);
     try {
       const res = await api.getMessages(chat.id, chat.type);
-      // Server returns messages sorted ascending by time (oldest first, newest last)
       setMessages(res as unknown as Message[]);
-      api.markAsRead(chat.id, chat.type).catch(() => {});
+      // Mark latest message as read
+      const msgs = res as unknown as Message[];
+      const last = msgs[msgs.length - 1];
+      if (last) api.markAsRead(chat.id, chat.type, String(last.id)).catch(() => {});
     } catch (err) {
       console.error('Failed to load messages:', err);
     } finally {
@@ -37,13 +49,69 @@ export default function ChatView({ chat }: ChatViewProps) {
     }
   }, [chat.id, chat.type]);
 
-  useEffect(() => { loadMessages(); }, [loadMessages]);
+  useEffect(() => {
+    setMessages([]);
+    setTypingUsers([]);
+    loadMessages();
+  }, [loadMessages]);
 
   useEffect(() => {
     if (!loading) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
     }
   }, [loading, messages.length]);
+
+  // Clear stale typing indicators after 4 s
+  useEffect(() => {
+    if (typingUsers.length === 0) return;
+    const id = setInterval(() => {
+      const cutoff = Date.now() - 4000;
+      setTypingUsers((prev) => prev.filter((t) => t.at > cutoff));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [typingUsers.length]);
+
+  // Realtime: new messages + typing indicators
+  useRealtimeEvents({
+    message_sync: (data) => {
+      const payload = data as Record<string, unknown>;
+      const currentChat = chatRef.current;
+      const belongsHere =
+        (currentChat.type === 'channel' && String(payload.channel_id) === currentChat.id) ||
+        (currentChat.type === 'conversation' && String(payload.conversation_id) === currentChat.id);
+      if (!belongsHere) return;
+
+      // Append new message to state (avoid re-fetch)
+      const newMsg = payload as unknown as Message;
+      setMessages((prev) => {
+        if (prev.find((m) => String(m.id) === String(newMsg.id))) return prev;
+        const updated = [...prev, newMsg].sort(
+          (a, b) => (Number(a.time) || 0) - (Number(b.time) || 0)
+        );
+        return updated;
+      });
+      // Auto-scroll if already at bottom
+      if (containerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+        if (scrollHeight - scrollTop - clientHeight < 150) {
+          requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
+        }
+      }
+    },
+    typing: (data) => {
+      const { chatType, chatId, userId: typingUserId } = data as { chatType: string; chatId: number; userId: number };
+      const currentChat = chatRef.current;
+      if (
+        chatType !== currentChat.type ||
+        String(chatId) !== currentChat.id ||
+        String(typingUserId) === userId
+      ) return;
+      setTypingUsers((prev) => {
+        const filtered = prev.filter((t) => t.userId !== typingUserId);
+        return [...filtered, { userId: typingUserId, at: Date.now() }];
+      });
+    },
+  }, true);
 
   const handleScroll = () => {
     if (!containerRef.current) return;
@@ -53,10 +121,15 @@ export default function ChatView({ chat }: ChatViewProps) {
 
   const handleSend = async (text: string) => {
     await api.sendMessage(chat.id, chat.type, text);
+    // Optimistic: reload to pick up our own message
     await loadMessages();
   };
 
-  // Group consecutive messages from the same sender
+  const handleTyping = useCallback(() => {
+    api.sendTyping(chat.type, chat.id).catch(() => {});
+  }, [chat.type, chat.id]);
+
+  // Group consecutive messages by sender
   const groups: Array<{ sender: Message['sender']; isOwn: boolean; messages: Message[] }> = [];
   for (const msg of messages) {
     const isOwn = String(msg.sender?.id) === userId;
@@ -125,7 +198,25 @@ export default function ChatView({ chat }: ChatViewProps) {
         )}
       </div>
 
-      <MessageInput onSend={handleSend} chatName={chat.name} />
+      {/* Typing indicator */}
+      {typingUsers.length > 0 && (
+        <div className="shrink-0 px-6 pb-1 text-xs text-surface-400 italic">
+          {typingUsers.length === 1
+            ? 'Jemand tippt…'
+            : `${typingUsers.length} Personen tippen…`}
+          <span className="ml-1 inline-flex gap-0.5">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="inline-block h-1 w-1 rounded-full bg-surface-400"
+                style={{ animation: `bounce 1.2s ${i * 0.2}s infinite` }}
+              />
+            ))}
+          </span>
+        </div>
+      )}
+
+      <MessageInput onSend={handleSend} onTyping={handleTyping} chatName={chat.name} />
     </div>
   );
 }
@@ -224,16 +315,12 @@ function MarkdownContent({ content, isOwn }: { content: string; isOwn: boolean }
             <code className={clsx(
               'block overflow-x-auto rounded-lg px-3 py-2 font-mono text-xs my-1',
               isOwn ? 'bg-primary-700 text-primary-100' : 'bg-surface-200 text-surface-800 dark:bg-surface-700 dark:text-surface-200',
-            )}>
-              {children}
-            </code>
+            )}>{children}</code>
           ) : (
             <code className={clsx(
               'rounded px-1 py-0.5 font-mono text-xs',
               isOwn ? 'bg-primary-700 text-primary-100' : 'bg-surface-200 text-surface-800 dark:bg-surface-700 dark:text-surface-200',
-            )}>
-              {children}
-            </code>
+            )}>{children}</code>
           );
         },
         h1: ({ children }) => <h1 className="text-lg font-bold mb-1 mt-0">{children}</h1>,
@@ -246,9 +333,7 @@ function MarkdownContent({ content, isOwn }: { content: string; isOwn: boolean }
           <blockquote className={clsx(
             'my-1 border-l-2 pl-3 italic',
             isOwn ? 'border-primary-300 opacity-80' : 'border-surface-400',
-          )}>
-            {children}
-          </blockquote>
+          )}>{children}</blockquote>
         ),
         a: ({ href, children }) => (
           <a href={href} target="_blank" rel="noopener noreferrer"

@@ -4,6 +4,7 @@ import { clsx } from 'clsx';
 
 interface MessageInputProps {
   onSend: (text: string) => Promise<void>;
+  onTyping?: () => void;
   chatName: string;
 }
 
@@ -39,10 +40,11 @@ const FORMAT_BUTTONS: FormatButton[] = [
   { icon: <List size={15} />, label: 'Liste', action: linePrefix('- ', 'Listenpunkt') },
 ];
 
-export default function MessageInput({ onSend, chatName }: MessageInputProps) {
+export default function MessageInput({ onSend, onTyping, chatName }: MessageInputProps) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const typingThrottle = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSend = async () => {
     const trimmed = text.trim();
@@ -68,6 +70,11 @@ export default function MessageInput({ onSend, chatName }: MessageInputProps) {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
+    }
+    // Throttle typing events to max once per 2 s
+    if (onTyping && !typingThrottle.current) {
+      onTyping();
+      typingThrottle.current = setTimeout(() => { typingThrottle.current = null; }, 2000);
     }
   };
 
