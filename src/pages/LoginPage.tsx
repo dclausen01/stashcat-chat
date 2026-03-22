@@ -6,6 +6,8 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [securityPassword, setSecurityPassword] = useState('');
+  const [showSecurityPw, setShowSecurityPw] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -14,7 +16,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, securityPassword || password);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login fehlgeschlagen');
     } finally {
@@ -67,6 +69,30 @@ export default function LoginPage() {
               className="w-full rounded-lg border border-surface-300 bg-white px-4 py-2.5 text-surface-900 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
               placeholder="Passwort eingeben"
             />
+          </div>
+
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowSecurityPw(!showSecurityPw)}
+              className="mb-1 text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400"
+            >
+              {showSecurityPw ? 'Separates Verschlüsselungspasswort ausblenden' : 'Separates Verschlüsselungspasswort?'}
+            </button>
+            {showSecurityPw && (
+              <>
+                <input
+                  type="password"
+                  value={securityPassword}
+                  onChange={(e) => setSecurityPassword(e.target.value)}
+                  className="w-full rounded-lg border border-surface-300 bg-white px-4 py-2.5 text-surface-900 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
+                  placeholder="Verschlüsselungspasswort (Standard: Login-Passwort)"
+                />
+                <p className="mt-1 text-xs text-surface-400">
+                  Nur nötig, wenn sich das Verschlüsselungspasswort vom Login-Passwort unterscheidet.
+                </p>
+              </>
+            )}
           </div>
 
           <button

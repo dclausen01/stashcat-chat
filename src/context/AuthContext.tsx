@@ -7,47 +7,33 @@ interface AuthState {
 }
 
 interface AuthContextType extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, securityPassword: string) => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const SESSION_KEY = 'schulchat_session';
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ loggedIn: false, user: null });
 
   useEffect(() => {
-    const saved = localStorage.getItem(SESSION_KEY);
-    if (saved) {
-      try {
-        const { clientKey, deviceId } = JSON.parse(saved);
-        api.restoreSession(clientKey, deviceId);
-        api.getMe().then((payload) => {
-          setState({ loggedIn: true, user: payload.userinfo });
-        }).catch(() => {
-          localStorage.removeItem(SESSION_KEY);
-          api.clearSession();
-        });
-      } catch {
-        localStorage.removeItem(SESSION_KEY);
-      }
+    api.restoreToken();
+    if (api.isLoggedIn()) {
+      api.getMe().then((user) => {
+        setState({ loggedIn: true, user });
+      }).catch(() => {
+        api.clearSession();
+      });
     }
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const payload = await api.login(email, password);
-    localStorage.setItem(SESSION_KEY, JSON.stringify({
-      clientKey: api.getClientKey(),
-      deviceId: api.getDeviceId(),
-    }));
-    setState({ loggedIn: true, user: payload.userinfo });
+  const login = useCallback(async (email: string, password: string, securityPassword: string) => {
+    const res = await api.login(email, password, securityPassword);
+    setState({ loggedIn: true, user: res.user });
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(SESSION_KEY);
-    api.clearSession();
+  const logout = useCallback(async () => {
+    await api.logout();
     setState({ loggedIn: false, user: null });
   }, []);
 

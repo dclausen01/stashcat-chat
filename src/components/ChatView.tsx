@@ -24,7 +24,7 @@ export default function ChatView({ chat }: ChatViewProps) {
     setLoading(true);
     try {
       const res = await api.getMessages(chat.id, chat.type);
-      const msgs = (res.messages as unknown as Message[]).reverse();
+      const msgs = (res as unknown as Message[]).reverse();
       setMessages(msgs);
       // Mark as read
       api.markAsRead(chat.id, chat.type).catch(() => {});

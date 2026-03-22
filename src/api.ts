@@ -1,120 +1,109 @@
-const BASE = '/api';
+const BACKEND = 'http://localhost:3001/api';
 
-async function post<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
-  const body = new URLSearchParams(params);
-  const res = await fetch(`${BASE}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json();
-  if (json.status?.value !== 'OK') {
-    throw new Error(json.status?.message || 'API error');
+let token = '';
+
+const SESSION_KEY = 'schulchat_token';
+
+function headers(): HeadersInit {
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+async function get<T>(path: string): Promise<T> {
+  const res = await fetch(`${BACKEND}${path}`, { headers: headers() });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `HTTP ${res.status}`);
   }
-  return json.payload;
+  return res.json();
 }
 
-let clientKey = '';
-let deviceId = '';
-
-function authParams(): Record<string, string> {
-  return { client_key: clientKey, device_id: deviceId };
+async function post<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
+  const res = await fetch(`${BACKEND}${path}`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
 }
+
+// --- Session ---
 
 export function isLoggedIn(): boolean {
-  return !!clientKey;
+  return !!token;
 }
 
-export function getDeviceId(): string {
-  return deviceId;
-}
-
-export function getClientKey(): string {
-  return clientKey;
-}
-
-export function restoreSession(key: string, device: string) {
-  clientKey = key;
-  deviceId = device;
+export function restoreToken() {
+  token = localStorage.getItem(SESSION_KEY) || '';
 }
 
 export function clearSession() {
-  clientKey = '';
-  deviceId = '';
+  token = '';
+  localStorage.removeItem(SESSION_KEY);
 }
 
-export async function login(email: string, password: string, appName = 'schulchat-web') {
-  deviceId = crypto.randomUUID().replace(/-/g, '');
-  const payload = await post<{
-    client_key: string;
-    userinfo: Record<string, unknown>;
-  }>('/auth/login', {
+// --- Auth ---
+
+export async function login(email: string, password: string, securityPassword: string) {
+  const res = await post<{ token: string; user: Record<string, unknown> }>('/login', {
     email,
     password,
-    app_name: appName,
-    device_id: deviceId,
+    securityPassword,
   });
-  clientKey = payload.client_key;
-  return payload;
+  token = res.token;
+  localStorage.setItem(SESSION_KEY, token);
+  return res;
 }
+
+export async function logout() {
+  await post('/logout').catch(() => {});
+  clearSession();
+}
+
+// --- User ---
 
 export async function getMe() {
-  return post<{ userinfo: Record<string, unknown> }>('/users/me', authParams());
+  return get<Record<string, unknown>>('/me');
 }
+
+// --- Companies ---
 
 export async function getCompanies() {
-  return post<{ companies: Array<Record<string, unknown>> }>('/company/member', authParams());
+  return get<Array<Record<string, unknown>>>('/companies');
 }
+
+// --- Channels ---
 
 export async function getChannels(companyId: string) {
-  return post<{ channels: Array<Record<string, unknown>> }>('/channels/subscripted', {
-    ...authParams(),
-    company_id: companyId,
-  });
-}
-
-export async function getConversations(limit = 50, offset = 0) {
-  return post<{ conversations: Array<Record<string, unknown>> }>('/message/conversations', {
-    ...authParams(),
-    limit: String(limit),
-    offset: String(offset),
-  });
-}
-
-export async function getMessages(targetId: string, type: 'channel' | 'conversation', limit = 40, offset = 0) {
-  return post<{ messages: Array<Record<string, unknown>> }>('/message/content', {
-    ...authParams(),
-    [`${type}_id`]: targetId,
-    limit: String(limit),
-    offset: String(offset),
-  });
-}
-
-export async function sendMessage(targetId: string, type: 'channel' | 'conversation', text: string) {
-  const params: Record<string, string> = {
-    ...authParams(),
-    text,
-    type: type === 'channel' ? 'channel' : 'private',
-  };
-  if (type === 'channel') {
-    params.channel_id = targetId;
-  } else {
-    params.conversation_id = targetId;
-  }
-  return post<Record<string, unknown>>('/message/send', params);
-}
-
-export async function markAsRead(targetId: string, type: 'channel' | 'conversation') {
-  return post<Record<string, unknown>>('/message/mark_read', {
-    ...authParams(),
-    [`${type}_id`]: targetId,
-  });
+  return get<Array<Record<string, unknown>>>(`/channels/${companyId}`);
 }
 
 export async function getChannelMembers(channelId: string) {
-  return post<{ members: Array<Record<string, unknown>> }>('/channels/members', {
-    ...authParams(),
-    channel_id: channelId,
-  });
+  return get<Array<Record<string, unknown>>>(`/channels/${channelId}/members`);
+}
+
+// --- Conversations ---
+
+export async function getConversations(limit = 50, offset = 0) {
+  return get<Array<Record<string, unknown>>>(`/conversations?limit=${limit}&offset=${offset}`);
+}
+
+// --- Messages ---
+
+export async function getMessages(targetId: string, type: 'channel' | 'conversation', limit = 40, offset = 0) {
+  return get<Array<Record<string, unknown>>>(`/messages/${type}/${targetId}?limit=${limit}&offset=${offset}`);
+}
+
+export async function sendMessage(targetId: string, type: 'channel' | 'conversation', text: string) {
+  return post(`/messages/${type}/${targetId}`, { text });
+}
+
+export async function markAsRead(targetId: string, type: 'channel' | 'conversation') {
+  return post(`/messages/${type}/${targetId}/read`);
 }

@@ -27,16 +27,16 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
 
   async function loadData() {
     try {
-      const [companyRes, convRes] = await Promise.all([
+      const [companies, convList] = await Promise.all([
         api.getCompanies(),
         api.getConversations(),
       ]);
 
       // Load channels for each company
       const allChannels: ChatTarget[] = [];
-      for (const company of companyRes.companies) {
-        const chRes = await api.getChannels(String(company.id));
-        for (const ch of chRes.channels) {
+      for (const company of (companies as Array<Record<string, unknown>>)) {
+        const channelList = await api.getChannels(String(company.id));
+        for (const ch of (channelList as Array<Record<string, unknown>>)) {
           allChannels.push({
             type: 'channel',
             id: String(ch.id),
@@ -48,7 +48,7 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
       }
       setChannels(allChannels);
 
-      const convTargets: ChatTarget[] = convRes.conversations.map((c) => {
+      const convTargets: ChatTarget[] = (convList as Array<Record<string, unknown>>).map((c) => {
         const members = (c.members as Array<Record<string, unknown>>) || [];
         const otherMembers = members.filter((m) => String(m.id) !== String((user as Record<string, unknown>)?.id));
         const name = otherMembers.length > 0
