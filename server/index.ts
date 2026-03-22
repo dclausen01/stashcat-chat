@@ -196,7 +196,18 @@ app.get('/api/channels/:companyId', async (req, res) => {
 app.get('/api/channels/:channelId/members', async (req, res) => {
   try {
     const { client } = getSession(req);
-    res.json(await client.getChannelMembers(req.params.channelId));
+    const channelId = req.params.channelId;
+    // Paginate until all members are fetched (channels can have 500+ members)
+    const all: unknown[] = [];
+    const PAGE = 200;
+    let offset = 0;
+    while (true) {
+      const batch = await client.getChannelMembers(channelId, { limit: PAGE, offset });
+      all.push(...batch);
+      if (batch.length < PAGE) break;
+      offset += PAGE;
+    }
+    res.json(all);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
   }
@@ -319,6 +330,96 @@ app.post('/api/messages/:type/:targetId/read', async (req, res) => {
     if (messageId) {
       await client.markAsRead(targetId, chatType, messageId);
     }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+// ── File Browser ─────────────────────────────────────────────────────────────
+
+/** List folder contents for channel, conversation, or personal storage */
+app.get('/api/files/folder', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const { type, typeId, folderId, offset, limit } = req.query;
+    const result = await client.listFolder({
+      type: type as string,
+      type_id: typeId as string,
+      folder_id: folderId as string | undefined,
+      offset: offset ? Number(offset) : 0,
+      limit: limit ? Number(limit) : 200,
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.get('/api/files/personal', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const { folderId, offset, limit } = req.query;
+    const result = await client.listPersonalFiles({
+      folder_id: folderId as string | undefined,
+      offset: offset ? Number(offset) : 0,
+      limit: limit ? Number(limit) : 200,
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+/** Silent file upload (no message sent) — for file browser */
+app.post('/api/files/upload', upload.single('file'), async (req, res) => {
+  const tmpPath = req.file?.path;
+  try {
+    const { client } = getSession(req);
+    if (!req.file) throw new Error('No file received');
+
+    const { type, typeId, folderId } = req.body as { type: string; typeId?: string; folderId?: string };
+    const originalName = req.file.originalname;
+    const ext = path.extname(originalName);
+    const namedPath = tmpPath + ext;
+    await fs.rename(tmpPath!, namedPath);
+
+    let resolvedTypeId = typeId;
+    if (type === 'personal' && !resolvedTypeId) {
+      const me = await client.getMe() as Record<string, unknown>;
+      resolvedTypeId = String(me.id);
+    }
+
+    await client.uploadFile(namedPath, {
+      type,
+      type_id: resolvedTypeId,
+      folder: folderId,
+      filename: originalName,
+    });
+
+    await fs.unlink(namedPath).catch(() => {});
+    res.json({ ok: true });
+  } catch (err) {
+    if (tmpPath) await fs.unlink(tmpPath).catch(() => {});
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Upload failed' });
+  }
+});
+
+app.delete('/api/files/:fileId', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    await client.deleteFiles([req.params.fileId]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.patch('/api/files/:fileId', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const { name } = req.body as { name: string };
+    await client.renameFile(req.params.fileId, name);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });

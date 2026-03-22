@@ -150,6 +150,68 @@ export async function sendTyping(type: 'channel' | 'conversation', targetId: str
   return post('/typing', { type, targetId });
 }
 
+// --- File Browser ---
+
+export interface FolderContent {
+  folder: Array<Record<string, unknown>>;
+  files: Array<Record<string, unknown>>;
+}
+
+export async function listFolder(type: string, typeId: string, folderId?: string, offset = 0, limit = 200): Promise<FolderContent> {
+  let url = `/files/folder?type=${encodeURIComponent(type)}&typeId=${encodeURIComponent(typeId)}&offset=${offset}&limit=${limit}`;
+  if (folderId) url += `&folderId=${encodeURIComponent(folderId)}`;
+  return get<FolderContent>(url);
+}
+
+export async function listPersonalFiles(folderId?: string, offset = 0, limit = 200): Promise<FolderContent> {
+  let url = `/files/personal?offset=${offset}&limit=${limit}`;
+  if (folderId) url += `&folderId=${encodeURIComponent(folderId)}`;
+  return get<FolderContent>(url);
+}
+
+export async function deleteFile(fileId: string): Promise<void> {
+  const res = await fetch(`${BACKEND}/files/${fileId}`, { method: 'DELETE', headers: headers() });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+}
+
+export async function renameFile(fileId: string, name: string): Promise<void> {
+  const res = await fetch(`${BACKEND}/files/${fileId}`, {
+    method: 'PATCH',
+    headers: headers(),
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+}
+
+export async function uploadToStorage(
+  type: string,
+  typeId: string | undefined,
+  file: File,
+  folderId?: string,
+): Promise<void> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('type', type);
+  if (typeId) formData.append('typeId', typeId);
+  if (folderId) formData.append('folderId', folderId);
+  const token = localStorage.getItem('schulchat_token') || '';
+  const res = await fetch(`${BACKEND}/files/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+}
+
 export function fileDownloadUrl(fileId: string, name: string): string {
   const token = localStorage.getItem('schulchat_token') || '';
   return `${BACKEND}/file/${fileId}?name=${encodeURIComponent(name)}&token=${token}`;

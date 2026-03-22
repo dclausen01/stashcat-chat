@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Lock, Users, ArrowDown, Loader2, Trash2, Copy, Settings, ThumbsUp, X, ExternalLink, FileText } from 'lucide-react';
+import { Hash, Lock, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Settings, ThumbsUp, X, ExternalLink, FileText } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -16,6 +16,8 @@ import type { ChatTarget, ChannelMember, Message } from '../types';
 interface ChatViewProps {
   chat: ChatTarget;
   onToggleSettings: () => void;
+  onToggleFileBrowser: () => void;
+  fileBrowserOpen: boolean;
 }
 
 interface TypingUser {
@@ -26,7 +28,7 @@ interface TypingUser {
 
 const PAGE_SIZE = 50;
 
-export default function ChatView({ chat, onToggleSettings }: ChatViewProps) {
+export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, fileBrowserOpen }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -289,6 +291,18 @@ export default function ChatView({ chat, onToggleSettings }: ChatViewProps) {
             <Users size={20} />
           </button>
         )}
+        <button
+          onClick={onToggleFileBrowser}
+          className={clsx(
+            'rounded-lg p-2 transition',
+            fileBrowserOpen
+              ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+              : 'text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800',
+          )}
+          title="Dateiablage"
+        >
+          <FolderOpen size={20} />
+        </button>
         <button
           onClick={onToggleSettings}
           className="rounded-lg p-2 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800"
