@@ -295,6 +295,7 @@ app.post('/api/upload/:type/:targetId', upload.single('file'), async (req, res) 
     const fileInfo = await client.uploadFile(namedPath, {
       type: chatType,
       type_id: targetId,
+      filename: originalName,
     });
 
     await fs.unlink(namedPath).catch(() => {});

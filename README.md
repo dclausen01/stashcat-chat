@@ -1,73 +1,109 @@
-# React + TypeScript + Vite
+# stashcat-chat
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern web chat UI for [Stashcat](https://www.stashcat.com/) / schul.cloud, built with React 19, TypeScript, Vite, and Tailwind CSS v4. Comparable to MS Teams / Slack / Element in terms of UX.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Login with email, password, and security password (E2E unlock)
+- Two-panel resizable sidebar: Channels (left) and Direct Messages (right)
+- Favorites pinned to the top of each list
+- Chat bubble view (own messages right/blue, others left/gray)
+- Full Markdown support with formatting toolbar (Bold, Italic, Strikethrough, Code, Heading, List)
+- Emoji picker (`emoji-picker-react`)
+- File upload via paperclip button (original filename preserved)
+- File download links with MIME-based emoji icons
+- E2E-encrypted messages decrypted automatically (RSA-4096 OAEP + AES-256-CBC)
+- Real-time push: new messages and typing indicators via Server-Sent Events (SSE)
+- Dark / light theme toggle, persisted in localStorage
+- Session persistence via localStorage token
 
-## React Compiler
+## Architecture
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+stashcat-chat/
+├── src/
+│   ├── api.ts                  # Backend API client (fetch + Bearer token)
+│   ├── components/
+│   │   ├── ChatView.tsx        # Message bubbles, file attachments, realtime
+│   │   ├── MessageInput.tsx    # Text input, emoji picker, file picker, toolbar
+│   │   ├── Sidebar.tsx         # Resizable channel/DM panels with favorites
+│   │   └── Avatar.tsx          # Initials avatar
+│   ├── context/
+│   │   ├── AuthContext.tsx     # Login, logout, session restore
+│   │   └── ThemeContext.tsx    # Dark/light toggle
+│   ├── hooks/
+│   │   └── useRealtimeEvents.ts # SSE listener (message_sync, typing)
+│   └── utils/
+│       └── fileIcon.ts         # MIME/extension → emoji
+└── server/
+    └── index.ts                # Express backend (port 3001)
+                                # - Proxies all Stashcat API calls
+                                # - Manages StashcatClient sessions
+                                # - Bridges RealtimeManager → SSE
+                                # - Decrypts E2E messages before SSE push
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The **Express backend** is required because E2E decryption uses Node.js `crypto` (not available in the browser) and to avoid CORS issues with `api.stashcat.com`. The Vite dev server proxies `/backend → http://localhost:3001`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Getting Started
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Prerequisites
+
+- Node.js 20+
+- A Stashcat / schul.cloud account
+
+### Install
+
+```bash
+# 1. Build the stashcat-api library first (local file dependency)
+cd ../stashcat-api
+npm install && npm run build
+
+# 2. Install chat UI dependencies
+cd ../stashcat-chat
+npm install
 ```
+
+### Run
+
+```bash
+npm start
+# Starts both the Vite dev server (port 5173) and Express backend (port 3001)
+```
+
+Open [http://localhost:5173](http://localhost:5173).
+
+### Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm start` | Start frontend + backend (via `concurrently`) |
+| `npm run dev` | Vite dev server only |
+| `npm run server` | Express backend only (`tsx server/index.ts`) |
+| `npm run build` | Production build |
+| `npm run lint` | ESLint |
+
+## E2E Encryption
+
+All E2E decryption happens on the **backend**:
+
+- REST API messages: `StashcatClient.getMessages()` decrypts automatically
+- Realtime messages: the `message_sync` SSE handler decrypts with `getConversationAesKey()` / `getChannelAesKey()` before forwarding to the frontend
+
+The frontend always receives plaintext.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 19, TypeScript, Vite 8, Tailwind CSS v4 |
+| Backend | Express, Node.js |
+| API Client | `stashcat-api` (local file dep) |
+| Realtime | Socket.io v4 → SSE |
+| Markdown | `react-markdown` + `remark-gfm` |
+| Emoji | `emoji-picker-react` |
+| File Upload | `multer` |
+
+## License
+
+MIT
