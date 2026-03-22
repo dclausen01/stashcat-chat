@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Hash, MessageCircle, ChevronDown, ChevronRight, Star, Search, LogOut, Sun, Moon, Users } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -17,13 +17,14 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
   const { theme, toggle } = useTheme();
   const [channels, setChannels] = useState<ChatTarget[]>([]);
   const [conversations, setConversations] = useState<ChatTarget[]>([]);
-  const [channelsOpen, setChannelsOpen] = useState(true);
-  const [conversationsOpen, setConversationsOpen] = useState(true);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  // Split ratio: percentage for channels panel (top), rest goes to conversations
+  const [splitPct, setSplitPct] = useState(50);
+  const dragging = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { loadData(); }, []);
 
   async function loadData() {
     try {
@@ -32,7 +33,6 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
         api.getConversations(),
       ]);
 
-      // Load channels for each company
       const allChannels: ChatTarget[] = [];
       for (const company of (companies as Array<Record<string, unknown>>)) {
         const channelList = await api.getChannels(String(company.id));
@@ -50,7 +50,8 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
 
       const convTargets: ChatTarget[] = (convList as Array<Record<string, unknown>>).map((c) => {
         const members = (c.members as Array<Record<string, unknown>>) || [];
-        const otherMembers = members.filter((m) => String(m.id) !== String((user as Record<string, unknown>)?.id));
+        const userId = String((user as Record<string, unknown>)?.id);
+        const otherMembers = members.filter((m) => String(m.id) !== userId);
         const name = otherMembers.length > 0
           ? otherMembers.map((m) => `${m.first_name} ${m.last_name}`).join(', ')
           : 'Eigene Notizen';
@@ -74,14 +75,36 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
     return items.filter((i) => i.name.toLowerCase().includes(q));
   };
 
+  // Drag logic
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragging.current = true;
+
+    const onMove = (ev: MouseEvent) => {
+      if (!dragging.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const pct = ((ev.clientY - rect.top) / rect.height) * 100;
+      setSplitPct(Math.min(80, Math.max(20, pct)));
+    };
+
+    const onUp = () => {
+      dragging.current = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, []);
+
   const userName = user
     ? `${(user as Record<string, unknown>).first_name} ${(user as Record<string, unknown>).last_name}`
     : '';
 
   return (
-    <div className="flex h-full w-72 flex-col border-r border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900">
+    <div className="flex h-full w-72 shrink-0 flex-col border-r border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900">
       {/* User header */}
-      <div className="flex items-center gap-3 border-b border-surface-200 p-4 dark:border-surface-700">
+      <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 p-4 dark:border-surface-700">
         <Avatar name={userName} size="md" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold text-surface-900 dark:text-white">{userName}</div>
@@ -96,7 +119,7 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
       </div>
 
       {/* Search */}
-      <div className="p-3">
+      <div className="shrink-0 p-3">
         <div className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
           <Search size={16} className="text-surface-400" />
           <input
@@ -109,33 +132,53 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
         </div>
       </div>
 
-      {/* Chat lists */}
-      <div className="flex-1 overflow-y-auto px-2">
-        {/* Channels */}
-        <button
-          onClick={() => setChannelsOpen(!channelsOpen)}
-          className="flex w-full items-center gap-1 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-surface-500 hover:text-surface-700 dark:hover:text-surface-300"
-        >
-          {channelsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          <Hash size={14} />
-          Channels ({channels.length})
-        </button>
-        {channelsOpen && filtered(channels).map((ch) => (
-          <ChatItem key={`ch-${ch.id}`} target={ch} active={activeChat?.id === ch.id && activeChat?.type === 'channel'} onSelect={onSelectChat} />
-        ))}
+      {/* Split panels */}
+      <div ref={containerRef} className="flex min-h-0 flex-1 flex-col">
+        {/* Channels panel */}
+        <div className="flex min-h-0 flex-col" style={{ height: `${splitPct}%` }}>
+          <div className="shrink-0 px-4 py-1.5">
+            <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-surface-500">
+              <Hash size={13} /> Channels ({filtered(channels).length})
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto px-2 pb-1">
+            {filtered(channels).map((ch) => (
+              <ChatItem
+                key={`ch-${ch.id}`}
+                target={ch}
+                active={activeChat?.id === ch.id && activeChat?.type === 'channel'}
+                onSelect={onSelectChat}
+              />
+            ))}
+          </div>
+        </div>
 
-        {/* Conversations */}
-        <button
-          onClick={() => setConversationsOpen(!conversationsOpen)}
-          className="mt-3 flex w-full items-center gap-1 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-surface-500 hover:text-surface-700 dark:hover:text-surface-300"
+        {/* Drag handle */}
+        <div
+          onMouseDown={onMouseDown}
+          className="group flex shrink-0 cursor-row-resize items-center justify-center border-y border-surface-200 py-0.5 hover:bg-surface-100 dark:border-surface-700 dark:hover:bg-surface-800"
         >
-          {conversationsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          <Users size={14} />
-          Direktnachrichten ({conversations.length})
-        </button>
-        {conversationsOpen && filtered(conversations).map((conv) => (
-          <ChatItem key={`conv-${conv.id}`} target={conv} active={activeChat?.id === conv.id && activeChat?.type === 'conversation'} onSelect={onSelectChat} />
-        ))}
+          <GripHorizontal size={16} className="text-surface-300 group-hover:text-surface-500 dark:text-surface-600 dark:group-hover:text-surface-400" />
+        </div>
+
+        {/* Conversations panel */}
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="shrink-0 px-4 py-1.5">
+            <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-surface-500">
+              <Users size={13} /> Direktnachrichten ({filtered(conversations).length})
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto px-2 pb-1">
+            {filtered(conversations).map((conv) => (
+              <ChatItem
+                key={`conv-${conv.id}`}
+                target={conv}
+                active={activeChat?.id === conv.id && activeChat?.type === 'conversation'}
+                onSelect={onSelectChat}
+              />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -153,20 +196,17 @@ function ChatItem({ target, active, onSelect }: { target: ChatTarget; active: bo
       )}
     >
       {target.type === 'channel' ? (
-        <Hash size={18} className={clsx(active ? 'text-primary-600 dark:text-primary-400' : 'text-surface-400')} />
+        <Hash size={17} className={clsx('shrink-0', active ? 'text-primary-600 dark:text-primary-400' : 'text-surface-400')} />
       ) : (
         <Avatar name={target.name} size="sm" />
       )}
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{target.name}</span>
-      {target.encrypted && (
-        <span className="text-xs text-surface-400" title="Verschlüsselt">🔒</span>
-      )}
+      {target.encrypted && <span className="shrink-0 text-xs text-surface-400" title="Verschlüsselt">🔒</span>}
       {(target.unread_count ?? 0) > 0 && (
-        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-600 px-1.5 text-xs font-bold text-white">
+        <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary-600 px-1.5 text-xs font-bold text-white">
           {target.unread_count}
         </span>
       )}
-      {target.type === 'channel' && <Star size={14} className="hidden text-surface-300 group-hover:block" />}
     </button>
   );
 }
