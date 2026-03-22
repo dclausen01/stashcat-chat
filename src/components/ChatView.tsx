@@ -121,8 +121,10 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
     if (chat.type !== 'channel') return;
     api.getChannelMembers(chat.id)
       .then((members) => {
-        const me = (members as unknown as ChannelMember[]).find((m) => m.user_id === userId);
-        setIsManager(me?.role === 'moderator');
+        const me = (members as unknown as ChannelMember[]).find(
+          (m) => m.user_id === userId || String(m.user_id) === userId
+        );
+        setIsManager(!!me && me.role !== 'member');
       })
       .catch(() => {});
   }, [chat.id, chat.type, userId]);

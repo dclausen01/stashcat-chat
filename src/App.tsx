@@ -30,7 +30,12 @@ export default function App() {
 
   return (
     <div className="flex h-full">
-      <Sidebar activeChat={activeChat} onSelectChat={setActiveChat} loggedIn={loggedIn} />
+      <Sidebar
+        activeChat={activeChat}
+        onSelectChat={setActiveChat}
+        loggedIn={loggedIn}
+        onOpenFileBrowser={() => { setSettingsOpen(false); setFileBrowserOpen((o) => !o); }}
+      />
       {activeChat
         ? <ChatView
             chat={activeChat}

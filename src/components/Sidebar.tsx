@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal, Star } from 'lucide-react';
+import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal, Star, FolderOpen } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -22,9 +22,10 @@ interface SidebarProps {
   activeChat: ChatTarget | null;
   onSelectChat: (target: ChatTarget) => void;
   loggedIn: boolean;
+  onOpenFileBrowser: () => void;
 }
 
-export default function Sidebar({ activeChat, onSelectChat, loggedIn }: SidebarProps) {
+export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser }: SidebarProps) {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const [channels, setChannels] = useState<ChatTarget[]>([]);
@@ -188,6 +189,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn }: SidebarP
   const userName = user
     ? `${(user as Record<string, unknown>).first_name} ${(user as Record<string, unknown>).last_name}`
     : '';
+  const userImage = (user as Record<string, unknown>)?.image as string | undefined;
 
   return (
     <div
@@ -202,11 +204,18 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn }: SidebarP
       />
       {/* User header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 p-4 dark:border-surface-700">
-        <Avatar name={userName} size="md" />
+        <Avatar name={userName} image={userImage} size="md" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold text-surface-900 dark:text-white">{userName}</div>
           <div className="truncate text-xs text-surface-500">Online</div>
         </div>
+        <button
+          onClick={onOpenFileBrowser}
+          className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
+          title="Meine Dateien"
+        >
+          <FolderOpen size={18} />
+        </button>
         <button onClick={toggle} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
           {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
         </button>
