@@ -236,6 +236,16 @@ app.post('/api/messages/:type/:targetId', async (req, res) => {
   }
 });
 
+app.delete('/api/messages/:messageId', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    await client.deleteMessage(req.params.messageId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
 app.post('/api/messages/:type/:targetId/read', async (req, res) => {
   try {
     const { client } = getSession(req);

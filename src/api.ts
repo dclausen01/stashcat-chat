@@ -104,6 +104,17 @@ export async function sendMessage(targetId: string, type: 'channel' | 'conversat
   return post(`/messages/${type}/${targetId}`, { text });
 }
 
+export async function deleteMessage(messageId: string): Promise<void> {
+  const res = await fetch(`${BACKEND}/messages/${messageId}`, {
+    method: 'DELETE',
+    headers: headers(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+}
+
 export async function markAsRead(targetId: string, type: 'channel' | 'conversation', messageId?: string) {
   return post(`/messages/${type}/${targetId}/read`, messageId ? { messageId } : {});
 }

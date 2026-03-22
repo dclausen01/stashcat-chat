@@ -68,6 +68,14 @@ export interface Company {
   name: string;
 }
 
+export interface ChannelMember {
+  id: string;
+  user_id: string;
+  channel_id: string;
+  role: string; // 'moderator' | 'member' | ...
+  joined_at: string;
+}
+
 export type ChatType = 'channel' | 'conversation';
 
 export interface ChatTarget {

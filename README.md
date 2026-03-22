@@ -12,6 +12,7 @@ A modern web chat UI for [Stashcat](https://www.stashcat.com/) / schul.cloud, bu
 - Emoji picker (`emoji-picker-react`)
 - File upload via paperclip button (original filename preserved)
 - File download links with MIME-based emoji icons
+- Delete own messages (hover → trash icon); channel managers can delete any message
 - E2E-encrypted messages decrypted automatically (RSA-4096 OAEP + AES-256-CBC)
 - Real-time push: new messages and typing indicators via Server-Sent Events (SSE)
 - Dark / light theme toggle, persisted in localStorage

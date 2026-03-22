@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Lock, Users, ArrowDown, Loader2 } from 'lucide-react';
+import { Hash, Lock, Users, ArrowDown, Loader2, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -9,7 +9,7 @@ import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import { fileIcon } from '../utils/fileIcon';
 import Avatar from './Avatar';
 import MessageInput from './MessageInput';
-import type { ChatTarget, Message } from '../types';
+import type { ChatTarget, ChannelMember, Message } from '../types';
 
 interface ChatViewProps {
   chat: ChatTarget;
@@ -27,6 +27,7 @@ export default function ChatView({ chat }: ChatViewProps) {
   const [loading, setLoading] = useState(true);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const [isManager, setIsManager] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef(chat);
@@ -49,6 +50,18 @@ export default function ChatView({ chat }: ChatViewProps) {
       setLoading(false);
     }
   }, [chat.id, chat.type]);
+
+  // Check manager status when entering a channel
+  useEffect(() => {
+    setIsManager(false);
+    if (chat.type !== 'channel') return;
+    api.getChannelMembers(chat.id)
+      .then((members) => {
+        const me = (members as unknown as ChannelMember[]).find((m) => m.user_id === userId);
+        setIsManager(me?.role === 'moderator');
+      })
+      .catch(() => {});
+  }, [chat.id, chat.type, userId]);
 
   useEffect(() => {
     setMessages([]);
@@ -120,6 +133,16 @@ export default function ChatView({ chat }: ChatViewProps) {
     setShowScrollBtn(scrollHeight - scrollTop - clientHeight > 200);
   };
 
+  const handleDelete = useCallback(async (messageId: string) => {
+    if (!confirm('Nachricht wirklich löschen?')) return;
+    try {
+      await api.deleteMessage(messageId);
+      setMessages((prev) => prev.filter((m) => String(m.id) !== messageId));
+    } catch (err) {
+      alert(`Löschen fehlgeschlagen: ${err instanceof Error ? err.message : err}`);
+    }
+  }, []);
+
   const handleSend = async (text: string) => {
     await api.sendMessage(chat.id, chat.type, text);
     await loadMessages();
@@ -187,7 +210,7 @@ export default function ChatView({ chat }: ChatViewProps) {
         ) : (
           <div className="flex flex-col gap-4">
             {groups.map((group, gi) => (
-              <MessageGroup key={gi} group={group} />
+              <MessageGroup key={gi} group={group} canDeleteAll={isManager && chat.type === 'channel'} onDelete={handleDelete} />
             ))}
           </div>
         )}
@@ -226,7 +249,15 @@ export default function ChatView({ chat }: ChatViewProps) {
   );
 }
 
-function MessageGroup({ group }: { group: { sender: Message['sender']; isOwn: boolean; messages: Message[] } }) {
+function MessageGroup({
+  group,
+  canDeleteAll,
+  onDelete,
+}: {
+  group: { sender: Message['sender']; isOwn: boolean; messages: Message[] };
+  canDeleteAll: boolean;
+  onDelete: (messageId: string) => void;
+}) {
   const { sender, isOwn, messages } = group;
   const senderName = sender ? `${sender.first_name} ${sender.last_name}` : 'Unbekannt';
 
@@ -253,20 +284,23 @@ function MessageGroup({ group }: { group: { sender: Message['sender']; isOwn: bo
           const isLast = i === messages.length - 1;
           const content = msg.text || (msg.encrypted ? '🔒 *Verschlüsselte Nachricht*' : '');
 
+          const canDelete = isOwn || canDeleteAll;
+
           return (
-            <div key={msg.id} className={clsx('flex flex-col gap-0.5', isOwn ? 'items-end' : 'items-start')}>
-              <div
-                className={clsx(
-                  'relative max-w-full px-3 py-2 text-sm leading-relaxed',
-                  isOwn
-                    ? 'rounded-2xl bg-primary-600 text-white'
-                    : 'rounded-2xl bg-surface-100 text-surface-900 dark:bg-surface-800 dark:text-surface-100',
-                  isOwn && !isFirst && 'rounded-tr-md',
-                  isOwn && !isLast && 'rounded-br-md',
-                  !isOwn && !isFirst && 'rounded-tl-md',
-                  !isOwn && !isLast && 'rounded-bl-md',
-                )}
-              >
+            <div key={msg.id} className={clsx('group/msg flex flex-col gap-0.5', isOwn ? 'items-end' : 'items-start')}>
+              <div className={clsx('flex items-center gap-1', isOwn ? 'flex-row-reverse' : 'flex-row')}>
+                <div
+                  className={clsx(
+                    'relative max-w-full px-3 py-2 text-sm leading-relaxed',
+                    isOwn
+                      ? 'rounded-2xl bg-primary-600 text-white'
+                      : 'rounded-2xl bg-surface-100 text-surface-900 dark:bg-surface-800 dark:text-surface-100',
+                    isOwn && !isFirst && 'rounded-tr-md',
+                    isOwn && !isLast && 'rounded-br-md',
+                    !isOwn && !isFirst && 'rounded-tl-md',
+                    !isOwn && !isLast && 'rounded-bl-md',
+                  )}
+                >
                 <MarkdownContent content={content} isOwn={isOwn} />
 
                 {msg.files && msg.files.length > 0 && (
@@ -290,6 +324,18 @@ function MessageGroup({ group }: { group: { sender: Message['sender']; isOwn: bo
                       </a>
                     ))}
                   </div>
+                )}
+                </div>
+
+                {/* Delete button — visible on hover if user has permission */}
+                {canDelete && (
+                  <button
+                    onClick={() => onDelete(String(msg.id))}
+                    title="Nachricht löschen"
+                    className="hidden group-hover/msg:flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 )}
               </div>
 
