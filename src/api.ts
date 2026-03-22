@@ -1,4 +1,4 @@
-const BACKEND = 'http://localhost:3001/api';
+const BACKEND = '/backend/api';
 
 let token = '';
 
