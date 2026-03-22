@@ -103,7 +103,12 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
     const offset = Number(req.query.offset) || 0;
     const chatType = type as 'channel' | 'conversation';
     const messages = await client.getMessages(targetId, chatType, { limit, offset });
-    res.json(messages);
+    // Sort ascending by time so newest messages appear at the bottom
+    const sorted = [...messages].sort(
+      (a: Record<string, unknown>, b: Record<string, unknown>) =>
+        (Number(a.time) || 0) - (Number(b.time) || 0)
+    );
+    res.json(sorted);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
   }

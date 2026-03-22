@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Hash, Lock, Users, ArrowDown, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
 import Avatar from './Avatar';
@@ -25,8 +27,8 @@ export default function ChatView({ chat }: ChatViewProps) {
     setLoading(true);
     try {
       const res = await api.getMessages(chat.id, chat.type);
-      const msgs = (res as unknown as Message[]).reverse();
-      setMessages(msgs);
+      // Server returns messages sorted ascending by time (oldest first, newest last)
+      setMessages(res as unknown as Message[]);
       api.markAsRead(chat.id, chat.type).catch(() => {});
     } catch (err) {
       console.error('Failed to load messages:', err);
@@ -54,7 +56,7 @@ export default function ChatView({ chat }: ChatViewProps) {
     await loadMessages();
   };
 
-  // Group consecutive messages by sender
+  // Group consecutive messages from the same sender
   const groups: Array<{ sender: Message['sender']; isOwn: boolean; messages: Message[] }> = [];
   for (const msg of messages) {
     const isOwn = String(msg.sender?.id) === userId;
@@ -134,7 +136,6 @@ function MessageGroup({ group }: { group: { sender: Message['sender']; isOwn: bo
 
   return (
     <div className={clsx('flex gap-2', isOwn ? 'flex-row-reverse' : 'flex-row')}>
-      {/* Avatar — only for others, aligned to first bubble */}
       {!isOwn && (
         <div className="shrink-0 pt-0.5">
           <Avatar name={senderName} size="sm" />
@@ -142,7 +143,6 @@ function MessageGroup({ group }: { group: { sender: Message['sender']; isOwn: bo
       )}
 
       <div className={clsx('flex max-w-[75%] flex-col gap-0.5', isOwn ? 'items-end' : 'items-start')}>
-        {/* Sender name — only for others */}
         {!isOwn && (
           <span className="mb-0.5 pl-1 text-xs font-semibold text-surface-600 dark:text-surface-400">
             {senderName}
@@ -155,24 +155,23 @@ function MessageGroup({ group }: { group: { sender: Message['sender']; isOwn: bo
             : '';
           const isFirst = i === 0;
           const isLast = i === messages.length - 1;
+          const content = msg.text || (msg.encrypted ? '🔒 *Verschlüsselte Nachricht*' : '');
 
           return (
-            <div key={msg.id} className={clsx('group flex flex-col gap-0.5', isOwn ? 'items-end' : 'items-start')}>
+            <div key={msg.id} className={clsx('flex flex-col gap-0.5', isOwn ? 'items-end' : 'items-start')}>
               <div
                 className={clsx(
                   'relative max-w-full px-3 py-2 text-sm leading-relaxed',
-                  // Bubble shape with rounded corners, flat on grouped sides
                   isOwn
                     ? 'rounded-2xl bg-primary-600 text-white'
                     : 'rounded-2xl bg-surface-100 text-surface-900 dark:bg-surface-800 dark:text-surface-100',
-                  // Flatten the corner where bubbles connect
-                  isOwn && !isFirst ? 'rounded-tr-md' : '',
-                  isOwn && !isLast ? 'rounded-br-md' : '',
-                  !isOwn && !isFirst ? 'rounded-tl-md' : '',
-                  !isOwn && !isLast ? 'rounded-bl-md' : '',
+                  isOwn && !isFirst && 'rounded-tr-md',
+                  isOwn && !isLast && 'rounded-br-md',
+                  !isOwn && !isFirst && 'rounded-tl-md',
+                  !isOwn && !isLast && 'rounded-bl-md',
                 )}
               >
-                {msg.text || (msg.encrypted ? '🔒 Verschlüsselte Nachricht' : '')}
+                <MarkdownContent content={content} isOwn={isOwn} />
 
                 {msg.files && msg.files.length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -194,7 +193,6 @@ function MessageGroup({ group }: { group: { sender: Message['sender']; isOwn: bo
                 )}
               </div>
 
-              {/* Timestamp + likes — shown on hover or for last message */}
               {isLast && (
                 <div className={clsx('flex items-center gap-1.5 px-1', isOwn ? 'flex-row-reverse' : 'flex-row')}>
                   <span className="text-xs text-surface-400">{time}</span>
@@ -208,5 +206,60 @@ function MessageGroup({ group }: { group: { sender: Message['sender']; isOwn: bo
         })}
       </div>
     </div>
+  );
+}
+
+function MarkdownContent({ content, isOwn }: { content: string; isOwn: boolean }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        p: ({ children }) => <p className="m-0">{children}</p>,
+        strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+        em: ({ children }) => <em className="italic">{children}</em>,
+        del: ({ children }) => <del className="line-through opacity-75">{children}</del>,
+        code: ({ children, className }) => {
+          const isBlock = className?.includes('language-');
+          return isBlock ? (
+            <code className={clsx(
+              'block overflow-x-auto rounded-lg px-3 py-2 font-mono text-xs my-1',
+              isOwn ? 'bg-primary-700 text-primary-100' : 'bg-surface-200 text-surface-800 dark:bg-surface-700 dark:text-surface-200',
+            )}>
+              {children}
+            </code>
+          ) : (
+            <code className={clsx(
+              'rounded px-1 py-0.5 font-mono text-xs',
+              isOwn ? 'bg-primary-700 text-primary-100' : 'bg-surface-200 text-surface-800 dark:bg-surface-700 dark:text-surface-200',
+            )}>
+              {children}
+            </code>
+          );
+        },
+        h1: ({ children }) => <h1 className="text-lg font-bold mb-1 mt-0">{children}</h1>,
+        h2: ({ children }) => <h2 className="text-base font-bold mb-1 mt-0">{children}</h2>,
+        h3: ({ children }) => <h3 className="text-sm font-bold mb-0.5 mt-0">{children}</h3>,
+        ul: ({ children }) => <ul className="my-1 ml-4 list-disc space-y-0.5">{children}</ul>,
+        ol: ({ children }) => <ol className="my-1 ml-4 list-decimal space-y-0.5">{children}</ol>,
+        li: ({ children }) => <li className="text-sm">{children}</li>,
+        blockquote: ({ children }) => (
+          <blockquote className={clsx(
+            'my-1 border-l-2 pl-3 italic',
+            isOwn ? 'border-primary-300 opacity-80' : 'border-surface-400',
+          )}>
+            {children}
+          </blockquote>
+        ),
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer"
+            className={clsx('underline', isOwn ? 'text-primary-200 hover:text-white' : 'text-primary-600 hover:text-primary-800 dark:text-primary-400')}>
+            {children}
+          </a>
+        ),
+        hr: () => <hr className={clsx('my-1 border-t', isOwn ? 'border-primary-400' : 'border-surface-300 dark:border-surface-600')} />,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
   );
 }
