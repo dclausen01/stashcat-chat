@@ -82,6 +82,7 @@ export interface ChatTarget {
   type: ChatType;
   id: string;
   name: string;
+  description?: string;
   image?: string;
   encrypted?: boolean;
   unread_count?: number;

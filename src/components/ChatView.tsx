@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Lock, Users, ArrowDown, Loader2, Trash2, Copy } from 'lucide-react';
+import { Hash, Lock, Users, ArrowDown, Loader2, Trash2, Copy, Settings, ThumbsUp } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import { fileIcon } from '../utils/fileIcon';
 import Avatar from './Avatar';
@@ -13,6 +14,7 @@ import type { ChatTarget, ChannelMember, Message } from '../types';
 
 interface ChatViewProps {
   chat: ChatTarget;
+  onToggleSettings: () => void;
 }
 
 interface TypingUser {
@@ -21,10 +23,15 @@ interface TypingUser {
   at: number;
 }
 
-export default function ChatView({ chat }: ChatViewProps) {
+const PAGE_SIZE = 50;
+
+export default function ChatView({ chat, onToggleSettings }: ChatViewProps) {
   const { user } = useAuth();
+  const settings = useSettings();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [isManager, setIsManager] = useState(false);
@@ -32,22 +39,73 @@ export default function ChatView({ chat }: ChatViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef(chat);
   chatRef.current = chat;
+  const paginationOffsetRef = useRef(0);
+  const loadingMoreRef = useRef(false);
+  const hasMoreRef = useRef(true);
 
   const userId = String((user as Record<string, unknown>)?.id || '');
 
   const loadMessages = useCallback(async () => {
     setLoading(true);
+    setHasMore(true);
+    hasMoreRef.current = true;
+    paginationOffsetRef.current = 0;
     try {
-      const res = await api.getMessages(chat.id, chat.type);
-      setMessages(res as unknown as Message[]);
-      // Mark latest message as read
+      const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
       const msgs = res as unknown as Message[];
+      setMessages(msgs);
+      if (msgs.length < PAGE_SIZE) {
+        setHasMore(false);
+        hasMoreRef.current = false;
+      }
+      paginationOffsetRef.current = msgs.length;
+      // Mark latest message as read
       const last = msgs[msgs.length - 1];
       if (last) api.markAsRead(chat.id, chat.type, String(last.id)).catch(() => {});
     } catch (err) {
       console.error('Failed to load messages:', err);
     } finally {
       setLoading(false);
+    }
+  }, [chat.id, chat.type]);
+
+  const loadOlder = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMoreRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    const prevHeight = container.scrollHeight;
+
+    try {
+      const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, paginationOffsetRef.current);
+      const older = res as unknown as Message[];
+
+      if (older.length < PAGE_SIZE) {
+        setHasMore(false);
+        hasMoreRef.current = false;
+      }
+
+      if (older.length > 0) {
+        paginationOffsetRef.current += older.length;
+        setMessages((prev) => {
+          const combined = [...older, ...prev];
+          const deduped = combined.filter(
+            (m, idx, arr) => arr.findIndex((x) => String(x.id) === String(m.id)) === idx
+          );
+          return deduped.sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
+        });
+        // Preserve scroll position after prepend
+        requestAnimationFrame(() => {
+          if (container) container.scrollTop = container.scrollHeight - prevHeight;
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load older messages:', err);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
     }
   }, [chat.id, chat.type]);
 
@@ -69,11 +127,12 @@ export default function ChatView({ chat }: ChatViewProps) {
     loadMessages();
   }, [loadMessages]);
 
+  // Scroll to bottom after initial load
   useEffect(() => {
     if (!loading) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
     }
-  }, [loading, messages.length]);
+  }, [loading]);
 
   // Clear stale typing indicators after 4 s
   useEffect(() => {
@@ -95,14 +154,10 @@ export default function ChatView({ chat }: ChatViewProps) {
         (currentChat.type === 'conversation' && String(payload.conversation_id) === currentChat.id);
       if (!belongsHere) return;
 
-      // Append new message to state (avoid re-fetch)
       const newMsg = payload as unknown as Message;
       setMessages((prev) => {
         if (prev.find((m) => String(m.id) === String(newMsg.id))) return prev;
-        const updated = [...prev, newMsg].sort(
-          (a, b) => (Number(a.time) || 0) - (Number(b.time) || 0)
-        );
-        return updated;
+        return [...prev, newMsg].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
       });
       // Auto-scroll if already at bottom
       if (containerRef.current) {
@@ -127,11 +182,15 @@ export default function ChatView({ chat }: ChatViewProps) {
     },
   }, true);
 
-  const handleScroll = () => {
+  const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
     setShowScrollBtn(scrollHeight - scrollTop - clientHeight > 200);
-  };
+    // Trigger load-more when near the top
+    if (scrollTop < 80 && !loadingMoreRef.current && hasMoreRef.current) {
+      loadOlder();
+    }
+  }, [loadOlder]);
 
   const handleDelete = useCallback(async (messageId: string) => {
     if (!confirm('Nachricht wirklich löschen?')) return;
@@ -140,6 +199,23 @@ export default function ChatView({ chat }: ChatViewProps) {
       setMessages((prev) => prev.filter((m) => String(m.id) !== messageId));
     } catch (err) {
       alert(`Löschen fehlgeschlagen: ${err instanceof Error ? err.message : err}`);
+    }
+  }, []);
+
+  const handleLike = useCallback(async (messageId: string, liked: boolean) => {
+    try {
+      if (liked) {
+        await api.unlikeMessage(messageId);
+      } else {
+        await api.likeMessage(messageId);
+      }
+      setMessages((prev) => prev.map((m) =>
+        String(m.id) === messageId
+          ? { ...m, liked: !liked, likes: (m.likes ?? 0) + (liked ? -1 : 1) }
+          : m
+      ));
+    } catch (err) {
+      console.error('Like failed:', err);
     }
   }, []);
 
@@ -180,6 +256,9 @@ export default function ChatView({ chat }: ChatViewProps) {
         )}
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-base font-semibold text-surface-900 dark:text-white">{chat.name}</h2>
+          {chat.description && (
+            <p className="truncate text-xs text-surface-500 dark:text-surface-400">{chat.description}</p>
+          )}
         </div>
         {chat.encrypted && (
           <div className="flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 dark:bg-green-900/20 dark:text-green-400">
@@ -189,6 +268,13 @@ export default function ChatView({ chat }: ChatViewProps) {
         <button className="rounded-lg p-2 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800">
           <Users size={20} />
         </button>
+        <button
+          onClick={onToggleSettings}
+          className="rounded-lg p-2 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800"
+          title="Einstellungen"
+        >
+          <Settings size={20} />
+        </button>
       </div>
 
       {/* Messages */}
@@ -197,6 +283,16 @@ export default function ChatView({ chat }: ChatViewProps) {
         onScroll={handleScroll}
         className="relative flex-1 overflow-y-auto px-4 py-4"
       >
+        {/* Load-more spinner at top */}
+        {loadingMore && (
+          <div className="flex justify-center pb-3">
+            <Loader2 size={20} className="animate-spin text-primary-400" />
+          </div>
+        )}
+        {!loadingMore && !hasMore && messages.length > 0 && (
+          <div className="pb-3 text-center text-xs text-surface-400">Anfang des Verlaufs</div>
+        )}
+
         {loading ? (
           <div className="flex h-full items-center justify-center">
             <Loader2 size={32} className="animate-spin text-primary-500" />
@@ -207,10 +303,31 @@ export default function ChatView({ chat }: ChatViewProps) {
             <p className="text-lg font-medium">Noch keine Nachrichten</p>
             <p className="text-sm">Schreibe die erste Nachricht!</p>
           </div>
-        ) : (
+        ) : settings.bubbleView ? (
           <div className="flex flex-col gap-4">
             {groups.map((group, gi) => (
-              <MessageGroup key={gi} group={group} canDeleteAll={isManager && chat.type === 'channel'} onDelete={handleDelete} />
+              <MessageGroup
+                key={gi}
+                group={group}
+                canDeleteAll={isManager && chat.type === 'channel'}
+                showImagesInline={settings.showImagesInline}
+                onDelete={handleDelete}
+                onLike={handleLike}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col divide-y divide-surface-100 dark:divide-surface-800">
+            {messages.map((msg) => (
+              <PlainTextMessage
+                key={msg.id}
+                msg={msg}
+                isOwn={String(msg.sender?.id) === userId}
+                canDelete={String(msg.sender?.id) === userId || (isManager && chat.type === 'channel')}
+                showImagesInline={settings.showImagesInline}
+                onDelete={handleDelete}
+                onLike={handleLike}
+              />
             ))}
           </div>
         )}
@@ -249,14 +366,20 @@ export default function ChatView({ chat }: ChatViewProps) {
   );
 }
 
+// ── Bubble view ────────────────────────────────────────────────────────────────
+
 function MessageGroup({
   group,
   canDeleteAll,
+  showImagesInline,
   onDelete,
+  onLike,
 }: {
   group: { sender: Message['sender']; isOwn: boolean; messages: Message[] };
   canDeleteAll: boolean;
+  showImagesInline: boolean;
   onDelete: (messageId: string) => void;
+  onLike: (messageId: string, liked: boolean) => void;
 }) {
   const { sender, isOwn, messages } = group;
   const senderName = sender ? `${sender.first_name} ${sender.last_name}` : 'Unbekannt';
@@ -283,7 +406,6 @@ function MessageGroup({
           const isFirst = i === 0;
           const isLast = i === messages.length - 1;
           const content = msg.text || (msg.encrypted ? '🔒 *Verschlüsselte Nachricht*' : '');
-
           const canDelete = isOwn || canDeleteAll;
 
           return (
@@ -301,34 +423,24 @@ function MessageGroup({
                     !isOwn && !isLast && 'rounded-bl-md',
                   )}
                 >
-                <MarkdownContent content={content} isOwn={isOwn} />
-
-                {msg.files && msg.files.length > 0 && (
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {msg.files.map((f) => (
-                      <a
-                        key={f.id}
-                        href={api.fileDownloadUrl(f.id, f.name)}
-                        download={f.name}
-                        title={`${f.name} herunterladen`}
-                        className={clsx(
-                          'inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition',
-                          isOwn
-                            ? 'bg-primary-700 text-primary-100 hover:bg-primary-800'
-                            : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-300 dark:hover:bg-surface-600',
-                        )}
-                      >
-                        <span>{fileIcon(f.mime, f.ext)}</span>
-                        <span className="max-w-[160px] truncate">{f.name}</span>
-                        {f.size_string && <span className="opacity-60">({f.size_string})</span>}
-                      </a>
-                    ))}
-                  </div>
-                )}
+                  <MarkdownContent content={content} isOwn={isOwn} />
+                  <FileList files={msg.files} isOwn={isOwn} showImagesInline={showImagesInline} />
                 </div>
 
-                {/* Action buttons — visible on hover */}
+                {/* Action buttons */}
                 <div className="hidden group-hover/msg:flex items-center gap-0.5">
+                  <button
+                    onClick={() => onLike(String(msg.id), Boolean(msg.liked))}
+                    title={msg.liked ? 'Like entfernen' : 'Gefällt mir'}
+                    className={clsx(
+                      'flex items-center justify-center rounded-md p-1 transition',
+                      msg.liked
+                        ? 'text-primary-600 dark:text-primary-400'
+                        : 'text-surface-400 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200',
+                    )}
+                  >
+                    <ThumbsUp size={14} />
+                  </button>
                   <button
                     onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }}
                     title="Nachricht kopieren"
@@ -352,7 +464,9 @@ function MessageGroup({
                 <div className={clsx('flex items-center gap-1.5 px-1', isOwn ? 'flex-row-reverse' : 'flex-row')}>
                   <span className="text-xs text-surface-400">{time}</span>
                   {(msg.likes ?? 0) > 0 && (
-                    <span className="text-xs text-surface-400">❤️ {msg.likes}</span>
+                    <span className="flex items-center gap-0.5 text-xs text-surface-400">
+                      <ThumbsUp size={11} /> {msg.likes}
+                    </span>
                   )}
                 </div>
               )}
@@ -360,6 +474,132 @@ function MessageGroup({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ── Plain text view ────────────────────────────────────────────────────────────
+
+function PlainTextMessage({
+  msg,
+  isOwn,
+  canDelete,
+  showImagesInline,
+  onDelete,
+  onLike,
+}: {
+  msg: Message;
+  isOwn: boolean;
+  canDelete: boolean;
+  showImagesInline: boolean;
+  onDelete: (messageId: string) => void;
+  onLike: (messageId: string, liked: boolean) => void;
+}) {
+  const senderName = msg.sender ? `${msg.sender.first_name} ${msg.sender.last_name}` : 'Unbekannt';
+  const time = msg.time
+    ? new Date(msg.time * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+    : '';
+  const content = msg.text || (msg.encrypted ? '🔒 Verschlüsselte Nachricht' : '');
+
+  return (
+    <div className="group/msg flex gap-3 px-2 py-2 hover:bg-surface-50 dark:hover:bg-surface-900/50">
+      <Avatar name={senderName} size="sm" />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className={clsx('text-sm font-semibold', isOwn ? 'text-primary-700 dark:text-primary-400' : 'text-surface-900 dark:text-surface-100')}>
+            {senderName}
+          </span>
+          <span className="text-xs text-surface-400">{time}</span>
+          {(msg.likes ?? 0) > 0 && (
+            <span className="flex items-center gap-0.5 text-xs text-surface-400">
+              <ThumbsUp size={11} /> {msg.likes}
+            </span>
+          )}
+        </div>
+        <div className="text-sm text-surface-800 dark:text-surface-200">
+          <MarkdownContent content={content} isOwn={false} />
+        </div>
+        <FileList files={msg.files} isOwn={false} showImagesInline={showImagesInline} />
+      </div>
+      <div className="hidden shrink-0 group-hover/msg:flex items-center gap-0.5">
+        <button
+          onClick={() => onLike(String(msg.id), Boolean(msg.liked))}
+          title={msg.liked ? 'Like entfernen' : 'Gefällt mir'}
+          className={clsx(
+            'flex items-center justify-center rounded-md p-1 transition',
+            msg.liked ? 'text-primary-600' : 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700',
+          )}
+        >
+          <ThumbsUp size={14} />
+        </button>
+        <button
+          onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }}
+          title="Kopieren"
+          className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 transition"
+        >
+          <Copy size={14} />
+        </button>
+        {canDelete && (
+          <button
+            onClick={() => onDelete(String(msg.id))}
+            title="Löschen"
+            className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition"
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Shared sub-components ──────────────────────────────────────────────────────
+
+function FileList({
+  files,
+  isOwn,
+  showImagesInline,
+}: {
+  files?: Message['files'];
+  isOwn: boolean;
+  showImagesInline: boolean;
+}) {
+  if (!files || files.length === 0) return null;
+
+  return (
+    <div className="mt-1.5 flex flex-col gap-1.5">
+      {files.map((f) => {
+        const isImage = f.mime?.startsWith('image/');
+        const downloadUrl = api.fileDownloadUrl(f.id, f.name);
+
+        return (
+          <div key={f.id}>
+            {isImage && showImagesInline && (
+              <img
+                src={downloadUrl}
+                alt={f.name}
+                className="mb-1 max-h-60 max-w-xs rounded-lg object-contain"
+                loading="lazy"
+              />
+            )}
+            <a
+              href={downloadUrl}
+              download={f.name}
+              title={`${f.name} herunterladen`}
+              className={clsx(
+                'inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition',
+                isOwn
+                  ? 'bg-primary-700 text-primary-100 hover:bg-primary-800'
+                  : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-300 dark:hover:bg-surface-600',
+              )}
+            >
+              <span>{fileIcon(f.mime, f.ext)}</span>
+              <span className="max-w-[160px] truncate">{f.name}</span>
+              {f.size_string && <span className="opacity-60">({f.size_string})</span>}
+            </a>
+          </div>
+        );
+      })}
     </div>
   );
 }

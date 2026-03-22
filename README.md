@@ -16,6 +16,10 @@ A modern web chat UI for [Stashcat](https://www.stashcat.com/) / schul.cloud, bu
 - Copy message text to clipboard (hover → copy icon)
 - Chats sorted by latest activity within each group (favorites / non-favorites)
 - Unread badge updates in real-time via SSE; clears when chat is opened
+- Like messages with 👍 (shown on hover; count displayed per message)
+- Channel description shown below channel name in header
+- Infinite scroll: automatically loads 50 older messages when scrolling to the top
+- Settings sidebar (gear icon): toggle inline image display and bubble/text view
 - E2E-encrypted messages decrypted automatically (RSA-4096 OAEP + AES-256-CBC)
 - Real-time push: new messages and typing indicators via Server-Sent Events (SSE)
 - Dark / light theme toggle, persisted in localStorage

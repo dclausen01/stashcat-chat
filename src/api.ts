@@ -104,6 +104,14 @@ export async function sendMessage(targetId: string, type: 'channel' | 'conversat
   return post(`/messages/${type}/${targetId}`, { text });
 }
 
+export async function likeMessage(messageId: string): Promise<void> {
+  return post(`/messages/${messageId}/like`);
+}
+
+export async function unlikeMessage(messageId: string): Promise<void> {
+  return post(`/messages/${messageId}/unlike`);
+}
+
 export async function deleteMessage(messageId: string): Promise<void> {
   const res = await fetch(`${BACKEND}/messages/${messageId}`, {
     method: 'DELETE',

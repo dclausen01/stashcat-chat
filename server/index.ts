@@ -236,6 +236,26 @@ app.post('/api/messages/:type/:targetId', async (req, res) => {
   }
 });
 
+app.post('/api/messages/:messageId/like', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    await client.likeMessage(req.params.messageId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.post('/api/messages/:messageId/unlike', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    await client.unlikeMessage(req.params.messageId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
 app.delete('/api/messages/:messageId', async (req, res) => {
   try {
     const { client } = getSession(req);

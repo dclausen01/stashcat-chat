@@ -56,6 +56,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn }: SidebarP
             type: 'channel',
             id: String(ch.id),
             name: String(ch.name || ''),
+            description: ch.description ? String(ch.description) : undefined,
             encrypted: Boolean(ch.encrypted),
             unread_count: Number(ch.unread_count || 0),
             favorite: Boolean(ch.favorite),
