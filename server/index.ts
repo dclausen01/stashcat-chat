@@ -202,6 +202,38 @@ app.get('/api/channels/:channelId/members', async (req, res) => {
   }
 });
 
+app.post('/api/channels/:channelId/invite', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const { userIds } = req.body as { userIds: string[] };
+    await client.inviteUsersToChannel(req.params.channelId, userIds);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.delete('/api/channels/:channelId/members/:userId', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    await client.removeUserFromChannel(req.params.channelId, req.params.userId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+// ── Company members ───────────────────────────────────────────────────────────
+
+app.get('/api/companies/:companyId/members', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    res.json(await client.getCompanyMembers(req.params.companyId));
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
 // ── Conversations ─────────────────────────────────────────────────────────────
 
 app.get('/api/conversations', async (req, res) => {
@@ -308,7 +340,8 @@ app.get('/api/file/:fileId', async (req, res) => {
       e2e_iv: info.e2e_iv ?? null,
     });
 
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+    const disposition = req.query.view === '1' ? 'inline' : 'attachment';
+    res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(fileName)}"`);
     res.setHeader('Content-Type', info.mime || 'application/octet-stream');
     res.send(buf);
   } catch (err) {

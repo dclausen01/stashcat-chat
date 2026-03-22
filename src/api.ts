@@ -88,6 +88,25 @@ export async function getChannelMembers(channelId: string) {
   return get<Array<Record<string, unknown>>>(`/channels/${channelId}/members`);
 }
 
+export async function inviteToChannel(channelId: string, userIds: string[]): Promise<void> {
+  return post(`/channels/${channelId}/invite`, { userIds });
+}
+
+export async function removeFromChannel(channelId: string, userId: string): Promise<void> {
+  const res = await fetch(`${BACKEND}/channels/${channelId}/members/${userId}`, {
+    method: 'DELETE',
+    headers: headers(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+}
+
+export async function getCompanyMembers(companyId: string) {
+  return get<Array<Record<string, unknown>>>(`/companies/${companyId}/members`);
+}
+
 // --- Conversations ---
 
 export async function getConversations(limit = 50, offset = 0) {
@@ -134,6 +153,11 @@ export async function sendTyping(type: 'channel' | 'conversation', targetId: str
 export function fileDownloadUrl(fileId: string, name: string): string {
   const token = localStorage.getItem('schulchat_token') || '';
   return `${BACKEND}/file/${fileId}?name=${encodeURIComponent(name)}&token=${token}`;
+}
+
+export function fileViewUrl(fileId: string, name: string): string {
+  const token = localStorage.getItem('schulchat_token') || '';
+  return `${BACKEND}/file/${fileId}?name=${encodeURIComponent(name)}&token=${token}&view=1`;
 }
 
 export async function uploadFile(

@@ -31,6 +31,30 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn }: SidebarP
   const [conversations, setConversations] = useState<ChatTarget[]>([]);
   const [search, setSearch] = useState('');
 
+  // Sidebar width (horizontal resize)
+  const [sidebarWidth, setSidebarWidth] = useState(288); // 288px = w-72
+  const sidebarWidthRef = useRef(288);
+  const resizingWidth = useRef(false);
+
+  const onWidthMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    resizingWidth.current = true;
+    const startX = e.clientX;
+    const startW = sidebarWidthRef.current;
+    const onMove = (ev: MouseEvent) => {
+      const newW = Math.max(200, Math.min(480, startW + ev.clientX - startX));
+      setSidebarWidth(newW);
+      sidebarWidthRef.current = newW;
+    };
+    const onUp = () => {
+      resizingWidth.current = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, []);
+
   // Split ratio: percentage for channels panel (top), rest goes to conversations
   const [splitPct, setSplitPct] = useState(50);
   const dragging = useRef(false);
@@ -62,6 +86,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn }: SidebarP
             unread_count: Number(ch.unread_count || 0),
             favorite: Boolean(ch.favorite),
             lastActivity: lastMsg ? Number(lastMsg.time || 0) : 0,
+            company_id: String(company.id),
           });
         }
       }
@@ -165,7 +190,16 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn }: SidebarP
     : '';
 
   return (
-    <div className="flex h-full w-72 shrink-0 flex-col border-r border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900">
+    <div
+      className="relative flex h-full shrink-0 flex-col bg-surface-50 dark:bg-surface-900"
+      style={{ width: sidebarWidth }}
+    >
+      {/* Horizontal resize handle */}
+      <div
+        onMouseDown={onWidthMouseDown}
+        className="absolute right-0 top-0 z-20 h-full w-1 cursor-col-resize border-r border-surface-200 transition-colors hover:border-primary-400 hover:border-r-2 dark:border-surface-700 dark:hover:border-primary-600"
+        title="Breite anpassen"
+      />
       {/* User header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 p-4 dark:border-surface-700">
         <Avatar name={userName} size="md" />

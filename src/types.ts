@@ -86,6 +86,9 @@ export interface ChatTarget {
   image?: string;
   encrypted?: boolean;
   unread_count?: number;
+  favorite?: boolean;
   /** Unix timestamp (seconds) of last message — used for sorting */
   lastActivity?: number;
+  /** Company this channel belongs to (channels only) */
+  company_id?: string;
 }

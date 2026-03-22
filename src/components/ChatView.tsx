@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Lock, Users, ArrowDown, Loader2, Trash2, Copy, Settings, ThumbsUp } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
+import { Hash, Lock, Users, ArrowDown, Loader2, Trash2, Copy, Settings, ThumbsUp, X, ExternalLink, FileText } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -10,6 +10,7 @@ import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import { fileIcon } from '../utils/fileIcon';
 import Avatar from './Avatar';
 import MessageInput from './MessageInput';
+import ChannelMembersPanel from './ChannelMembersPanel';
 import type { ChatTarget, ChannelMember, Message } from '../types';
 
 interface ChatViewProps {
@@ -35,6 +36,9 @@ export default function ChatView({ chat, onToggleSettings }: ChatViewProps) {
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [isManager, setIsManager] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [pdfView, setPdfView] = useState<{ fileId: string; viewUrl: string; name: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef(chat);
@@ -246,7 +250,9 @@ export default function ChatView({ chat, onToggleSettings }: ChatViewProps) {
   }
 
   return (
-    <div className="flex h-full flex-1 flex-col bg-white dark:bg-surface-950">
+    <div className="flex h-full flex-1 overflow-hidden">
+      {/* Main chat area */}
+      <div className="flex min-w-0 flex-1 flex-col bg-white dark:bg-surface-950">
       {/* Header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 px-6 py-3 dark:border-surface-700">
         {chat.type === 'channel' ? (
@@ -259,7 +265,9 @@ export default function ChatView({ chat, onToggleSettings }: ChatViewProps) {
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-base font-semibold text-surface-900 dark:text-white">{chat.name}</h2>
           {chat.description && (
-            <p className="truncate text-xs text-surface-500 dark:text-surface-400">{chat.description}</p>
+            <p className="truncate text-xs text-surface-500 dark:text-surface-400">
+              <LinkifiedText text={chat.description} />
+            </p>
           )}
         </div>
         {chat.encrypted && (
@@ -267,9 +275,20 @@ export default function ChatView({ chat, onToggleSettings }: ChatViewProps) {
             <Lock size={12} /> Verschlüsselt
           </div>
         )}
-        <button className="rounded-lg p-2 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800">
-          <Users size={20} />
-        </button>
+        {chat.type === 'channel' && (
+          <button
+            onClick={() => setMembersOpen((o) => !o)}
+            className={clsx(
+              'rounded-lg p-2 transition',
+              membersOpen
+                ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+                : 'text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800',
+            )}
+            title="Mitglieder"
+          >
+            <Users size={20} />
+          </button>
+        )}
         <button
           onClick={onToggleSettings}
           className="rounded-lg p-2 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800"
@@ -315,6 +334,8 @@ export default function ChatView({ chat, onToggleSettings }: ChatViewProps) {
                 showImagesInline={settings.showImagesInline}
                 onDelete={handleDelete}
                 onLike={handleLike}
+                onImageClick={setLightboxUrl}
+                onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
               />
             ))}
           </div>
@@ -329,6 +350,8 @@ export default function ChatView({ chat, onToggleSettings }: ChatViewProps) {
                 showImagesInline={settings.showImagesInline}
                 onDelete={handleDelete}
                 onLike={handleLike}
+                onImageClick={setLightboxUrl}
+                onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
               />
             ))}
           </div>
@@ -364,7 +387,73 @@ export default function ChatView({ chat, onToggleSettings }: ChatViewProps) {
       )}
 
       <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatName={chat.name} />
-    </div>
+      </div>{/* end main chat area */}
+
+    {/* Channel member panel */}
+    {membersOpen && chat.type === 'channel' && (
+      <ChannelMembersPanel
+        chat={chat}
+        isManager={isManager}
+        onClose={() => setMembersOpen(false)}
+      />
+    )}
+
+    {/* Image lightbox */}
+    {lightboxUrl && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm"
+        onClick={() => setLightboxUrl(null)}
+      >
+        <button
+          className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <X size={22} />
+        </button>
+        <img
+          src={lightboxUrl}
+          className="max-h-[90vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+    )}
+
+    {/* PDF viewer */}
+    {pdfView && (
+      <div
+        className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm"
+        onClick={() => setPdfView(null)}
+      >
+        <div
+          className="relative flex h-[90vh] w-[90vw] max-w-4xl flex-col rounded-xl bg-surface-900 shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex shrink-0 items-center gap-3 border-b border-surface-700 px-4 py-2">
+            <span className="flex-1 truncate text-sm font-medium text-white">{pdfView.name}</span>
+            <a
+              href={api.fileDownloadUrl(pdfView.fileId, pdfView.name)}
+              download={pdfView.name}
+              className="rounded-md p-1.5 text-surface-300 hover:bg-surface-700"
+              title="Herunterladen"
+            >
+              <ExternalLink size={16} />
+            </a>
+            <button
+              onClick={() => setPdfView(null)}
+              className="rounded-md p-1.5 text-surface-300 hover:bg-surface-700"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <iframe
+            src={pdfView.viewUrl}
+            className="flex-1 rounded-b-xl"
+            title={pdfView.name}
+          />
+        </div>
+      </div>
+    )}
+  </div>
   );
 }
 
@@ -376,12 +465,16 @@ function MessageGroup({
   showImagesInline,
   onDelete,
   onLike,
+  onImageClick,
+  onPdfClick,
 }: {
   group: { sender: Message['sender']; isOwn: boolean; messages: Message[] };
   canDeleteAll: boolean;
   showImagesInline: boolean;
   onDelete: (messageId: string) => void;
   onLike: (messageId: string, liked: boolean) => void;
+  onImageClick: (url: string) => void;
+  onPdfClick: (fileId: string, viewUrl: string, name: string) => void;
 }) {
   const { sender, isOwn, messages } = group;
   const senderName = sender ? `${sender.first_name} ${sender.last_name}` : 'Unbekannt';
@@ -426,7 +519,7 @@ function MessageGroup({
                   )}
                 >
                   <MarkdownContent content={content} isOwn={isOwn} />
-                  <FileList files={msg.files} isOwn={isOwn} showImagesInline={showImagesInline} />
+                  <FileList files={msg.files} isOwn={isOwn} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
                 </div>
 
                 {/* Action buttons */}
@@ -489,6 +582,8 @@ function PlainTextMessage({
   showImagesInline,
   onDelete,
   onLike,
+  onImageClick,
+  onPdfClick,
 }: {
   msg: Message;
   isOwn: boolean;
@@ -496,6 +591,8 @@ function PlainTextMessage({
   showImagesInline: boolean;
   onDelete: (messageId: string) => void;
   onLike: (messageId: string, liked: boolean) => void;
+  onImageClick: (url: string) => void;
+  onPdfClick: (fileId: string, viewUrl: string, name: string) => void;
 }) {
   const senderName = msg.sender ? `${msg.sender.first_name} ${msg.sender.last_name}` : 'Unbekannt';
   const time = msg.time
@@ -521,7 +618,7 @@ function PlainTextMessage({
         <div className="text-sm text-surface-800 dark:text-surface-200">
           <MarkdownContent content={content} isOwn={false} />
         </div>
-        <FileList files={msg.files} isOwn={false} showImagesInline={showImagesInline} />
+        <FileList files={msg.files} isOwn={false} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
       </div>
       <div className="hidden shrink-0 group-hover/msg:flex items-center gap-0.5">
         <button
@@ -561,10 +658,14 @@ function FileList({
   files,
   isOwn,
   showImagesInline,
+  onImageClick,
+  onPdfClick,
 }: {
   files?: Message['files'];
   isOwn: boolean;
   showImagesInline: boolean;
+  onImageClick?: (url: string) => void;
+  onPdfClick?: (fileId: string, viewUrl: string, name: string) => void;
 }) {
   if (!files || files.length === 0) return null;
 
@@ -572,38 +673,91 @@ function FileList({
     <div className="mt-1.5 flex flex-col gap-1.5">
       {files.map((f) => {
         const isImage = f.mime?.startsWith('image/');
+        const isPdf = f.mime === 'application/pdf' || f.ext?.toLowerCase() === 'pdf';
         const downloadUrl = api.fileDownloadUrl(f.id, f.name);
+        const viewUrl = api.fileViewUrl(f.id, f.name);
 
         return (
           <div key={f.id}>
             {isImage && showImagesInline && (
-              <img
-                src={downloadUrl}
-                alt={f.name}
-                className="mb-1 max-h-60 max-w-xs rounded-lg object-contain"
-                loading="lazy"
-              />
+              <button
+                className="mb-1 block cursor-zoom-in"
+                onClick={() => onImageClick?.(downloadUrl)}
+                title="Vergrößern"
+              >
+                <img
+                  src={downloadUrl}
+                  alt={f.name}
+                  className="max-h-60 max-w-xs rounded-lg object-contain transition hover:opacity-90"
+                  loading="lazy"
+                />
+              </button>
             )}
-            <a
-              href={downloadUrl}
-              download={f.name}
-              title={`${f.name} herunterladen`}
-              className={clsx(
-                'inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition',
-                isOwn
-                  ? 'bg-primary-700 text-primary-100 hover:bg-primary-800'
-                  : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-300 dark:hover:bg-surface-600',
+            <div className="flex items-center gap-1.5">
+              <a
+                href={downloadUrl}
+                download={f.name}
+                title={`${f.name} herunterladen`}
+                className={clsx(
+                  'inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition',
+                  isOwn
+                    ? 'bg-primary-700 text-primary-100 hover:bg-primary-800'
+                    : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-300 dark:hover:bg-surface-600',
+                )}
+              >
+                <span>{fileIcon(f.mime, f.ext)}</span>
+                <span className="max-w-[160px] truncate">{f.name}</span>
+                {f.size_string && <span className="opacity-60">({f.size_string})</span>}
+              </a>
+              {isPdf && onPdfClick && (
+                <button
+                  onClick={() => onPdfClick(f.id, viewUrl, f.name)}
+                  title="PDF-Vorschau"
+                  className={clsx(
+                    'inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition',
+                    isOwn
+                      ? 'bg-primary-700 text-primary-100 hover:bg-primary-800'
+                      : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-300 dark:hover:bg-surface-600',
+                  )}
+                >
+                  <FileText size={12} /> Vorschau
+                </button>
               )}
-            >
-              <span>{fileIcon(f.mime, f.ext)}</span>
-              <span className="max-w-[160px] truncate">{f.name}</span>
-              {f.size_string && <span className="opacity-60">({f.size_string})</span>}
-            </a>
+            </div>
           </div>
         );
       })}
     </div>
   );
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────────
+
+/** Renders plain text with clickable https?:// URLs */
+function LinkifiedText({ text }: { text: string }) {
+  const URL_RE = /https?:\/\/[^\s]+/g;
+  const parts: ReactNode[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = URL_RE.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    const url = match[0];
+    parts.push(
+      <a
+        key={match.index}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-0.5 text-primary-600 underline hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200"
+      >
+        <ExternalLink size={11} className="shrink-0" />
+        {url}
+      </a>,
+    );
+    last = match.index + url.length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return <>{parts}</>;
 }
 
 function MarkdownContent({ content, isOwn }: { content: string; isOwn: boolean }) {
@@ -612,6 +766,11 @@ function MarkdownContent({ content, isOwn }: { content: string; isOwn: boolean }
       remarkPlugins={[remarkGfm]}
       components={{
         p: ({ children }) => <p className="m-0">{children}</p>,
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="underline text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-200">
+            {children}
+          </a>
+        ),
         strong: ({ children }) => <strong className="font-bold">{children}</strong>,
         em: ({ children }) => <em className="italic">{children}</em>,
         del: ({ children }) => <del className="line-through opacity-75">{children}</del>,
