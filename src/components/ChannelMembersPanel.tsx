@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, UserMinus, UserPlus, Search, ShieldCheck, Loader2 } from 'lucide-react';
+import { X, UserMinus, UserPlus, Search, ShieldCheck, ShieldOff, ShieldPlus, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
@@ -14,6 +14,7 @@ interface RawMember {
   email?: string;
   image?: string;
   role?: string;
+  manager?: boolean;
 }
 
 interface RawUser {
@@ -42,6 +43,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [isManagerDetected, setIsManagerDetected] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [togglingMod, setTogglingMod] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [companyUsers, setCompanyUsers] = useState<RawUser[]>([]);
@@ -55,13 +57,11 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
       const raw = await api.getChannelMembers(chat.id);
       const memberList = raw as RawMember[];
       setMembers(memberList);
-      // Detect manager status from loaded members (more reliable than ChatView's detection)
       const me = memberList.find(
         (m) => String(m.user_id ?? m.id) === myId
       );
-      const myRole = me?.role;
-      console.log('[ChannelMembersPanel] myId=', myId, 'me=', me, 'role=', myRole);
-      setIsManagerDetected(!!me && myRole !== 'member' && myRole !== undefined);
+      const isManager = me?.manager === true || (me?.role !== undefined && me?.role !== 'member');
+      setIsManagerDetected(isManager);
     } catch (err) {
       console.error('Failed to load members:', err);
     } finally {
@@ -103,6 +103,27 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
     }
   };
 
+  const handleToggleModerator = async (m: RawMember) => {
+    const userId = m.user_id ?? m.id;
+    if (!userId) return;
+    const isMod = m.manager === true || m.role === 'moderator';
+    const action = isMod ? 'Moderator-Rechte entziehen' : 'Zum Moderator befördern';
+    if (!confirm(`${memberName(m)}: ${action}?`)) return;
+    setTogglingMod(userId);
+    try {
+      if (isMod) {
+        await api.removeModerator(chat.id, userId);
+      } else {
+        await api.addModerator(chat.id, userId);
+      }
+      await loadMembers();
+    } catch (err) {
+      alert(`Fehler: ${err instanceof Error ? err.message : err}`);
+    } finally {
+      setTogglingMod(null);
+    }
+  };
+
   const handleInvite = async (u: RawUser) => {
     const userId = String(u.id);
     setInviting(userId);
@@ -117,7 +138,6 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
     }
   };
 
-  // Use detected role from loaded members; fall back to prop from ChatView
   const canManage = isManagerDetected || isManagerProp;
 
   const memberIds = new Set(members.map((m) => String(m.user_id ?? m.id)));
@@ -218,7 +238,8 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
           members.map((m) => {
             const name = memberName(m);
             const uid = m.user_id ?? m.id ?? '';
-            const isModerator = m.role === 'moderator';
+            const isModerator = m.manager === true || m.role === 'moderator';
+            const isSelf = uid === myId;
             return (
               <div
                 key={uid || name}
@@ -234,21 +255,48 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
                   </div>
                   {m.email && <div className="truncate text-xs text-surface-400">{m.email}</div>}
                 </div>
-                {canManage && !isModerator && (
-                  <button
-                    onClick={() => handleRemove(m)}
-                    disabled={removing === uid}
-                    title="Entfernen"
-                    className={clsx(
-                      'shrink-0 rounded-md p-1 transition',
-                      'text-surface-300 hover:bg-red-100 hover:text-red-600 dark:text-surface-600 dark:hover:bg-red-900/30 dark:hover:text-red-400',
-                      removing === uid && 'opacity-50',
+
+                {/* Action buttons — only for managers, not on self */}
+                {canManage && !isSelf && (
+                  <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
+                    {/* Toggle moderator */}
+                    <button
+                      onClick={() => handleToggleModerator(m)}
+                      disabled={togglingMod === uid}
+                      title={isModerator ? 'Moderator-Rechte entziehen' : 'Zum Moderator befördern'}
+                      className={clsx(
+                        'rounded-md p-1 transition',
+                        isModerator
+                          ? 'text-amber-500 hover:bg-amber-100 hover:text-amber-700 dark:hover:bg-amber-900/30'
+                          : 'text-surface-300 hover:bg-primary-100 hover:text-primary-600 dark:text-surface-600 dark:hover:bg-primary-900/30 dark:hover:text-primary-400',
+                        togglingMod === uid && 'opacity-50',
+                      )}
+                    >
+                      {togglingMod === uid
+                        ? <Loader2 size={14} className="animate-spin" />
+                        : isModerator
+                          ? <ShieldOff size={14} />
+                          : <ShieldPlus size={14} />}
+                    </button>
+
+                    {/* Remove member (not on moderators) */}
+                    {!isModerator && (
+                      <button
+                        onClick={() => handleRemove(m)}
+                        disabled={removing === uid}
+                        title="Entfernen"
+                        className={clsx(
+                          'rounded-md p-1 transition',
+                          'text-surface-300 hover:bg-red-100 hover:text-red-600 dark:text-surface-600 dark:hover:bg-red-900/30 dark:hover:text-red-400',
+                          removing === uid && 'opacity-50',
+                        )}
+                      >
+                        {removing === uid
+                          ? <Loader2 size={14} className="animate-spin" />
+                          : <UserMinus size={14} />}
+                      </button>
                     )}
-                  >
-                    {removing === uid
-                      ? <Loader2 size={14} className="animate-spin" />
-                      : <UserMinus size={14} />}
-                  </button>
+                  </div>
                 )}
               </div>
             );

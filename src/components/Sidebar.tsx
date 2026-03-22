@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal, Star, FolderOpen } from 'lucide-react';
+import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal, Star, FolderOpen, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import Avatar from './Avatar';
+import NewChannelModal from './NewChannelModal';
+import NewChatModal from './NewChatModal';
 import type { ChatTarget } from '../types';
 
 /** Sort: favorites first, non-favorites second. Within each group: by lastActivity desc. */
@@ -31,6 +33,10 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   const [channels, setChannels] = useState<ChatTarget[]>([]);
   const [conversations, setConversations] = useState<ChatTarget[]>([]);
   const [search, setSearch] = useState('');
+  const [showNewChannel, setShowNewChannel] = useState(false);
+  const [showNewChat, setShowNewChat] = useState(false);
+  // Track first company ID for creating channels/chats
+  const [primaryCompanyId, setPrimaryCompanyId] = useState<string>('');
 
   // Sidebar width (horizontal resize)
   const [sidebarWidth, setSidebarWidth] = useState(288); // 288px = w-72
@@ -73,8 +79,11 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       ]);
 
       const allChannels: ChatTarget[] = [];
+      let firstCompanyId = '';
       for (const company of (companies as Array<Record<string, unknown>>)) {
-        const channelList = await api.getChannels(String(company.id));
+        const cid = String(company.id);
+        if (!firstCompanyId) firstCompanyId = cid;
+        const channelList = await api.getChannels(cid);
         for (const ch of (channelList as Array<Record<string, unknown>>)) {
           const lastMsg = ch.last_message as Record<string, unknown> | undefined;
           allChannels.push({
@@ -87,10 +96,11 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
             unread_count: Number(ch.unread_count || 0),
             favorite: Boolean(ch.favorite),
             lastActivity: lastMsg ? Number(lastMsg.time || 0) : 0,
-            company_id: String(company.id),
+            company_id: cid,
           });
         }
       }
+      setPrimaryCompanyId(firstCompanyId);
       setChannels(sortChats(allChannels));
 
       const convTargets: ChatTarget[] = (convList as Array<Record<string, unknown>>).map((c) => {
@@ -202,13 +212,14 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         className="absolute right-0 top-0 z-20 h-full w-1 cursor-col-resize border-r border-surface-200 transition-colors hover:border-primary-400 hover:border-r-2 dark:border-surface-700 dark:hover:border-primary-600"
         title="Breite anpassen"
       />
-      {/* User header */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 p-4 dark:border-surface-700">
-        <Avatar name={userName} image={userImage} size="md" />
+      {/* User header — contains app branding + user info + action buttons */}
+      <div className="flex shrink-0 items-center gap-2 border-b border-surface-200 px-3 py-2.5 dark:border-surface-700">
+        <Avatar name={userName} image={userImage} size="sm" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold text-surface-900 dark:text-white">{userName}</div>
-          <div className="truncate text-xs text-surface-500">Online</div>
         </div>
+        {/* BBZ branding — compact, right-aligned */}
+        <img src="/bbz-logo.svg" alt="BBZ Chat" className="h-5 w-auto shrink-0 opacity-70" title="BBZ Chat" />
         <button
           onClick={onOpenFileBrowser}
           className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
@@ -243,9 +254,19 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         {/* Channels panel */}
         <div className="flex min-h-0 flex-col" style={{ height: `${splitPct}%` }}>
           <div className="shrink-0 px-4 py-1.5">
-            <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-surface-500">
-              <Hash size={13} /> Channels ({filtered(channels).length})
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-surface-500">
+                <Hash size={13} /> Channels ({filtered(channels).length})
+              </span>
+              <button
+                onClick={() => setShowNewChannel(true)}
+                disabled={!primaryCompanyId}
+                className="rounded-md p-0.5 text-surface-400 transition hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 dark:hover:text-surface-300 disabled:opacity-30"
+                title="Neuen Channel erstellen"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto px-2 pb-1">
             {filtered(channels).map((ch) => (
@@ -270,9 +291,19 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         {/* Conversations panel */}
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="shrink-0 px-4 py-1.5">
-            <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-surface-500">
-              <Users size={13} /> Direktnachrichten ({filtered(conversations).length})
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-surface-500">
+                <Users size={13} /> Direktnachrichten ({filtered(conversations).length})
+              </span>
+              <button
+                onClick={() => setShowNewChat(true)}
+                disabled={!primaryCompanyId}
+                className="rounded-md p-0.5 text-surface-400 transition hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 dark:hover:text-surface-300 disabled:opacity-30"
+                title="Neue Direktnachricht starten"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto px-2 pb-1">
             {filtered(conversations).map((conv) => (
@@ -286,6 +317,69 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           </div>
         </div>
       </div>
+
+      {/* New channel modal */}
+      {showNewChannel && primaryCompanyId && (
+        <NewChannelModal
+          companyId={primaryCompanyId}
+          onClose={() => setShowNewChannel(false)}
+          onCreate={(ch) => {
+            // Add newly created channel to the list and navigate to it
+            const newTarget: ChatTarget = {
+              type: 'channel',
+              id: String((ch as Record<string, unknown>).id ?? ''),
+              name: String((ch as Record<string, unknown>).name ?? ''),
+              description: (ch as Record<string, unknown>).description
+                ? String((ch as Record<string, unknown>).description)
+                : undefined,
+              company_id: primaryCompanyId,
+              encrypted: false,
+              unread_count: 0,
+              favorite: false,
+              lastActivity: Date.now() / 1000,
+            };
+            setChannels((prev) => sortChats([newTarget, ...prev]));
+            onSelectChat(newTarget);
+          }}
+        />
+      )}
+
+      {/* New direct message modal */}
+      {showNewChat && primaryCompanyId && (
+        <NewChatModal
+          companyId={primaryCompanyId}
+          myUserId={String((user as Record<string, unknown>)?.id ?? '')}
+          onClose={() => setShowNewChat(false)}
+          onCreate={(conv) => {
+            // Reload conversations to include the new one
+            api.getConversations().then((convList) => {
+              const userId = String((user as Record<string, unknown>)?.id);
+              const targets: ChatTarget[] = (convList as Array<Record<string, unknown>>).map((c) => {
+                const members = (c.members as Array<Record<string, unknown>>) || [];
+                const others = members.filter((m) => String(m.id) !== userId);
+                const name = others.length > 0
+                  ? `${others[0].first_name ?? ''} ${others[0].last_name ?? ''}`.trim()
+                  : 'Unbekannt';
+                return {
+                  type: 'conversation' as const,
+                  id: String(c.id),
+                  name,
+                  image: others[0]?.image ? String(others[0].image) : undefined,
+                  encrypted: Boolean(c.encrypted),
+                  unread_count: Number(c.unread_count || 0),
+                  favorite: Boolean(c.favorite),
+                  lastActivity: Number((c.last_message as Record<string, unknown>)?.time || 0),
+                };
+              });
+              setConversations(sortChats(targets));
+              // Navigate to the new conversation
+              const newId = String((conv as Record<string, unknown>).id ?? '');
+              const newConv = targets.find((t) => t.id === newId);
+              if (newConv) onSelectChat(newConv);
+            }).catch(() => {});
+          }}
+        />
+      )}
     </div>
   );
 }

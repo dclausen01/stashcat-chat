@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Lock, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Settings, ThumbsUp, X, ExternalLink, FileText } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Settings, ThumbsUp, X, ExternalLink, FileText, Pencil } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -11,6 +11,8 @@ import { fileIcon } from '../utils/fileIcon';
 import Avatar from './Avatar';
 import MessageInput from './MessageInput';
 import ChannelMembersPanel from './ChannelMembersPanel';
+import LinkPreviewCard from './LinkPreviewCard';
+import ChannelDescriptionEditor from './ChannelDescriptionEditor';
 import type { ChatTarget, ChannelMember, Message } from '../types';
 
 interface ChatViewProps {
@@ -41,6 +43,8 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
   const [membersOpen, setMembersOpen] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [pdfView, setPdfView] = useState<{ fileId: string; viewUrl: string; name: string } | null>(null);
+  const [descEditorOpen, setDescEditorOpen] = useState(false);
+  const [chatDescription, setChatDescription] = useState(chat.description || '');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef(chat);
@@ -116,15 +120,20 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
   }, [chat.id, chat.type]);
 
   // Check manager status when entering a channel
+  // The API returns { id, manager: boolean } — not { user_id, role }
   useEffect(() => {
     setIsManager(false);
     if (chat.type !== 'channel') return;
     api.getChannelMembers(chat.id)
       .then((members) => {
-        const me = (members as unknown as ChannelMember[]).find(
-          (m) => m.user_id === userId || String(m.user_id) === userId
+        const raw = members as Array<Record<string, unknown>>;
+        const me = raw.find(
+          (m) => String(m.user_id ?? m.id) === userId
         );
-        setIsManager(!!me && me.role !== 'member');
+        // manager: true = moderator/owner, manager: false or role 'member' = regular
+        const isMgr = me?.manager === true ||
+          (me?.role !== undefined && me?.role !== 'member');
+        setIsManager(!!me && isMgr);
       })
       .catch(() => {});
   }, [chat.id, chat.type, userId]);
@@ -132,8 +141,9 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
   useEffect(() => {
     setMessages([]);
     setTypingUsers([]);
+    setChatDescription(chat.description || '');
     loadMessages();
-  }, [loadMessages]);
+  }, [loadMessages, chat.description]);
 
   // Scroll to bottom after initial load
   useEffect(() => {
@@ -268,17 +278,30 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
         )}
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-base font-semibold text-surface-900 dark:text-white">{chat.name}</h2>
-          {chat.description && (
-            <p className="truncate text-xs text-surface-500 dark:text-surface-400">
-              <LinkifiedText text={chat.description} />
-            </p>
-          )}
+          {chatDescription ? (
+            <div className="flex items-center gap-1">
+              <p className="min-w-0 truncate text-xs text-surface-500 dark:text-surface-400">
+                <LinkifiedText text={chatDescription} />
+              </p>
+              {isManager && chat.type === 'channel' && (
+                <button
+                  onClick={() => setDescEditorOpen(true)}
+                  className="shrink-0 rounded p-0.5 text-surface-300 transition hover:bg-surface-100 hover:text-surface-500 dark:text-surface-600 dark:hover:bg-surface-800 dark:hover:text-surface-400"
+                  title="Beschreibung bearbeiten"
+                >
+                  <Pencil size={11} />
+                </button>
+              )}
+            </div>
+          ) : isManager && chat.type === 'channel' ? (
+            <button
+              onClick={() => setDescEditorOpen(true)}
+              className="flex items-center gap-1 text-xs text-surface-400 transition hover:text-primary-500"
+            >
+              <Pencil size={11} /> Beschreibung hinzufügen
+            </button>
+          ) : null}
         </div>
-        {chat.encrypted && (
-          <div className="flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 dark:bg-green-900/20 dark:text-green-400">
-            <Lock size={12} /> Verschlüsselt
-          </div>
-        )}
         {chat.type === 'channel' && (
           <button
             onClick={() => setMembersOpen((o) => !o)}
@@ -434,6 +457,15 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
       </div>
     )}
 
+    {/* Channel description editor */}
+    {descEditorOpen && chat.type === 'channel' && (
+      <ChannelDescriptionEditor
+        chat={{ ...chat, description: chatDescription }}
+        onClose={() => setDescEditorOpen(false)}
+        onSaved={(newDesc) => setChatDescription(newDesc)}
+      />
+    )}
+
     {/* PDF viewer */}
     {pdfView && (
       <div
@@ -499,7 +531,7 @@ function MessageGroup({
     <div className={clsx('flex gap-2', isOwn ? 'flex-row-reverse' : 'flex-row')}>
       {!isOwn && (
         <div className="shrink-0 pt-0.5">
-          <Avatar name={senderName} size="sm" />
+          <Avatar name={senderName} image={sender?.image} size="sm" />
         </div>
       )}
 
@@ -618,7 +650,7 @@ function PlainTextMessage({
 
   return (
     <div className="group/msg flex gap-3 px-2 py-2 hover:bg-surface-50 dark:hover:bg-surface-900/50">
-      <Avatar name={senderName} size="sm" />
+      <Avatar name={senderName} image={msg.sender?.image} size="sm" />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className={clsx('text-sm font-semibold', isOwn ? 'text-primary-700 dark:text-primary-400' : 'text-surface-900 dark:text-surface-100')}>
@@ -776,56 +808,89 @@ function LinkifiedText({ text }: { text: string }) {
   return <>{parts}</>;
 }
 
+/** Extract all http(s) URLs from a text string */
+function extractUrls(text: string): string[] {
+  const re = /https?:\/\/[^\s)>\]]+/g;
+  const matches: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    // Strip trailing punctuation that's likely not part of the URL
+    let url = m[0];
+    while (/[.,;:!?)>\]'"]$/.test(url)) url = url.slice(0, -1);
+    if (!matches.includes(url)) matches.push(url);
+  }
+  return matches;
+}
+
+/** Convert plain URLs in text to markdown links so ReactMarkdown renders them */
+function autoLinkify(text: string): string {
+  // Don't touch URLs that are already inside markdown link syntax [text](url) or <url>
+  return text.replace(
+    /(?<!\]\()(?<!\()(?<!<)(https?:\/\/[^\s)>\]]+)/g,
+    (url) => `[${url}](${url})`
+  );
+}
+
 function MarkdownContent({ content, isOwn }: { content: string; isOwn: boolean }) {
+  // Extract URLs for preview cards
+  const urls = extractUrls(content);
+  // Auto-linkify plain URLs in the content
+  const linkedContent = autoLinkify(content);
+
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        p: ({ children }) => <p className="m-0">{children}</p>,
-        a: ({ href, children }) => (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="underline text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-200">
-            {children}
-          </a>
-        ),
-        strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-        em: ({ children }) => <em className="italic">{children}</em>,
-        del: ({ children }) => <del className="line-through opacity-75">{children}</del>,
-        code: ({ children, className }) => {
-          const isBlock = className?.includes('language-');
-          return isBlock ? (
-            <code className={clsx(
-              'block overflow-x-auto rounded-lg px-3 py-2 font-mono text-xs my-1',
-              isOwn ? 'bg-primary-700 text-primary-100' : 'bg-surface-200 text-surface-800 dark:bg-surface-700 dark:text-surface-200',
-            )}>{children}</code>
-          ) : (
-            <code className={clsx(
-              'rounded px-1 py-0.5 font-mono text-xs',
-              isOwn ? 'bg-primary-700 text-primary-100' : 'bg-surface-200 text-surface-800 dark:bg-surface-700 dark:text-surface-200',
-            )}>{children}</code>
-          );
-        },
-        h1: ({ children }) => <h1 className="text-lg font-bold mb-1 mt-0">{children}</h1>,
-        h2: ({ children }) => <h2 className="text-base font-bold mb-1 mt-0">{children}</h2>,
-        h3: ({ children }) => <h3 className="text-sm font-bold mb-0.5 mt-0">{children}</h3>,
-        ul: ({ children }) => <ul className="my-1 ml-4 list-disc space-y-0.5">{children}</ul>,
-        ol: ({ children }) => <ol className="my-1 ml-4 list-decimal space-y-0.5">{children}</ol>,
-        li: ({ children }) => <li className="text-sm">{children}</li>,
-        blockquote: ({ children }) => (
-          <blockquote className={clsx(
-            'my-1 border-l-2 pl-3 italic',
-            isOwn ? 'border-primary-300 opacity-80' : 'border-surface-400',
-          )}>{children}</blockquote>
-        ),
-        a: ({ href, children }) => (
-          <a href={href} target="_blank" rel="noopener noreferrer"
-            className={clsx('underline', isOwn ? 'text-primary-200 hover:text-white' : 'text-primary-600 hover:text-primary-800 dark:text-primary-400')}>
-            {children}
-          </a>
-        ),
-        hr: () => <hr className={clsx('my-1 border-t', isOwn ? 'border-primary-400' : 'border-surface-300 dark:border-surface-600')} />,
-      }}
-    >
-      {content}
-    </ReactMarkdown>
+    <>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: ({ children }) => <p className="m-0">{children}</p>,
+          strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+          em: ({ children }) => <em className="italic">{children}</em>,
+          del: ({ children }) => <del className="line-through opacity-75">{children}</del>,
+          code: ({ children, className }) => {
+            const isBlock = className?.includes('language-');
+            return isBlock ? (
+              <code className={clsx(
+                'block overflow-x-auto rounded-lg px-3 py-2 font-mono text-xs my-1',
+                isOwn ? 'bg-primary-700 text-primary-100' : 'bg-surface-200 text-surface-800 dark:bg-surface-700 dark:text-surface-200',
+              )}>{children}</code>
+            ) : (
+              <code className={clsx(
+                'rounded px-1 py-0.5 font-mono text-xs',
+                isOwn ? 'bg-primary-700 text-primary-100' : 'bg-surface-200 text-surface-800 dark:bg-surface-700 dark:text-surface-200',
+              )}>{children}</code>
+            );
+          },
+          h1: ({ children }) => <h1 className="text-lg font-bold mb-1 mt-0">{children}</h1>,
+          h2: ({ children }) => <h2 className="text-base font-bold mb-1 mt-0">{children}</h2>,
+          h3: ({ children }) => <h3 className="text-sm font-bold mb-0.5 mt-0">{children}</h3>,
+          ul: ({ children }) => <ul className="my-1 ml-4 list-disc space-y-0.5">{children}</ul>,
+          ol: ({ children }) => <ol className="my-1 ml-4 list-decimal space-y-0.5">{children}</ol>,
+          li: ({ children }) => <li className="text-sm">{children}</li>,
+          blockquote: ({ children }) => (
+            <blockquote className={clsx(
+              'my-1 border-l-2 pl-3 italic',
+              isOwn ? 'border-primary-300 opacity-80' : 'border-surface-400',
+            )}>{children}</blockquote>
+          ),
+          a: ({ href, children }) => (
+            <a href={href} target="_blank" rel="noopener noreferrer"
+              className={clsx(
+                'inline-flex items-center gap-0.5 underline',
+                isOwn ? 'text-primary-200 hover:text-white' : 'text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200',
+              )}>
+              <ExternalLink size={11} className="shrink-0" />
+              {children}
+            </a>
+          ),
+          hr: () => <hr className={clsx('my-1 border-t', isOwn ? 'border-primary-400' : 'border-surface-300 dark:border-surface-600')} />,
+        }}
+      >
+        {linkedContent}
+      </ReactMarkdown>
+      {/* Link preview cards */}
+      {urls.map((url) => (
+        <LinkPreviewCard key={url} url={url} isOwn={isOwn} />
+      ))}
+    </>
   );
 }

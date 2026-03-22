@@ -1,117 +1,194 @@
-# stashcat-chat
+# BBZ Chat
 
-A modern web chat UI for [Stashcat](https://www.stashcat.com/) / schul.cloud, built with React 19, TypeScript, Vite, and Tailwind CSS v4. Comparable to MS Teams / Slack / Element in terms of UX.
+A React/TypeScript web chat client for Stashcat / schul.cloud, built for BBZ Rendsburg-Eckernförde. Provides a modern browser-based interface over the `stashcat-api` library with full channel and conversation support, E2E encrypted messaging, a file browser, and real-time push events.
+
+---
+
+## Tech Stack
+
+| Layer    | Technology                                               |
+| -------- | -------------------------------------------------------- |
+| Frontend | React 19, TypeScript 5.9, Vite 8                        |
+| Styling  | Tailwind CSS v4, clsx                                    |
+| Icons    | lucide-react                                             |
+| Markdown | react-markdown + remark-gfm                              |
+| Emoji    | emoji-picker-react                                       |
+| Backend  | Express 5 (API proxy), tsx (dev runner)                  |
+| Uploads  | multer (multipart/form-data)                             |
+| Realtime | SSE (Server-Sent Events) + Socket.io (via stashcat-api) |
+| API      | stashcat-api (local file dependency)                     |
+
+---
 
 ## Features
 
-- Login with email, password, and security password (E2E unlock)
-- Two-panel resizable sidebar: Channels (left) and Direct Messages (right)
-- Favorites pinned to the top of each list
-- Chat bubble view (own messages right/blue, others left/gray)
-- Full Markdown support with formatting toolbar (Bold, Italic, Strikethrough, Code, Heading, List)
-- Emoji picker (`emoji-picker-react`)
-- File upload via paperclip button (original filename preserved)
-- File download links with MIME-based emoji icons
-- Delete own messages (hover → trash icon); channel managers can delete any message
-- Copy message text to clipboard (hover → copy icon)
-- Chats sorted by latest activity within each group (favorites / non-favorites)
-- Unread badge updates in real-time via SSE; clears when chat is opened
-- Like messages with 👍 (shown on hover; count displayed per message)
+### Messaging
+- Full channel and direct-conversation chat
+- E2E encrypted message display (AES-256-CBC, auto-decrypted server-side — frontend always receives plaintext)
+- Markdown rendering with GitHub Flavored Markdown support
+- Message like / unlike with live count display
+- Message delete (own messages on hover; channel managers can delete any message)
+- Copy message text to clipboard (hover action)
+- File attachments: send files directly in a conversation or channel (original filename preserved)
+- File download links with MIME/extension-based icons
+- Typing indicators (sent and received in real time)
+- Infinite scroll: loads 50 older messages when scrolling to the top
+- Mark messages as read when chat is opened
+- Unread badge updates in real time via SSE; clears when chat is opened
+
+### Channels
+- List all subscribed channels grouped by company
+- Favorites sorted to the top, within each group ordered by last activity
+- Search/filter channels and conversations in the sidebar
+- Create new channels: public, E2E-encrypted, or password-protected; with options for hidden, invite-only, read-only, and member-activity display settings
+- Edit channel description inline
 - Channel description shown below channel name in header
-- Infinite scroll: automatically loads 50 older messages when scrolling to the top
-- Settings sidebar (gear icon): toggle inline image display and bubble/text view
-- E2E-encrypted messages decrypted automatically (RSA-4096 OAEP + AES-256-CBC)
-- Real-time push: new messages and typing indicators via Server-Sent Events (SSE)
-- Dark / light theme toggle, persisted in localStorage
-- Session persistence across server restarts: sessions are encrypted and stored locally in `.sessions.json` using AES-256-GCM; no re-login required as long as the Stashcat session is valid
+- Channel members panel: view all members with their roles, invite new users from the company member list, remove members, promote/demote moderators
+
+### Conversations
+- List all direct conversations
+- Start a new direct message to any company member via user search modal
+- Favorites sorted to the top
+
+### File Browser
+- Browse channel, conversation, or personal file storage
+- Navigate folder hierarchies
+- Upload files to any storage context
+- Download files
+- Rename files in place
+- Delete files
+- Inline PDF viewer
+- Image lightbox
+
+### Link Previews
+- Automatic Open Graph / meta-tag preview cards for URLs detected in messages (title, description, image, site name)
+
+### Real-Time
+- SSE stream per session delivers new messages and typing events without polling
+- Socket.io connection (via `stashcat-api` `RealtimeManager`) bridges push events to SSE clients
+- Incoming E2E-encrypted real-time messages are decrypted server-side before delivery
+
+### UI / UX
+- Dark and light mode with persistent preference (toggled via sidebar button)
+- Resizable sidebar (drag-to-resize handle)
+- Bubble view (own messages right/blue, others left/gray) or text view (settings toggle)
+- Inline image display toggle (settings panel)
+- Avatar images throughout (users, channels)
+- BBZ branding (logo, page title)
+- Login page with optional separate security password field
+- Session persistence across server restarts (sessions encrypted with AES-256-GCM in `.sessions.json`)
+
+---
+
+## Prerequisites
+
+- **Node.js 20+**
+- **stashcat-api** library cloned at `../stashcat-api` (relative to this project) and built
+
+```bash
+cd ../stashcat-api
+npm install && npm run build
+```
+
+---
+
+## Setup
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Configure environment
+cp .env.example .env
+# Edit .env with your credentials (see Environment Variables below)
+
+# 3. Start development servers (frontend + backend concurrently)
+npm start
+```
+
+`npm start` starts:
+- Express backend on **port 3001** (`tsx server/index.ts`)
+- Vite dev server on **port 5173** with `/backend/api` proxied to port 3001
+
+Open [http://localhost:5173](http://localhost:5173).
+
+---
+
+## Available Scripts
+
+| Command           | Description                                  |
+| ----------------- | -------------------------------------------- |
+| `npm start`       | Start both frontend and backend concurrently |
+| `npm run dev`     | Start Vite dev server (frontend only)        |
+| `npm run server`  | Start Express backend with tsx               |
+| `npm run build`   | TypeScript check + Vite production build     |
+| `npm run preview` | Serve the production build locally           |
+| `npm run lint`    | ESLint check                                 |
+
+---
+
+## Environment Variables
+
+Create a `.env` file in the project root:
+
+```env
+STASHCAT_BASE_URL=https://api.schul.cloud/
+STASHCAT_EMAIL=your-email@example.com
+STASHCAT_PASSWORD=your-password
+STASHCAT_SECURITY_PASSWORD=   # Optional; defaults to STASHCAT_PASSWORD if omitted
+STASHCAT_APP_NAME=bbz-chat
+STASHCAT_DEVICE_ID=           # Optional; auto-generated if omitted
+```
+
+`STASHCAT_SECURITY_PASSWORD` is required for E2E decryption and is usually identical to `STASHCAT_PASSWORD` in the default Stashcat configuration.
+
+---
 
 ## Architecture
 
 ```
-stashcat-chat/
-├── src/
-│   ├── api.ts                  # Backend API client (fetch + Bearer token)
-│   ├── components/
-│   │   ├── ChatView.tsx        # Message bubbles, file attachments, realtime
-│   │   ├── MessageInput.tsx    # Text input, emoji picker, file picker, toolbar
-│   │   ├── Sidebar.tsx         # Resizable channel/DM panels with favorites
-│   │   └── Avatar.tsx          # Initials avatar
-│   ├── context/
-│   │   ├── AuthContext.tsx     # Login, logout, session restore
-│   │   └── ThemeContext.tsx    # Dark/light toggle
-│   ├── hooks/
-│   │   └── useRealtimeEvents.ts # SSE listener (message_sync, typing)
-│   └── utils/
-│       └── fileIcon.ts         # MIME/extension → emoji
-└── server/
-    └── index.ts                # Express backend (port 3001)
-                                # - Proxies all Stashcat API calls
-                                # - Manages StashcatClient sessions
-                                # - Bridges RealtimeManager → SSE
-                                # - Decrypts E2E messages before SSE push
+Browser (port 5173)
+  └── React app
+        └── src/api.ts ──GET/POST──> Express backend (port 3001)
+                                           └── stashcat-api (StashcatClient)
+                                                 └── Stashcat / schul.cloud API
 ```
 
-The **Express backend** is required because E2E decryption uses Node.js `crypto` (not available in the browser) and to avoid CORS issues with `api.stashcat.com`. The Vite dev server proxies `/backend → http://localhost:3001`.
+The Express backend acts as an authenticated API proxy:
 
-## Getting Started
+- Each logged-in browser session maps to a `StashcatClient` instance held in memory on the server.
+- Sessions are identified by a random Bearer token stored in `localStorage` (`schulchat_token`). The token is also accepted as a `?token=` query parameter for EventSource and file download URLs.
+- Session state (device ID, client key) is persisted to disk via `server/session-store.ts` (AES-256-GCM encrypted `.sessions.json`) so sessions survive server restarts without re-login.
+- Real-time events flow: `Socket.io → RealtimeManager → Express SSE stream → Browser EventSource`.
+- E2E decryption happens on the backend using Node.js `crypto`; the frontend always receives plaintext.
+- The Vite dev server proxies `/backend/api/*` to `http://localhost:3001/api/*`, so the frontend always uses relative URLs.
 
-### Prerequisites
+---
 
-- Node.js 20+
-- A Stashcat / schul.cloud account
+## Component Overview
 
-### Install
-
-```bash
-# 1. Build the stashcat-api library first (local file dependency)
-cd ../stashcat-api
-npm install && npm run build
-
-# 2. Install chat UI dependencies
-cd ../stashcat-chat
-npm install
-```
-
-### Run
-
-```bash
-npm start
-# Starts both the Vite dev server (port 5173) and Express backend (port 3001)
-```
-
-Open [http://localhost:5173](http://localhost:5173).
-
-### Scripts
-
-| Script | Description |
-|--------|-------------|
-| `npm start` | Start frontend + backend (via `concurrently`) |
-| `npm run dev` | Vite dev server only |
-| `npm run server` | Express backend only (`tsx server/index.ts`) |
-| `npm run build` | Production build |
-| `npm run lint` | ESLint |
-
-## E2E Encryption
-
-All E2E decryption happens on the **backend**:
-
-- REST API messages: `StashcatClient.getMessages()` decrypts automatically
-- Realtime messages: the `message_sync` SSE handler decrypts with `getConversationAesKey()` / `getChannelAesKey()` before forwarding to the frontend
-
-The frontend always receives plaintext.
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 19, TypeScript, Vite 8, Tailwind CSS v4 |
-| Backend | Express, Node.js |
-| API Client | `stashcat-api` (local file dep) |
-| Realtime | Socket.io v4 → SSE |
-| Markdown | `react-markdown` + `remark-gfm` |
-| Emoji | `emoji-picker-react` |
-| File Upload | `multer` |
-
-## License
-
-MIT
+| File                                          | Responsibility                                                              |
+| --------------------------------------------- | --------------------------------------------------------------------------- |
+| `src/App.tsx`                                 | Root layout: login gate, sidebar, chat view, file browser, settings panels |
+| `src/pages/LoginPage.tsx`                     | Login form (email, password, optional security password)                    |
+| `src/components/Sidebar.tsx`                  | Channel/conversation list, search, new chat/channel buttons, resize handle  |
+| `src/components/ChatView.tsx`                 | Message list, message rendering, send bar, channel actions toolbar          |
+| `src/components/MessageInput.tsx`             | Compose bar: text input, emoji picker, file attachment button               |
+| `src/components/FileBrowserPanel.tsx`         | File browser: folder navigation, upload, download, rename, delete, lightbox |
+| `src/components/ChannelMembersPanel.tsx`      | Member list, invite users, remove, promote/demote moderators                |
+| `src/components/ChannelDescriptionEditor.tsx` | Inline editor for channel description                                       |
+| `src/components/NewChannelModal.tsx`          | Create channel modal with all channel type and policy options               |
+| `src/components/NewChatModal.tsx`             | Start direct message: search company members, open conversation             |
+| `src/components/LinkPreviewCard.tsx`          | OG/meta preview card rendered below URLs in messages                        |
+| `src/components/Avatar.tsx`                   | User/channel avatar with fallback initials                                  |
+| `src/components/SettingsPanel.tsx`            | User settings panel (view toggles)                                          |
+| `src/components/EmptyState.tsx`               | Placeholder shown when no chat is selected                                  |
+| `src/context/AuthContext.tsx`                 | Authentication state, login/logout, current user                            |
+| `src/context/ThemeContext.tsx`                | Dark/light mode toggle, persists to localStorage                            |
+| `src/context/SettingsContext.tsx`             | User-facing settings state (bubble view, inline images)                     |
+| `src/hooks/useRealtimeEvents.ts`              | SSE EventSource connection, dispatches message_sync and typing events       |
+| `src/api.ts`                                  | All frontend-to-backend HTTP calls (fetch wrapper with Bearer auth)         |
+| `src/types.ts`                                | Shared TypeScript types (`ChatTarget`, etc.)                                |
+| `src/utils/fileIcon.ts`                       | Maps file extensions/MIME types to icon names                               |
+| `server/index.ts`                             | Express server: all `/api/*` routes, session management, SSE, realtime      |
+| `server/session-store.ts`                     | AES-256-GCM encrypted session persistence across server restarts            |

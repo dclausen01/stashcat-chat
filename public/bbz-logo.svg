@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 210" width="420" height="210">
+  <!-- Red square top-left -->
+  <rect x="48" y="18" width="28" height="28" fill="#e30613"/>
+  <!-- Blue angular wing/sail pointing right -->
+  <path d="M 110 15 L 360 88 L 130 95 Q 80 80 110 15 Z" fill="#2970b8"/>
+  <!-- Red square bottom-right -->
+  <rect x="330" y="90" width="28" height="28" fill="#e30613"/>
+  <!-- BBZ text -->
+  <text x="48" y="148" font-family="'Arial Black', Arial, Helvetica, sans-serif" font-weight="900" font-size="88" fill="#0d0d0d" letter-spacing="-3">BBZ</text>
+  <!-- Rendsburg-Eckernförde -->
+  <text x="50" y="182" font-family="Arial, Helvetica, sans-serif" font-weight="600" font-size="25" fill="#0d0d0d" letter-spacing="0.5">Rendsburg-Eckernförde</text>
+</svg>

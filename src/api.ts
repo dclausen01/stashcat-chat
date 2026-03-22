@@ -103,11 +103,59 @@ export async function removeFromChannel(channelId: string, userId: string): Prom
   }
 }
 
+export async function addModerator(channelId: string, userId: string): Promise<void> {
+  return post(`/channels/${channelId}/moderator/${userId}`);
+}
+
+export async function removeModerator(channelId: string, userId: string): Promise<void> {
+  const res = await fetch(`${BACKEND}/channels/${channelId}/moderator/${userId}`, {
+    method: 'DELETE',
+    headers: headers(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+}
+
+export async function editChannel(channelId: string, companyId: string, description: string): Promise<void> {
+  const res = await fetch(`${BACKEND}/channels/${channelId}`, {
+    method: 'PATCH',
+    headers: headers(),
+    body: JSON.stringify({ description, company_id: companyId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+}
+
 export async function getCompanyMembers(companyId: string) {
   return get<Array<Record<string, unknown>>>(`/companies/${companyId}/members`);
 }
 
+export async function createChannel(opts: {
+  name: string;
+  company_id: string;
+  description?: string;
+  policies?: string;
+  channel_type?: 'public' | 'encrypted' | 'password';
+  hidden?: boolean;
+  invite_only?: boolean;
+  read_only?: boolean;
+  show_activities?: boolean;
+  show_membership_activities?: boolean;
+  password?: string;
+  password_repeat?: string;
+}): Promise<Record<string, unknown>> {
+  return post<Record<string, unknown>>('/channels', opts);
+}
+
 // --- Conversations ---
+
+export async function createConversation(memberIds: string[]): Promise<Record<string, unknown>> {
+  return post<Record<string, unknown>>('/conversations', { member_ids: memberIds });
+}
 
 export async function getConversations(limit = 50, offset = 0) {
   return get<Array<Record<string, unknown>>>(`/conversations?limit=${limit}&offset=${offset}`);
@@ -220,6 +268,19 @@ export function fileDownloadUrl(fileId: string, name: string): string {
 export function fileViewUrl(fileId: string, name: string): string {
   const token = localStorage.getItem('schulchat_token') || '';
   return `${BACKEND}/file/${fileId}?name=${encodeURIComponent(name)}&token=${token}&view=1`;
+}
+
+// --- Link Preview ---
+
+export interface LinkPreview {
+  title?: string;
+  description?: string;
+  image?: string;
+  siteName?: string;
+}
+
+export async function getLinkPreview(url: string): Promise<LinkPreview> {
+  return get<LinkPreview>(`/link-preview?url=${encodeURIComponent(url)}`);
 }
 
 export async function uploadFile(

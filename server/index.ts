@@ -236,6 +236,45 @@ app.delete('/api/channels/:channelId/members/:userId', async (req, res) => {
   }
 });
 
+// ── Moderator management ─────────────────────────────────────────────────────
+
+app.post('/api/channels/:channelId/moderator/:userId', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    await client.addChannelModerator(req.params.channelId, req.params.userId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.delete('/api/channels/:channelId/moderator/:userId', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    await client.removeChannelModerator(req.params.channelId, req.params.userId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+// ── Channel editing ──────────────────────────────────────────────────────────
+
+app.patch('/api/channels/:channelId', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const { description, company_id } = req.body as { description?: string; company_id: string };
+    const result = await client.editChannel({
+      channel_id: req.params.channelId,
+      company_id,
+      description,
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
 // ── Company members ───────────────────────────────────────────────────────────
 
 app.get('/api/companies/:companyId/members', async (req, res) => {
@@ -244,6 +283,80 @@ app.get('/api/companies/:companyId/members', async (req, res) => {
     res.json(await client.getCompanyMembers(req.params.companyId));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+// ── Create channel ────────────────────────────────────────────────────────────
+
+app.post('/api/channels', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const {
+      name, company_id, description, policies,
+      channel_type,                      // 'public' | 'encrypted' | 'password'
+      hidden, invite_only, read_only,
+      show_activities, show_membership_activities,
+      password, password_repeat,
+    } = req.body as {
+      name: string;
+      company_id: string;
+      description?: string;
+      policies?: string;
+      channel_type?: string;
+      hidden?: boolean;
+      invite_only?: boolean;
+      read_only?: boolean;
+      show_activities?: boolean;
+      show_membership_activities?: boolean;
+      password?: string;
+      password_repeat?: string;
+    };
+
+    // Map channel_type to API params
+    const isEncrypted = channel_type === 'encrypted';
+    const isPassword  = channel_type === 'password';
+
+    // For encrypted channels generate a random AES key (hex)
+    let encryption_key: string | undefined;
+    if (isEncrypted) {
+      const crypto = await import('crypto');
+      encryption_key = crypto.randomBytes(32).toString('hex');
+    }
+
+    const channel = await client.createChannel({
+      channel_name: name,
+      company: company_id,
+      description: [description, policies ? `\n\nRichtlinien: ${policies}` : ''].filter(Boolean).join(''),
+      type: isEncrypted ? 'private' : 'public',
+      visible: !hidden,
+      writable: !read_only,
+      inviteable: !invite_only,          // inviteable=false → only managers can invite
+      show_activities: show_activities ?? true,
+      show_membership_activities: show_membership_activities ?? true,
+      ...(isPassword && password ? { password, password_repeat: password_repeat ?? password } : {}),
+      ...(isEncrypted ? { encryption_key } : {}),
+    });
+    console.log(`[channels/create] created channel: ${(channel as Record<string,unknown>).name ?? name}`);
+    res.json(channel);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create channel' });
+  }
+});
+
+// ── Create conversation ───────────────────────────────────────────────────────
+
+app.post('/api/conversations', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const { member_ids } = req.body as { member_ids: string[] };
+    // unique_identifier is a random hex string used as E2E key identifier
+    const crypto = await import('crypto');
+    const uniqueIdentifier = crypto.randomBytes(32).toString('hex');
+    const conversation = await client.createEncryptedConversation(member_ids, uniqueIdentifier);
+    console.log(`[conversations/create] created conversation with ${member_ids.length} member(s)`);
+    res.json(conversation);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create conversation' });
   }
 });
 
@@ -540,17 +653,110 @@ async function restorePersistedSessions(): Promise<void> {
   }));
 }
 
+// ── Link Preview ──────────────────────────────────────────────────────────────
+
+const linkPreviewCache = new Map<string, { title?: string; description?: string; image?: string; siteName?: string; fetchedAt: number }>();
+const PREVIEW_TTL = 3600_000; // 1 hour
+
+app.get('/api/link-preview', async (req, res) => {
+  try {
+    const url = req.query.url as string;
+    if (!url || !/^https?:\/\//.test(url)) {
+      return res.status(400).json({ error: 'Invalid URL' });
+    }
+
+    // Check cache
+    const cached = linkPreviewCache.get(url);
+    if (cached && Date.now() - cached.fetchedAt < PREVIEW_TTL) {
+      return res.json(cached);
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; LinkPreviewBot/1.0)',
+        'Accept': 'text/html,application/xhtml+xml',
+      },
+      redirect: 'follow',
+    });
+    clearTimeout(timeout);
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+      return res.json({ title: url, fetchedAt: Date.now() });
+    }
+
+    // Only read first 64kb for meta extraction
+    const reader = response.body?.getReader();
+    let html = '';
+    if (reader) {
+      const decoder = new TextDecoder();
+      let bytesRead = 0;
+      while (bytesRead < 65536) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        html += decoder.decode(value, { stream: true });
+        bytesRead += value.length;
+      }
+      reader.cancel().catch(() => {});
+    }
+
+    // Extract Open Graph and meta tags
+    const getMetaContent = (nameOrProp: string): string | undefined => {
+      // Try og/twitter property
+      const propRe = new RegExp(`<meta[^>]+(?:property|name)=["']${nameOrProp}["'][^>]+content=["']([^"']+)["']`, 'i');
+      const propMatch = html.match(propRe);
+      if (propMatch) return propMatch[1];
+      // Try reversed order: content before property
+      const revRe = new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${nameOrProp}["']`, 'i');
+      const revMatch = html.match(revRe);
+      if (revMatch) return revMatch[1];
+      return undefined;
+    };
+
+    const title = getMetaContent('og:title')
+      || getMetaContent('twitter:title')
+      || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim();
+    const description = getMetaContent('og:description')
+      || getMetaContent('twitter:description')
+      || getMetaContent('description');
+    const image = getMetaContent('og:image')
+      || getMetaContent('twitter:image');
+    const siteName = getMetaContent('og:site_name');
+
+    // Decode HTML entities in extracted strings
+    const decode = (s?: string) => s?.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+
+    const result = {
+      title: decode(title) || url,
+      description: decode(description),
+      image: image?.startsWith('http') ? image : undefined,
+      siteName: decode(siteName),
+      fetchedAt: Date.now(),
+    };
+
+    linkPreviewCache.set(url, result);
+    res.json(result);
+  } catch (err) {
+    // Return minimal preview on failure
+    res.json({ title: req.query.url, fetchedAt: Date.now() });
+  }
+});
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 
 const PORT = Number(process.env.PORT) || 3001;
 
 restorePersistedSessions().then(() => {
   app.listen(PORT, () => {
-    console.log(`SchulChat backend running on http://localhost:${PORT}`);
+    console.log(`BBZ Chat backend running on http://localhost:${PORT}`);
   });
 }).catch((err) => {
   console.error('Failed to restore sessions:', err);
   app.listen(PORT, () => {
-    console.log(`SchulChat backend running on http://localhost:${PORT}`);
+    console.log(`BBZ Chat backend running on http://localhost:${PORT}`);
   });
 });
