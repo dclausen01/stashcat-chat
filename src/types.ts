@@ -85,4 +85,6 @@ export interface ChatTarget {
   image?: string;
   encrypted?: boolean;
   unread_count?: number;
+  /** Unix timestamp (seconds) of last message — used for sorting */
+  lastActivity?: number;
 }

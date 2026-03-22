@@ -13,6 +13,9 @@ A modern web chat UI for [Stashcat](https://www.stashcat.com/) / schul.cloud, bu
 - File upload via paperclip button (original filename preserved)
 - File download links with MIME-based emoji icons
 - Delete own messages (hover → trash icon); channel managers can delete any message
+- Copy message text to clipboard (hover → copy icon)
+- Chats sorted by latest activity within each group (favorites / non-favorites)
+- Unread badge updates in real-time via SSE; clears when chat is opened
 - E2E-encrypted messages decrypted automatically (RSA-4096 OAEP + AES-256-CBC)
 - Real-time push: new messages and typing indicators via Server-Sent Events (SSE)
 - Dark / light theme toggle, persisted in localStorage

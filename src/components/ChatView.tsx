@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Lock, Users, ArrowDown, Loader2, Trash2 } from 'lucide-react';
+import { Hash, Lock, Users, ArrowDown, Loader2, Trash2, Copy } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -327,16 +327,25 @@ function MessageGroup({
                 )}
                 </div>
 
-                {/* Delete button — visible on hover if user has permission */}
-                {canDelete && (
+                {/* Action buttons — visible on hover */}
+                <div className="hidden group-hover/msg:flex items-center gap-0.5">
                   <button
-                    onClick={() => onDelete(String(msg.id))}
-                    title="Nachricht löschen"
-                    className="hidden group-hover/msg:flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition"
+                    onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }}
+                    title="Nachricht kopieren"
+                    className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200 transition"
                   >
-                    <Trash2 size={14} />
+                    <Copy size={14} />
                   </button>
-                )}
+                  {canDelete && (
+                    <button
+                      onClick={() => onDelete(String(msg.id))}
+                      title="Nachricht löschen"
+                      className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {isLast && (

@@ -16,7 +16,7 @@ export default function App() {
 
   return (
     <div className="flex h-full">
-      <Sidebar activeChat={activeChat} onSelectChat={setActiveChat} />
+      <Sidebar activeChat={activeChat} onSelectChat={setActiveChat} loggedIn={loggedIn} />
       {activeChat ? <ChatView chat={activeChat} /> : <EmptyState />}
     </div>
   );

@@ -1,22 +1,30 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal, Star } from 'lucide-react';
-
-function sortByFavorite(items: ChatTarget[]): ChatTarget[] {
-  return [...items].sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0));
-}
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import Avatar from './Avatar';
 import type { ChatTarget } from '../types';
+
+/** Sort: favorites first, non-favorites second. Within each group: by lastActivity desc. */
+function sortChats(items: ChatTarget[]): ChatTarget[] {
+  return [...items].sort((a, b) => {
+    const af = a.favorite ? 1 : 0;
+    const bf = b.favorite ? 1 : 0;
+    if (bf !== af) return bf - af;
+    return (b.lastActivity ?? 0) - (a.lastActivity ?? 0);
+  });
+}
 
 interface SidebarProps {
   activeChat: ChatTarget | null;
   onSelectChat: (target: ChatTarget) => void;
+  loggedIn: boolean;
 }
 
-export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
+export default function Sidebar({ activeChat, onSelectChat, loggedIn }: SidebarProps) {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const [channels, setChannels] = useState<ChatTarget[]>([]);
@@ -27,6 +35,8 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
   const [splitPct, setSplitPct] = useState(50);
   const dragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const activeChatRef = useRef(activeChat);
+  activeChatRef.current = activeChat;
 
   useEffect(() => { loadData(); }, []);
 
@@ -41,6 +51,7 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
       for (const company of (companies as Array<Record<string, unknown>>)) {
         const channelList = await api.getChannels(String(company.id));
         for (const ch of (channelList as Array<Record<string, unknown>>)) {
+          const lastMsg = ch.last_message as Record<string, unknown> | undefined;
           allChannels.push({
             type: 'channel',
             id: String(ch.id),
@@ -48,10 +59,11 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
             encrypted: Boolean(ch.encrypted),
             unread_count: Number(ch.unread_count || 0),
             favorite: Boolean(ch.favorite),
+            lastActivity: lastMsg ? Number(lastMsg.time || 0) : 0,
           });
         }
       }
-      setChannels(sortByFavorite(allChannels));
+      setChannels(sortChats(allChannels));
 
       const convTargets: ChatTarget[] = (convList as Array<Record<string, unknown>>).map((c) => {
         const members = (c.members as Array<Record<string, unknown>>) || [];
@@ -60,6 +72,7 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
         const name = otherMembers.length > 0
           ? otherMembers.map((m) => `${m.first_name} ${m.last_name}`).join(', ')
           : 'Eigene Notizen';
+        const lastActivity = Number(c.last_action || c.last_activity || 0);
         return {
           type: 'conversation' as const,
           id: String(c.id),
@@ -67,13 +80,51 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
           encrypted: Boolean(c.encrypted),
           unread_count: Number(c.unread_count || 0),
           favorite: Boolean(c.favorite || c.is_favorite),
+          lastActivity,
         };
       });
-      setConversations(sortByFavorite(convTargets));
+      setConversations(sortChats(convTargets));
     } catch (err) {
       console.error('Failed to load sidebar data:', err);
     }
   }
+
+  // Realtime: increment unread count for inactive chats when new message arrives
+  useRealtimeEvents({
+    message_sync: (data) => {
+      const payload = data as Record<string, unknown>;
+      const time = Number(payload.time || 0);
+      const channelId = payload.channel_id && payload.channel_id !== 0 ? String(payload.channel_id) : null;
+      const convId = payload.conversation_id && payload.conversation_id !== 0 ? String(payload.conversation_id) : null;
+      const active = activeChatRef.current;
+
+      if (channelId) {
+        const isActive = active?.type === 'channel' && active.id === channelId;
+        setChannels((prev) => sortChats(prev.map((ch) =>
+          ch.id === channelId
+            ? { ...ch, lastActivity: time || ch.lastActivity, unread_count: isActive ? 0 : (ch.unread_count ?? 0) + 1 }
+            : ch
+        )));
+      } else if (convId) {
+        const isActive = active?.type === 'conversation' && active.id === convId;
+        setConversations((prev) => sortChats(prev.map((conv) =>
+          conv.id === convId
+            ? { ...conv, lastActivity: time || conv.lastActivity, unread_count: isActive ? 0 : (conv.unread_count ?? 0) + 1 }
+            : conv
+        )));
+      }
+    },
+  }, loggedIn);
+
+  const handleSelect = useCallback((target: ChatTarget) => {
+    // Clear unread for selected chat immediately in sidebar
+    if (target.type === 'channel') {
+      setChannels((prev) => prev.map((ch) => ch.id === target.id ? { ...ch, unread_count: 0 } : ch));
+    } else {
+      setConversations((prev) => prev.map((c) => c.id === target.id ? { ...c, unread_count: 0 } : c));
+    }
+    onSelectChat(target);
+  }, [onSelectChat]);
 
   const filtered = (items: ChatTarget[]) => {
     if (!search) return items;
@@ -153,7 +204,7 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
                 key={`ch-${ch.id}`}
                 target={ch}
                 active={activeChat?.id === ch.id && activeChat?.type === 'channel'}
-                onSelect={onSelectChat}
+                onSelect={handleSelect}
               />
             ))}
           </div>
@@ -180,7 +231,7 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
                 key={`conv-${conv.id}`}
                 target={conv}
                 active={activeChat?.id === conv.id && activeChat?.type === 'conversation'}
-                onSelect={onSelectChat}
+                onSelect={handleSelect}
               />
             ))}
           </div>
