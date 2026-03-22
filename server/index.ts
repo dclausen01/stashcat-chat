@@ -7,6 +7,7 @@ import fs from 'fs/promises';
 import { StashcatClient, CryptoManager } from 'stashcat-api';
 import type { RealtimeManager } from 'stashcat-api';
 import type { MessageSyncPayload } from 'stashcat-api';
+import { saveSession, loadSessions, deleteSession } from './session-store';
 
 // Multer: store uploads in OS temp dir
 const upload = multer({ dest: os.tmpdir() });
@@ -48,13 +49,62 @@ function pushSSE(session: Session, event: string, data: unknown) {
   }
 }
 
+// ── Realtime setup (shared between login and session restore) ─────────────────
+
+function connectRealtime(client: StashcatClient, session: Session, tokenHint: string) {
+  client.createRealtimeManager({ reconnect: true }).then((rt) => {
+    session.realtime = rt;
+    return rt.connect();
+  }).then(() => {
+    const rt = session.realtime!;
+
+    rt.on('message_sync', async (data: MessageSyncPayload) => {
+      const payload = { ...data };
+
+      // Decrypt message text if E2E-encrypted
+      if (data.encrypted && data.text && data.iv) {
+        try {
+          let aesKey: Buffer | undefined;
+          const channelId = data.channel_id && data.channel_id !== 0 ? String(data.channel_id) : null;
+          const convId    = data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null;
+
+          if (convId) {
+            aesKey = await client.getConversationAesKey(convId);
+          } else if (channelId) {
+            aesKey = await client.getChannelAesKey(channelId);
+          }
+
+          if (aesKey) {
+            const iv = CryptoManager.hexToBuffer(data.iv);
+            payload.text = CryptoManager.decrypt(data.text, aesKey, iv);
+          }
+        } catch (err) {
+          console.warn('[Realtime] Failed to decrypt message_sync:', (err as Error).message);
+        }
+      }
+
+      pushSSE(session, 'message_sync', payload);
+    });
+
+    rt.on('user-started-typing', (chatType: string, chatId: number, userId: number) => {
+      pushSSE(session, 'typing', { chatType, chatId, userId });
+    });
+
+    console.log(`[Realtime] Connected for session ${tokenHint.slice(0, 8)}…`);
+  }).catch((err: unknown) => {
+    console.warn('[Realtime] Connection failed:', err);
+  });
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password, securityPassword } = req.body;
+    const effectiveSecurityPassword = securityPassword || password;
+
     const client = new StashcatClient({ baseUrl: 'https://api.stashcat.com/' });
-    await client.login({ email, password, securityPassword: securityPassword || password });
+    await client.login({ email, password, securityPassword: effectiveSecurityPassword });
 
     const token = generateToken();
     const session: Session = { client, sseClients: new Set() };
@@ -63,62 +113,25 @@ app.post('/api/login', async (req, res) => {
     const me = await client.getMe();
     res.json({ token, user: me });
 
+    // Persist session for survival across server restarts
+    saveSession(token, client.serialize(), effectiveSecurityPassword).catch(() => {});
+
     // Connect realtime in background (non-blocking)
-    client.createRealtimeManager({ reconnect: true }).then((rt) => {
-      session.realtime = rt;
-      return rt.connect();
-    }).then(() => {
-      const rt = session.realtime!;
-
-      rt.on('message_sync', async (data: MessageSyncPayload) => {
-        const payload = { ...data };
-
-        // Decrypt message text if E2E-encrypted
-        if (data.encrypted && data.text && data.iv) {
-          try {
-            let aesKey: Buffer | undefined;
-            const channelId = data.channel_id && data.channel_id !== 0 ? String(data.channel_id) : null;
-            const convId    = data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null;
-
-            if (convId) {
-              aesKey = await client.getConversationAesKey(convId);
-            } else if (channelId) {
-              aesKey = await client.getChannelAesKey(channelId);
-            }
-
-            if (aesKey) {
-              const iv = CryptoManager.hexToBuffer(data.iv);
-              payload.text = CryptoManager.decrypt(data.text, aesKey, iv);
-            }
-          } catch (err) {
-            // Decryption failed — send as-is (frontend shows 🔒)
-            console.warn('[Realtime] Failed to decrypt message_sync:', (err as Error).message);
-          }
-        }
-
-        pushSSE(session, 'message_sync', payload);
-      });
-
-      rt.on('user-started-typing', (chatType: string, chatId: number, userId: number) => {
-        pushSSE(session, 'typing', { chatType, chatId, userId });
-      });
-
-      console.log(`[Realtime] Connected for session ${token.slice(0, 8)}…`);
-    }).catch((err: unknown) => {
-      console.warn('[Realtime] Connection failed:', err);
-    });
+    connectRealtime(client, session, token);
 
   } catch (err) {
     res.status(401).json({ error: err instanceof Error ? err.message : 'Login failed' });
   }
 });
 
-app.post('/api/logout', (req, res) => {
+app.post('/api/logout', async (req, res) => {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (token) {
     const session = sessions.get(token);
     session?.realtime?.disconnect();
     sessions.delete(token);
+    // Remove from persistent store
+    deleteSession(token).catch(() => {});
   }
   res.json({ ok: true });
 });
@@ -228,7 +241,6 @@ app.post('/api/messages/:type/:targetId', async (req, res) => {
     const { type, targetId } = req.params;
     const { text } = req.body as { text: string };
     const chatType = type as 'channel' | 'conversation';
-    // sendMessage expects a SendMessageOptions object
     await client.sendMessage({ target: targetId, target_type: chatType, text });
     res.json({ ok: true });
   } catch (err) {
@@ -289,7 +301,6 @@ app.get('/api/file/:fileId', async (req, res) => {
     const { fileId } = req.params;
     const fileName = (req.query.name as string) || 'download';
 
-    // Fetch file metadata to know if encrypted
     const info = await client.getFileInfo(fileId);
     const buf = await client.downloadFile({
       id: fileId,
@@ -316,7 +327,6 @@ app.post('/api/upload/:type/:targetId', upload.single('file'), async (req, res) 
 
     if (!req.file) throw new Error('No file received');
 
-    // Rename temp file to have the original extension so stashcat-api can detect MIME
     const originalName = req.file.originalname;
     const ext = path.extname(originalName);
     const namedPath = tmpPath + ext;
@@ -330,7 +340,6 @@ app.post('/api/upload/:type/:targetId', upload.single('file'), async (req, res) 
 
     await fs.unlink(namedPath).catch(() => {});
 
-    // Send a message with the file attached (empty text is fine)
     await client.sendMessage({
       target: targetId,
       target_type: chatType,
@@ -356,9 +365,51 @@ app.get('/api/me', async (req, res) => {
   }
 });
 
+// ── Startup: restore persisted sessions ───────────────────────────────────────
+
+async function restorePersistedSessions(): Promise<void> {
+  const stored = await loadSessions();
+  if (stored.length === 0) return;
+
+  console.log(`[SessionStore] Restoring ${stored.length} session(s)…`);
+
+  await Promise.allSettled(stored.map(async ({ token, serialized, securityPassword }) => {
+    try {
+      const client = StashcatClient.fromSession(serialized, { baseUrl: serialized.baseUrl });
+
+      // Verify session is still valid against Stashcat server
+      await client.getMe();
+
+      // Re-unlock E2E decryption
+      if (securityPassword) {
+        await client.unlockE2E(securityPassword);
+      }
+
+      const session: Session = { client, sseClients: new Set() };
+      sessions.set(token, session);
+
+      // Reconnect realtime in background
+      connectRealtime(client, session, token);
+
+      console.log(`[SessionStore] Restored session ${token.slice(0, 8)}…`);
+    } catch (err) {
+      console.warn(`[SessionStore] Session ${token.slice(0, 8)}… expired or invalid — removing`);
+      await deleteSession(token).catch(() => {});
+    }
+  }));
+}
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 
 const PORT = Number(process.env.PORT) || 3001;
-app.listen(PORT, () => {
-  console.log(`SchulChat backend running on http://localhost:${PORT}`);
+
+restorePersistedSessions().then(() => {
+  app.listen(PORT, () => {
+    console.log(`SchulChat backend running on http://localhost:${PORT}`);
+  });
+}).catch((err) => {
+  console.error('Failed to restore sessions:', err);
+  app.listen(PORT, () => {
+    console.log(`SchulChat backend running on http://localhost:${PORT}`);
+  });
 });

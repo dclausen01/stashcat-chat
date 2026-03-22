@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Local session persistence (sensitive — never commit)
+.sessions.json
+.session-secret
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

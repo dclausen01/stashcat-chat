@@ -23,7 +23,7 @@ A modern web chat UI for [Stashcat](https://www.stashcat.com/) / schul.cloud, bu
 - E2E-encrypted messages decrypted automatically (RSA-4096 OAEP + AES-256-CBC)
 - Real-time push: new messages and typing indicators via Server-Sent Events (SSE)
 - Dark / light theme toggle, persisted in localStorage
-- Session persistence via localStorage token
+- Session persistence across server restarts: sessions are encrypted and stored locally in `.sessions.json` using AES-256-GCM; no re-login required as long as the Stashcat session is valid
 
 ## Architecture
 
