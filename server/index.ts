@@ -207,6 +207,8 @@ app.get('/api/channels/:channelId/members', async (req, res) => {
       if (batch.length < PAGE) break;
       offset += PAGE;
     }
+    console.log(`[channels/members] channelId=${channelId} → ${all.length} members`);
+    if (all.length > 0) console.log('[channels/members] first member:', JSON.stringify(all[0]));
     res.json(all);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
@@ -346,10 +348,12 @@ app.get('/api/files/folder', async (req, res) => {
     const result = await client.listFolder({
       type: type as string,
       type_id: typeId as string,
-      folder_id: folderId as string | undefined,
+      folder_id: (folderId as string | undefined) ?? '0',
       offset: offset ? Number(offset) : 0,
       limit: limit ? Number(limit) : 200,
     });
+    console.log(`[files/folder] type=${type} typeId=${typeId} folderId=${folderId ?? '0'} → folders=${result.folder.length} files=${result.files.length}`);
+    if (result.files.length > 0) console.log('[files/folder] first file:', JSON.stringify(result.files[0]));
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
@@ -361,10 +365,13 @@ app.get('/api/files/personal', async (req, res) => {
     const { client } = getSession(req);
     const { folderId, offset, limit } = req.query;
     const result = await client.listPersonalFiles({
-      folder_id: folderId as string | undefined,
+      folder_id: (folderId as string | undefined) ?? '0',
       offset: offset ? Number(offset) : 0,
       limit: limit ? Number(limit) : 200,
     });
+    console.log(`[files/personal] folderId=${folderId ?? '0'} → folders=${result.folder.length} files=${result.files.length}`);
+    if (result.files.length > 0) console.log('[files/personal] first file:', JSON.stringify(result.files[0]));
+    else if (result.folder.length > 0) console.log('[files/personal] first folder:', JSON.stringify(result.folder[0]));
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });

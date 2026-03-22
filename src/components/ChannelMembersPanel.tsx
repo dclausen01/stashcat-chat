@@ -3,6 +3,7 @@ import { X, UserMinus, UserPlus, Search, ShieldCheck, Loader2 } from 'lucide-rea
 import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
+import { useAuth } from '../context/AuthContext';
 import type { ChatTarget } from '../types';
 
 interface RawMember {
@@ -34,9 +35,12 @@ interface ChannelMembersPanelProps {
   onClose: () => void;
 }
 
-export default function ChannelMembersPanel({ chat, isManager, onClose }: ChannelMembersPanelProps) {
+export default function ChannelMembersPanel({ chat, isManager: isManagerProp, onClose }: ChannelMembersPanelProps) {
+  const { user } = useAuth();
+  const myId = String((user as Record<string, unknown>)?.id || '');
   const [members, setMembers] = useState<RawMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
+  const [isManagerDetected, setIsManagerDetected] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,13 +53,21 @@ export default function ChannelMembersPanel({ chat, isManager, onClose }: Channe
     setLoadingMembers(true);
     try {
       const raw = await api.getChannelMembers(chat.id);
-      setMembers(raw as RawMember[]);
+      const memberList = raw as RawMember[];
+      setMembers(memberList);
+      // Detect manager status from loaded members (more reliable than ChatView's detection)
+      const me = memberList.find(
+        (m) => String(m.user_id ?? m.id) === myId
+      );
+      const myRole = me?.role;
+      console.log('[ChannelMembersPanel] myId=', myId, 'me=', me, 'role=', myRole);
+      setIsManagerDetected(!!me && myRole !== 'member' && myRole !== undefined);
     } catch (err) {
       console.error('Failed to load members:', err);
     } finally {
       setLoadingMembers(false);
     }
-  }, [chat.id]);
+  }, [chat.id, myId]);
 
   useEffect(() => { loadMembers(); }, [loadMembers]);
 
@@ -105,6 +117,9 @@ export default function ChannelMembersPanel({ chat, isManager, onClose }: Channe
     }
   };
 
+  // Use detected role from loaded members; fall back to prop from ChatView
+  const canManage = isManagerDetected || isManagerProp;
+
   const memberIds = new Set(members.map((m) => String(m.user_id ?? m.id)));
   const filteredUsers = companyUsers.filter((u) => {
     if (memberIds.has(String(u.id))) return false;
@@ -125,7 +140,7 @@ export default function ChannelMembersPanel({ chat, isManager, onClose }: Channe
           Mitglieder
           {!loadingMembers && <span className="ml-1 text-surface-400">({members.length})</span>}
         </h3>
-        {isManager && !showInvite && (
+        {canManage && !showInvite && (
           <button
             onClick={handleShowInvite}
             className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/20"
@@ -219,7 +234,7 @@ export default function ChannelMembersPanel({ chat, isManager, onClose }: Channe
                   </div>
                   {m.email && <div className="truncate text-xs text-surface-400">{m.email}</div>}
                 </div>
-                {isManager && !isModerator && (
+                {canManage && !isModerator && (
                   <button
                     onClick={() => handleRemove(m)}
                     disabled={removing === uid}
