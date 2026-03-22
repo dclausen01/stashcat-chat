@@ -250,9 +250,11 @@ export default function ChatView({ chat, onToggleSettings }: ChatViewProps) {
       {/* Header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 px-6 py-3 dark:border-surface-700">
         {chat.type === 'channel' ? (
-          <Hash size={22} className="text-surface-400" />
+          chat.image
+            ? <Avatar name={chat.name} image={chat.image} size="md" />
+            : <Hash size={22} className="text-surface-400" />
         ) : (
-          <Avatar name={chat.name} size="md" />
+          <Avatar name={chat.name} image={chat.image} size="md" />
         )}
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-base font-semibold text-surface-900 dark:text-white">{chat.name}</h2>

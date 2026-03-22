@@ -57,6 +57,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn }: SidebarP
             id: String(ch.id),
             name: String(ch.name || ''),
             description: ch.description ? String(ch.description) : undefined,
+            image: ch.image ? String(ch.image) : undefined,
             encrypted: Boolean(ch.encrypted),
             unread_count: Number(ch.unread_count || 0),
             favorite: Boolean(ch.favorite),
@@ -74,10 +75,14 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn }: SidebarP
           ? otherMembers.map((m) => `${m.first_name} ${m.last_name}`).join(', ')
           : 'Eigene Notizen';
         const lastActivity = Number(c.last_action || c.last_activity || 0);
+        const image = otherMembers.length === 1 && otherMembers[0].image
+          ? String(otherMembers[0].image)
+          : undefined;
         return {
           type: 'conversation' as const,
           id: String(c.id),
           name,
+          image,
           encrypted: Boolean(c.encrypted),
           unread_count: Number(c.unread_count || 0),
           favorite: Boolean(c.favorite || c.is_favorite),
@@ -254,9 +259,11 @@ function ChatItem({ target, active, onSelect }: { target: ChatTarget; active: bo
       )}
     >
       {target.type === 'channel' ? (
-        <Hash size={17} className={clsx('shrink-0', active ? 'text-primary-600 dark:text-primary-400' : 'text-surface-400')} />
+        target.image
+          ? <Avatar name={target.name} image={target.image} size="sm" />
+          : <Hash size={17} className={clsx('shrink-0', active ? 'text-primary-600 dark:text-primary-400' : 'text-surface-400')} />
       ) : (
-        <Avatar name={target.name} size="sm" />
+        <Avatar name={target.name} image={target.image} size="sm" />
       )}
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{target.name}</span>
       {target.favorite && <Star size={13} className="shrink-0 fill-yellow-400 text-yellow-400" />}
