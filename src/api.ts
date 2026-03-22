@@ -111,3 +111,29 @@ export async function markAsRead(targetId: string, type: 'channel' | 'conversati
 export async function sendTyping(type: 'channel' | 'conversation', targetId: string) {
   return post('/typing', { type, targetId });
 }
+
+export function fileDownloadUrl(fileId: string, name: string): string {
+  const token = localStorage.getItem('schulchat_token') || '';
+  return `${BACKEND}/file/${fileId}?name=${encodeURIComponent(name)}&token=${token}`;
+}
+
+export async function uploadFile(
+  type: 'channel' | 'conversation',
+  targetId: string,
+  file: File,
+  text = ''
+): Promise<void> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('text', text);
+  const token = localStorage.getItem('schulchat_token') || '';
+  const res = await fetch(`${BACKEND}/upload/${type}/${targetId}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+}

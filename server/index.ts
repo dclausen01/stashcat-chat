@@ -1,8 +1,15 @@
 import express from 'express';
 import cors from 'cors';
+import multer from 'multer';
+import os from 'os';
+import path from 'path';
+import fs from 'fs/promises';
 import { StashcatClient } from 'stashcat-api';
 import type { RealtimeManager } from 'stashcat-api';
 import type { MessageSyncPayload } from 'stashcat-api';
+
+// Multer: store uploads in OS temp dir
+const upload = multer({ dest: os.tmpdir() });
 
 const app = express();
 app.use(cors());
@@ -26,7 +33,8 @@ function generateToken(): string {
 }
 
 function getSession(req: express.Request): Session {
-  const token = req.headers.authorization?.replace('Bearer ', '');
+  // Support token both as Bearer header and as ?token= query param (for EventSource/download links)
+  const token = req.headers.authorization?.replace('Bearer ', '') || (req.query.token as string);
   if (!token) throw new Error('No token');
   const session = sessions.get(token);
   if (!session) throw new Error('Invalid session');
@@ -93,11 +101,8 @@ app.post('/api/logout', (req, res) => {
 // ── Server-Sent Events ────────────────────────────────────────────────────────
 
 app.get('/api/events', (req, res) => {
-  // EventSource can't set headers, so token comes as query param
-  const token = (req.query.token as string) || req.headers.authorization?.replace('Bearer ', '');
-  if (!token) { res.status(401).end(); return; }
-  const session = sessions.get(token);
-  if (!session) { res.status(401).end(); return; }
+  let session: Session;
+  try { session = getSession(req); } catch { res.status(401).end(); return; }
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -218,6 +223,69 @@ app.post('/api/messages/:type/:targetId/read', async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+// ── File Download ─────────────────────────────────────────────────────────────
+
+app.get('/api/file/:fileId', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const { fileId } = req.params;
+    const fileName = (req.query.name as string) || 'download';
+
+    // Fetch file metadata to know if encrypted
+    const info = await client.getFileInfo(fileId);
+    const buf = await client.downloadFile({
+      id: fileId,
+      encrypted: info.encrypted,
+      e2e_iv: info.e2e_iv ?? null,
+    });
+
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+    res.setHeader('Content-Type', info.mime || 'application/octet-stream');
+    res.send(buf);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Download failed' });
+  }
+});
+
+// ── File Upload ───────────────────────────────────────────────────────────────
+
+app.post('/api/upload/:type/:targetId', upload.single('file'), async (req, res) => {
+  const tmpPath = req.file?.path;
+  try {
+    const { client } = getSession(req);
+    const { type, targetId } = req.params;
+    const chatType = type as 'channel' | 'conversation';
+
+    if (!req.file) throw new Error('No file received');
+
+    // Rename temp file to have the original extension so stashcat-api can detect MIME
+    const originalName = req.file.originalname;
+    const ext = path.extname(originalName);
+    const namedPath = tmpPath + ext;
+    await fs.rename(tmpPath!, namedPath);
+
+    const fileInfo = await client.uploadFile(namedPath, {
+      type: chatType,
+      type_id: targetId,
+    });
+
+    await fs.unlink(namedPath).catch(() => {});
+
+    // Send a message with the file attached (empty text is fine)
+    await client.sendMessage({
+      target: targetId,
+      target_type: chatType,
+      text: req.body.text || '',
+      files: [fileInfo.id],
+    });
+
+    res.json({ ok: true, file: fileInfo });
+  } catch (err) {
+    if (tmpPath) await fs.unlink(tmpPath).catch(() => {});
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Upload failed' });
   }
 });
 

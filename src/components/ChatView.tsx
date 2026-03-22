@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
+import { fileIcon } from '../utils/fileIcon';
 import Avatar from './Avatar';
 import MessageInput from './MessageInput';
 import type { ChatTarget, Message } from '../types';
@@ -121,7 +122,11 @@ export default function ChatView({ chat }: ChatViewProps) {
 
   const handleSend = async (text: string) => {
     await api.sendMessage(chat.id, chat.type, text);
-    // Optimistic: reload to pick up our own message
+    await loadMessages();
+  };
+
+  const handleUpload = async (file: File, text: string) => {
+    await api.uploadFile(chat.type, chat.id, file, text);
     await loadMessages();
   };
 
@@ -216,7 +221,7 @@ export default function ChatView({ chat }: ChatViewProps) {
         </div>
       )}
 
-      <MessageInput onSend={handleSend} onTyping={handleTyping} chatName={chat.name} />
+      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatName={chat.name} />
     </div>
   );
 }
@@ -267,18 +272,22 @@ function MessageGroup({ group }: { group: { sender: Message['sender']; isOwn: bo
                 {msg.files && msg.files.length > 0 && (
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {msg.files.map((f) => (
-                      <div
+                      <a
                         key={f.id}
+                        href={api.fileDownloadUrl(f.id, f.name)}
+                        download={f.name}
+                        title={`${f.name} herunterladen`}
                         className={clsx(
-                          'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium',
+                          'inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition',
                           isOwn
-                            ? 'bg-primary-700 text-primary-100'
-                            : 'bg-surface-200 text-surface-600 dark:bg-surface-700 dark:text-surface-300',
+                            ? 'bg-primary-700 text-primary-100 hover:bg-primary-800'
+                            : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-300 dark:hover:bg-surface-600',
                         )}
                       >
-                        📎 {f.name}
-                        {f.size_string && <span className="opacity-70">({f.size_string})</span>}
-                      </div>
+                        <span>{fileIcon(f.mime, f.ext)}</span>
+                        <span className="max-w-[160px] truncate">{f.name}</span>
+                        {f.size_string && <span className="opacity-60">({f.size_string})</span>}
+                      </a>
                     ))}
                   </div>
                 )}
