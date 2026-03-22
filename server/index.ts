@@ -4,7 +4,7 @@ import multer from 'multer';
 import os from 'os';
 import path from 'path';
 import fs from 'fs/promises';
-import { StashcatClient } from 'stashcat-api';
+import { StashcatClient, CryptoManager } from 'stashcat-api';
 import type { RealtimeManager } from 'stashcat-api';
 import type { MessageSyncPayload } from 'stashcat-api';
 
@@ -70,8 +70,33 @@ app.post('/api/login', async (req, res) => {
     }).then(() => {
       const rt = session.realtime!;
 
-      rt.on('message_sync', (data: MessageSyncPayload) => {
-        pushSSE(session, 'message_sync', data);
+      rt.on('message_sync', async (data: MessageSyncPayload) => {
+        const payload = { ...data };
+
+        // Decrypt message text if E2E-encrypted
+        if (data.encrypted && data.text && data.iv) {
+          try {
+            let aesKey: Buffer | undefined;
+            const channelId = data.channel_id && data.channel_id !== 0 ? String(data.channel_id) : null;
+            const convId    = data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null;
+
+            if (convId) {
+              aesKey = await client.getConversationAesKey(convId);
+            } else if (channelId) {
+              aesKey = await client.getChannelAesKey(channelId);
+            }
+
+            if (aesKey) {
+              const iv = CryptoManager.hexToBuffer(data.iv);
+              payload.text = CryptoManager.decrypt(data.text, aesKey, iv);
+            }
+          } catch (err) {
+            // Decryption failed — send as-is (frontend shows 🔒)
+            console.warn('[Realtime] Failed to decrypt message_sync:', (err as Error).message);
+          }
+        }
+
+        pushSSE(session, 'message_sync', payload);
       });
 
       rt.on('user-started-typing', (chatType: string, chatId: number, userId: number) => {
