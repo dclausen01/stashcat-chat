@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal } from 'lucide-react';
+import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal, Star } from 'lucide-react';
+
+function sortByFavorite(items: ChatTarget[]): ChatTarget[] {
+  return [...items].sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0));
+}
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -43,10 +47,11 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
             name: String(ch.name || ''),
             encrypted: Boolean(ch.encrypted),
             unread_count: Number(ch.unread_count || 0),
+            favorite: Boolean(ch.favorite),
           });
         }
       }
-      setChannels(allChannels);
+      setChannels(sortByFavorite(allChannels));
 
       const convTargets: ChatTarget[] = (convList as Array<Record<string, unknown>>).map((c) => {
         const members = (c.members as Array<Record<string, unknown>>) || [];
@@ -61,9 +66,10 @@ export default function Sidebar({ activeChat, onSelectChat }: SidebarProps) {
           name,
           encrypted: Boolean(c.encrypted),
           unread_count: Number(c.unread_count || 0),
+          favorite: Boolean(c.favorite || c.is_favorite),
         };
       });
-      setConversations(convTargets);
+      setConversations(sortByFavorite(convTargets));
     } catch (err) {
       console.error('Failed to load sidebar data:', err);
     }
@@ -201,6 +207,7 @@ function ChatItem({ target, active, onSelect }: { target: ChatTarget; active: bo
         <Avatar name={target.name} size="sm" />
       )}
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{target.name}</span>
+      {target.favorite && <Star size={13} className="shrink-0 fill-yellow-400 text-yellow-400" />}
       {target.encrypted && <span className="shrink-0 text-xs text-surface-400" title="Verschlüsselt">🔒</span>}
       {(target.unread_count ?? 0) > 0 && (
         <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary-600 px-1.5 text-xs font-bold text-white">
