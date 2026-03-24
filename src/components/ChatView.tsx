@@ -587,8 +587,8 @@ function MessageGroup({
           const replyTo = msg.reply_to ? messageMap.get(msg.reply_to.message_id) : undefined;
 
           return (
-            <div key={msg.id} className={clsx('group/msg relative flex flex-col gap-0.5', isOwn ? 'items-end' : 'items-start')}>
-              {/* Action buttons — above the bubble to avoid horizontal scrollbar */}
+            <div key={msg.id} className={clsx('group/msg relative flex flex-col gap-0.5 before:pointer-events-auto before:absolute before:-top-8 before:left-0 before:right-0 before:h-8', isOwn ? 'items-end' : 'items-start')}>
+              {/* Action buttons — above the bubble; ::before extends hover zone so buttons don't vanish */}
               <div className={clsx(
                 'absolute bottom-full mb-1 z-10 hidden group-hover/msg:flex items-center gap-0.5 rounded-lg bg-white/90 p-0.5 shadow-sm ring-1 ring-surface-200 backdrop-blur dark:bg-surface-800/90 dark:ring-surface-700',
                 isOwn ? 'right-0' : 'left-0',
