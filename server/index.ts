@@ -408,36 +408,7 @@ app.get('/api/conversations', async (req, res) => {
 
 // ── Messages ──────────────────────────────────────────────────────────────────
 
-app.get('/api/messages/:type/:targetId', async (req, res) => {
-  try {
-    const { client } = getSession(req);
-    const { type, targetId } = req.params;
-    const limit = Number(req.query.limit) || 40;
-    const offset = Number(req.query.offset) || 0;
-    const chatType = type as 'channel' | 'conversation';
-    const messages = await client.getMessages(targetId, chatType, { limit, offset });
-    const sorted = [...messages].sort(
-      (a: Record<string, unknown>, b: Record<string, unknown>) =>
-        (Number(a.time) || 0) - (Number(b.time) || 0)
-    );
-    res.json(sorted);
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
-  }
-});
-
-app.post('/api/messages/:type/:targetId', async (req, res) => {
-  try {
-    const { client } = getSession(req);
-    const { type, targetId } = req.params;
-    const { text, is_forwarded } = req.body as { text: string; is_forwarded?: boolean };
-    const chatType = type as 'channel' | 'conversation';
-    await client.sendMessage({ target: targetId, target_type: chatType, text, is_forwarded });
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
-  }
-});
+// ── Specific message routes MUST come before the generic :type/:targetId routes ──
 
 app.post('/api/messages/:messageId/like', async (req, res) => {
   try {
@@ -473,6 +444,39 @@ app.delete('/api/messages/:messageId', async (req, res) => {
   try {
     const { client } = getSession(req);
     await client.deleteMessage(req.params.messageId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+// ── Generic message routes (must be AFTER specific ones) ─────────────────────
+
+app.get('/api/messages/:type/:targetId', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const { type, targetId } = req.params;
+    const limit = Number(req.query.limit) || 40;
+    const offset = Number(req.query.offset) || 0;
+    const chatType = type as 'channel' | 'conversation';
+    const messages = await client.getMessages(targetId, chatType, { limit, offset });
+    const sorted = [...messages].sort(
+      (a: Record<string, unknown>, b: Record<string, unknown>) =>
+        (Number(a.time) || 0) - (Number(b.time) || 0)
+    );
+    res.json(sorted);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.post('/api/messages/:type/:targetId', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const { type, targetId } = req.params;
+    const { text, is_forwarded } = req.body as { text: string; is_forwarded?: boolean };
+    const chatType = type as 'channel' | 'conversation';
+    await client.sendMessage({ target: targetId, target_type: chatType, text, is_forwarded });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
