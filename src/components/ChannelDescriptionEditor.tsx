@@ -183,7 +183,8 @@ export default function ChannelDescriptionEditor({ chat, onClose, onSaved }: Cha
                     </button>
                     {showEmojiPicker === idx && (
                       <div
-                        className="absolute left-0 top-full z-10 mt-1 grid grid-cols-5 gap-1 rounded-xl border border-surface-200 bg-white p-2 shadow-xl dark:border-surface-600 dark:bg-surface-800"
+                        className="absolute left-0 top-full z-10 mt-1 w-[220px] rounded-xl border border-surface-200 bg-white p-2 shadow-xl dark:border-surface-600 dark:bg-surface-800"
+                        style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}
                         onClick={(e) => e.stopPropagation()}
                       >
                         {LINK_PRESETS.map((p) => (

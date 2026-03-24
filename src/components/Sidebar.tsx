@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal, Star, FolderOpen, Plus } from 'lucide-react';
+import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal, Star, FolderOpen, Plus, Radio, CalendarDays } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -25,9 +25,13 @@ interface SidebarProps {
   onSelectChat: (target: ChatTarget) => void;
   loggedIn: boolean;
   onOpenFileBrowser: () => void;
+  onOpenBroadcasts: () => void;
+  onOpenCalendar: () => void;
+  broadcastsOpen: boolean;
+  calendarOpen: boolean;
 }
 
-export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser }: SidebarProps) {
+export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, broadcastsOpen, calendarOpen }: SidebarProps) {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const [channels, setChannels] = useState<ChatTarget[]>([]);
@@ -219,7 +223,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           <div className="truncate text-sm font-semibold text-surface-900 dark:text-white">{userName}</div>
         </div>
         {/* BBZ branding — compact, right-aligned */}
-        <img src="/bbz-logo.svg" alt="BBZ Chat" className="h-5 w-auto shrink-0 opacity-70" title="BBZ Chat" />
+        <img src="/bbz-logo-neu.png" alt="BBZ Chat" className="h-5 w-auto shrink-0 opacity-70" title="BBZ Chat" />
         <button
           onClick={onOpenFileBrowser}
           className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
@@ -318,6 +322,37 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         </div>
       </div>
 
+      {/* Footer toolbar — Broadcasts & Calendar */}
+      <div className="flex shrink-0 items-center border-t border-surface-200 dark:border-surface-700">
+        <button
+          onClick={onOpenBroadcasts}
+          className={clsx(
+            'flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition',
+            broadcastsOpen
+              ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
+              : 'text-surface-500 hover:bg-surface-100 hover:text-surface-700 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-200',
+          )}
+          title="Broadcasts"
+        >
+          <Radio size={15} />
+          <span>Broadcasts</span>
+        </button>
+        <div className="h-6 w-px bg-surface-200 dark:bg-surface-700" />
+        <button
+          onClick={onOpenCalendar}
+          className={clsx(
+            'flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition',
+            calendarOpen
+              ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
+              : 'text-surface-500 hover:bg-surface-100 hover:text-surface-700 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-200',
+          )}
+          title="Kalender"
+        >
+          <CalendarDays size={15} />
+          <span>Kalender</span>
+        </button>
+      </div>
+
       {/* New channel modal */}
       {showNewChannel && primaryCompanyId && (
         <NewChannelModal
@@ -358,17 +393,17 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
                 const members = (c.members as Array<Record<string, unknown>>) || [];
                 const others = members.filter((m) => String(m.id) !== userId);
                 const name = others.length > 0
-                  ? `${others[0].first_name ?? ''} ${others[0].last_name ?? ''}`.trim()
-                  : 'Unbekannt';
+                  ? others.map((m) => `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim()).join(', ')
+                  : 'Eigene Notizen';
                 return {
                   type: 'conversation' as const,
                   id: String(c.id),
                   name,
-                  image: others[0]?.image ? String(others[0].image) : undefined,
+                  image: others.length === 1 && others[0].image ? String(others[0].image) : undefined,
                   encrypted: Boolean(c.encrypted),
                   unread_count: Number(c.unread_count || 0),
                   favorite: Boolean(c.favorite),
-                  lastActivity: Number((c.last_message as Record<string, unknown>)?.time || 0),
+                  lastActivity: Number(c.last_action || c.last_activity || 0),
                 };
               });
               setConversations(sortChats(targets));

@@ -198,8 +198,9 @@ app.get('/api/channels/:channelId/members', async (req, res) => {
     const { client } = getSession(req);
     const channelId = req.params.channelId;
     // Paginate until all members are fetched (channels can have 500+ members)
+    // Note: Stashcat API has a hard cap of ~100 per request regardless of limit param
     const all: unknown[] = [];
-    const PAGE = 200;
+    const PAGE = 100;
     let offset = 0;
     while (true) {
       const batch = await client.getChannelMembers(channelId, { limit: PAGE, offset });
@@ -275,13 +276,48 @@ app.patch('/api/channels/:channelId', async (req, res) => {
   }
 });
 
-// ── Company members ───────────────────────────────────────────────────────────
+// ── Company members (via /manage/list_users) ─────────────────────────────────
 
 app.get('/api/companies/:companyId/members', async (req, res) => {
   try {
     const { client } = getSession(req);
-    res.json(await client.getCompanyMembers(req.params.companyId));
+    const search = req.query.search as string | undefined;
+    const limit = req.query.limit ? Number(req.query.limit) : undefined;
+    const offset = req.query.offset ? Number(req.query.offset) : undefined;
+
+    const result = await client.listManagedUsers(req.params.companyId, { search, limit, offset });
+    res.json({ users: result.users, total: result.total });
   } catch (err) {
+    console.error('[company-members] Error:', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+// ── Company groups (AD/LDAP) ─────────────────────────────────────────────────
+
+app.get('/api/companies/:companyId/groups', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const groups = await client.listGroups(req.params.companyId);
+    res.json(groups);
+  } catch (err) {
+    console.error('[company-groups] Error:', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+// ── Group members ────────────────────────────────────────────────────────────
+
+app.get('/api/companies/:companyId/groups/:groupId/members', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const result = await client.listManagedUsers(req.params.companyId, {
+      groupIds: [req.params.groupId],
+      limit: 200,
+    });
+    res.json({ users: result.users, total: result.total });
+  } catch (err) {
+    console.error('[group-members] Error:', err);
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
   }
 });
@@ -349,10 +385,7 @@ app.post('/api/conversations', async (req, res) => {
   try {
     const { client } = getSession(req);
     const { member_ids } = req.body as { member_ids: string[] };
-    // unique_identifier is a random hex string used as E2E key identifier
-    const crypto = await import('crypto');
-    const uniqueIdentifier = crypto.randomBytes(32).toString('hex');
-    const conversation = await client.createEncryptedConversation(member_ids, uniqueIdentifier);
+    const conversation = await client.createConversation(member_ids);
     console.log(`[conversations/create] created conversation with ${member_ids.length} member(s)`);
     res.json(conversation);
   } catch (err) {
@@ -397,9 +430,9 @@ app.post('/api/messages/:type/:targetId', async (req, res) => {
   try {
     const { client } = getSession(req);
     const { type, targetId } = req.params;
-    const { text } = req.body as { text: string };
+    const { text, is_forwarded } = req.body as { text: string; is_forwarded?: boolean };
     const chatType = type as 'channel' | 'conversation';
-    await client.sendMessage({ target: targetId, target_type: chatType, text });
+    await client.sendMessage({ target: targetId, target_type: chatType, text, is_forwarded });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
@@ -411,6 +444,16 @@ app.post('/api/messages/:messageId/like', async (req, res) => {
     const { client } = getSession(req);
     await client.likeMessage(req.params.messageId);
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.get('/api/messages/:messageId/likes', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const likes = await client.listLikes(req.params.messageId);
+    res.json({ likes });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
   }
@@ -743,6 +786,193 @@ app.get('/api/link-preview', async (req, res) => {
   } catch (err) {
     // Return minimal preview on failure
     res.json({ title: req.query.url, fetchedAt: Date.now() });
+  }
+});
+
+// ── Broadcasts ───────────────────────────────────────────────────────────────
+
+app.get('/api/broadcasts', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    res.json(await client.listBroadcasts());
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.post('/api/broadcasts', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const { name, memberIds } = req.body as { name: string; memberIds: string[] };
+    res.json(await client.createBroadcast(name, memberIds));
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.delete('/api/broadcasts/:id', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    await client.deleteBroadcast(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.patch('/api/broadcasts/:id', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const { name } = req.body as { name: string };
+    await client.renameBroadcast(req.params.id, name);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.get('/api/broadcasts/:id/messages', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const limit = Number(req.query.limit) || 50;
+    const offset = Number(req.query.offset) || 0;
+    const messages = await client.getBroadcastContent({
+      list_id: req.params.id,
+      limit,
+      offset,
+    });
+    res.json(messages);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.post('/api/broadcasts/:id/messages', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const { text } = req.body as { text: string };
+    const msg = await client.sendBroadcastMessage({ list_id: req.params.id, text });
+    res.json(msg);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.get('/api/broadcasts/:id/members', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    res.json(await client.listBroadcastMembers(req.params.id));
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.post('/api/broadcasts/:id/members', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const { memberIds } = req.body as { memberIds: string[] };
+    await client.addBroadcastMembers(req.params.id, memberIds);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.delete('/api/broadcasts/:id/members', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const { memberIds } = req.body as { memberIds: string[] };
+    await client.removeBroadcastMembers(req.params.id, memberIds);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+// ── Calendar ─────────────────────────────────────────────────────────────────
+
+app.get('/api/calendar/events', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const start = Number(req.query.start);
+    const end = Number(req.query.end);
+    if (!start || !end) return res.status(400).json({ error: 'start and end required' });
+    res.json(await client.listEvents({ start, end }));
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.get('/api/calendar/events/:id', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const event = await client.getEventDetails([req.params.id]);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    res.json(event);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.post('/api/calendar/events', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const eventId = await client.createEvent(req.body);
+    res.json({ id: eventId });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.put('/api/calendar/events/:id', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const eventId = await client.editEvent({ ...req.body, event_id: req.params.id });
+    res.json({ id: eventId });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.delete('/api/calendar/events/:id', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    await client.deleteEvents([req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.post('/api/calendar/events/:id/respond', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const { status: rsvp } = req.body as { status: string };
+    const me = await client.getMe() as Record<string, unknown>;
+    await client.respondToEvent(req.params.id, String(me.id), rsvp as 'accepted' | 'declined' | 'open');
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.post('/api/calendar/events/:id/invite', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    const { userIds } = req.body as { userIds: string[] };
+    await client.inviteToEvent(req.params.id, userIds);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.get('/api/calendar/channels/:companyId', async (req, res) => {
+  try {
+    const { client } = getSession(req);
+    res.json(await client.listChannelsHavingEvents(req.params.companyId));
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
   }
 });
 

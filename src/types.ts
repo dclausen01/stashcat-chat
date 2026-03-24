@@ -42,6 +42,12 @@ export interface MessageFile {
   e2e_iv?: string | null;
 }
 
+export interface MessageReplyTo {
+  message_id: number;
+  message_hash: string;
+  message_verification?: string | null;
+}
+
 export interface Message {
   id: string;
   text: string;
@@ -56,6 +62,7 @@ export interface Message {
   flagged?: boolean;
   edited?: boolean;
   reply_to_id?: string;
+  reply_to?: MessageReplyTo | null;
   is_forwarded?: boolean;
   kind?: string;
   type?: string;

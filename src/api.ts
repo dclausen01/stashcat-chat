@@ -130,8 +130,38 @@ export async function editChannel(channelId: string, companyId: string, descript
   }
 }
 
-export async function getCompanyMembers(companyId: string) {
-  return get<Array<Record<string, unknown>>>(`/companies/${companyId}/members`);
+export interface ManagedUser {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  image?: string;
+  roles?: Array<{ id: string; name: string; company_id: string }>;
+  active?: boolean;
+}
+
+export interface CompanyGroup {
+  id: string;
+  name: string;
+  count: number;
+  ldap_group?: string;
+}
+
+export async function searchCompanyMembers(companyId: string, opts?: { search?: string; limit?: number; offset?: number }) {
+  const params = new URLSearchParams();
+  if (opts?.search) params.set('search', opts.search);
+  if (opts?.limit) params.set('limit', String(opts.limit));
+  if (opts?.offset) params.set('offset', String(opts.offset));
+  const qs = params.toString();
+  return get<{ users: ManagedUser[]; total: number }>(`/companies/${companyId}/members${qs ? `?${qs}` : ''}`);
+}
+
+export async function getCompanyGroups(companyId: string) {
+  return get<CompanyGroup[]>(`/companies/${companyId}/groups`);
+}
+
+export async function getGroupMembers(companyId: string, groupId: string) {
+  return get<{ users: ManagedUser[]; total: number }>(`/companies/${companyId}/groups/${groupId}/members`);
 }
 
 export async function createChannel(opts: {
@@ -157,6 +187,10 @@ export async function createConversation(memberIds: string[]): Promise<Record<st
   return post<Record<string, unknown>>('/conversations', { member_ids: memberIds });
 }
 
+export async function getConversation(id: string): Promise<Record<string, unknown>> {
+  return get<Record<string, unknown>>(`/conversations/${id}`);
+}
+
 export async function getConversations(limit = 50, offset = 0) {
   return get<Array<Record<string, unknown>>>(`/conversations?limit=${limit}&offset=${offset}`);
 }
@@ -167,12 +201,22 @@ export async function getMessages(targetId: string, type: 'channel' | 'conversat
   return get<Array<Record<string, unknown>>>(`/messages/${type}/${targetId}?limit=${limit}&offset=${offset}`);
 }
 
-export async function sendMessage(targetId: string, type: 'channel' | 'conversation', text: string) {
-  return post(`/messages/${type}/${targetId}`, { text });
+export async function sendMessage(targetId: string, type: 'channel' | 'conversation', text: string, opts?: { is_forwarded?: boolean }) {
+  return post(`/messages/${type}/${targetId}`, { text, ...opts });
 }
 
 export async function likeMessage(messageId: string): Promise<void> {
   return post(`/messages/${messageId}/like`);
+}
+
+export interface LikeInfo {
+  user: { id: string; first_name: string; last_name: string; image?: string };
+  liked_at: number;
+}
+
+export async function listLikes(messageId: string): Promise<LikeInfo[]> {
+  const data = await get<{ likes: LikeInfo[] }>(`/messages/${messageId}/likes`);
+  return data.likes ?? [];
 }
 
 export async function unlikeMessage(messageId: string): Promise<void> {
@@ -282,6 +326,111 @@ export interface LinkPreview {
 export async function getLinkPreview(url: string): Promise<LinkPreview> {
   return get<LinkPreview>(`/link-preview?url=${encodeURIComponent(url)}`);
 }
+
+// --- Broadcasts ---
+
+export async function listBroadcasts() {
+  return get<Array<Record<string, unknown>>>('/broadcasts');
+}
+
+export async function createBroadcast(name: string, memberIds: string[]): Promise<Record<string, unknown>> {
+  return post<Record<string, unknown>>('/broadcasts', { name, memberIds });
+}
+
+export async function deleteBroadcast(id: string): Promise<void> {
+  const res = await fetch(`${BACKEND}/broadcasts/${id}`, { method: 'DELETE', headers: headers() });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+export async function renameBroadcast(id: string, name: string): Promise<void> {
+  const res = await fetch(`${BACKEND}/broadcasts/${id}`, {
+    method: 'PATCH', headers: headers(), body: JSON.stringify({ name }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+export async function getBroadcastMessages(id: string, limit = 50, offset = 0) {
+  return get<Array<Record<string, unknown>>>(`/broadcasts/${id}/messages?limit=${limit}&offset=${offset}`);
+}
+
+export async function sendBroadcastMessage(id: string, text: string) {
+  return post<Record<string, unknown>>(`/broadcasts/${id}/messages`, { text });
+}
+
+export async function getBroadcastMembers(id: string) {
+  return get<Array<Record<string, unknown>>>(`/broadcasts/${id}/members`);
+}
+
+export async function addBroadcastMembers(id: string, memberIds: string[]): Promise<void> {
+  await post(`/broadcasts/${id}/members`, { memberIds });
+}
+
+export async function removeBroadcastMembers(id: string, memberIds: string[]): Promise<void> {
+  const res = await fetch(`${BACKEND}/broadcasts/${id}/members`, {
+    method: 'DELETE', headers: headers(), body: JSON.stringify({ memberIds }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+// --- Calendar ---
+
+export interface CalendarEvent {
+  id: number;
+  name: string;
+  description?: string;
+  location?: string;
+  start: number;
+  end: number;
+  type: string;
+  type_id?: number;
+  allday?: string;
+  repeat?: string;
+  repeat_end?: number | null;
+  creator?: { id: number | string; first_name?: string; last_name?: string; image?: string };
+  invites?: Array<{
+    id: number;
+    status: string;
+    user: { id: number | string; first_name?: string; last_name?: string };
+  }>;
+  channel?: Record<string, unknown>;
+  channel_invites?: unknown[];
+  members?: unknown[];
+}
+
+export async function listCalendarEvents(start: number, end: number) {
+  return get<CalendarEvent[]>(`/calendar/events?start=${start}&end=${end}`);
+}
+
+export async function getCalendarEvent(id: string) {
+  return get<CalendarEvent>(`/calendar/events/${id}`);
+}
+
+export async function createCalendarEvent(data: Record<string, unknown>): Promise<{ id: string }> {
+  return post<{ id: string }>('/calendar/events', data);
+}
+
+export async function editCalendarEvent(id: string, data: Record<string, unknown>): Promise<{ id: string }> {
+  const res = await fetch(`${BACKEND}/calendar/events/${id}`, {
+    method: 'PUT', headers: headers(), body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function deleteCalendarEvent(id: string): Promise<void> {
+  const res = await fetch(`${BACKEND}/calendar/events/${id}`, { method: 'DELETE', headers: headers() });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+export async function respondToCalendarEvent(id: string, status: 'accepted' | 'declined' | 'open'): Promise<void> {
+  await post(`/calendar/events/${id}/respond`, { status });
+}
+
+export async function getCalendarChannels(companyId: string) {
+  return get<Array<Record<string, unknown>>>(`/calendar/channels/${companyId}`);
+}
+
+// --- File Upload (chat) ---
 
 export async function uploadFile(
   type: 'channel' | 'conversation',

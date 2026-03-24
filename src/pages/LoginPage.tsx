@@ -27,7 +27,7 @@ export default function LoginPage() {
     <div className="flex h-full items-center justify-center bg-surface-50 dark:bg-surface-950">
       <div className="w-full max-w-md p-8">
         <div className="mb-8 text-center">
-          <img src="/bbz-logo.svg" alt="BBZ Rendsburg-Eckernförde" className="mx-auto mb-4 h-20" />
+          <img src="/bbz-logo-neu.png" alt="BBZ Rendsburg-Eckernförde" className="mx-auto mb-4 h-20" />
           <h1 className="text-2xl font-bold text-surface-900 dark:text-white">BBZ Chat</h1>
           <p className="mt-1 text-surface-500 dark:text-surface-400">Anmelden bei schul.cloud</p>
         </div>

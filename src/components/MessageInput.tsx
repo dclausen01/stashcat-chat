@@ -49,6 +49,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName }: M
   const [sending, setSending] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [focused, setFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
@@ -158,8 +159,8 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName }: M
         </div>
       )}
 
-      {/* Formatting toolbar */}
-      <div className="mb-2 flex items-center gap-0.5">
+      {/* Formatting toolbar — only visible when focused or text present */}
+      <div className={clsx('mb-2 flex items-center gap-0.5', !focused && !text && !pendingFile && 'hidden')}>
         {FORMAT_BUTTONS.map((btn) => (
           <button
             key={btn.label}
@@ -179,7 +180,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName }: M
 
       {/* Input area */}
       <div className={clsx(
-        'relative flex items-end gap-2 rounded-xl border bg-surface-50 px-3 py-2 transition',
+        'relative flex items-end gap-2 rounded-xl border bg-surface-50 px-3 py-1.5 transition',
         'border-surface-200 focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500/20',
         'dark:border-surface-600 dark:bg-surface-800',
       )}>
@@ -205,6 +206,8 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName }: M
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           onInput={handleInput}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           placeholder={pendingFile ? 'Optionale Nachricht zur Datei...' : `Nachricht an ${chatName}...`}
           rows={1}
           className="max-h-[200px] flex-1 resize-none bg-transparent font-mono text-sm text-surface-900 outline-none placeholder:font-sans placeholder:text-surface-400 dark:text-white"

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Settings, ThumbsUp, X, ExternalLink, FileText, Pencil } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Settings, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -29,6 +29,7 @@ interface TypingUser {
 }
 
 const PAGE_SIZE = 50;
+const SYSTEM_KINDS = new Set(['joined', 'left', 'removed', 'call_start', 'call_end']);
 
 export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, fileBrowserOpen }: ChatViewProps) {
   const { user } = useAuth();
@@ -45,6 +46,7 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
   const [pdfView, setPdfView] = useState<{ fileId: string; viewUrl: string; name: string } | null>(null);
   const [descEditorOpen, setDescEditorOpen] = useState(false);
   const [chatDescription, setChatDescription] = useState(chat.description || '');
+  const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef(chat);
@@ -251,12 +253,19 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
     api.sendTyping(chat.type, chat.id).catch(() => {});
   }, [chat.type, chat.id]);
 
-  // Group consecutive messages by sender
-  const groups: Array<{ sender: Message['sender']; isOwn: boolean; messages: Message[] }> = [];
+  // Build a map of message IDs for reply lookups
+  const messageMap = new Map(messages.map((m) => [Number(m.id), m]));
+
+  // Separate system messages from regular ones; group regular by sender
+  const groups: Array<{ sender: Message['sender']; isOwn: boolean; messages: Message[]; isSystem?: boolean }> = [];
   for (const msg of messages) {
+    if (SYSTEM_KINDS.has(msg.kind ?? '')) {
+      groups.push({ sender: msg.sender, isOwn: false, messages: [msg], isSystem: true });
+      continue;
+    }
     const isOwn = String(msg.sender?.id) === userId;
     const last = groups[groups.length - 1];
-    if (last && String(last.sender?.id) === String(msg.sender?.id)) {
+    if (last && !last.isSystem && String(last.sender?.id) === String(msg.sender?.id)) {
       last.messages.push(msg);
     } else {
       groups.push({ sender: msg.sender, isOwn, messages: [msg] });
@@ -341,7 +350,7 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="relative flex-1 overflow-y-auto px-4 py-4"
+        className="relative flex-1 overflow-x-hidden overflow-y-auto px-4 py-4"
       >
         {/* Load-more spinner at top */}
         {loadingMore && (
@@ -365,34 +374,47 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
           </div>
         ) : settings.bubbleView ? (
           <div className="flex flex-col gap-4">
-            {groups.map((group, gi) => (
-              <MessageGroup
-                key={gi}
-                group={group}
-                canDeleteAll={isManager && chat.type === 'channel'}
-                showImagesInline={settings.showImagesInline}
-                onDelete={handleDelete}
-                onLike={handleLike}
-                onImageClick={setLightboxUrl}
-                onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
-              />
-            ))}
+            {groups.map((group, gi) =>
+              group.isSystem ? (
+                <SystemMessage key={gi} msg={group.messages[0]} />
+              ) : (
+                <MessageGroup
+                  key={gi}
+                  group={group}
+                  canDeleteAll={isManager && chat.type === 'channel'}
+                  showImagesInline={settings.showImagesInline}
+                  messageMap={messageMap}
+                  onDelete={handleDelete}
+                  onLike={handleLike}
+                  onForward={setForwardMsg}
+                  onImageClick={setLightboxUrl}
+                  onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
+                />
+              ),
+            )}
           </div>
         ) : (
           <div className="flex flex-col divide-y divide-surface-100 dark:divide-surface-800">
-            {messages.map((msg) => (
-              <PlainTextMessage
-                key={msg.id}
-                msg={msg}
-                isOwn={String(msg.sender?.id) === userId}
-                canDelete={String(msg.sender?.id) === userId || (isManager && chat.type === 'channel')}
-                showImagesInline={settings.showImagesInline}
-                onDelete={handleDelete}
-                onLike={handleLike}
-                onImageClick={setLightboxUrl}
-                onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
-              />
-            ))}
+            {messages.map((msg) => {
+              if (SYSTEM_KINDS.has(msg.kind ?? '')) {
+                return <SystemMessage key={msg.id} msg={msg} />;
+              }
+              return (
+                <PlainTextMessage
+                  key={msg.id}
+                  msg={msg}
+                  isOwn={String(msg.sender?.id) === userId}
+                  canDelete={String(msg.sender?.id) === userId || (isManager && chat.type === 'channel')}
+                  showImagesInline={settings.showImagesInline}
+                  messageMap={messageMap}
+                  onDelete={handleDelete}
+                  onLike={handleLike}
+                  onForward={setForwardMsg}
+                  onImageClick={setLightboxUrl}
+                  onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
+                />
+              );
+            })}
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -466,6 +488,14 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
       />
     )}
 
+    {/* Forward dialog */}
+    {forwardMsg && (
+      <ForwardDialog
+        message={forwardMsg}
+        onClose={() => setForwardMsg(null)}
+      />
+    )}
+
     {/* PDF viewer */}
     {pdfView && (
       <div
@@ -511,16 +541,20 @@ function MessageGroup({
   group,
   canDeleteAll,
   showImagesInline,
+  messageMap,
   onDelete,
   onLike,
+  onForward,
   onImageClick,
   onPdfClick,
 }: {
   group: { sender: Message['sender']; isOwn: boolean; messages: Message[] };
   canDeleteAll: boolean;
   showImagesInline: boolean;
+  messageMap: Map<number, Message>;
   onDelete: (messageId: string) => void;
   onLike: (messageId: string, liked: boolean) => void;
+  onForward: (msg: Message) => void;
   onImageClick: (url: string) => void;
   onPdfClick: (fileId: string, viewUrl: string, name: string) => void;
 }) {
@@ -535,7 +569,7 @@ function MessageGroup({
         </div>
       )}
 
-      <div className={clsx('flex max-w-[75%] flex-col gap-0.5', isOwn ? 'items-end' : 'items-start')}>
+      <div className={clsx('flex min-w-0 max-w-[75%] flex-col gap-0.5', isOwn ? 'items-end' : 'items-start')}>
         {!isOwn && (
           <span className="mb-0.5 pl-1 text-xs font-semibold text-surface-600 dark:text-surface-400">
             {senderName}
@@ -550,66 +584,84 @@ function MessageGroup({
           const isLast = i === messages.length - 1;
           const content = msg.text || (msg.encrypted ? '🔒 *Verschlüsselte Nachricht*' : '');
           const canDelete = isOwn || canDeleteAll;
+          const replyTo = msg.reply_to ? messageMap.get(msg.reply_to.message_id) : undefined;
 
           return (
-            <div key={msg.id} className={clsx('group/msg flex flex-col gap-0.5', isOwn ? 'items-end' : 'items-start')}>
-              <div className={clsx('flex items-center gap-1', isOwn ? 'flex-row-reverse' : 'flex-row')}>
-                <div
+            <div key={msg.id} className={clsx('group/msg relative flex flex-col gap-0.5', isOwn ? 'items-end' : 'items-start')}>
+              {/* Action buttons — above the bubble to avoid horizontal scrollbar */}
+              <div className={clsx(
+                'absolute bottom-full mb-1 z-10 hidden group-hover/msg:flex items-center gap-0.5 rounded-lg bg-white/90 p-0.5 shadow-sm ring-1 ring-surface-200 backdrop-blur dark:bg-surface-800/90 dark:ring-surface-700',
+                isOwn ? 'right-0' : 'left-0',
+              )}>
+                <button
+                  onClick={() => onLike(String(msg.id), Boolean(msg.liked))}
+                  title={msg.liked ? 'Like entfernen' : 'Gefällt mir'}
                   className={clsx(
-                    'relative max-w-full px-3 py-2 text-sm leading-relaxed',
-                    isOwn
-                      ? 'rounded-2xl bg-primary-600 text-white'
-                      : 'rounded-2xl bg-surface-100 text-surface-900 dark:bg-surface-800 dark:text-surface-100',
-                    isOwn && !isFirst && 'rounded-tr-md',
-                    isOwn && !isLast && 'rounded-br-md',
-                    !isOwn && !isFirst && 'rounded-tl-md',
-                    !isOwn && !isLast && 'rounded-bl-md',
+                    'flex items-center justify-center rounded-md p-1 transition',
+                    msg.liked
+                      ? 'text-amber-500 dark:text-amber-400'
+                      : 'text-surface-400 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700 dark:hover:text-amber-400',
                   )}
                 >
-                  <MarkdownContent content={content} isOwn={isOwn} />
-                  <FileList files={msg.files} isOwn={isOwn} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
-                </div>
-
-                {/* Action buttons */}
-                <div className="hidden group-hover/msg:flex items-center gap-0.5">
+                  <ThumbsUp size={13} />
+                </button>
+                <button
+                  onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }}
+                  title="Kopieren"
+                  className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200 transition"
+                >
+                  <Copy size={13} />
+                </button>
+                <button
+                  onClick={() => onForward(msg)}
+                  title="Weiterleiten"
+                  className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200 transition"
+                >
+                  <Forward size={13} />
+                </button>
+                {canDelete && (
                   <button
-                    onClick={() => onLike(String(msg.id), Boolean(msg.liked))}
-                    title={msg.liked ? 'Like entfernen' : 'Gefällt mir'}
-                    className={clsx(
-                      'flex items-center justify-center rounded-md p-1 transition',
-                      msg.liked
-                        ? 'text-primary-600 dark:text-primary-400'
-                        : 'text-surface-400 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200',
-                    )}
+                    onClick={() => onDelete(String(msg.id))}
+                    title="Löschen"
+                    className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition"
                   >
-                    <ThumbsUp size={14} />
+                    <Trash2 size={13} />
                   </button>
-                  <button
-                    onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }}
-                    title="Nachricht kopieren"
-                    className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200 transition"
-                  >
-                    <Copy size={14} />
-                  </button>
-                  {canDelete && (
-                    <button
-                      onClick={() => onDelete(String(msg.id))}
-                      title="Nachricht löschen"
-                      className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
 
-              {isLast && (
+              <div
+                className={clsx(
+                  'relative max-w-full px-3 py-2 text-sm leading-relaxed',
+                  isOwn
+                    ? 'rounded-2xl bg-primary-600 text-white'
+                    : 'rounded-2xl bg-surface-100 text-surface-900 dark:bg-surface-800 dark:text-surface-100',
+                  isOwn && !isFirst && 'rounded-tr-md',
+                  isOwn && !isLast && 'rounded-br-md',
+                  !isOwn && !isFirst && 'rounded-tl-md',
+                  !isOwn && !isLast && 'rounded-bl-md',
+                )}
+              >
+                {replyTo && <ReplyQuote msg={replyTo} isOwn={isOwn} />}
+                {msg.is_forwarded && (
+                  <div className={clsx('mb-1 flex items-center gap-1 text-[11px] italic', isOwn ? 'text-primary-200' : 'text-surface-400')}>
+                    <Forward size={10} /> Weitergeleitet
+                  </div>
+                )}
+                <MarkdownContent content={content} isOwn={isOwn} />
+                <FileList files={msg.files} isOwn={isOwn} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
+              </div>
+
+              {(isLast || (msg.likes ?? 0) > 0) && (
                 <div className={clsx('flex items-center gap-1.5 px-1', isOwn ? 'flex-row-reverse' : 'flex-row')}>
-                  <span className="text-xs text-surface-400">{time}</span>
+                  {isLast && <span className="text-xs text-surface-400">{time}</span>}
                   {(msg.likes ?? 0) > 0 && (
-                    <span className="flex items-center gap-0.5 text-xs text-surface-400">
-                      <ThumbsUp size={11} /> {msg.likes}
-                    </span>
+                    <LikeBadge
+                      count={msg.likes ?? 0}
+                      liked={Boolean(msg.liked)}
+                      onToggle={() => onLike(String(msg.id), Boolean(msg.liked))}
+                      messageId={String(msg.id)}
+                    />
                   )}
                 </div>
               )}
@@ -628,8 +680,10 @@ function PlainTextMessage({
   isOwn,
   canDelete,
   showImagesInline,
+  messageMap,
   onDelete,
   onLike,
+  onForward,
   onImageClick,
   onPdfClick,
 }: {
@@ -637,8 +691,10 @@ function PlainTextMessage({
   isOwn: boolean;
   canDelete: boolean;
   showImagesInline: boolean;
+  messageMap: Map<number, Message>;
   onDelete: (messageId: string) => void;
   onLike: (messageId: string, liked: boolean) => void;
+  onForward: (msg: Message) => void;
   onImageClick: (url: string) => void;
   onPdfClick: (fileId: string, viewUrl: string, name: string) => void;
 }) {
@@ -647,6 +703,7 @@ function PlainTextMessage({
     ? new Date(msg.time * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
     : '';
   const content = msg.text || (msg.encrypted ? '🔒 Verschlüsselte Nachricht' : '');
+  const replyTo = msg.reply_to ? messageMap.get(msg.reply_to.message_id) : undefined;
 
   return (
     <div className="group/msg flex gap-3 px-2 py-2 hover:bg-surface-50 dark:hover:bg-surface-900/50">
@@ -658,33 +715,49 @@ function PlainTextMessage({
           </span>
           <span className="text-xs text-surface-400">{time}</span>
           {(msg.likes ?? 0) > 0 && (
-            <span className="flex items-center gap-0.5 text-xs text-surface-400">
-              <ThumbsUp size={11} /> {msg.likes}
-            </span>
+            <LikeBadge
+              count={msg.likes ?? 0}
+              liked={Boolean(msg.liked)}
+              onToggle={() => onLike(String(msg.id), Boolean(msg.liked))}
+              messageId={String(msg.id)}
+            />
           )}
         </div>
+        {replyTo && <ReplyQuote msg={replyTo} isOwn={false} />}
+        {msg.is_forwarded && (
+          <div className="mb-1 flex items-center gap-1 text-[11px] italic text-surface-400">
+            <Forward size={10} /> Weitergeleitet
+          </div>
+        )}
         <div className="text-sm text-surface-800 dark:text-surface-200">
           <MarkdownContent content={content} isOwn={false} />
         </div>
         <FileList files={msg.files} isOwn={false} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
       </div>
-      <div className="hidden shrink-0 group-hover/msg:flex items-center gap-0.5">
+      <div className="hidden shrink-0 group-hover/msg:grid grid-cols-2 gap-0.5">
         <button
           onClick={() => onLike(String(msg.id), Boolean(msg.liked))}
           title={msg.liked ? 'Like entfernen' : 'Gefällt mir'}
           className={clsx(
             'flex items-center justify-center rounded-md p-1 transition',
-            msg.liked ? 'text-primary-600' : 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700',
+            msg.liked ? 'text-amber-500' : 'text-surface-400 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700',
           )}
         >
-          <ThumbsUp size={14} />
+          <ThumbsUp size={13} />
         </button>
         <button
           onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }}
           title="Kopieren"
           className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 transition"
         >
-          <Copy size={14} />
+          <Copy size={13} />
+        </button>
+        <button
+          onClick={() => onForward(msg)}
+          title="Weiterleiten"
+          className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 transition"
+        >
+          <Forward size={13} />
         </button>
         {canDelete && (
           <button
@@ -692,10 +765,71 @@ function PlainTextMessage({
             title="Löschen"
             className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition"
           >
-            <Trash2 size={14} />
+            <Trash2 size={13} />
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── System message ─────────────────────────────────────────────────────────────
+
+function SystemMessage({ msg }: { msg: Message }) {
+  const senderName = msg.sender ? `${msg.sender.first_name} ${msg.sender.last_name}`.trim() : 'Jemand';
+  const time = msg.time
+    ? new Date(msg.time * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+    : '';
+  const date = msg.time
+    ? new Date(msg.time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })
+    : '';
+
+  let text = '';
+  switch (msg.kind) {
+    case 'joined':
+      text = `${senderName} ist dem Channel beigetreten.`;
+      break;
+    case 'left':
+      text = `${senderName} hat den Channel verlassen.`;
+      break;
+    case 'removed':
+      text = `${senderName} wurde aus dem Channel entfernt.`;
+      break;
+    case 'call_start':
+      text = `${senderName} hat einen Anruf gestartet.`;
+      break;
+    case 'call_end':
+      text = 'Der Anruf wurde beendet.';
+      break;
+    default:
+      text = msg.text || `Systemnachricht (${msg.kind})`;
+  }
+
+  return (
+    <div className="flex justify-center py-1">
+      <div className="rounded-full bg-surface-100 px-4 py-1.5 text-xs text-surface-500 dark:bg-surface-800 dark:text-surface-400">
+        <span className="font-medium">{text}</span>
+        {time && <span className="ml-2 text-surface-400">{date}, {time}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ── Reply quote ────────────────────────────────────────────────────────────────
+
+function ReplyQuote({ msg, isOwn }: { msg: Message; isOwn: boolean }) {
+  const senderName = msg.sender ? `${msg.sender.first_name} ${msg.sender.last_name}`.trim() : 'Unbekannt';
+  const preview = (msg.text || '').slice(0, 120) + ((msg.text || '').length > 120 ? '...' : '');
+
+  return (
+    <div className={clsx(
+      'mb-1.5 rounded-lg border-l-3 px-2.5 py-1.5 text-xs',
+      isOwn
+        ? 'border-primary-300 bg-primary-700/50 text-primary-100'
+        : 'border-surface-400 bg-surface-200/60 text-surface-600 dark:bg-surface-700/60 dark:text-surface-400',
+    )}>
+      <div className="font-semibold">{senderName}</div>
+      <div className="line-clamp-2 opacity-80">{preview || 'Nachricht'}</div>
     </div>
   );
 }
@@ -892,5 +1026,219 @@ function MarkdownContent({ content, isOwn }: { content: string; isOwn: boolean }
         <LinkPreviewCard key={url} url={url} isOwn={isOwn} />
       ))}
     </>
+  );
+}
+
+// ── Like badge with tooltip ────────────────────────────────────────────────────
+
+function LikeBadge({ count, liked, onToggle, messageId }: { count: number; liked: boolean; onToggle: () => void; messageId: string }) {
+  const [showPopup, setShowPopup] = useState(false);
+  const [likers, setLikers] = useState<Array<{ name: string; image?: string }> | null>(null);
+  const [loadingLikers, setLoadingLikers] = useState(false);
+  const [likeError, setLikeError] = useState('');
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  const loadLikers = async () => {
+    if (showPopup) { setShowPopup(false); return; }
+    setShowPopup(true);
+    if (likers !== null) return;
+    setLoadingLikers(true);
+    setLikeError('');
+    try {
+      const data = await api.listLikes(messageId);
+      if (!data || !Array.isArray(data)) {
+        setLikers([]);
+        setLikeError('Unerwartetes Format');
+        return;
+      }
+      setLikers(data.map((l) => ({ name: `${l.user.first_name} ${l.user.last_name}`.trim(), image: l.user.image })));
+    } catch (err) {
+      console.error('Failed to load likers:', err);
+      setLikeError(err instanceof Error ? err.message : 'Fehler beim Laden');
+      setLikers([]);
+    } finally {
+      setLoadingLikers(false);
+    }
+  };
+
+  // Close on outside click
+  useEffect(() => {
+    if (!showPopup) return;
+    const handler = (e: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) setShowPopup(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showPopup]);
+
+  return (
+    <span className="relative inline-flex" ref={popupRef}>
+      <button
+        onClick={loadLikers}
+        className={clsx(
+          'flex items-center gap-1 rounded-full px-1.5 py-0.5 text-xs font-medium transition cursor-pointer',
+          liked
+            ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+            : 'bg-surface-100 text-surface-500 hover:bg-amber-50 hover:text-amber-500 dark:bg-surface-800 dark:text-surface-400',
+        )}
+      >
+        <ThumbsUp size={13} className={liked ? 'text-amber-500' : ''} />
+        {count}
+      </button>
+      {showPopup && (
+        <div className="absolute bottom-full left-1/2 z-20 mb-1.5 -translate-x-1/2 w-48 rounded-xl bg-white px-1 py-1.5 shadow-xl ring-1 ring-surface-200 dark:bg-surface-800 dark:ring-surface-700">
+          <div className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-surface-400">
+            Gefällt {count} {count === 1 ? 'Person' : 'Personen'}
+          </div>
+          {loadingLikers ? (
+            <div className="flex justify-center py-2"><Loader2 size={14} className="animate-spin text-primary-400" /></div>
+          ) : likers && likers.length > 0 ? (
+            <div className="max-h-32 overflow-y-auto">
+              {likers.map((l, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-lg px-2 py-1">
+                  <Avatar name={l.name} image={l.image} size="xs" />
+                  <span className="truncate text-xs text-surface-700 dark:text-surface-300">{l.name}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="px-2 py-1 text-xs text-surface-400">{likeError || 'Keine Daten'}</div>
+          )}
+          <div className="mt-1 border-t border-surface-100 px-1 pt-1 dark:border-surface-700">
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggle(); setShowPopup(false); setLikers(null); }}
+              className="flex w-full items-center justify-center gap-1 rounded-lg py-1 text-xs font-medium text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20"
+            >
+              <ThumbsUp size={12} />
+              {liked ? 'Like entfernen' : 'Gefällt mir'}
+            </button>
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
+
+// ── Forward dialog ─────────────────────────────────────────────────────────────
+
+function ForwardDialog({ message, onClose }: { message: Message; onClose: () => void }) {
+  const [targets, setTargets] = useState<Array<{ id: string; name: string; type: 'channel' | 'conversation'; image?: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('');
+  const [forwarding, setForwarding] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [companies, convos] = await Promise.all([
+          api.getCompanies() as Promise<Array<Record<string, unknown>>>,
+          api.getConversations() as Promise<Array<Record<string, unknown>>>,
+        ]);
+        const all: typeof targets = [];
+        // Load channels
+        if (companies.length > 0) {
+          const chans = await api.getChannels(String(companies[0].id)) as Array<Record<string, unknown>>;
+          for (const ch of chans) {
+            all.push({ id: String(ch.id), name: String(ch.name ?? ''), type: 'channel', image: ch.image ? String(ch.image) : undefined });
+          }
+        }
+        // Conversations
+        for (const c of convos) {
+          const members = c.members as Array<Record<string, unknown>> | undefined;
+          const name = members?.map((m) => `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim()).join(', ') || `Konversation ${c.id}`;
+          all.push({ id: String(c.id), name, type: 'conversation', image: undefined });
+        }
+        setTargets(all);
+      } catch (err) {
+        console.error('Failed to load forward targets:', err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const filtered = targets.filter((t) => {
+    if (!filter) return true;
+    return t.name.toLowerCase().includes(filter.toLowerCase());
+  });
+
+  const handleForward = async (target: typeof targets[0]) => {
+    setForwarding(target.id);
+    try {
+      const text = message.text || '';
+      await api.sendMessage(target.id, target.type, text, { is_forwarded: true });
+      onClose();
+    } catch (err) {
+      alert(`Weiterleiten fehlgeschlagen: ${err instanceof Error ? err.message : err}`);
+    } finally {
+      setForwarding(null);
+    }
+  };
+
+  const preview = (message.text || '').slice(0, 100) + ((message.text || '').length > 100 ? '...' : '');
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="relative flex w-full max-w-sm flex-col rounded-2xl bg-white shadow-2xl dark:bg-surface-900" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-3 border-b border-surface-200 px-5 py-4 dark:border-surface-700">
+          <Forward size={18} className="shrink-0 text-primary-500" />
+          <h2 className="flex-1 text-sm font-semibold text-surface-900 dark:text-white">Nachricht weiterleiten</h2>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Message preview */}
+        {preview && (
+          <div className="border-b border-surface-200 px-5 py-3 dark:border-surface-700">
+            <div className="rounded-lg bg-surface-50 px-3 py-2 text-xs text-surface-600 dark:bg-surface-800 dark:text-surface-400">
+              {preview}
+            </div>
+          </div>
+        )}
+
+        {/* Search */}
+        <div className="px-5 pt-3">
+          <div className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
+            <Search size={14} className="shrink-0 text-surface-400" />
+            <input
+              type="text"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Channel oder Konversation suchen..."
+              autoFocus
+              className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:text-white"
+            />
+          </div>
+        </div>
+
+        {/* Target list */}
+        <div className="max-h-64 overflow-y-auto px-3 py-2">
+          {loading ? (
+            <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-primary-400" /></div>
+          ) : filtered.length === 0 ? (
+            <p className="py-4 text-center text-xs text-surface-400">Keine Ziele gefunden</p>
+          ) : (
+            filtered.map((t) => (
+              <button
+                key={`${t.type}-${t.id}`}
+                onClick={() => handleForward(t)}
+                disabled={forwarding === t.id}
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-2 hover:bg-surface-100 disabled:opacity-50 dark:hover:bg-surface-800"
+              >
+                {t.type === 'channel' ? (
+                  t.image ? <Avatar name={t.name} image={t.image} size="xs" /> : <Hash size={14} className="shrink-0 text-surface-400" />
+                ) : (
+                  <Avatar name={t.name} size="xs" />
+                )}
+                <span className="min-w-0 flex-1 truncate text-left text-sm text-surface-800 dark:text-surface-200">{t.name}</span>
+                <span className="shrink-0 text-[10px] uppercase text-surface-400">{t.type === 'channel' ? 'Channel' : 'Chat'}</span>
+                {forwarding === t.id && <Loader2 size={14} className="shrink-0 animate-spin text-primary-400" />}
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

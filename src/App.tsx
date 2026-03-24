@@ -6,22 +6,52 @@ import ChatView from './components/ChatView';
 import EmptyState from './components/EmptyState';
 import SettingsPanel from './components/SettingsPanel';
 import FileBrowserPanel from './components/FileBrowserPanel';
+import BroadcastsPanel from './components/BroadcastsPanel';
+import CalendarView from './components/CalendarView';
 import type { ChatTarget } from './types';
+
+type ActiveView = 'chat' | 'calendar';
 
 export default function App() {
   const { loggedIn } = useAuth();
   const [activeChat, setActiveChat] = useState<ChatTarget | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [fileBrowserOpen, setFileBrowserOpen] = useState(false);
+  const [broadcastsOpen, setBroadcastsOpen] = useState(false);
+  const [activeView, setActiveView] = useState<ActiveView>('chat');
+
+  // Close all side panels
+  const closeAllPanels = () => {
+    setSettingsOpen(false);
+    setFileBrowserOpen(false);
+    setBroadcastsOpen(false);
+  };
 
   const toggleSettings = () => {
-    setFileBrowserOpen(false);
+    closeAllPanels();
     setSettingsOpen((o) => !o);
   };
 
   const toggleFileBrowser = () => {
-    setSettingsOpen(false);
+    closeAllPanels();
     setFileBrowserOpen((o) => !o);
+  };
+
+  const toggleBroadcasts = () => {
+    closeAllPanels();
+    setActiveView('chat');
+    setBroadcastsOpen((o) => !o);
+  };
+
+  const openCalendar = () => {
+    closeAllPanels();
+    setActiveView('calendar');
+  };
+
+  const handleSelectChat = (chat: ChatTarget) => {
+    setActiveView('chat');
+    closeAllPanels();
+    setActiveChat(chat);
   };
 
   if (!loggedIn) {
@@ -32,20 +62,34 @@ export default function App() {
     <div className="flex h-full">
       <Sidebar
         activeChat={activeChat}
-        onSelectChat={setActiveChat}
+        onSelectChat={handleSelectChat}
         loggedIn={loggedIn}
-        onOpenFileBrowser={() => { setSettingsOpen(false); setFileBrowserOpen((o) => !o); }}
+        onOpenFileBrowser={() => { closeAllPanels(); setFileBrowserOpen((o) => !o); }}
+        onOpenBroadcasts={toggleBroadcasts}
+        onOpenCalendar={openCalendar}
+        broadcastsOpen={broadcastsOpen}
+        calendarOpen={activeView === 'calendar'}
       />
-      {activeChat
-        ? <ChatView
-            chat={activeChat}
-            onToggleSettings={toggleSettings}
-            onToggleFileBrowser={toggleFileBrowser}
-            fileBrowserOpen={fileBrowserOpen}
-          />
-        : <EmptyState />}
-      {fileBrowserOpen && (
-        <FileBrowserPanel chat={activeChat} onClose={() => setFileBrowserOpen(false)} />
+
+      {activeView === 'calendar' ? (
+        <CalendarView />
+      ) : (
+        <>
+          {activeChat
+            ? <ChatView
+                chat={activeChat}
+                onToggleSettings={toggleSettings}
+                onToggleFileBrowser={toggleFileBrowser}
+                fileBrowserOpen={fileBrowserOpen}
+              />
+            : <EmptyState />}
+          {fileBrowserOpen && (
+            <FileBrowserPanel chat={activeChat} onClose={() => setFileBrowserOpen(false)} />
+          )}
+          {broadcastsOpen && (
+            <BroadcastsPanel onClose={() => setBroadcastsOpen(false)} />
+          )}
+        </>
       )}
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
     </div>
