@@ -103,7 +103,7 @@ app.post('/api/login', async (req, res) => {
     const { email, password, securityPassword } = req.body;
     const effectiveSecurityPassword = securityPassword || password;
 
-    const client = new StashcatClient({ baseUrl: 'https://api.stashcat.com/' });
+    const client = new StashcatClient({ baseUrl: process.env.STASHCAT_BASE_URL || 'https://api.stashcat.com/' });
     await client.login({ email, password, securityPassword: effectiveSecurityPassword });
 
     const token = generateToken();
@@ -979,6 +979,17 @@ app.get('/api/calendar/channels/:companyId', async (req, res) => {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
   }
 });
+
+// ── Production: serve static frontend from dist/ ─────────────────────────────
+
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.join(__dirname, '..', 'dist');
+  app.use(express.static(distPath));
+  // SPA fallback: all non-API routes → index.html
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 

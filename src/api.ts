@@ -1,4 +1,4 @@
-const BACKEND = '/backend/api';
+const BACKEND = import.meta.env.DEV ? '/backend/api' : '/api';
 
 let token = '';
 
