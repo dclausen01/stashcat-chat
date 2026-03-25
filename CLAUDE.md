@@ -154,6 +154,7 @@ All routes are under `/api/` prefix on port 3001.
 | GET | `/api/file/:fileId` | Download / view file (binary stream) |
 | POST | `/api/upload/:type/:targetId` | Upload file as message attachment |
 | GET | `/api/link-preview` | Fetch OG/meta preview for a URL |
+| POST | `/api/video/start-meeting` | Start a Jitsi video meeting via Chat Bot |
 | GET | `/api/events` | SSE stream for realtime events |
 
 ---
@@ -189,6 +190,26 @@ Two layers:
 `useRealtimeEvents.ts` opens the `EventSource` and emits custom DOM events or calls callbacks that components subscribe to.
 
 E2E-encrypted `message_sync` events are decrypted by the server (using `getConversationAesKey()` or `getChannelAesKey()`) before being pushed over SSE.
+
+### Video Meetings (Jitsi via Chat Bot)
+
+Stashcat provides video conferencing via a built-in "Chat Bot". The integration automates this flow:
+
+1. **User clicks the Video icon** in the chat header (available in both channels and conversations).
+2. **Server sends `/meet`** to the Chat Bot's 1:1 conversation automatically.
+3. **Server polls** for the bot's two response messages (invite link + moderator link), parsing `stash.cat/l/` URLs.
+4. **Moderator link** opens in a new browser tab (Jitsi conference).
+5. **Invite link** is posted as a formatted message in the current chat, rendered as a `VideoMeetingCard` with a "Jetzt beitreten" button.
+
+Chat Bot suppression:
+- The bot's conversation is **filtered from the sidebar** (GET `/api/conversations` strips it).
+- Bot messages are **suppressed from SSE** (realtime `message_sync` events from the bot conversation are dropped).
+- Bot discovery result is cached per session in `botCache`.
+
+Key components:
+- `server/index.ts`: `findChatBot()`, `POST /api/video/start-meeting`, `isBotConversation()`, `isBotMessage()`
+- `src/api.ts`: `startVideoMeeting(targetId, targetType)`
+- `src/components/ChatView.tsx`: Video button in header, `VideoMeetingCard` component, `isVideoMeetingMessage()` detector
 
 ### Session Restore on Server Restart
 

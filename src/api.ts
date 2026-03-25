@@ -469,6 +469,12 @@ export async function uploadFile(
   }
 }
 
+// --- Video Meeting ---
+
+export async function startVideoMeeting(targetId: string, targetType: 'channel' | 'conversation'): Promise<{ inviteLink: string | null; moderatorLink: string | null }> {
+  return post<{ inviteLink: string | null; moderatorLink: string | null }>('/video/start-meeting', { targetId, targetType });
+}
+
 // --- Notifications ---
 
 export interface AppNotification {

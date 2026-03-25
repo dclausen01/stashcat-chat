@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Settings, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Settings, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Video } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -48,6 +48,7 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
   const [descEditorOpen, setDescEditorOpen] = useState(false);
   const [chatDescription, setChatDescription] = useState(chat.description || '');
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
+  const [meetingLoading, setMeetingLoading] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -364,6 +365,42 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
             </button>
           ) : null}
         </div>
+        {/* Video meeting button */}
+        <button
+          onClick={async () => {
+            if (meetingLoading) return;
+            setMeetingLoading(true);
+            try {
+              const result = await api.startVideoMeeting(chat.id, chat.type);
+              // Open moderator link in new tab
+              if (result.moderatorLink) {
+                window.open(result.moderatorLink, '_blank');
+              }
+              // Post invite link as formatted message in current chat
+              if (result.inviteLink) {
+                const now = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                const text = `Videokonferenz gestartet um ${now} Uhr\nJetzt beitreten: ${result.inviteLink}`;
+                await api.sendMessage(chat.id, chat.type, text);
+                await loadMessages();
+              }
+            } catch (err) {
+              console.error('Failed to start meeting:', err);
+              alert(err instanceof Error ? err.message : 'Videokonferenz konnte nicht erstellt werden');
+            } finally {
+              setMeetingLoading(false);
+            }
+          }}
+          disabled={meetingLoading}
+          className={clsx(
+            'rounded-lg p-2 transition',
+            meetingLoading
+              ? 'animate-pulse text-primary-500'
+              : 'text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800',
+          )}
+          title="Videokonferenz starten"
+        >
+          {meetingLoading ? <Loader2 size={20} className="animate-spin" /> : <Video size={20} />}
+        </button>
         {chat.type === 'channel' && (
           <button
             onClick={() => setMembersOpen((o) => !o)}
@@ -430,6 +467,8 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
             {groups.map((group, gi) =>
               group.isSystem ? (
                 <SystemMessage key={gi} msg={group.messages[0]} />
+              ) : group.messages.length === 1 && isVideoMeetingMessage(group.messages[0]) ? (
+                <VideoMeetingCard key={gi} msg={group.messages[0]} />
               ) : (
                 <MessageGroup
                   key={gi}
@@ -454,6 +493,9 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
             {messages.map((msg) => {
               if (SYSTEM_KINDS.has(msg.kind ?? '')) {
                 return <SystemMessage key={msg.id} msg={msg} />;
+              }
+              if (isVideoMeetingMessage(msg)) {
+                return <VideoMeetingCard key={msg.id} msg={msg} />;
               }
               return (
                 <PlainTextMessage
@@ -864,6 +906,53 @@ function PlainTextMessage({
             <Trash2 size={13} />
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Video meeting card ────────────────────────────────────────────────────────
+
+const VIDEO_MSG_RE = /^Videokonferenz gestartet um (\d{2}:\d{2}) Uhr\nJetzt beitreten: (https:\/\/stash\.cat\/l\/[a-zA-Z0-9]+)$/;
+
+function isVideoMeetingMessage(msg: Message): boolean {
+  return VIDEO_MSG_RE.test(msg.text || '');
+}
+
+function VideoMeetingCard({ msg }: { msg: Message }) {
+  const match = (msg.text || '').match(VIDEO_MSG_RE);
+  if (!match) return null;
+  const [, startTime, link] = match;
+  const senderName = msg.sender ? `${msg.sender.first_name} ${msg.sender.last_name}`.trim() : 'Jemand';
+  const date = msg.time
+    ? new Date(msg.time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : '';
+
+  return (
+    <div className="flex justify-center py-2">
+      <div className="w-full max-w-md overflow-hidden rounded-xl border border-primary-200 bg-gradient-to-br from-primary-50 to-primary-100 shadow-sm dark:border-primary-800 dark:from-primary-950/40 dark:to-primary-900/30">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-500 text-white">
+            <Video size={20} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-surface-900 dark:text-white">Videokonferenz</p>
+            <p className="text-xs text-surface-500 dark:text-surface-400">
+              Gestartet von {senderName} · {date}, {startTime} Uhr
+            </p>
+          </div>
+        </div>
+        <div className="border-t border-primary-200 px-4 py-2.5 dark:border-primary-800">
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-600 active:bg-primary-700"
+          >
+            <Video size={16} />
+            Jetzt beitreten
+          </a>
+        </div>
       </div>
     </div>
   );

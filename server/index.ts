@@ -25,6 +25,13 @@ interface CachedClient {
 const clientCache = new Map<string, CachedClient>();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
+// ── Chat Bot cache (for video meetings) ──────────────────────────────────────
+interface BotInfo {
+  botUserId: string;
+  botConvId: string;
+}
+const botCache = new Map<string, BotInfo>(); // keyed by clientKey
+
 // Cleanup expired entries periodically
 setInterval(() => {
   const now = Date.now();
@@ -99,6 +106,12 @@ function connectRealtime(client: StashcatClient, clientKey: string) {
     const rt = conn.realtime;
 
     rt.on('message_sync', async (data: MessageSyncPayload) => {
+      // Suppress Chat Bot conversation messages from reaching the frontend
+      const convId = data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null;
+      if (convId && isBotConversation(convId, clientKey)) {
+        return; // Silently drop bot messages
+      }
+
       const payload = { ...data };
 
       // Decrypt message text if E2E-encrypted
@@ -511,10 +524,19 @@ app.post('/api/conversations', async (req, res) => {
 
 app.get('/api/conversations', async (req, res) => {
   try {
+    const token = extractToken(req);
+    const payload = decryptSession(token);
     const client = await getClient(req);
     const limit = Number(req.query.limit) || 50;
     const offset = Number(req.query.offset) || 0;
-    res.json(await client.getConversations({ limit, offset }));
+    const conversations = await client.getConversations({ limit, offset }) as unknown as Array<Record<string, unknown>>;
+
+    // Discover bot in background (non-blocking) so we can filter it
+    findChatBot(client, payload.clientKey).catch(() => {});
+
+    // Filter out the Chat Bot conversation
+    const filtered = conversations.filter((c) => !isBotConversation(String(c.id), payload.clientKey));
+    res.json(filtered);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
   }
@@ -1097,6 +1119,137 @@ app.delete('/api/notifications/:notificationId', async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+// ── Video Meeting (Chat Bot integration) ──────────────────────────────────────
+
+async function findChatBot(client: StashcatClient, clientKey: string): Promise<BotInfo | null> {
+  // Check cache first
+  const cached = botCache.get(clientKey);
+  if (cached) return cached;
+
+  try {
+    // Scan conversations for the Chat Bot
+    const conversations = await client.getConversations({ limit: 100, offset: 0 }) as unknown as Array<Record<string, unknown>>;
+    for (const conv of conversations) {
+      const members = (conv.members as Array<Record<string, unknown>>) || [];
+      for (const member of members) {
+        const firstName = String(member.first_name || '').trim();
+        const lastName = String(member.last_name || '').trim();
+        const isBot = Boolean(member.is_bot);
+        if ((firstName === 'Chat' && lastName === 'Bot') || isBot) {
+          const info: BotInfo = { botUserId: String(member.id), botConvId: String(conv.id) };
+          botCache.set(clientKey, info);
+          console.log(`[Video] Found Chat Bot: userId=${info.botUserId}, convId=${info.botConvId}`);
+          return info;
+        }
+      }
+    }
+
+    // If not found in first 100 conversations, try loading more
+    const moreConversations = await client.getConversations({ limit: 100, offset: 100 }) as unknown as Array<Record<string, unknown>>;
+    for (const conv of moreConversations) {
+      const members = (conv.members as Array<Record<string, unknown>>) || [];
+      for (const member of members) {
+        const firstName = String(member.first_name || '').trim();
+        const lastName = String(member.last_name || '').trim();
+        const isBot = Boolean(member.is_bot);
+        if ((firstName === 'Chat' && lastName === 'Bot') || isBot) {
+          const info: BotInfo = { botUserId: String(member.id), botConvId: String(conv.id) };
+          botCache.set(clientKey, info);
+          console.log(`[Video] Found Chat Bot (page 2): userId=${info.botUserId}, convId=${info.botConvId}`);
+          return info;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Video] Failed to search for Chat Bot:', err);
+  }
+
+  return null;
+}
+
+/** Check if a conversation is the Chat Bot conversation */
+function isBotConversation(convId: string, clientKey: string): boolean {
+  const bot = botCache.get(clientKey);
+  return bot ? bot.botConvId === convId : false;
+}
+
+/** Check if a message sender is the Chat Bot */
+function isBotMessage(senderId: string, clientKey: string): boolean {
+  const bot = botCache.get(clientKey);
+  return bot ? bot.botUserId === senderId : false;
+}
+
+app.post('/api/video/start-meeting', async (req, res) => {
+  let clientKey = '';
+  try {
+    const token = extractToken(req);
+    const payload = decryptSession(token);
+    clientKey = payload.clientKey;
+    const client = await getClient(req);
+
+    // 1. Find Chat Bot
+    let botInfo = await findChatBot(client, clientKey);
+    if (!botInfo) {
+      return res.status(404).json({ error: 'Chat Bot nicht gefunden. Videokonferenzen sind nicht verfügbar.' });
+    }
+
+    // 2. Send /meet to the bot conversation
+    const sendTime = Math.floor(Date.now() / 1000);
+    await client.sendMessage({
+      target: botInfo.botConvId,
+      target_type: 'conversation',
+      text: '/meet',
+    });
+    console.log(`[Video] Sent /meet to bot conv ${botInfo.botConvId}`);
+
+    // 3. Poll for bot response (max 20 seconds, every 500ms)
+    let inviteLink: string | null = null;
+    let moderatorLink: string | null = null;
+    const linkRegex = /https:\/\/stash\.cat\/l\/[a-zA-Z0-9]+/g;
+    const maxAttempts = 40;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise((r) => setTimeout(r, 500));
+
+      const messages = await client.getMessages(botInfo.botConvId, 'conversation', { limit: 5, offset: 0 }) as unknown as Array<Record<string, unknown>>;
+
+      // Look for messages from the bot that arrived after our /meet command
+      const botMessages = messages.filter((m) => {
+        const sender = m.sender as Record<string, unknown> | undefined;
+        const senderId = sender ? String(sender.id || '') : String(m.sender || '');
+        const msgTime = Number(m.time || 0);
+        return senderId === botInfo!.botUserId && msgTime >= sendTime - 2; // 2s tolerance
+      });
+
+      for (const msg of botMessages) {
+        const text = String(msg.text || '');
+        const links = text.match(linkRegex);
+        if (!links || links.length === 0) continue;
+
+        // Classify: invite link has "weitergeben" / "Teilnehmer", moderator link has "starten" / "nur für dich"
+        if (text.includes('weitergeben') || text.includes('Teilnehmer')) {
+          inviteLink = links[0];
+        } else if (text.includes('starten') || text.includes('nur für dich')) {
+          moderatorLink = links[0];
+        }
+      }
+
+      if (inviteLink && moderatorLink) break;
+    }
+
+    if (!inviteLink && !moderatorLink) {
+      return res.status(504).json({ error: 'Chat Bot hat nicht rechtzeitig geantwortet. Bitte versuche es erneut.' });
+    }
+
+    console.log(`[Video] Meeting created: invite=${inviteLink}, moderator=${moderatorLink}`);
+    res.json({ inviteLink, moderatorLink });
+
+  } catch (err) {
+    console.error('[Video] Error:', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Videokonferenz konnte nicht erstellt werden' });
   }
 });
 
