@@ -1019,8 +1019,10 @@ app.get('/api/calendar/channels/:companyId', async (req, res) => {
 
 // ── Production: serve static frontend from dist/ ─────────────────────────────
 
-if (process.env.NODE_ENV === 'production') {
-  const distPath = path.join(__dirname, '..', 'dist');
+// Serve static frontend from dist/ (always, not just in production)
+{
+  const distPath = path.resolve(process.cwd(), 'dist');
+  console.log(`[Static] Serving frontend from ${distPath}`);
   app.use(express.static(distPath));
   // SPA fallback: all non-API routes → index.html
   app.get('*', (_req, res) => {
