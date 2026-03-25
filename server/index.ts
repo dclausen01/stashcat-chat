@@ -1124,45 +1124,61 @@ app.delete('/api/notifications/:notificationId', async (req, res) => {
 
 // ── Video Meeting (Chat Bot integration) ──────────────────────────────────────
 
+/** Returns true if a member object looks like the Stashcat Chat Bot */
+function looksLikeChatBot(member: Record<string, unknown>): boolean {
+  if (Boolean(member.is_bot)) return true;
+  const first = String(member.first_name || '').trim().toLowerCase();
+  const last  = String(member.last_name  || '').trim().toLowerCase();
+  const full  = `${first} ${last}`;
+  return full === 'chat bot' || first === 'chat bot' || last === 'chat bot';
+}
+
 async function findChatBot(client: StashcatClient, clientKey: string): Promise<BotInfo | null> {
   // Check cache first
   const cached = botCache.get(clientKey);
   if (cached) return cached;
 
   try {
-    // Scan conversations for the Chat Bot
-    const conversations = await client.getConversations({ limit: 100, offset: 0 }) as unknown as Array<Record<string, unknown>>;
-    for (const conv of conversations) {
-      const members = (conv.members as Array<Record<string, unknown>>) || [];
-      for (const member of members) {
-        const firstName = String(member.first_name || '').trim();
-        const lastName = String(member.last_name || '').trim();
-        const isBot = Boolean(member.is_bot);
-        if ((firstName === 'Chat' && lastName === 'Bot') || isBot) {
-          const info: BotInfo = { botUserId: String(member.id), botConvId: String(conv.id) };
-          botCache.set(clientKey, info);
-          console.log(`[Video] Found Chat Bot: userId=${info.botUserId}, convId=${info.botConvId}`);
-          return info;
+    // Scan up to 200 conversations for the Chat Bot (two pages of 100)
+    for (const offset of [0, 100]) {
+      const conversations = await client.getConversations({ limit: 100, offset }) as unknown as Array<Record<string, unknown>>;
+      console.log(`[Video] Scanning ${conversations.length} conversations at offset ${offset}`);
+
+      for (const conv of conversations) {
+        // members may be a flat array or may be missing – try both field names
+        const rawMembers = (conv.members ?? conv.participants ?? []) as Array<Record<string, unknown>>;
+
+        // If members have no user details (only IDs), fetch the full conversation
+        let members = rawMembers;
+        if (members.length > 0 && !members[0].first_name) {
+          try {
+            const full = await client.getConversation(String(conv.id)) as unknown as Record<string, unknown>;
+            members = ((full.members ?? full.participants ?? []) as Array<Record<string, unknown>>);
+          } catch { /* ignore */ }
+        }
+
+        for (const member of members) {
+          if (looksLikeChatBot(member)) {
+            const info: BotInfo = { botUserId: String(member.id ?? member.user_id), botConvId: String(conv.id) };
+            botCache.set(clientKey, info);
+            console.log(`[Video] Found Chat Bot: userId=${info.botUserId}, convId=${info.botConvId}`);
+            return info;
+          }
         }
       }
+
+      if (conversations.length < 100) break; // no more pages
     }
 
-    // If not found in first 100 conversations, try loading more
-    const moreConversations = await client.getConversations({ limit: 100, offset: 100 }) as unknown as Array<Record<string, unknown>>;
-    for (const conv of moreConversations) {
-      const members = (conv.members as Array<Record<string, unknown>>) || [];
-      for (const member of members) {
-        const firstName = String(member.first_name || '').trim();
-        const lastName = String(member.last_name || '').trim();
-        const isBot = Boolean(member.is_bot);
-        if ((firstName === 'Chat' && lastName === 'Bot') || isBot) {
-          const info: BotInfo = { botUserId: String(member.id), botConvId: String(conv.id) };
-          botCache.set(clientKey, info);
-          console.log(`[Video] Found Chat Bot (page 2): userId=${info.botUserId}, convId=${info.botConvId}`);
-          return info;
-        }
+    console.warn('[Video] Chat Bot not found in conversations. Dumping first conversation members for debug:');
+    try {
+      const sample = await client.getConversations({ limit: 1, offset: 0 }) as unknown as Array<Record<string, unknown>>;
+      if (sample[0]) {
+        const full = await client.getConversation(String(sample[0].id)) as unknown as Record<string, unknown>;
+        console.warn('[Video] Sample conversation:', JSON.stringify(full).slice(0, 500));
       }
-    }
+    } catch { /* ignore */ }
+
   } catch (err) {
     console.warn('[Video] Failed to search for Chat Bot:', err);
   }
@@ -1191,9 +1207,9 @@ app.post('/api/video/start-meeting', async (req, res) => {
     const client = await getClient(req);
 
     // 1. Find Chat Bot
-    let botInfo = await findChatBot(client, clientKey);
+    const botInfo = await findChatBot(client, clientKey);
     if (!botInfo) {
-      return res.status(404).json({ error: 'Chat Bot nicht gefunden. Videokonferenzen sind nicht verfügbar.' });
+      return res.status(503).json({ error: 'Chat Bot nicht gefunden. Schreibe zuerst eine Nachricht an den "Chat Bot" in der App, dann versuche es erneut.' });
     }
 
     // 2. Send /meet to the bot conversation
