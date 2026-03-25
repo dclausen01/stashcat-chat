@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal, Star, FolderOpen, Plus, Radio, CalendarDays } from 'lucide-react';
+import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal, Star, FolderOpen, Plus, Radio, CalendarDays, Bell } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -28,11 +28,13 @@ interface SidebarProps {
   onOpenFileBrowser: () => void;
   onOpenBroadcasts: () => void;
   onOpenCalendar: () => void;
+  onOpenNotifications: () => void;
   broadcastsOpen: boolean;
   calendarOpen: boolean;
+  notificationsOpen: boolean;
 }
 
-export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, broadcastsOpen, calendarOpen }: SidebarProps) {
+export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenNotifications, broadcastsOpen, calendarOpen, notificationsOpen }: SidebarProps) {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const [channels, setChannels] = useState<ChatTarget[]>([]);
@@ -202,6 +204,14 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
   const [showChannelDiscovery, setShowChannelDiscovery] = useState(false);
 
+  // Total unread count — update document title as indicator
+  const totalUnread = channels.reduce((sum, ch) => sum + (ch.unread_count ?? 0), 0)
+    + conversations.reduce((sum, c) => sum + (c.unread_count ?? 0), 0);
+
+  useEffect(() => {
+    document.title = totalUnread > 0 ? `(${totalUnread}) BBZ Chat` : 'BBZ Chat';
+  }, [totalUnread]);
+
   // Drag logic
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -248,6 +258,23 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         </div>
         {/* BBZ branding — compact, right-aligned */}
         <img src="/bbz-logo-neu.png" alt="BBZ Chat" className="h-5 w-auto shrink-0 opacity-70" title="BBZ Chat" />
+        <button
+          onClick={onOpenNotifications}
+          className={clsx(
+            'relative rounded-lg p-1.5 transition',
+            notificationsOpen
+              ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+              : 'text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700',
+          )}
+          title="Benachrichtigungen"
+        >
+          <Bell size={18} />
+          {totalUnread > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+              {totalUnread > 99 ? '99+' : totalUnread}
+            </span>
+          )}
+        </button>
         <button
           onClick={onOpenFileBrowser}
           className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"

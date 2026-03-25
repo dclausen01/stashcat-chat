@@ -217,7 +217,7 @@ export async function getMessages(targetId: string, type: 'channel' | 'conversat
   return get<Array<Record<string, unknown>>>(`/messages/${type}/${targetId}?limit=${limit}&offset=${offset}`);
 }
 
-export async function sendMessage(targetId: string, type: 'channel' | 'conversation', text: string, opts?: { is_forwarded?: boolean; reply_to_id?: string }) {
+export async function sendMessage(targetId: string, type: 'channel' | 'conversation', text: string, opts?: { is_forwarded?: boolean; reply_to_id?: string; files?: string[] }) {
   return post(`/messages/${type}/${targetId}`, { text, ...opts });
 }
 
@@ -467,4 +467,25 @@ export async function uploadFile(
     const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
+}
+
+// --- Notifications ---
+
+export interface AppNotification {
+  id: string;
+  type: string;
+  text?: string;
+  time?: number;
+  channel?: { id: string; name: string };
+  event?: { id: string; name: string };
+  sender?: { id: string; first_name: string; last_name: string; image?: string };
+  read?: boolean;
+}
+
+export async function getNotifications(limit = 50, offset = 0) {
+  return get<AppNotification[]>(`/notifications?limit=${limit}&offset=${offset}`);
+}
+
+export async function getNotificationCount() {
+  return get<{ count: number }>('/notifications/count');
 }

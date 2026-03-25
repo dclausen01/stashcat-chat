@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Settings, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Settings, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -243,9 +243,26 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
 
   const handleSend = async (text: string) => {
     const opts = replyTo ? { reply_to_id: String(replyTo.id) } : undefined;
-    await api.sendMessage(chat.id, chat.type, text, opts);
+    // Optimistic: add message immediately
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMsg: Message = {
+      id: tempId,
+      text,
+      sender: user as unknown as Message['sender'],
+      time: Math.floor(Date.now() / 1000),
+      reply_to_id: replyTo ? String(replyTo.id) : undefined,
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
     setReplyTo(null);
-    await loadMessages();
+    requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
+    try {
+      await api.sendMessage(chat.id, chat.type, text, opts);
+      // Refresh to get real message with server ID
+      await loadMessages();
+    } catch {
+      // Remove optimistic message on failure
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+    }
   };
 
   const handleUpload = async (file: File, text: string) => {
@@ -286,6 +303,17 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
         onDrop={async (e) => {
           e.preventDefault();
           setDragOver(false);
+          // Check for file-id from sidebar drag (forward existing file)
+          const fileId = e.dataTransfer.getData('text/file-id');
+          if (fileId) {
+            try {
+              await api.sendMessage(chat.id, chat.type, '', { files: [fileId] });
+              await loadMessages();
+            } catch (err) {
+              alert(`Datei weiterleiten fehlgeschlagen: ${err instanceof Error ? err.message : err}`);
+            }
+            return;
+          }
           const file = e.dataTransfer.files?.[0];
           if (file) {
             await handleUpload(file, '');
@@ -697,7 +725,16 @@ function MessageGroup({
 
               {(isLast || (msg.likes ?? 0) > 0) && (
                 <div className={clsx('relative z-10 flex items-center gap-1.5 px-1', isOwn ? 'flex-row-reverse' : 'flex-row')}>
-                  {isLast && <span className="text-xs text-surface-400">{time}</span>}
+                  {isLast && (
+                    <span className="flex items-center gap-0.5 text-xs text-surface-400">
+                      {time}
+                      {isOwn && (
+                        msg.seen_by_others
+                          ? <CheckCheck size={13} className="text-primary-500" />
+                          : <Check size={13} />
+                      )}
+                    </span>
+                  )}
                   {(msg.likes ?? 0) > 0 && (
                     <LikeBadge
                       count={msg.likes ?? 0}
@@ -758,7 +795,14 @@ function PlainTextMessage({
           <span className={clsx('text-sm font-semibold', isOwn ? 'text-primary-700 dark:text-primary-400' : 'text-surface-900 dark:text-surface-100')}>
             {senderName}
           </span>
-          <span className="text-xs text-surface-400">{time}</span>
+          <span className="flex items-center gap-0.5 text-xs text-surface-400">
+            {time}
+            {isOwn && (
+              msg.seen_by_others
+                ? <CheckCheck size={13} className="text-primary-500" />
+                : <Check size={13} />
+            )}
+          </span>
           {(msg.likes ?? 0) > 0 && (
             <LikeBadge
               count={msg.likes ?? 0}

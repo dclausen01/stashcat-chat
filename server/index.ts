@@ -587,9 +587,9 @@ app.post('/api/messages/:type/:targetId', async (req, res) => {
   try {
     const client = await getClient(req);
     const { type, targetId } = req.params;
-    const { text, is_forwarded, reply_to_id } = req.body as { text: string; is_forwarded?: boolean; reply_to_id?: string };
+    const { text, is_forwarded, reply_to_id, files } = req.body as { text: string; is_forwarded?: boolean; reply_to_id?: string; files?: string[] };
     const chatType = type as 'channel' | 'conversation';
-    await client.sendMessage({ target: targetId, target_type: chatType, text, is_forwarded, reply_to_id });
+    await client.sendMessage({ target: targetId, target_type: chatType, text, is_forwarded, reply_to_id, files });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
@@ -1063,6 +1063,28 @@ app.get('/api/calendar/channels/:companyId', async (req, res) => {
   try {
     const client = await getClient(req);
     res.json(await client.listChannelsHavingEvents(req.params.companyId));
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+app.get('/api/notifications', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const limit = Number(req.query.limit) || 50;
+    const offset = Number(req.query.offset) || 0;
+    res.json(await client.getNotifications(limit, offset));
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.get('/api/notifications/count', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    res.json(await client.getNotificationCount());
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
   }

@@ -8,6 +8,7 @@ import SettingsPanel from './components/SettingsPanel';
 import FileBrowserPanel from './components/FileBrowserPanel';
 import BroadcastsPanel from './components/BroadcastsPanel';
 import CalendarView from './components/CalendarView';
+import NotificationsPanel from './components/NotificationsPanel';
 import type { ChatTarget } from './types';
 
 type ActiveView = 'chat' | 'calendar';
@@ -18,6 +19,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [fileBrowserOpen, setFileBrowserOpen] = useState(false);
   const [broadcastsOpen, setBroadcastsOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [activeView, setActiveView] = useState<ActiveView>('chat');
 
   // Close all side panels
@@ -25,6 +27,7 @@ export default function App() {
     setSettingsOpen(false);
     setFileBrowserOpen(false);
     setBroadcastsOpen(false);
+    setNotificationsOpen(false);
   };
 
   const toggleSettings = () => {
@@ -67,8 +70,10 @@ export default function App() {
         onOpenFileBrowser={() => { closeAllPanels(); setFileBrowserOpen((o) => !o); }}
         onOpenBroadcasts={toggleBroadcasts}
         onOpenCalendar={openCalendar}
+        onOpenNotifications={() => { closeAllPanels(); setNotificationsOpen((o) => !o); }}
         broadcastsOpen={broadcastsOpen}
         calendarOpen={activeView === 'calendar'}
+        notificationsOpen={notificationsOpen}
       />
 
       {activeView === 'calendar' ? (
@@ -88,6 +93,9 @@ export default function App() {
           )}
           {broadcastsOpen && (
             <BroadcastsPanel onClose={() => setBroadcastsOpen(false)} />
+          )}
+          {notificationsOpen && (
+            <NotificationsPanel onClose={() => setNotificationsOpen(false)} />
           )}
         </>
       )}

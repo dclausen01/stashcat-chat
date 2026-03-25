@@ -68,6 +68,8 @@ export interface Message {
   type?: string;
   conversation_id?: number;
   channel_id?: number;
+  seen_by_others?: boolean;
+  unread?: boolean;
 }
 
 export interface Company {
