@@ -1019,12 +1019,16 @@ app.get('/api/calendar/channels/:companyId', async (req, res) => {
 
 // ── Production: serve static frontend from dist/ ─────────────────────────────
 
-// Serve static frontend from dist/ (always, not just in production)
+// Serve static frontend — try dist/ first, then project root (for Plesk)
 {
-  const distPath = path.resolve(process.cwd(), 'dist');
-  console.log(`[Static] Serving frontend from ${distPath}`);
+  const cwd = process.cwd();
+  const distPath = path.resolve(cwd, 'dist');
+  console.log(`[Static] Serving frontend from ${distPath} and ${cwd}`);
+  // dist/ takes priority (contains built assets)
   app.use(express.static(distPath));
-  // SPA fallback: all non-API routes → index.html
+  // Also serve from project root (Plesk may set cwd to project root)
+  app.use(express.static(cwd));
+  // SPA fallback: serve the BUILT index.html (not the dev one)
   app.get('*', (_req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
