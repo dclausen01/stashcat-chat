@@ -63,7 +63,20 @@ export default function NotificationsPanel({ onClose }: NotificationsPanelProps)
     api.getNotifications(50, 0)
       .then((data) => {
         const items = Array.isArray(data) ? data : [];
-        setNotifications(items);
+        // Ensure all items have required fields with defaults
+        const safeItems = items.map((n: any) => ({
+          id: String(n.id ?? Math.random()),
+          type: String(n.type ?? ''),
+          text: typeof n.text === 'string' ? n.text : n.text ? JSON.stringify(n.text) : undefined,
+          content: typeof n.content === 'string' ? n.content : n.content ? JSON.stringify(n.content) : undefined,
+          time: n.time,
+          created_at: n.created_at,
+          channel: n.channel && typeof n.channel === 'object' ? { id: String(n.channel.id ?? ''), name: String(n.channel.name ?? '') } : undefined,
+          event: n.event && typeof n.event === 'object' ? { id: String(n.event.id ?? ''), name: String(n.event.name ?? '') } : undefined,
+          sender: n.sender && typeof n.sender === 'object' ? { id: String(n.sender.id ?? ''), first_name: String(n.sender.first_name ?? ''), last_name: String(n.sender.last_name ?? ''), image: n.sender.image } : undefined,
+          read: Boolean(n.read),
+        }));
+        setNotifications(safeItems as api.AppNotification[]);
       })
       .catch((err) => console.error('Failed to load notifications:', err))
       .finally(() => setLoading(false));
@@ -115,7 +128,18 @@ export default function NotificationsPanel({ onClose }: NotificationsPanelProps)
             {visible.map((n, i) => {
               const typeInfo = getTypeInfo(n.type);
               // Use 'content' from API (actual field name) or fall back to 'text'
-              const displayText = n.content || n.text;
+              // Ensure displayText is a string, not an object
+              let displayText: string | undefined;
+              const rawText = n.content || n.text;
+              if (typeof rawText === 'string') {
+                displayText = rawText;
+              } else if (rawText && typeof rawText === 'object') {
+                displayText = JSON.stringify(rawText);
+              }
+
+              // Safely extract channel/event names
+              const channelName = n.channel && typeof n.channel.name === 'string' ? n.channel.name : undefined;
+              const eventName = n.event && typeof n.event.name === 'string' ? n.event.name : undefined;
 
               return (
                 <div
@@ -149,14 +173,14 @@ export default function NotificationsPanel({ onClose }: NotificationsPanelProps)
                       </p>
                     )}
                     <div className="mt-0.5 flex items-center gap-2 text-xs text-surface-400">
-                      {n.channel && (
+                      {channelName && (
                         <span className="flex items-center gap-0.5">
-                          <Hash size={10} /> {n.channel.name}
+                          <Hash size={10} /> {channelName}
                         </span>
                       )}
-                      {n.event && (
+                      {eventName && (
                         <span className="flex items-center gap-0.5">
-                          <CalendarDays size={10} /> {n.event.name}
+                          <CalendarDays size={10} /> {eventName}
                         </span>
                       )}
                       <span>{formatTime(n.created_at)}</span>
