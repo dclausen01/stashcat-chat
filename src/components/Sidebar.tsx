@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import Avatar from './Avatar';
+import { useFaviconBadge } from '../hooks/useFaviconBadge';
 import NewChannelModal from './NewChannelModal';
 import NewChatModal from './NewChatModal';
 import ChannelDiscoveryModal from './ChannelDiscoveryModal';
@@ -211,6 +212,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   useEffect(() => {
     document.title = totalUnread > 0 ? `(${totalUnread}) BBZ Chat` : 'BBZ Chat';
   }, [totalUnread]);
+
+  useFaviconBadge(totalUnread);
 
   // Drag logic
   const onMouseDown = useCallback((e: React.MouseEvent) => {

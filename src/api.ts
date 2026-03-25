@@ -475,7 +475,9 @@ export interface AppNotification {
   id: string;
   type: string;
   text?: string;
+  content?: string;
   time?: number;
+  created_at?: string;
   channel?: { id: string; name: string };
   event?: { id: string; name: string };
   sender?: { id: string; first_name: string; last_name: string; image?: string };
