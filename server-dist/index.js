@@ -260,6 +260,42 @@ app.get('/api/companies', async (req, res) => {
     }
 });
 // ── Channels ──────────────────────────────────────────────────────────────────
+app.get('/api/channels/:companyId/visible', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const channels = await client.getVisibleChannels(req.params.companyId);
+        res.json(channels);
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+app.post('/api/channels/:channelId/join', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        await client.joinChannel(req.params.channelId);
+        res.json({ ok: true });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+app.post('/api/channels/:channelId/favorite', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { favorite } = req.body;
+        if (favorite) {
+            await client.setChannelFavorite(req.params.channelId, true);
+        }
+        else {
+            await client.setChannelFavorite(req.params.channelId, false);
+        }
+        res.json({ ok: true });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 app.get('/api/channels/:companyId', async (req, res) => {
     try {
         const client = await getClient(req);
@@ -427,6 +463,22 @@ app.post('/api/channels', async (req, res) => {
     }
     catch (err) {
         res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create channel' });
+    }
+});
+app.post('/api/conversations/:convId/favorite', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { favorite } = req.body;
+        if (favorite) {
+            await client.setConversationFavorite(req.params.convId, true);
+        }
+        else {
+            await client.setConversationFavorite(req.params.convId, false);
+        }
+        res.json({ ok: true });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
 // ── Create conversation ───────────────────────────────────────────────────────
@@ -612,6 +664,17 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
         if (tmpPath)
             await promises_1.default.unlink(tmpPath).catch(() => { });
         res.status(500).json({ error: err instanceof Error ? err.message : 'Upload failed' });
+    }
+});
+app.post('/api/files/:fileId/move', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { target_folder_id } = req.body;
+        await client.moveFile(req.params.fileId, target_folder_id);
+        res.json({ ok: true });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
 app.delete('/api/files/:fileId', async (req, res) => {

@@ -8,6 +8,7 @@ import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import Avatar from './Avatar';
 import NewChannelModal from './NewChannelModal';
 import NewChatModal from './NewChatModal';
+import ChannelDiscoveryModal from './ChannelDiscoveryModal';
 import type { ChatTarget } from '../types';
 
 /** Sort: favorites first, non-favorites second. Within each group: by lastActivity desc. */
@@ -172,11 +173,34 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     onSelectChat(target);
   }, [onSelectChat]);
 
+  const handleToggleFavorite = useCallback(async (target: ChatTarget) => {
+    const newFav = !target.favorite;
+    // Optimistic update
+    if (target.type === 'channel') {
+      setChannels((prev) => sortChats(prev.map((ch) => ch.id === target.id ? { ...ch, favorite: newFav } : ch)));
+    } else {
+      setConversations((prev) => sortChats(prev.map((c) => c.id === target.id ? { ...c, favorite: newFav } : c)));
+    }
+    try {
+      await api.setFavorite(target.type, target.id, newFav);
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+      // Revert on error
+      if (target.type === 'channel') {
+        setChannels((prev) => sortChats(prev.map((ch) => ch.id === target.id ? { ...ch, favorite: !newFav } : ch)));
+      } else {
+        setConversations((prev) => sortChats(prev.map((c) => c.id === target.id ? { ...c, favorite: !newFav } : c)));
+      }
+    }
+  }, []);
+
   const filtered = (items: ChatTarget[]) => {
     if (!search) return items;
     const q = search.toLowerCase();
     return items.filter((i) => i.name.toLowerCase().includes(q));
   };
+
+  const [showChannelDiscovery, setShowChannelDiscovery] = useState(false);
 
   // Drag logic
   const onMouseDown = useCallback((e: React.MouseEvent) => {
@@ -259,9 +283,13 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         <div className="flex min-h-0 flex-col" style={{ height: `${splitPct}%` }}>
           <div className="shrink-0 px-4 py-1.5">
             <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-surface-500">
+              <button
+                onClick={() => setShowChannelDiscovery(true)}
+                className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-surface-500 transition hover:text-primary-600 dark:hover:text-primary-400"
+                title="Alle Channels anzeigen"
+              >
                 <Hash size={13} /> Channels ({filtered(channels).length})
-              </span>
+              </button>
               <button
                 onClick={() => setShowNewChannel(true)}
                 disabled={!primaryCompanyId}
@@ -279,6 +307,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
                 target={ch}
                 active={activeChat?.id === ch.id && activeChat?.type === 'channel'}
                 onSelect={handleSelect}
+                onToggleFavorite={handleToggleFavorite}
               />
             ))}
           </div>
@@ -316,6 +345,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
                 target={conv}
                 active={activeChat?.id === conv.id && activeChat?.type === 'conversation'}
                 onSelect={handleSelect}
+                onToggleFavorite={handleToggleFavorite}
               />
             ))}
           </div>
@@ -432,16 +462,42 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           }}
         />
       )}
+
+      {/* Channel discovery modal */}
+      {showChannelDiscovery && primaryCompanyId && (
+        <ChannelDiscoveryModal
+          companyId={primaryCompanyId}
+          subscribedIds={new Set(channels.map((ch) => ch.id))}
+          onClose={() => setShowChannelDiscovery(false)}
+          onJoined={(ch) => {
+            const newTarget: ChatTarget = {
+              type: 'channel',
+              id: String(ch.id),
+              name: String(ch.name || ''),
+              description: ch.description ? String(ch.description) : undefined,
+              image: ch.image ? String(ch.image) : undefined,
+              encrypted: Boolean(ch.encrypted),
+              unread_count: 0,
+              favorite: false,
+              lastActivity: Date.now() / 1000,
+              company_id: primaryCompanyId,
+            };
+            setChannels((prev) => sortChats([newTarget, ...prev.filter((c) => c.id !== newTarget.id)]));
+            onSelectChat(newTarget);
+            setShowChannelDiscovery(false);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function ChatItem({ target, active, onSelect }: { target: ChatTarget; active: boolean; onSelect: (t: ChatTarget) => void }) {
+function ChatItem({ target, active, onSelect, onToggleFavorite }: { target: ChatTarget; active: boolean; onSelect: (t: ChatTarget) => void; onToggleFavorite?: (t: ChatTarget) => void }) {
   return (
     <button
       onClick={() => onSelect(target)}
       className={clsx(
-        'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition',
+        'group/item flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition',
         active
           ? 'bg-primary-100 text-primary-900 dark:bg-primary-900/30 dark:text-primary-200'
           : 'text-surface-700 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800',
@@ -455,7 +511,20 @@ function ChatItem({ target, active, onSelect }: { target: ChatTarget; active: bo
         <Avatar name={target.name} image={target.image} size="sm" />
       )}
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{target.name}</span>
-      {target.favorite && <Star size={13} className="shrink-0 fill-yellow-400 text-yellow-400" />}
+      {onToggleFavorite && (
+        <span
+          onClick={(e) => { e.stopPropagation(); onToggleFavorite(target); }}
+          title={target.favorite ? 'Favorit entfernen' : 'Als Favorit markieren'}
+          className={clsx(
+            'shrink-0 cursor-pointer transition',
+            target.favorite
+              ? 'text-yellow-400'
+              : 'text-transparent group-hover/item:text-surface-300 dark:group-hover/item:text-surface-600',
+          )}
+        >
+          <Star size={13} className={target.favorite ? 'fill-yellow-400' : ''} />
+        </span>
+      )}
       {target.encrypted && <span className="shrink-0 text-xs text-surface-400" title="Verschlüsselt">🔒</span>}
       {(target.unread_count ?? 0) > 0 && (
         <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary-600 px-1.5 text-xs font-bold text-white">

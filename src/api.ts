@@ -181,6 +181,22 @@ export async function createChannel(opts: {
   return post<Record<string, unknown>>('/channels', opts);
 }
 
+export async function setFavorite(type: 'channel' | 'conversation', id: string, favorite: boolean): Promise<void> {
+  await post(`/${type}s/${id}/favorite`, { favorite });
+}
+
+export async function getVisibleChannels(companyId: string) {
+  return get<Array<Record<string, unknown>>>(`/channels/${companyId}/visible`);
+}
+
+export async function joinChannel(channelId: string): Promise<void> {
+  await post(`/channels/${channelId}/join`);
+}
+
+export async function moveFile(fileId: string, targetFolderId: string): Promise<void> {
+  await post(`/files/${fileId}/move`, { target_folder_id: targetFolderId });
+}
+
 // --- Conversations ---
 
 export async function createConversation(memberIds: string[]): Promise<Record<string, unknown>> {

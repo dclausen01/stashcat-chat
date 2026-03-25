@@ -64,18 +64,36 @@ interface ViewProps {
   renameValue: string;
   setRenameValue: (v: string) => void;
   commitRename: (f: FileEntry) => void;
+  onDragFileStart?: (fileId: string) => void;
+  onDragFileEnd?: () => void;
+  onDropOnFolder?: (fileId: string, folderId: string) => void;
 }
 
 // ── Grid view ─────────────────────────────────────────────────────────────────
 
-function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onRename, onDelete, renamingId, renameValue, setRenameValue, commitRename }: ViewProps) {
+function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onRename, onDelete, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder }: ViewProps) {
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   return (
     <div className="grid grid-cols-3 gap-2 p-3">
       {folders.map((f) => (
         <button
           key={f.id}
           onClick={() => onFolderClick(f)}
-          className="group flex flex-col items-center gap-1.5 rounded-xl p-2 hover:bg-surface-100 dark:hover:bg-surface-800"
+          onDragOver={(e) => { e.preventDefault(); setDropTargetId(f.id); }}
+          onDragLeave={() => setDropTargetId(null)}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setDropTargetId(null);
+            const fileId = e.dataTransfer.getData('text/file-id');
+            if (fileId && onDropOnFolder) onDropOnFolder(fileId, f.id);
+          }}
+          className={clsx(
+            'group flex flex-col items-center gap-1.5 rounded-xl p-2 transition',
+            dropTargetId === f.id
+              ? 'bg-primary-100 ring-2 ring-primary-400 dark:bg-primary-900/30'
+              : 'hover:bg-surface-100 dark:hover:bg-surface-800',
+          )}
         >
           <Folder size={40} className="text-amber-400" fill="currentColor" />
           <span className="w-full truncate text-center text-xs text-surface-700 dark:text-surface-300">{f.name}</span>
@@ -89,7 +107,13 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
         const isRenaming = renamingId === f.id;
 
         return (
-          <div key={f.id} className="group relative flex flex-col items-center gap-1.5 rounded-xl p-2 hover:bg-surface-100 dark:hover:bg-surface-800">
+          <div
+            key={f.id}
+            draggable
+            onDragStart={(e) => { e.dataTransfer.setData('text/file-id', f.id); onDragFileStart?.(f.id); }}
+            onDragEnd={() => onDragFileEnd?.()}
+            className="group relative flex flex-col items-center gap-1.5 rounded-xl p-2 hover:bg-surface-100 dark:hover:bg-surface-800 cursor-grab active:cursor-grabbing"
+          >
             {/* Thumbnail or icon */}
             <button
               className="relative h-14 w-full overflow-hidden rounded-lg"
@@ -169,14 +193,29 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
 
 // ── List view ─────────────────────────────────────────────────────────────────
 
-function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onRename, onDelete, renamingId, renameValue, setRenameValue, commitRename }: ViewProps) {
+function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onRename, onDelete, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder }: ViewProps) {
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   return (
     <div className="flex flex-col divide-y divide-surface-100 px-1 dark:divide-surface-800">
       {folders.map((f) => (
         <button
           key={f.id}
           onClick={() => onFolderClick(f)}
-          className="flex items-center gap-3 px-3 py-2.5 hover:bg-surface-100 dark:hover:bg-surface-800"
+          onDragOver={(e) => { e.preventDefault(); setDropTargetId(f.id); }}
+          onDragLeave={() => setDropTargetId(null)}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setDropTargetId(null);
+            const fileId = e.dataTransfer.getData('text/file-id');
+            if (fileId && onDropOnFolder) onDropOnFolder(fileId, f.id);
+          }}
+          className={clsx(
+            'flex items-center gap-3 px-3 py-2.5 transition',
+            dropTargetId === f.id
+              ? 'bg-primary-100 ring-2 ring-primary-400 dark:bg-primary-900/30'
+              : 'hover:bg-surface-100 dark:hover:bg-surface-800',
+          )}
         >
           <Folder size={18} className="shrink-0 text-amber-400" fill="currentColor" />
           <span className="min-w-0 flex-1 truncate text-left text-sm text-surface-800 dark:text-surface-200">{f.name}</span>
@@ -191,7 +230,13 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
         const isRenaming = renamingId === f.id;
 
         return (
-          <div key={f.id} className="group flex items-center gap-3 px-3 py-2 hover:bg-surface-50 dark:hover:bg-surface-800/50">
+          <div
+            key={f.id}
+            draggable
+            onDragStart={(e) => { e.dataTransfer.setData('text/file-id', f.id); onDragFileStart?.(f.id); }}
+            onDragEnd={() => onDragFileEnd?.()}
+            className="group flex items-center gap-3 px-3 py-2 hover:bg-surface-50 dark:hover:bg-surface-800/50 cursor-grab active:cursor-grabbing"
+          >
             {/* Icon / thumbnail */}
             <button
               className="shrink-0"
@@ -280,6 +325,8 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [pdfView, setPdfView] = useState<{ fileId: string; viewUrl: string; name: string } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [dragFileId, setDragFileId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentFolderId = crumbs[crumbs.length - 1].id ?? undefined;
@@ -344,6 +391,15 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     }
   };
 
+  const handleMoveToFolder = async (fileId: string, folderId: string) => {
+    try {
+      await api.moveFile(fileId, folderId);
+      await loadFolder();
+    } catch (err) {
+      alert(`Verschieben fehlgeschlagen: ${err instanceof Error ? err.message : err}`);
+    }
+  };
+
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
@@ -370,10 +426,36 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     onPdfClick: (fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name }),
     onRename: startRename, onDelete: handleDelete,
     renamingId, renameValue, setRenameValue, commitRename,
+    onDragFileStart: setDragFileId,
+    onDragFileEnd: () => setDragFileId(null),
+    onDropOnFolder: handleMoveToFolder,
   };
 
   return (
-    <div className="flex h-full w-96 shrink-0 flex-col border-l border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900">
+    <div
+      className="relative flex h-full w-96 shrink-0 flex-col border-l border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
+      onDragOver={(e) => {
+        e.preventDefault();
+        // Only show drop overlay for external files, not internal drag
+        if (!dragFileId && e.dataTransfer.types.includes('Files')) setDragOver(true);
+      }}
+      onDragLeave={(e) => { if (e.currentTarget.contains(e.relatedTarget as Node)) return; setDragOver(false); }}
+      onDrop={async (e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const droppedFiles = Array.from(e.dataTransfer.files);
+        for (const f of droppedFiles) await handleUpload(f);
+      }}
+    >
+      {/* External file drop overlay */}
+      {dragOver && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-primary-400 bg-primary-50/80 dark:bg-primary-950/80">
+          <div className="flex flex-col items-center gap-2 text-primary-600 dark:text-primary-400">
+            <Upload size={32} />
+            <span className="text-sm font-medium">Dateien hier ablegen</span>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="shrink-0 border-b border-surface-200 dark:border-surface-700">

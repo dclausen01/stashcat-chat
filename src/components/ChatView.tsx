@@ -41,6 +41,7 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [isManager, setIsManager] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [pdfView, setPdfView] = useState<{ fileId: string; viewUrl: string; name: string } | null>(null);
@@ -275,7 +276,28 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
   return (
     <div className="flex h-full flex-1 overflow-hidden">
       {/* Main chat area */}
-      <div className="flex min-w-0 flex-1 flex-col bg-white dark:bg-surface-950">
+      <div
+        className="relative flex min-w-0 flex-1 flex-col bg-white dark:bg-surface-950"
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={(e) => { if (e.currentTarget.contains(e.relatedTarget as Node)) return; setDragOver(false); }}
+        onDrop={async (e) => {
+          e.preventDefault();
+          setDragOver(false);
+          const file = e.dataTransfer.files?.[0];
+          if (file) {
+            await handleUpload(file, '');
+          }
+        }}
+      >
+      {/* Drop overlay */}
+      {dragOver && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-primary-400 bg-primary-50/80 dark:bg-primary-950/80">
+          <div className="flex flex-col items-center gap-2 text-primary-600 dark:text-primary-400">
+            <ArrowDown size={32} />
+            <span className="text-sm font-medium">Datei hier ablegen</span>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 px-6 py-3 dark:border-surface-700">
         {chat.type === 'channel' ? (
@@ -383,6 +405,8 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
                   group={group}
                   canDeleteAll={isManager && chat.type === 'channel'}
                   showImagesInline={settings.showImagesInline}
+                  ownBubbleColor={settings.ownBubbleColor}
+                  otherBubbleColor={settings.otherBubbleColor}
                   messageMap={messageMap}
                   onDelete={handleDelete}
                   onLike={handleLike}
@@ -541,6 +565,8 @@ function MessageGroup({
   group,
   canDeleteAll,
   showImagesInline,
+  ownBubbleColor,
+  otherBubbleColor,
   messageMap,
   onDelete,
   onLike,
@@ -551,6 +577,8 @@ function MessageGroup({
   group: { sender: Message['sender']; isOwn: boolean; messages: Message[] };
   canDeleteAll: boolean;
   showImagesInline: boolean;
+  ownBubbleColor: string;
+  otherBubbleColor: string;
   messageMap: Map<number, Message>;
   onDelete: (messageId: string) => void;
   onLike: (messageId: string, liked: boolean) => void;
@@ -632,15 +660,16 @@ function MessageGroup({
 
               <div
                 className={clsx(
-                  'relative max-w-full px-3 py-2 text-sm leading-relaxed',
-                  isOwn
-                    ? 'rounded-2xl bg-primary-600 text-white'
-                    : 'rounded-2xl bg-surface-100 text-surface-900 dark:bg-surface-800 dark:text-surface-100',
+                  'relative max-w-full rounded-2xl px-3 py-2 text-sm leading-relaxed',
                   isOwn && !isFirst && 'rounded-tr-md',
                   isOwn && !isLast && 'rounded-br-md',
                   !isOwn && !isFirst && 'rounded-tl-md',
                   !isOwn && !isLast && 'rounded-bl-md',
                 )}
+                style={{
+                  backgroundColor: isOwn ? ownBubbleColor : otherBubbleColor,
+                  color: isOwn ? '#fff' : undefined,
+                }}
               >
                 {replyTo && <ReplyQuote msg={replyTo} isOwn={isOwn} />}
                 {msg.is_forwarded && (
@@ -653,7 +682,7 @@ function MessageGroup({
               </div>
 
               {(isLast || (msg.likes ?? 0) > 0) && (
-                <div className={clsx('flex items-center gap-1.5 px-1', isOwn ? 'flex-row-reverse' : 'flex-row')}>
+                <div className={clsx('relative z-10 flex items-center gap-1.5 px-1', isOwn ? 'flex-row-reverse' : 'flex-row')}>
                   {isLast && <span className="text-xs text-surface-400">{time}</span>}
                   {(msg.likes ?? 0) > 0 && (
                     <LikeBadge

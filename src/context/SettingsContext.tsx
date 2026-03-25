@@ -3,11 +3,15 @@ import { createContext, useContext, useState } from 'react';
 interface Settings {
   showImagesInline: boolean;
   bubbleView: boolean;
+  ownBubbleColor: string;
+  otherBubbleColor: string;
 }
 
 interface SettingsContextValue extends Settings {
   setShowImagesInline: (v: boolean) => void;
   setBubbleView: (v: boolean) => void;
+  setOwnBubbleColor: (v: string) => void;
+  setOtherBubbleColor: (v: string) => void;
 }
 
 const STORAGE_KEY = 'schulchat_settings';
@@ -15,16 +19,20 @@ const STORAGE_KEY = 'schulchat_settings';
 function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { showImagesInline: true, bubbleView: true, ...JSON.parse(raw) as Partial<Settings> };
+    if (raw) return { showImagesInline: true, bubbleView: true, ownBubbleColor: '#4f46e5', otherBubbleColor: '#f3f4f6', ...JSON.parse(raw) as Partial<Settings> };
   } catch { /* ignore */ }
-  return { showImagesInline: true, bubbleView: true };
+  return { showImagesInline: true, bubbleView: true, ownBubbleColor: '#4f46e5', otherBubbleColor: '#f3f4f6' };
 }
 
 const SettingsContext = createContext<SettingsContextValue>({
   showImagesInline: true,
   bubbleView: true,
+  ownBubbleColor: '#4f46e5',
+  otherBubbleColor: '#f3f4f6',
   setShowImagesInline: () => {},
   setBubbleView: () => {},
+  setOwnBubbleColor: () => {},
+  setOtherBubbleColor: () => {},
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
@@ -43,6 +51,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       ...settings,
       setShowImagesInline: (v) => update({ showImagesInline: v }),
       setBubbleView: (v) => update({ bubbleView: v }),
+      setOwnBubbleColor: (v) => update({ ownBubbleColor: v }),
+      setOtherBubbleColor: (v) => update({ otherBubbleColor: v }),
     }}>
       {children}
     </SettingsContext.Provider>
