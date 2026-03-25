@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Settings, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Settings, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -48,6 +48,7 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
   const [descEditorOpen, setDescEditorOpen] = useState(false);
   const [chatDescription, setChatDescription] = useState(chat.description || '');
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef(chat);
@@ -241,7 +242,9 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
   }, []);
 
   const handleSend = async (text: string) => {
-    await api.sendMessage(chat.id, chat.type, text);
+    const opts = replyTo ? { reply_to_id: String(replyTo.id) } : undefined;
+    await api.sendMessage(chat.id, chat.type, text, opts);
+    setReplyTo(null);
     await loadMessages();
   };
 
@@ -410,6 +413,7 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
                   messageMap={messageMap}
                   onDelete={handleDelete}
                   onLike={handleLike}
+                  onReply={setReplyTo}
                   onForward={setForwardMsg}
                   onImageClick={setLightboxUrl}
                   onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
@@ -433,6 +437,7 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
                   messageMap={messageMap}
                   onDelete={handleDelete}
                   onLike={handleLike}
+                  onReply={setReplyTo}
                   onForward={setForwardMsg}
                   onImageClick={setLightboxUrl}
                   onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
@@ -471,7 +476,7 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
         </div>
       )}
 
-      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatName={chat.name} />
+      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} />
       </div>{/* end main chat area */}
 
     {/* Channel member panel */}
@@ -570,6 +575,7 @@ function MessageGroup({
   messageMap,
   onDelete,
   onLike,
+  onReply,
   onForward,
   onImageClick,
   onPdfClick,
@@ -582,6 +588,7 @@ function MessageGroup({
   messageMap: Map<number, Message>;
   onDelete: (messageId: string) => void;
   onLike: (messageId: string, liked: boolean) => void;
+  onReply: (msg: Message) => void;
   onForward: (msg: Message) => void;
   onImageClick: (url: string) => void;
   onPdfClick: (fileId: string, viewUrl: string, name: string) => void;
@@ -632,6 +639,13 @@ function MessageGroup({
                   )}
                 >
                   <ThumbsUp size={13} />
+                </button>
+                <button
+                  onClick={() => onReply(msg)}
+                  title="Antworten"
+                  className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-surface-200 hover:text-primary-600 dark:hover:bg-surface-700 dark:hover:text-primary-400 transition"
+                >
+                  <Reply size={13} />
                 </button>
                 <button
                   onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }}
@@ -712,6 +726,7 @@ function PlainTextMessage({
   messageMap,
   onDelete,
   onLike,
+  onReply,
   onForward,
   onImageClick,
   onPdfClick,
@@ -723,6 +738,7 @@ function PlainTextMessage({
   messageMap: Map<number, Message>;
   onDelete: (messageId: string) => void;
   onLike: (messageId: string, liked: boolean) => void;
+  onReply: (msg: Message) => void;
   onForward: (msg: Message) => void;
   onImageClick: (url: string) => void;
   onPdfClick: (fileId: string, viewUrl: string, name: string) => void;
@@ -763,7 +779,7 @@ function PlainTextMessage({
         </div>
         <FileList files={msg.files} isOwn={false} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
       </div>
-      <div className="hidden shrink-0 group-hover/msg:grid grid-cols-2 gap-0.5">
+      <div className="hidden shrink-0 group-hover/msg:flex items-center gap-0.5">
         <button
           onClick={() => onLike(String(msg.id), Boolean(msg.liked))}
           title={msg.liked ? 'Like entfernen' : 'Gefällt mir'}
@@ -773,6 +789,13 @@ function PlainTextMessage({
           )}
         >
           <ThumbsUp size={13} />
+        </button>
+        <button
+          onClick={() => onReply(msg)}
+          title="Antworten"
+          className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-surface-200 hover:text-primary-600 dark:hover:bg-surface-700 dark:hover:text-primary-400 transition"
+        >
+          <Reply size={13} />
         </button>
         <button
           onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }}

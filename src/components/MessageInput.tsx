@@ -1,14 +1,22 @@
 import { useState, useRef, useCallback, useEffect, type KeyboardEvent } from 'react';
-import { Send, Paperclip, Bold, Italic, Strikethrough, Code, List, Heading2, X, Loader2 } from 'lucide-react';
+import { Send, Paperclip, Bold, Italic, Strikethrough, Code, List, Heading2, X, Loader2, Reply } from 'lucide-react';
 import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react';
 import { clsx } from 'clsx';
 import { useTheme } from '../context/ThemeContext';
+
+interface ReplyTarget {
+  id: string;
+  text?: string;
+  sender?: { first_name?: string; last_name?: string };
+}
 
 interface MessageInputProps {
   onSend: (text: string) => Promise<void>;
   onUpload: (file: File, text: string) => Promise<void>;
   onTyping?: () => void;
   chatName: string;
+  replyTo?: ReplyTarget | null;
+  onCancelReply?: () => void;
 }
 
 interface FormatButton {
@@ -43,7 +51,7 @@ const FORMAT_BUTTONS: FormatButton[] = [
   { icon: <List size={15} />, label: 'Liste', action: linePrefix('- ', 'Listenpunkt') },
 ];
 
-export default function MessageInput({ onSend, onUpload, onTyping, chatName }: MessageInputProps) {
+export default function MessageInput({ onSend, onUpload, onTyping, chatName, replyTo, onCancelReply }: MessageInputProps) {
   const { theme } = useTheme();
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -56,6 +64,11 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName }: M
   const typingThrottle = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Close emoji picker on outside click
+  // Focus textarea when reply is activated
+  useEffect(() => {
+    if (replyTo) textareaRef.current?.focus();
+  }, [replyTo]);
+
   useEffect(() => {
     if (!showEmoji) return;
     const handler = (e: MouseEvent) => {
@@ -145,6 +158,22 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName }: M
 
   return (
     <div className="shrink-0 border-t border-surface-200 p-3 dark:border-surface-700">
+      {/* Reply preview */}
+      {replyTo && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg border-l-3 border-primary-500 bg-primary-50 px-3 py-2 text-sm dark:bg-primary-950/30">
+          <Reply size={14} className="shrink-0 text-primary-500" />
+          <div className="min-w-0 flex-1">
+            <span className="text-xs font-semibold text-primary-700 dark:text-primary-400">
+              {replyTo.sender ? `${replyTo.sender.first_name ?? ''} ${replyTo.sender.last_name ?? ''}`.trim() : 'Nachricht'}
+            </span>
+            <p className="truncate text-xs text-surface-500">{replyTo.text?.slice(0, 100) || 'Nachricht'}</p>
+          </div>
+          <button onClick={onCancelReply} className="shrink-0 text-surface-400 hover:text-surface-600">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Pending file preview */}
       {pendingFile && (
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 text-sm dark:bg-surface-800">
@@ -208,7 +237,23 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName }: M
           onInput={handleInput}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder={pendingFile ? 'Optionale Nachricht zur Datei...' : `Nachricht an ${chatName}...`}
+          onPaste={(e) => {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            for (const item of items) {
+              if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                const blob = item.getAsFile();
+                if (blob) {
+                  const ext = item.type.split('/')[1] || 'png';
+                  const file = new File([blob], `Eingefügtes Bild.${ext}`, { type: item.type });
+                  setPendingFile(file);
+                }
+                return;
+              }
+            }
+          }}
+          placeholder={pendingFile ? 'Optionale Nachricht zur Datei...' : replyTo ? 'Antwort schreiben...' : `Nachricht an ${chatName}...`}
           rows={1}
           className="max-h-[200px] flex-1 resize-none bg-transparent font-mono text-sm text-surface-900 outline-none placeholder:font-sans placeholder:text-surface-400 dark:text-white"
         />

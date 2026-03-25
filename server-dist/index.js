@@ -205,6 +205,7 @@ app.get('/api/events', async (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx response buffering for SSE
     res.flushHeaders();
     // Heartbeat every 25 s to keep the connection alive
     const hb = setInterval(() => { try {
@@ -568,9 +569,9 @@ app.post('/api/messages/:type/:targetId', async (req, res) => {
     try {
         const client = await getClient(req);
         const { type, targetId } = req.params;
-        const { text, is_forwarded } = req.body;
+        const { text, is_forwarded, reply_to_id } = req.body;
         const chatType = type;
-        await client.sendMessage({ target: targetId, target_type: chatType, text, is_forwarded });
+        await client.sendMessage({ target: targetId, target_type: chatType, text, is_forwarded, reply_to_id });
         res.json({ ok: true });
     }
     catch (err) {

@@ -217,7 +217,7 @@ export async function getMessages(targetId: string, type: 'channel' | 'conversat
   return get<Array<Record<string, unknown>>>(`/messages/${type}/${targetId}?limit=${limit}&offset=${offset}`);
 }
 
-export async function sendMessage(targetId: string, type: 'channel' | 'conversation', text: string, opts?: { is_forwarded?: boolean }) {
+export async function sendMessage(targetId: string, type: 'channel' | 'conversation', text: string, opts?: { is_forwarded?: boolean; reply_to_id?: string }) {
   return post(`/messages/${type}/${targetId}`, { text, ...opts });
 }
 
