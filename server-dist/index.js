@@ -1055,6 +1055,76 @@ app.get('/api/notifications/count', async (req, res) => {
         res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
     }
 });
+// Test endpoint to discover notification delete/mark_read API
+app.post('/api/notifications/test-delete', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { notificationId } = req.body;
+        if (!notificationId) {
+            res.status(400).json({ error: 'notificationId required' });
+            return;
+        }
+        const results = {};
+        // Test 1: Try /notifications/delete with id
+        try {
+            const data = client.api.createAuthenticatedRequestData({ id: notificationId });
+            await client.api.post('/notifications/delete', data);
+            results['/notifications/delete with id'] = 'SUCCESS';
+        }
+        catch (err) {
+            results['/notifications/delete with id'] = err instanceof Error ? err.message : 'FAILED';
+        }
+        // Test 2: Try /notifications/delete with notification_id
+        try {
+            const data = client.api.createAuthenticatedRequestData({ notification_id: notificationId });
+            await client.api.post('/notifications/delete', data);
+            results['/notifications/delete with notification_id'] = 'SUCCESS';
+        }
+        catch (err) {
+            results['/notifications/delete with notification_id'] = err instanceof Error ? err.message : 'FAILED';
+        }
+        // Test 3: Try /notifications/mark_read with id
+        try {
+            const data = client.api.createAuthenticatedRequestData({ id: notificationId });
+            await client.api.post('/notifications/mark_read', data);
+            results['/notifications/mark_read with id'] = 'SUCCESS';
+        }
+        catch (err) {
+            results['/notifications/mark_read with id'] = err instanceof Error ? err.message : 'FAILED';
+        }
+        // Test 4: Try /notifications/dismiss with id
+        try {
+            const data = client.api.createAuthenticatedRequestData({ id: notificationId });
+            await client.api.post('/notifications/dismiss', data);
+            results['/notifications/dismiss with id'] = 'SUCCESS';
+        }
+        catch (err) {
+            results['/notifications/dismiss with id'] = err instanceof Error ? err.message : 'FAILED';
+        }
+        // Test 5: Try /notification/delete (singular)
+        try {
+            const data = client.api.createAuthenticatedRequestData({ id: notificationId });
+            await client.api.post('/notification/delete', data);
+            results['/notification/delete with id'] = 'SUCCESS';
+        }
+        catch (err) {
+            results['/notification/delete with id'] = err instanceof Error ? err.message : 'FAILED';
+        }
+        // Test 6: Try /notifications/remove with id
+        try {
+            const data = client.api.createAuthenticatedRequestData({ id: notificationId });
+            await client.api.post('/notifications/remove', data);
+            results['/notifications/remove with id'] = 'SUCCESS';
+        }
+        catch (err) {
+            results['/notifications/remove with id'] = err instanceof Error ? err.message : 'FAILED';
+        }
+        res.json(results);
+    }
+    catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    }
+});
 // ── Production: serve static frontend from dist/ ─────────────────────────────
 // Serve static frontend — try dist/ first, then project root (for Plesk)
 {
