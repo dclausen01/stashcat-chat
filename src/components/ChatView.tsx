@@ -372,6 +372,10 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
             setMeetingLoading(true);
             // Open blank tab NOW (direct user gesture) — browsers block window.open() after async awaits
             const moderatorTab = window.open('', '_blank');
+            if (moderatorTab) {
+              moderatorTab.document.write(`<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>Videokonferenz wird geladen…</title><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#1e293b;font-family:system-ui,sans-serif;color:#e2e8f0}.card{text-align:center;padding:2.5rem 3rem;background:#0f172a;border-radius:1.5rem;border:1px solid #334155;box-shadow:0 25px 50px #0006}.spinner{width:48px;height:48px;border:4px solid #334155;border-top-color:#6366f1;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1.5rem}.emoji{font-size:3rem;margin-bottom:1rem}h1{font-size:1.25rem;font-weight:600;color:#f1f5f9;margin-bottom:.5rem}p{font-size:.9rem;color:#94a3b8}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="card"><div class="emoji">📹</div><div class="spinner"></div><h1>Videokonferenz wird geladen…</h1><p>Bitte einen Moment warten.</p></div></body></html>`);
+              moderatorTab.document.close();
+            }
             try {
               const result = await api.startVideoMeeting(chat.id, chat.type);
               // Navigate the pre-opened tab to the moderator link (fallback: invite link)
