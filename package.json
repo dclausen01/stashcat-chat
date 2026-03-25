@@ -2,7 +2,6 @@
   "name": "stashcat-chat",
   "private": true,
   "version": "0.0.0",
-  "type": "module",
   "scripts": {
     "dev": "vite",
     "server": "npx tsx server/index.ts",
