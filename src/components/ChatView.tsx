@@ -468,7 +468,7 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
             <p className="text-sm">Schreibe die erste Nachricht!</p>
           </div>
         ) : settings.bubbleView ? (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-7">
             {groups.map((group, gi) =>
               group.isSystem ? (
                 <SystemMessage key={gi} msg={group.messages[0]} />
