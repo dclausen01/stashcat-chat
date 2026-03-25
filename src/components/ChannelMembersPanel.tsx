@@ -25,10 +25,7 @@ interface RawUser {
   image?: string;
 }
 
-function userName(u: RawUser): string {
-  if (u.first_name || u.last_name) return `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim();
-  return u.email ?? u.id ?? '?';
-}
+
 
 function memberName(m: RawMember): string {
   if (m.first_name || m.last_name) return `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim();
@@ -388,7 +385,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
                   <div className="flex items-center gap-1.5">
                     <span className="truncate text-sm font-medium text-surface-900 dark:text-surface-100">{name}</span>
                     {isModerator && (
-                      <ShieldCheck size={13} className="shrink-0 text-primary-500" title="Moderator" />
+                      <ShieldCheck size={13} className="shrink-0 text-primary-500" />
                     )}
                   </div>
                   {m.email && <div className="truncate text-xs text-surface-400">{m.email}</div>}

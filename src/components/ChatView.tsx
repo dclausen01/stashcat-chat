@@ -13,7 +13,7 @@ import MessageInput from './MessageInput';
 import ChannelMembersPanel from './ChannelMembersPanel';
 import LinkPreviewCard from './LinkPreviewCard';
 import ChannelDescriptionEditor from './ChannelDescriptionEditor';
-import type { ChatTarget, ChannelMember, Message } from '../types';
+import type { ChatTarget, Message } from '../types';
 
 interface ChatViewProps {
   chat: ChatTarget;

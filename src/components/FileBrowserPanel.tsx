@@ -293,8 +293,8 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
           ? await api.listFolder(chat.type, chat.id, currentFolderId)
           : { folder: [], files: [] };
 
-      setFolders(result.folder as FolderEntry[]);
-      setFiles(result.files as FileEntry[]);
+      setFolders(result.folder as unknown as FolderEntry[]);
+      setFiles(result.files as unknown as FileEntry[]);
     } catch (err) {
       console.error('Failed to load folder:', err);
     } finally {

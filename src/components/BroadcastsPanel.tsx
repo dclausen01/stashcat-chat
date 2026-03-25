@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Radio, Send, Plus, Trash2, Users, Loader2, ArrowLeft,
-  Pencil, Check, Search, UserMinus, Hash, UserPlus, ChevronDown, ChevronRight, UsersRound,
+  Pencil, Check, Search, UserMinus, UserPlus, UsersRound,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
@@ -86,13 +86,10 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
   const [showAddMembers, setShowAddMembers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [companyUsers, setCompanyUsers] = useState<RawUser[]>([]);
-  const [channels, setChannels] = useState<ChannelInfo[]>([]);
+  const [, setChannels] = useState<ChannelInfo[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [adding, setAdding] = useState<string | null>(null);
-  const [expandedChannel, setExpandedChannel] = useState<string | null>(null);
-  const [channelMembers, setChannelMembers] = useState<Map<string, RawUser[]>>(new Map());
-  const [loadingChannelMembers, setLoadingChannelMembers] = useState<string | null>(null);
-  const [addingBulk, setAddingBulk] = useState(false);
+
 
   // Groups (AD/LDAP)
   const [groups, setGroups] = useState<Array<{ id: string; name: string; count: number }>>([]);
@@ -193,27 +190,6 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
     if (companyUsers.length === 0) loadContacts();
   };
 
-  // ── Load channel members on expand ─────────────────────────────────────────
-
-  const toggleChannel = async (channelId: string) => {
-    if (expandedChannel === channelId) {
-      setExpandedChannel(null);
-      return;
-    }
-    setExpandedChannel(channelId);
-    if (!channelMembers.has(channelId)) {
-      setLoadingChannelMembers(channelId);
-      try {
-        const data = await api.getChannelMembers(channelId);
-        setChannelMembers((prev) => new Map(prev).set(channelId, data as unknown as RawUser[]));
-      } catch (err) {
-        console.error('Failed to load channel members:', err);
-      } finally {
-        setLoadingChannelMembers(null);
-      }
-    }
-  };
-
   // ── Member IDs set for quick lookup ────────────────────────────────────────
 
   const memberIds = new Set(members.map((m) => String(m.id)));
@@ -235,30 +211,6 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
       alert(`Fehler: ${err instanceof Error ? err.message : err}`);
     } finally {
       setAdding(null);
-    }
-  };
-
-  // ── Add all channel members at once ────────────────────────────────────────
-
-  const handleAddChannelMembers = async (channelId: string) => {
-    if (!activeBroadcast) return;
-    const chMembers = channelMembers.get(channelId);
-    if (!chMembers) return;
-    const newIds = chMembers.map((m) => String(m.id)).filter((id) => !memberIds.has(id));
-    if (newIds.length === 0) { alert('Alle Mitglieder dieses Channels sind bereits in der Liste.'); return; }
-    if (!confirm(`${newIds.length} Mitglieder aus dem Channel hinzufügen?`)) return;
-    setAddingBulk(true);
-    try {
-      await api.addBroadcastMembers(String(activeBroadcast.id), newIds);
-      await loadMembers(activeBroadcast);
-      setBroadcasts((prev) => prev.map((b) =>
-        b.id === activeBroadcast.id ? { ...b, member_count: b.member_count + newIds.length } : b
-      ));
-      setActiveBroadcast((prev) => prev ? { ...prev, member_count: prev.member_count + newIds.length } : prev);
-    } catch (err) {
-      alert(`Fehler: ${err instanceof Error ? err.message : err}`);
-    } finally {
-      setAddingBulk(false);
     }
   };
 
@@ -388,10 +340,6 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
     if (memberIds.has(String(u.id))) return false;
     if (!q) return true;
     return userName(u).toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
-  });
-  const filteredChannels = channels.filter((ch) => {
-    if (!q) return true;
-    return ch.name.toLowerCase().includes(q);
   });
   const gf = groupFilter.toLowerCase();
   const filteredGroups = groups.filter((g) => {

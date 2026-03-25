@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ChevronLeft, ChevronRight, Plus, X, Loader2,
-  CalendarDays, MapPin, Clock, Repeat, Check, XCircle, HelpCircle,
-  Eye, EyeOff, ChevronDown, ChevronUp, Pencil, Trash2, Users, Hash, Search,
+  MapPin, Clock, Repeat, Check, XCircle, HelpCircle,
+  Eye, EyeOff, ChevronDown, Pencil, Trash2, Users, Hash, Search,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
