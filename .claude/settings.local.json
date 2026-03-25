@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)"
+    ]
+  },
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.novita.ai/anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "sk_z8YB2vedkQuQFkvjFKToLVts6twpf8HYGPZ6GVgKO1U",
+    "ANTHROPIC_MODEL": "zai-org/glm-5",
+    "ANTHROPIC_SMALL_FAST_MODEL": "minimax/minimax-m2.7"
+  }
+
+}
