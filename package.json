@@ -7,7 +7,7 @@
     "dev": "vite",
     "server": "npx tsx server/index.ts",
     "start": "concurrently \"npm run server\" \"npm run dev\"",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && tsc -p tsconfig.server.json",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -23,8 +23,7 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.13.1",
     "remark-gfm": "^4.0.1",
-    "stashcat-api": "github:dclausen01/stashcat-api",
-    "tsx": "^4.21.0"
+    "stashcat-api": "github:dclausen01/stashcat-api"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
@@ -42,6 +41,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
     "tailwindcss": "^4.2.2",
+    "tsx": "^4.21.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.57.0",
     "vite": "^8.0.1"

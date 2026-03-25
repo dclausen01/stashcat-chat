@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "server-dist",
+    "rootDir": "server",
+    "declaration": false,
+    "types": ["node"],
+    "noImplicitAny": false
+  },
+  "include": ["server/index.ts", "server/token-crypto.ts"],
+  "exclude": ["server/session-store.ts"]
+}

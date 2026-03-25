@@ -1,4 +1,3 @@
 // Production entry point for Plesk Node.js
-// Registers tsx so TypeScript server files can be loaded directly
-require('tsx/cjs');
-require('./server/index.ts');
+// Loads pre-compiled server from server-dist/ (no tsx runtime needed)
+require('./server-dist/index.js');

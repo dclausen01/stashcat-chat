@@ -443,7 +443,7 @@ app.post('/api/channels', async (req, res) => {
       ...(isPassword && password ? { password, password_repeat: password_repeat ?? password } : {}),
       ...(isEncrypted ? { encryption_key } : {}),
     });
-    console.log(`[channels/create] created channel: ${(channel as Record<string,unknown>).name ?? name}`);
+    console.log(`[channels/create] created channel: ${(channel as unknown as Record<string,unknown>).name ?? name}`);
     res.json(channel);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create channel' });
@@ -532,8 +532,7 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
     const chatType = type as 'channel' | 'conversation';
     const messages = await client.getMessages(targetId, chatType, { limit, offset });
     const sorted = [...messages].sort(
-      (a: Record<string, unknown>, b: Record<string, unknown>) =>
-        (Number(a.time) || 0) - (Number(b.time) || 0)
+      (a, b) => (Number((a as unknown as Record<string, unknown>).time) || 0) - (Number((b as unknown as Record<string, unknown>).time) || 0)
     );
     res.json(sorted);
   } catch (err) {
@@ -624,7 +623,7 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
 
     let resolvedTypeId = typeId;
     if (type === 'personal' && !resolvedTypeId) {
-      const me = await client.getMe() as Record<string, unknown>;
+      const me = await client.getMe() as unknown as Record<string, unknown>;
       resolvedTypeId = String(me.id);
     }
 
@@ -708,15 +707,15 @@ app.post('/api/upload/:type/:targetId', upload.single('file'), async (req, res) 
       type: chatType,
       type_id: targetId,
       filename: originalName,
-    });
+    } as any);
 
     await fs.unlink(namedPath).catch(() => {});
 
     await client.sendMessage({
-      target: targetId,
-      target_type: chatType,
+      target: targetId as any,
+      target_type: chatType as any,
       text: req.body.text || '',
-      files: [fileInfo.id],
+      files: [(fileInfo as unknown as Record<string, unknown>).id as string],
     });
 
     res.json({ ok: true, file: fileInfo });
@@ -989,7 +988,7 @@ app.post('/api/calendar/events/:id/respond', async (req, res) => {
   try {
     const client = await getClient(req);
     const { status: rsvp } = req.body as { status: string };
-    const me = await client.getMe() as Record<string, unknown>;
+    const me = await client.getMe() as unknown as Record<string, unknown>;
     await client.respondToEvent(req.params.id, String(me.id), rsvp as 'accepted' | 'declined' | 'open');
     res.json({ ok: true });
   } catch (err) {
