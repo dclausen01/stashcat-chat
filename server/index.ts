@@ -1028,7 +1028,7 @@ app.get('/api/calendar/channels/:companyId', async (req, res) => {
   // Also serve from project root (Plesk may set cwd to project root)
   app.use(express.static(cwd));
   // SPA fallback: serve the BUILT index.html (not the dev one)
-  app.get('*', (_req, res) => {
+  app.get('{*path}', (_req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
