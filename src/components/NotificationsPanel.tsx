@@ -54,6 +54,64 @@ function formatTime(dateStr?: string) {
   return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
+/** Format a timestamp (Unix seconds) to readable date */
+function formatTimestamp(ts?: string | number) {
+  if (!ts) return '';
+  const num = typeof ts === 'string' ? Number(ts) : ts;
+  if (isNaN(num) || num === 0) return '';
+  const d = new Date(num * 1000);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+/** Parse and format device info from notification content */
+function formatDeviceNotification(data: unknown): { title: string; details: string[] } | null {
+  if (!data || typeof data !== 'object') return null;
+  const obj = data as Record<string, unknown>;
+
+  // Check if this looks like a device object
+  if (!('device_id' in obj) && !('app_name' in obj)) return null;
+
+  const details: string[] = [];
+  const appName = String(obj.app_name || 'Unbekannte App');
+  const ipAddress = obj.ip_address ? String(obj.ip_address) : null;
+  const lastLogin = formatTimestamp(obj.last_login as string | number);
+
+  if (ipAddress) details.push(`IP: ${ipAddress}`);
+  if (lastLogin) details.push(`Zeitpunkt: ${lastLogin}`);
+
+  return {
+    title: `Gerät: ${appName}`,
+    details,
+  };
+}
+
+/** Try to parse content as JSON and format it nicely */
+function formatNotificationContent(content: unknown): { text: string; subtext?: string } {
+  if (!content) return { text: '' };
+  if (typeof content === 'string') return { text: content };
+
+  // Try to format as device notification
+  const deviceInfo = formatDeviceNotification(content);
+  if (deviceInfo) {
+    return {
+      text: deviceInfo.title,
+      subtext: deviceInfo.details.join(' · '),
+    };
+  }
+
+  // Fallback: stringify but truncate
+  try {
+    const str = JSON.stringify(content);
+    if (str.length > 100) {
+      return { text: str.slice(0, 100) + '...' };
+    }
+    return { text: str };
+  } catch {
+    return { text: '[Objekt]' };
+  }
+}
+
 export default function NotificationsPanel({ onClose }: NotificationsPanelProps) {
   const [notifications, setNotifications] = useState<api.AppNotification[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
@@ -67,8 +125,9 @@ export default function NotificationsPanel({ onClose }: NotificationsPanelProps)
         const safeItems = items.map((n: any) => ({
           id: String(n.id ?? Math.random()),
           type: String(n.type ?? ''),
-          text: typeof n.text === 'string' ? n.text : n.text ? JSON.stringify(n.text) : undefined,
-          content: typeof n.content === 'string' ? n.content : n.content ? JSON.stringify(n.content) : undefined,
+          // Keep raw content/text for formatting
+          text: n.text,
+          content: n.content,
           time: n.time,
           created_at: n.created_at,
           channel: n.channel && typeof n.channel === 'object' ? { id: String(n.channel.id ?? ''), name: String(n.channel.name ?? '') } : undefined,
@@ -128,14 +187,9 @@ export default function NotificationsPanel({ onClose }: NotificationsPanelProps)
             {visible.map((n, i) => {
               const typeInfo = getTypeInfo(n.type);
               // Use 'content' from API (actual field name) or fall back to 'text'
-              // Ensure displayText is a string, not an object
-              let displayText: string | undefined;
-              const rawText = n.content || n.text;
-              if (typeof rawText === 'string') {
-                displayText = rawText;
-              } else if (rawText && typeof rawText === 'object') {
-                displayText = JSON.stringify(rawText);
-              }
+              // Try to parse and format the content nicely
+              const rawContent = n.content || n.text;
+              const formatted = formatNotificationContent(rawContent);
 
               // Safely extract channel/event names
               const channelName = n.channel && typeof n.channel.name === 'string' ? n.channel.name : undefined;
@@ -167,9 +221,14 @@ export default function NotificationsPanel({ onClose }: NotificationsPanelProps)
                         <span className="h-1.5 w-1.5 rounded-full bg-primary-500" />
                       )}
                     </div>
-                    {displayText && (
+                    {formatted.text && (
                       <p className="mt-0.5 text-sm text-surface-800 dark:text-surface-200">
-                        {displayText}
+                        {formatted.text}
+                      </p>
+                    )}
+                    {formatted.subtext && (
+                      <p className="mt-0.5 text-xs text-surface-500 dark:text-surface-400">
+                        {formatted.subtext}
                       </p>
                     )}
                     <div className="mt-0.5 flex items-center gap-2 text-xs text-surface-400">
