@@ -19,7 +19,7 @@ export function useRealtimeEvents(
 
     // EventSource doesn't support custom headers — pass token as query param
     const apiBase = import.meta.env.DEV ? '/backend/api' : '/api';
-    const es = new EventSource(`${apiBase}/events?token=${token}`);
+    const es = new EventSource(`${apiBase}/events?token=${encodeURIComponent(token)}`);
     esRef.current = es;
 
     const dispatch = (event: MessageEvent, eventName: string) => {

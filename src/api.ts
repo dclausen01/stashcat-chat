@@ -322,12 +322,12 @@ export async function uploadToStorage(
 
 export function fileDownloadUrl(fileId: string, name: string): string {
   const token = localStorage.getItem('schulchat_token') || '';
-  return `${BACKEND}/file/${fileId}?name=${encodeURIComponent(name)}&token=${token}`;
+  return `${BACKEND}/file/${fileId}?name=${encodeURIComponent(name)}&token=${encodeURIComponent(token)}`;
 }
 
 export function fileViewUrl(fileId: string, name: string): string {
   const token = localStorage.getItem('schulchat_token') || '';
-  return `${BACKEND}/file/${fileId}?name=${encodeURIComponent(name)}&token=${token}&view=1`;
+  return `${BACKEND}/file/${fileId}?name=${encodeURIComponent(name)}&token=${encodeURIComponent(token)}&view=1`;
 }
 
 // --- Link Preview ---
