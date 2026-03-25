@@ -370,20 +370,25 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
           onClick={async () => {
             if (meetingLoading) return;
             setMeetingLoading(true);
+            // Open blank tab NOW (direct user gesture) — browsers block window.open() after async awaits
+            const moderatorTab = window.open('', '_blank');
             try {
               const result = await api.startVideoMeeting(chat.id, chat.type);
-              // Open moderator link in new tab
-              if (result.moderatorLink) {
-                window.open(result.moderatorLink, '_blank');
+              // Navigate the pre-opened tab to the moderator link
+              if (result.moderatorLink && moderatorTab) {
+                moderatorTab.location.href = result.moderatorLink;
+              } else if (moderatorTab) {
+                moderatorTab.close();
               }
               // Post invite link as formatted message in current chat
               if (result.inviteLink) {
                 const now = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-                const text = `Videokonferenz gestartet um ${now} Uhr\nJetzt beitreten: ${result.inviteLink}`;
+                const text = `📹 Videokonferenz gestartet um ${now} Uhr\nJetzt beitreten: ${result.inviteLink}`;
                 await api.sendMessage(chat.id, chat.type, text);
                 await loadMessages();
               }
             } catch (err) {
+              moderatorTab?.close();
               console.error('Failed to start meeting:', err);
               alert(err instanceof Error ? err.message : 'Videokonferenz konnte nicht erstellt werden');
             } finally {
@@ -913,7 +918,7 @@ function PlainTextMessage({
 
 // ── Video meeting card ────────────────────────────────────────────────────────
 
-const VIDEO_MSG_RE = /^Videokonferenz gestartet um (\d{2}:\d{2}) Uhr\nJetzt beitreten: (https:\/\/stash\.cat\/l\/[a-zA-Z0-9]+)$/;
+const VIDEO_MSG_RE = /^📹 Videokonferenz gestartet um (\d{2}:\d{2}) Uhr\nJetzt beitreten: (https?:\/\/stash\.cat\/l\/[a-zA-Z0-9_-]+)$/;
 
 function isVideoMeetingMessage(msg: Message): boolean {
   return VIDEO_MSG_RE.test(msg.text || '');
@@ -929,29 +934,34 @@ function VideoMeetingCard({ msg }: { msg: Message }) {
     : '';
 
   return (
-    <div className="flex justify-center py-2">
-      <div className="w-full max-w-md overflow-hidden rounded-xl border border-primary-200 bg-gradient-to-br from-primary-50 to-primary-100 shadow-sm dark:border-primary-800 dark:from-primary-950/40 dark:to-primary-900/30">
-        <div className="flex items-center gap-3 px-4 py-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-500 text-white">
-            <Video size={20} />
+    <div className="flex justify-center py-3">
+      <div className="w-full max-w-sm overflow-hidden rounded-2xl border-2 border-primary-300 bg-gradient-to-br from-primary-500 to-primary-700 shadow-lg dark:border-primary-600">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-5 py-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20 text-2xl">
+            📹
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-surface-900 dark:text-white">Videokonferenz</p>
-            <p className="text-xs text-surface-500 dark:text-surface-400">
-              Gestartet von {senderName} · {date}, {startTime} Uhr
+            <p className="text-base font-bold text-white">Videokonferenz läuft!</p>
+            <p className="text-xs text-primary-100">
+              Gestartet von {senderName} · {date && `${date}, `}{startTime} Uhr
             </p>
           </div>
         </div>
-        <div className="border-t border-primary-200 px-4 py-2.5 dark:border-primary-800">
+        {/* Join button */}
+        <div className="px-5 pb-4">
           <a
             href={link}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-600 active:bg-primary-700"
+            className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-primary-700 shadow transition hover:bg-primary-50 active:scale-95"
           >
             <Video size={16} />
-            Jetzt beitreten
+            🎙️ Jetzt beitreten
           </a>
+          <p className="mt-2 text-center text-xs text-primary-200">
+            Link ist 2 Stunden gültig
+          </p>
         </div>
       </div>
     </div>
