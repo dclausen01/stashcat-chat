@@ -23,7 +23,7 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.13.1",
     "remark-gfm": "^4.0.1",
-    "stashcat-api": "file:../stashcat-api"
+    "stashcat-api": "github:dclausen01/stashcat-api"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

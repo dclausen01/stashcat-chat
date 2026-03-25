@@ -193,3 +193,17 @@ E2E-encrypted `message_sync` events are decrypted by the server (using `getConve
 ### Session Restore on Server Restart
 
 At startup, `server/index.ts` loads `.sessions.json` via `session-store.ts` and restores each serialized `StashcatClient` via `StashcatClient.fromSession()`. It then calls `unlockE2E()` using the stored security password and reconnects the `RealtimeManager`. Clients whose sessions are no longer valid on the Stashcat server will silently fail and be dropped.
+
+---
+
+## Bash Commands
+
+When using Bash tool on Windows, output may not be captured directly. Always redirect output to a temporary file and read it with the Read tool:
+
+```bash
+# Good: Redirect to temp file
+some_command > /tmp/output.txt 2>&1
+
+# Then read the output
+# Read /tmp/output.txt
+```

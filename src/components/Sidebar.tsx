@@ -386,20 +386,41 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           myUserId={String((user as Record<string, unknown>)?.id ?? '')}
           onClose={() => setShowNewChat(false)}
           onCreate={(conv) => {
-            // Reload conversations to include the new one
+            const convData = conv as Record<string, unknown>;
+            const newId = String(convData.id ?? '');
+            const members = (convData.members as Array<Record<string, unknown>>) || [];
+            const userId = String((user as Record<string, unknown>)?.id);
+            const others = members.filter((m) => String(m.id) !== userId);
+            const name = others.length > 0
+              ? others.map((m) => `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim()).join(', ')
+              : 'Eigene Notizen';
+
+            // Create ChatTarget directly from API response
+            const newTarget: ChatTarget = {
+              type: 'conversation',
+              id: newId,
+              name,
+              image: others.length === 1 && others[0].image ? String(others[0].image) : undefined,
+              encrypted: Boolean(convData.encrypted),
+              unread_count: 0,
+              favorite: false,
+              lastActivity: Date.now() / 1000,
+            };
+
+            // Add to conversations list and navigate
+            setConversations((prev) => sortChats([newTarget, ...prev.filter((c) => c.id !== newId)]));
+            onSelectChat(newTarget);
+
+            // Also refresh from server in background to sync
             api.getConversations().then((convList) => {
-              const userId = String((user as Record<string, unknown>)?.id);
               const targets: ChatTarget[] = (convList as Array<Record<string, unknown>>).map((c) => {
-                const members = (c.members as Array<Record<string, unknown>>) || [];
-                const others = members.filter((m) => String(m.id) !== userId);
-                const name = others.length > 0
-                  ? others.map((m) => `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim()).join(', ')
-                  : 'Eigene Notizen';
+                const m = (c.members as Array<Record<string, unknown>>) || [];
+                const o = m.filter((mb) => String(mb.id) !== userId);
                 return {
                   type: 'conversation' as const,
                   id: String(c.id),
-                  name,
-                  image: others.length === 1 && others[0].image ? String(others[0].image) : undefined,
+                  name: o.length > 0 ? o.map((mb) => `${mb.first_name ?? ''} ${mb.last_name ?? ''}`.trim()).join(', ') : 'Eigene Notizen',
+                  image: o.length === 1 && o[0].image ? String(o[0].image) : undefined,
                   encrypted: Boolean(c.encrypted),
                   unread_count: Number(c.unread_count || 0),
                   favorite: Boolean(c.favorite),
@@ -407,10 +428,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
                 };
               });
               setConversations(sortChats(targets));
-              // Navigate to the new conversation
-              const newId = String((conv as Record<string, unknown>).id ?? '');
-              const newConv = targets.find((t) => t.id === newId);
-              if (newConv) onSelectChat(newConv);
             }).catch(() => {});
           }}
         />
