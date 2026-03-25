@@ -50,6 +50,11 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const [meetingLoading, setMeetingLoading] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchMatchIdx, setSearchMatchIdx] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchMatchRefs = useRef<(HTMLDivElement | null)[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef(chat);
@@ -59,6 +64,29 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
   const hasMoreRef = useRef(true);
 
   const userId = String((user as Record<string, unknown>)?.id || '');
+
+  // Search: IDs of messages matching the query
+  const searchMatches: string[] = searchQuery.trim().length >= 2
+    ? messages
+        .filter((m) => m.text?.toLowerCase().includes(searchQuery.toLowerCase()))
+        .map((m) => String(m.id))
+    : [];
+
+  // Scroll to current match when index or matches change
+  useEffect(() => {
+    if (searchMatches.length === 0) return;
+    const idx = ((searchMatchIdx % searchMatches.length) + searchMatches.length) % searchMatches.length;
+    searchMatchRefs.current[idx]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [searchMatchIdx, searchMatches.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset match index when query changes or chat switches
+  useEffect(() => { setSearchMatchIdx(0); }, [searchQuery, chat.id]);
+  useEffect(() => { setSearchOpen(false); setSearchQuery(''); }, [chat.id]);
+
+  // Focus search input when opened
+  useEffect(() => {
+    if (searchOpen) setTimeout(() => searchInputRef.current?.focus(), 50);
+  }, [searchOpen]);
 
   const loadMessages = useCallback(async () => {
     setLoading(true);
@@ -438,6 +466,18 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
           <FolderOpen size={20} />
         </button>
         <button
+          onClick={() => setSearchOpen((o) => !o)}
+          className={clsx(
+            'rounded-lg p-2 transition',
+            searchOpen
+              ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+              : 'text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800',
+          )}
+          title="Suche (Ctrl+F)"
+        >
+          <Search size={20} />
+        </button>
+        <button
           onClick={onToggleSettings}
           className="rounded-lg p-2 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800"
           title="Einstellungen"
@@ -445,6 +485,45 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
           <Settings size={20} />
         </button>
       </div>
+
+      {/* In-chat search bar */}
+      {searchOpen && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-surface-200 bg-surface-50 px-4 py-2 dark:border-surface-700 dark:bg-surface-900/50">
+          <Search size={15} className="shrink-0 text-surface-400" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); }
+              if (e.key === 'Enter') setSearchMatchIdx((i) => i + (e.shiftKey ? -1 : 1));
+            }}
+            placeholder="In Nachrichten suchen…"
+            className="min-w-0 flex-1 bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:text-white"
+          />
+          {searchQuery.trim().length >= 2 && (
+            <span className="shrink-0 text-xs text-surface-400">
+              {searchMatches.length === 0
+                ? 'Keine Treffer'
+                : `${((searchMatchIdx % searchMatches.length) + searchMatches.length) % searchMatches.length + 1} / ${searchMatches.length}`}
+            </span>
+          )}
+          {searchMatches.length > 0 && (
+            <>
+              <button onClick={() => setSearchMatchIdx((i) => i - 1)} className="rounded p-1 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700" title="Vorheriger Treffer (Shift+Enter)">
+                <ArrowDown size={14} className="rotate-180" />
+              </button>
+              <button onClick={() => setSearchMatchIdx((i) => i + 1)} className="rounded p-1 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700" title="Nächster Treffer (Enter)">
+                <ArrowDown size={14} />
+              </button>
+            </>
+          )}
+          <button onClick={() => { setSearchOpen(false); setSearchQuery(''); }} className="rounded p-1 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
       {/* Messages */}
       <div
@@ -474,29 +553,37 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
           </div>
         ) : settings.bubbleView ? (
           <div className="flex flex-col gap-7">
-            {groups.map((group, gi) =>
-              group.isSystem ? (
-                <SystemMessage key={gi} msg={group.messages[0]} />
-              ) : group.messages.length === 1 && isVideoMeetingMessage(group.messages[0]) ? (
-                <VideoMeetingCard key={gi} msg={group.messages[0]} />
-              ) : (
-                <MessageGroup
+            {groups.map((group, gi) => {
+              if (group.isSystem) return <SystemMessage key={gi} msg={group.messages[0]} />;
+              if (group.messages.length === 1 && isVideoMeetingMessage(group.messages[0])) return <VideoMeetingCard key={gi} msg={group.messages[0]} />;
+              // Check if any message in this group is a search match
+              const matchIdxInGroup = group.messages.findIndex((m) => searchMatches.includes(String(m.id)));
+              const globalMatchIdx = matchIdxInGroup >= 0 ? searchMatches.indexOf(String(group.messages[matchIdxInGroup].id)) : -1;
+              const isCurrentMatch = globalMatchIdx >= 0 && ((searchMatchIdx % searchMatches.length + searchMatches.length) % searchMatches.length) === globalMatchIdx;
+              return (
+                <div
                   key={gi}
-                  group={group}
-                  canDeleteAll={isManager && chat.type === 'channel'}
-                  showImagesInline={settings.showImagesInline}
-                  ownBubbleColor={settings.ownBubbleColor}
-                  otherBubbleColor={settings.otherBubbleColor}
-                  messageMap={messageMap}
-                  onDelete={handleDelete}
-                  onLike={handleLike}
-                  onReply={setReplyTo}
-                  onForward={setForwardMsg}
-                  onImageClick={setLightboxUrl}
-                  onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
-                />
-              ),
-            )}
+                  ref={globalMatchIdx >= 0 ? (el) => { searchMatchRefs.current[globalMatchIdx] = el; } : undefined}
+                  className={clsx(globalMatchIdx >= 0 && 'rounded-xl ring-2', isCurrentMatch ? 'ring-yellow-400 dark:ring-yellow-500' : globalMatchIdx >= 0 ? 'ring-yellow-200 dark:ring-yellow-800' : undefined)}
+                >
+                  <MessageGroup
+                    group={group}
+                    canDeleteAll={isManager && chat.type === 'channel'}
+                    showImagesInline={settings.showImagesInline}
+                    ownBubbleColor={settings.ownBubbleColor}
+                    otherBubbleColor={settings.otherBubbleColor}
+                    messageMap={messageMap}
+                    onDelete={handleDelete}
+                    onLike={handleLike}
+                    onReply={setReplyTo}
+                    onForward={setForwardMsg}
+                    onImageClick={setLightboxUrl}
+                    onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
+                    searchQuery={searchQuery}
+                  />
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="flex flex-col divide-y divide-surface-100 dark:divide-surface-800">
@@ -507,21 +594,29 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
               if (isVideoMeetingMessage(msg)) {
                 return <VideoMeetingCard key={msg.id} msg={msg} />;
               }
+              const globalMatchIdx = searchMatches.indexOf(String(msg.id));
+              const isCurrentMatch = globalMatchIdx >= 0 && ((searchMatchIdx % searchMatches.length + searchMatches.length) % searchMatches.length) === globalMatchIdx;
               return (
-                <PlainTextMessage
+                <div
                   key={msg.id}
-                  msg={msg}
-                  isOwn={String(msg.sender?.id) === userId}
-                  canDelete={String(msg.sender?.id) === userId || (isManager && chat.type === 'channel')}
-                  showImagesInline={settings.showImagesInline}
-                  messageMap={messageMap}
-                  onDelete={handleDelete}
-                  onLike={handleLike}
-                  onReply={setReplyTo}
-                  onForward={setForwardMsg}
-                  onImageClick={setLightboxUrl}
-                  onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
-                />
+                  ref={globalMatchIdx >= 0 ? (el) => { searchMatchRefs.current[globalMatchIdx] = el; } : undefined}
+                  className={clsx(globalMatchIdx >= 0 && 'ring-inset ring-2', isCurrentMatch ? 'ring-yellow-400 dark:ring-yellow-500' : globalMatchIdx >= 0 ? 'ring-yellow-200 dark:ring-yellow-800' : undefined)}
+                >
+                  <PlainTextMessage
+                    msg={msg}
+                    isOwn={String(msg.sender?.id) === userId}
+                    canDelete={String(msg.sender?.id) === userId || (isManager && chat.type === 'channel')}
+                    showImagesInline={settings.showImagesInline}
+                    messageMap={messageMap}
+                    onDelete={handleDelete}
+                    onLike={handleLike}
+                    onReply={setReplyTo}
+                    onForward={setForwardMsg}
+                    onImageClick={setLightboxUrl}
+                    onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
+                    searchQuery={searchQuery}
+                  />
+                </div>
               );
             })}
           </div>
@@ -659,6 +754,7 @@ function MessageGroup({
   onForward,
   onImageClick,
   onPdfClick,
+  searchQuery = '',
 }: {
   group: { sender: Message['sender']; isOwn: boolean; messages: Message[] };
   canDeleteAll: boolean;
@@ -672,6 +768,7 @@ function MessageGroup({
   onForward: (msg: Message) => void;
   onImageClick: (url: string) => void;
   onPdfClick: (fileId: string, viewUrl: string, name: string) => void;
+  searchQuery?: string;
 }) {
   const { sender, isOwn, messages } = group;
   const senderName = sender ? `${sender.first_name} ${sender.last_name}` : 'Unbekannt';
@@ -771,7 +868,9 @@ function MessageGroup({
                     <Forward size={10} /> Weitergeleitet
                   </div>
                 )}
-                <MarkdownContent content={content} isOwn={isOwn} />
+                {searchQuery && content.toLowerCase().includes(searchQuery.toLowerCase())
+                  ? <p className="whitespace-pre-wrap break-words"><HighlightedText text={content} query={searchQuery} /></p>
+                  : <MarkdownContent content={content} isOwn={isOwn} />}
                 <FileList files={msg.files} isOwn={isOwn} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
               </div>
 
@@ -819,6 +918,7 @@ function PlainTextMessage({
   onForward,
   onImageClick,
   onPdfClick,
+  searchQuery = '',
 }: {
   msg: Message;
   isOwn: boolean;
@@ -831,6 +931,7 @@ function PlainTextMessage({
   onForward: (msg: Message) => void;
   onImageClick: (url: string) => void;
   onPdfClick: (fileId: string, viewUrl: string, name: string) => void;
+  searchQuery?: string;
 }) {
   const senderName = msg.sender ? `${msg.sender.first_name} ${msg.sender.last_name}` : 'Unbekannt';
   const time = msg.time
@@ -871,7 +972,9 @@ function PlainTextMessage({
           </div>
         )}
         <div className="text-sm text-surface-800 dark:text-surface-200">
-          <MarkdownContent content={content} isOwn={false} />
+          {searchQuery && content.toLowerCase().includes(searchQuery.toLowerCase())
+            ? <p className="whitespace-pre-wrap break-words"><HighlightedText text={content} query={searchQuery} /></p>
+            : <MarkdownContent content={content} isOwn={false} />}
         </div>
         <FileList files={msg.files} isOwn={false} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
       </div>
@@ -1114,6 +1217,21 @@ function FileList({
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────────
+
+/** Highlight search query occurrences in text */
+function HighlightedText({ text, query }: { text: string; query: string }) {
+  if (!query || query.trim().length < 2) return <>{text}</>;
+  const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase()
+          ? <mark key={i} className="rounded bg-yellow-300 px-0.5 text-yellow-900 dark:bg-yellow-500 dark:text-yellow-950">{part}</mark>
+          : part,
+      )}
+    </>
+  );
+}
 
 /** Renders plain text with clickable https?:// URLs */
 function LinkifiedText({ text }: { text: string }) {
