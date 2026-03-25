@@ -1170,14 +1170,31 @@ async function findChatBot(client: StashcatClient, clientKey: string): Promise<B
       if (conversations.length < 100) break; // no more pages
     }
 
-    console.warn('[Video] Chat Bot not found in conversations. Dumping first conversation members for debug:');
+    // Bot not found in conversations — try company members as fallback
+    console.warn('[Video] Chat Bot not found in conversations. Searching company members...');
     try {
-      const sample = await client.getConversations({ limit: 1, offset: 0 }) as unknown as Array<Record<string, unknown>>;
-      if (sample[0]) {
-        const full = await client.getConversation(String(sample[0].id)) as unknown as Record<string, unknown>;
-        console.warn('[Video] Sample conversation:', JSON.stringify(full).slice(0, 500));
+      const companies = await client.getCompanies() as unknown as Array<Record<string, unknown>>;
+      for (const company of companies) {
+        const companyId = String(company.id);
+        // getCompanyMembers fetches members; the bot user should be in there
+        const members = await client.getCompanyMembers(companyId) as unknown as Array<Record<string, unknown>>;
+        for (const member of members) {
+          if (looksLikeChatBot(member)) {
+            const botUserId = String(member.id ?? member.user_id);
+            console.log(`[Video] Found Chat Bot via company members: userId=${botUserId}, creating conversation...`);
+            // Create/get the 1:1 conversation with the bot
+            const conv = await client.createConversation([botUserId]) as unknown as Record<string, unknown>;
+            const botConvId = String(conv.id);
+            const info: BotInfo = { botUserId, botConvId };
+            botCache.set(clientKey, info);
+            console.log(`[Video] Bot conversation created/found: convId=${botConvId}`);
+            return info;
+          }
+        }
       }
-    } catch { /* ignore */ }
+    } catch (fallbackErr) {
+      console.warn('[Video] Company member fallback failed:', fallbackErr);
+    }
 
   } catch (err) {
     console.warn('[Video] Failed to search for Chat Bot:', err);
@@ -1198,6 +1215,24 @@ function isBotMessage(senderId: string, clientKey: string): boolean {
   return bot ? bot.botUserId === senderId : false;
 }
 
+/** Extract sender ID from a raw message object (sender can be string or object) */
+function extractSenderId(msg: Record<string, unknown>): string {
+  const sender = msg.sender;
+  if (typeof sender === 'string') return sender;
+  if (sender && typeof sender === 'object') {
+    const s = sender as Record<string, unknown>;
+    return String(s.id ?? s.user_id ?? '');
+  }
+  return '';
+}
+
+/** Extract the first stash.cat meeting link from message text */
+function extractMeetingLink(text: string): string | null {
+  // Links can appear as __https://stash.cat/l/xxx__ or plain URLs
+  const match = text.match(/https?:\/\/stash\.cat\/l\/[a-zA-Z0-9_-]+/);
+  return match ? match[0] : null;
+}
+
 app.post('/api/video/start-meeting', async (req, res) => {
   let clientKey = '';
   try {
@@ -1212,8 +1247,12 @@ app.post('/api/video/start-meeting', async (req, res) => {
       return res.status(503).json({ error: 'Chat Bot nicht gefunden. Schreibe zuerst eine Nachricht an den "Chat Bot" in der App, dann versuche es erneut.' });
     }
 
-    // 2. Send /meet to the bot conversation
-    const sendTime = Math.floor(Date.now() / 1000);
+    // 2. Record existing message IDs before sending /meet (to detect new bot replies)
+    const existingMsgs = await client.getMessages(botInfo.botConvId, 'conversation', { limit: 10, offset: 0 }) as unknown as Array<Record<string, unknown>>;
+    const existingIds = new Set(existingMsgs.map((m) => String(m.id)));
+    console.log(`[Video] Existing message IDs: ${[...existingIds].join(', ')}`);
+
+    // 3. Send /meet to the bot conversation
     await client.sendMessage({
       target: botInfo.botConvId,
       target_type: 'conversation',
@@ -1221,35 +1260,38 @@ app.post('/api/video/start-meeting', async (req, res) => {
     });
     console.log(`[Video] Sent /meet to bot conv ${botInfo.botConvId}`);
 
-    // 3. Poll for bot response (max 20 seconds, every 500ms)
+    // 4. Poll for NEW bot response messages (max 20 seconds, every 500ms)
     let inviteLink: string | null = null;
     let moderatorLink: string | null = null;
-    const linkRegex = /https:\/\/stash\.cat\/l\/[a-zA-Z0-9]+/g;
-    const maxAttempts = 40;
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    for (let attempt = 0; attempt < 40; attempt++) {
       await new Promise((r) => setTimeout(r, 500));
 
-      const messages = await client.getMessages(botInfo.botConvId, 'conversation', { limit: 5, offset: 0 }) as unknown as Array<Record<string, unknown>>;
+      const messages = await client.getMessages(botInfo.botConvId, 'conversation', { limit: 10, offset: 0 }) as unknown as Array<Record<string, unknown>>;
+      console.log(`[Video] Poll attempt ${attempt + 1}: got ${messages.length} messages`);
 
-      // Look for messages from the bot that arrived after our /meet command
-      const botMessages = messages.filter((m) => {
-        const sender = m.sender as Record<string, unknown> | undefined;
-        const senderId = sender ? String(sender.id || '') : String(m.sender || '');
-        const msgTime = Number(m.time || 0);
-        return senderId === botInfo!.botUserId && msgTime >= sendTime - 2; // 2s tolerance
-      });
+      for (const msg of messages) {
+        const msgId = String(msg.id);
+        if (existingIds.has(msgId)) continue; // Skip pre-existing messages
 
-      for (const msg of botMessages) {
+        const senderId = extractSenderId(msg);
+        if (senderId !== botInfo.botUserId) continue; // Only bot messages
+
         const text = String(msg.text || '');
-        const links = text.match(linkRegex);
-        if (!links || links.length === 0) continue;
+        console.log(`[Video] New bot message (id=${msgId}): ${text.slice(0, 120)}`);
 
-        // Classify: invite link has "weitergeben" / "Teilnehmer", moderator link has "starten" / "nur für dich"
-        if (text.includes('weitergeben') || text.includes('Teilnehmer')) {
-          inviteLink = links[0];
-        } else if (text.includes('starten') || text.includes('nur für dich')) {
-          moderatorLink = links[0];
+        const link = extractMeetingLink(text);
+        if (!link) continue;
+
+        // Classify: invite link mentions forwarding, moderator link mentions starting
+        if (text.includes('weitergeben') || text.includes('Teilnehmer') || text.includes('einzuladen')) {
+          inviteLink = link;
+        } else if (text.includes('starten') || text.includes('nur für dich') || text.includes('Moderator')) {
+          moderatorLink = link;
+        } else {
+          // Fallback: first unclassified link → invite, second → moderator
+          if (!inviteLink) inviteLink = link;
+          else if (!moderatorLink) moderatorLink = link;
         }
       }
 
