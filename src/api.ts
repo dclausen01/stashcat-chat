@@ -491,3 +491,12 @@ export async function getNotifications(limit = 50, offset = 0) {
 export async function getNotificationCount() {
   return get<{ count: number }>('/notifications/count');
 }
+
+export async function deleteNotification(notificationId: string) {
+  const res = await fetch(`${BACKEND}/notifications/${notificationId}`, {
+    method: 'DELETE',
+    headers: headers(),
+  });
+  if (!res.ok) throw new Error('Failed to delete notification');
+  return res.json();
+}

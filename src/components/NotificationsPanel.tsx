@@ -114,7 +114,6 @@ function formatNotificationContent(content: unknown): { text: string; subtext?: 
 
 export default function NotificationsPanel({ onClose }: NotificationsPanelProps) {
   const [notifications, setNotifications] = useState<api.AppNotification[]>([]);
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -141,15 +140,23 @@ export default function NotificationsPanel({ onClose }: NotificationsPanelProps)
       .finally(() => setLoading(false));
   }, []);
 
-  const handleDismiss = (id: string) => {
-    setDismissed((prev) => new Set(prev).add(id));
+  const handleDelete = async (id: string) => {
+    try {
+      await api.deleteNotification(id);
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+    } catch (err) {
+      console.error('Failed to delete notification:', err);
+    }
   };
 
-  const handleDismissAll = () => {
-    setDismissed(new Set(notifications.map((n) => n.id)));
+  const handleDeleteAll = async () => {
+    try {
+      await Promise.all(notifications.map((n) => api.deleteNotification(n.id)));
+      setNotifications([]);
+    } catch (err) {
+      console.error('Failed to delete all notifications:', err);
+    }
   };
-
-  const visible = notifications.filter((n) => !dismissed.has(n.id));
 
   return (
     <div className="flex h-full w-80 shrink-0 flex-col border-l border-surface-200 bg-white dark:border-surface-700 dark:bg-surface-900">
@@ -157,11 +164,11 @@ export default function NotificationsPanel({ onClose }: NotificationsPanelProps)
       <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
         <Bell size={18} className="text-primary-500" />
         <h2 className="flex-1 text-sm font-semibold text-surface-900 dark:text-white">Benachrichtigungen</h2>
-        {visible.length > 0 && (
+        {notifications.length > 0 && (
           <button
-            onClick={handleDismissAll}
+            onClick={handleDeleteAll}
             className="rounded-md px-2 py-1 text-xs text-surface-400 transition hover:bg-surface-100 hover:text-surface-600 dark:hover:bg-surface-800 dark:hover:text-surface-300"
-            title="Alle ausblenden"
+            title="Alle löschen"
           >
             <Trash2 size={13} />
           </button>
@@ -177,14 +184,14 @@ export default function NotificationsPanel({ onClose }: NotificationsPanelProps)
           <div className="flex justify-center py-12">
             <Loader2 size={24} className="animate-spin text-primary-400" />
           </div>
-        ) : visible.length === 0 ? (
+        ) : notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-surface-400">
             <Bell size={32} className="mb-2 opacity-50" />
             <p className="text-sm">Keine Benachrichtigungen</p>
           </div>
         ) : (
           <div className="divide-y divide-surface-100 dark:divide-surface-800">
-            {visible.map((n, i) => {
+            {notifications.map((n, i) => {
               const typeInfo = getTypeInfo(n.type);
               // Use 'content' from API (actual field name) or fall back to 'text'
               // Try to parse and format the content nicely
@@ -246,9 +253,9 @@ export default function NotificationsPanel({ onClose }: NotificationsPanelProps)
                     </div>
                   </div>
                   <button
-                    onClick={() => handleDismiss(n.id)}
+                    onClick={() => handleDelete(n.id)}
                     className="shrink-0 rounded-md p-1 text-surface-300 opacity-0 transition group-hover/notif:opacity-100 hover:bg-surface-100 hover:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-400"
-                    title="Ausblenden"
+                    title="Löschen"
                   >
                     <X size={14} />
                   </button>
