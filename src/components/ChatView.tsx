@@ -564,20 +564,18 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
           </div>
         ) : settings.bubbleView ? (
           <div className="flex flex-col gap-7">
-            {groups.map((group, gi) => {
-              if (group.isSystem) return <SystemMessage key={gi} msg={group.messages[0]} />;
-              if (group.messages.length === 1 && isVideoMeetingMessage(group.messages[0])) return <VideoMeetingCard key={gi} msg={group.messages[0]} />;
-              // Check if any message in this group is a search match
-              const matchIdxInGroup = group.messages.findIndex((m) => searchMatches.includes(String(m.id)));
-              const globalMatchIdx = matchIdxInGroup >= 0 ? searchMatches.indexOf(String(group.messages[matchIdxInGroup].id)) : -1;
-              const isCurrentMatch = globalMatchIdx >= 0 && ((searchMatchIdx % searchMatches.length + searchMatches.length) % searchMatches.length) === globalMatchIdx;
-              return (
-                <div
-                  key={gi}
-                  ref={globalMatchIdx >= 0 ? (el) => { searchMatchRefs.current[globalMatchIdx] = el; } : undefined}
-                  className={clsx(globalMatchIdx >= 0 && 'rounded-xl ring-2', isCurrentMatch ? 'ring-yellow-400 dark:ring-yellow-500' : globalMatchIdx >= 0 ? 'ring-yellow-200 dark:ring-yellow-800' : undefined)}
-                >
+            {(() => {
+              const currentNormalizedIdx = searchMatches.length > 0
+                ? ((searchMatchIdx % searchMatches.length) + searchMatches.length) % searchMatches.length
+                : -1;
+              const currentMatchMsgId = currentNormalizedIdx >= 0 ? searchMatches[currentNormalizedIdx] : null;
+              const searchMatchSet = new Set(searchMatches);
+              return groups.map((group, gi) => {
+                if (group.isSystem) return <SystemMessage key={gi} msg={group.messages[0]} />;
+                if (group.messages.length === 1 && isVideoMeetingMessage(group.messages[0])) return <VideoMeetingCard key={gi} msg={group.messages[0]} />;
+                return (
                   <MessageGroup
+                    key={gi}
                     group={group}
                     canDeleteAll={isManager && chat.type === 'channel'}
                     showImagesInline={settings.showImagesInline}
@@ -591,10 +589,16 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
                     onImageClick={setLightboxUrl}
                     onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
                     searchQuery={searchQuery}
+                    searchMatchSet={searchMatchSet}
+                    currentMatchMsgId={currentMatchMsgId}
+                    onMatchRef={(msgId, el) => {
+                      const idx = searchMatches.indexOf(msgId);
+                      if (idx >= 0) searchMatchRefs.current[idx] = el;
+                    }}
                   />
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         ) : (
           <div className="flex flex-col divide-y divide-surface-100 dark:divide-surface-800">
@@ -766,6 +770,9 @@ function MessageGroup({
   onImageClick,
   onPdfClick,
   searchQuery = '',
+  searchMatchSet = new Set(),
+  currentMatchMsgId = null,
+  onMatchRef,
 }: {
   group: { sender: Message['sender']; isOwn: boolean; messages: Message[] };
   canDeleteAll: boolean;
@@ -780,6 +787,9 @@ function MessageGroup({
   onImageClick: (url: string) => void;
   onPdfClick: (fileId: string, viewUrl: string, name: string) => void;
   searchQuery?: string;
+  searchMatchSet?: Set<string>;
+  currentMatchMsgId?: string | null;
+  onMatchRef?: (msgId: string, el: HTMLDivElement | null) => void;
 }) {
   const { sender, isOwn, messages } = group;
   const senderName = sender ? `${sender.first_name} ${sender.last_name}` : 'Unbekannt';
@@ -809,8 +819,19 @@ function MessageGroup({
           const canDelete = isOwn || canDeleteAll;
           const replyTo = msg.reply_to ? messageMap.get(msg.reply_to.message_id) : undefined;
 
+          const isBubbleMatch = searchMatchSet.has(String(msg.id));
+          const isBubbleCurrent = currentMatchMsgId === String(msg.id);
           return (
-            <div key={msg.id} className={clsx('group/msg relative flex flex-col gap-0.5 before:pointer-events-auto before:absolute before:-top-8 before:left-0 before:right-0 before:h-8', isOwn ? 'items-end' : 'items-start')}>
+            <div
+              key={msg.id}
+              ref={isBubbleMatch ? (el) => onMatchRef?.(String(msg.id), el) : undefined}
+              className={clsx(
+                'group/msg relative flex flex-col gap-0.5 before:pointer-events-auto before:absolute before:-top-8 before:left-0 before:right-0 before:h-8',
+                isOwn ? 'items-end' : 'items-start',
+                isBubbleMatch && 'rounded-xl ring-2',
+                isBubbleCurrent ? 'ring-yellow-400 dark:ring-yellow-500' : isBubbleMatch ? 'ring-yellow-200 dark:ring-yellow-800' : undefined,
+              )}
+            >
               {/* Action buttons — above the bubble; ::before extends hover zone so buttons don't vanish */}
               <div className={clsx(
                 'absolute bottom-full mb-1 z-10 hidden group-hover/msg:flex items-center gap-0.5 rounded-lg bg-white/90 p-0.5 shadow-sm ring-1 ring-surface-200 backdrop-blur dark:bg-surface-800/90 dark:ring-surface-700',
