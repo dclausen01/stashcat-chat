@@ -28,15 +28,17 @@ const TYPE_MAP: Record<string, { label: string; icon: React.ReactNode }> = {
 };
 
 function getTypeInfo(type: string): { label: string; icon: React.ReactNode } {
-  if (TYPE_MAP[type]) return TYPE_MAP[type];
+  // Defensive: handle undefined/null/empty type
+  const safeType = type || '';
+  if (TYPE_MAP[safeType]) return TYPE_MAP[safeType];
   // Fuzzy match
-  if (type.includes('channel')) return { label: 'Channel-Benachrichtigung', icon: <Hash size={16} className="text-primary-500" /> };
-  if (type.includes('event') || type.includes('calendar')) return { label: 'Kalender-Benachrichtigung', icon: <CalendarDays size={16} className="text-amber-500" /> };
-  if (type.includes('device') || type.includes('login')) return { label: 'Geräte-Benachrichtigung', icon: <Smartphone size={16} className="text-green-500" /> };
-  if (type.includes('invite')) return { label: 'Einladung', icon: <UserPlus size={16} className="text-primary-500" /> };
+  if (safeType.includes('channel')) return { label: 'Channel-Benachrichtigung', icon: <Hash size={16} className="text-primary-500" /> };
+  if (safeType.includes('event') || safeType.includes('calendar')) return { label: 'Kalender-Benachrichtigung', icon: <CalendarDays size={16} className="text-amber-500" /> };
+  if (safeType.includes('device') || safeType.includes('login')) return { label: 'Geräte-Benachrichtigung', icon: <Smartphone size={16} className="text-green-500" /> };
+  if (safeType.includes('invite')) return { label: 'Einladung', icon: <UserPlus size={16} className="text-primary-500" /> };
   // Fallback: humanize the snake_case type
-  const humanized = type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-  return { label: humanized, icon: <Bell size={16} className="text-surface-400" /> };
+  const humanized = safeType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return { label: humanized || 'Benachrichtigung', icon: <Bell size={16} className="text-surface-400" /> };
 }
 
 function formatTime(dateStr?: string) {
@@ -117,15 +119,15 @@ export default function NotificationsPanel({ onClose }: NotificationsPanelProps)
 
               return (
                 <div
-                  key={n.id || i}
+                  key={n.id ?? `notif-${i}`}
                   className={clsx(
                     'group/notif flex gap-3 px-4 py-3 transition hover:bg-surface-50 dark:hover:bg-surface-800/50',
                     !n.read && 'bg-primary-50/50 dark:bg-primary-950/20',
                   )}
                 >
                   <div className="shrink-0 pt-0.5">
-                    {n.sender ? (
-                      <Avatar name={`${n.sender.first_name} ${n.sender.last_name}`} image={n.sender.image} size="sm" />
+                    {n.sender && (n.sender.first_name || n.sender.last_name) ? (
+                      <Avatar name={`${n.sender.first_name ?? ''} ${n.sender.last_name ?? ''}`.trim() || 'Unbekannt'} image={n.sender.image} size="sm" />
                     ) : (
                       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-100 dark:bg-surface-800">
                         {typeInfo.icon}
