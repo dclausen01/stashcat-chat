@@ -505,8 +505,8 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
           {searchQuery.trim().length >= 2 && (
             <span className="shrink-0 text-xs text-surface-400">
               {searchMatches.length === 0
-                ? 'Keine Treffer'
-                : `${((searchMatchIdx % searchMatches.length) + searchMatches.length) % searchMatches.length + 1} / ${searchMatches.length}`}
+                ? hasMore ? 'Keine Treffer (in geladenen Nachrichten)' : 'Keine Treffer'
+                : `${((searchMatchIdx % searchMatches.length) + searchMatches.length) % searchMatches.length + 1} / ${searchMatches.length}${hasMore ? ' (in geladenen Nachrichten)' : ''}`}
             </span>
           )}
           {searchMatches.length > 0 && (
@@ -531,10 +531,21 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
         onScroll={handleScroll}
         className="relative flex-1 overflow-x-hidden overflow-y-auto px-4 py-4"
       >
-        {/* Load-more spinner at top */}
+        {/* Load-more area at top */}
         {loadingMore && (
           <div className="flex justify-center pb-3">
             <Loader2 size={20} className="animate-spin text-primary-400" />
+          </div>
+        )}
+        {!loadingMore && hasMore && messages.length > 0 && (
+          <div className="flex justify-center pb-3">
+            <button
+              onClick={loadOlder}
+              className="flex items-center gap-1.5 rounded-full border border-surface-200 bg-white px-4 py-1.5 text-xs font-medium text-surface-500 shadow-sm transition hover:border-primary-300 hover:text-primary-600 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-400 dark:hover:border-primary-600 dark:hover:text-primary-400"
+            >
+              <ArrowDown size={12} className="rotate-180" />
+              Ältere Nachrichten laden
+            </button>
           </div>
         )}
         {!loadingMore && !hasMore && messages.length > 0 && (
