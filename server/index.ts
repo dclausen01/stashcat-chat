@@ -7,7 +7,7 @@ import fs from 'fs/promises';
 import { StashcatClient, CryptoManager } from 'stashcat-api';
 import type { RealtimeManager } from 'stashcat-api';
 import type { MessageSyncPayload } from 'stashcat-api';
-import { saveSession, loadSessions, deleteSession } from './session-store';
+import { encryptSession, decryptSession } from './token-crypto';
 
 // Multer: store uploads in OS temp dir
 const upload = multer({ dest: os.tmpdir() });
@@ -16,47 +16,87 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ── Session store ─────────────────────────────────────────────────────────────
+// ── Client cache with TTL ────────────────────────────────────────────────────
 
-interface Session {
+interface CachedClient {
+  client: StashcatClient;
+  expiresAt: number;
+}
+const clientCache = new Map<string, CachedClient>();
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+// Cleanup expired entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of clientCache) {
+    if (now > entry.expiresAt) clientCache.delete(key);
+  }
+}, 60_000);
+
+// ── SSE connection tracking ──────────────────────────────────────────────────
+
+interface SSEConnection {
   client: StashcatClient;
   realtime?: RealtimeManager;
-  // SSE clients listening for this session's events
   sseClients: Set<express.Response>;
 }
+const activeSSE = new Map<string, SSEConnection>(); // keyed by clientKey
 
-const sessions = new Map<string, Session>();
-
-function generateToken(): string {
-  return Array.from(crypto.getRandomValues(new Uint8Array(32)))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-function getSession(req: express.Request): Session {
-  // Support token both as Bearer header and as ?token= query param (for EventSource/download links)
-  const token = req.headers.authorization?.replace('Bearer ', '') || (req.query.token as string);
-  if (!token) throw new Error('No token');
-  const session = sessions.get(token);
-  if (!session) throw new Error('Invalid session');
-  return session;
-}
-
-function pushSSE(session: Session, event: string, data: unknown) {
+function pushSSE(clientKey: string, event: string, data: unknown) {
+  const conn = activeSSE.get(clientKey);
+  if (!conn) return;
   const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  for (const res of session.sseClients) {
-    try { res.write(payload); } catch { session.sseClients.delete(res); }
+  for (const res of conn.sseClients) {
+    try { res.write(payload); } catch { conn.sseClients.delete(res); }
   }
 }
 
-// ── Realtime setup (shared between login and session restore) ─────────────────
+// ── Client resolution ────────────────────────────────────────────────────────
 
-function connectRealtime(client: StashcatClient, session: Session, tokenHint: string) {
+function extractToken(req: express.Request): string {
+  const token = req.headers.authorization?.replace('Bearer ', '') || (req.query.token as string);
+  if (!token) throw new Error('No token');
+  return token;
+}
+
+async function getClient(req: express.Request): Promise<StashcatClient> {
+  const token = extractToken(req);
+  const payload = decryptSession(token);
+
+  // Check cache
+  const cached = clientCache.get(payload.clientKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    cached.expiresAt = Date.now() + CACHE_TTL; // Refresh TTL
+    return cached.client;
+  }
+
+  // Create new client
+  const client = StashcatClient.fromSession(
+    { deviceId: payload.deviceId, clientKey: payload.clientKey },
+    { baseUrl: payload.baseUrl }
+  );
+
+  // Unlock E2E
+  if (payload.securityPassword) {
+    await client.unlockE2E(payload.securityPassword);
+  }
+
+  clientCache.set(payload.clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
+  return client;
+}
+
+// ── Realtime setup ───────────────────────────────────────────────────────────
+
+function connectRealtime(client: StashcatClient, clientKey: string) {
   client.createRealtimeManager({ reconnect: true }).then((rt) => {
-    session.realtime = rt;
+    const conn = activeSSE.get(clientKey);
+    if (!conn) { rt.disconnect(); return; }
+    conn.realtime = rt;
     return rt.connect();
   }).then(() => {
-    const rt = session.realtime!;
+    const conn = activeSSE.get(clientKey);
+    if (!conn?.realtime) return;
+    const rt = conn.realtime;
 
     rt.on('message_sync', async (data: MessageSyncPayload) => {
       const payload = { ...data };
@@ -83,14 +123,14 @@ function connectRealtime(client: StashcatClient, session: Session, tokenHint: st
         }
       }
 
-      pushSSE(session, 'message_sync', payload);
+      pushSSE(clientKey, 'message_sync', payload);
     });
 
     rt.on('user-started-typing', (chatType: string, chatId: number, userId: number) => {
-      pushSSE(session, 'typing', { chatType, chatId, userId });
+      pushSSE(clientKey, 'typing', { chatType, chatId, userId });
     });
 
-    console.log(`[Realtime] Connected for session ${tokenHint.slice(0, 8)}…`);
+    console.log(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
   }).catch((err: unknown) => {
     console.warn('[Realtime] Connection failed:', err);
   });
@@ -102,22 +142,24 @@ app.post('/api/login', async (req, res) => {
   try {
     const { email, password, securityPassword } = req.body;
     const effectiveSecurityPassword = securityPassword || password;
+    const baseUrl = process.env.STASHCAT_BASE_URL || 'https://api.stashcat.com/';
 
-    const client = new StashcatClient({ baseUrl: process.env.STASHCAT_BASE_URL || 'https://api.stashcat.com/' });
+    const client = new StashcatClient({ baseUrl });
     await client.login({ email, password, securityPassword: effectiveSecurityPassword });
 
-    const token = generateToken();
-    const session: Session = { client, sseClients: new Set() };
-    sessions.set(token, session);
+    const serialized = client.serialize();
+    const token = encryptSession({
+      deviceId: serialized.deviceId,
+      clientKey: serialized.clientKey,
+      securityPassword: effectiveSecurityPassword,
+      baseUrl,
+    });
+
+    // Cache the client
+    clientCache.set(serialized.clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
 
     const me = await client.getMe();
     res.json({ token, user: me });
-
-    // Persist session for survival across server restarts
-    saveSession(token, client.serialize(), effectiveSecurityPassword).catch(() => {});
-
-    // Connect realtime in background (non-blocking)
-    connectRealtime(client, session, token);
 
   } catch (err) {
     res.status(401).json({ error: err instanceof Error ? err.message : 'Login failed' });
@@ -125,22 +167,33 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/logout', async (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (token) {
-    const session = sessions.get(token);
-    session?.realtime?.disconnect();
-    sessions.delete(token);
-    // Remove from persistent store
-    deleteSession(token).catch(() => {});
-  }
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (token) {
+      const payload = decryptSession(token);
+      // Clean up cache and SSE
+      clientCache.delete(payload.clientKey);
+      const sse = activeSSE.get(payload.clientKey);
+      if (sse) {
+        sse.realtime?.disconnect();
+        activeSSE.delete(payload.clientKey);
+      }
+    }
+  } catch { /* token may be invalid, that's fine */ }
   res.json({ ok: true });
 });
 
 // ── Server-Sent Events ────────────────────────────────────────────────────────
 
-app.get('/api/events', (req, res) => {
-  let session: Session;
-  try { session = getSession(req); } catch { res.status(401).end(); return; }
+app.get('/api/events', async (req, res) => {
+  let client: StashcatClient;
+  let clientKey: string;
+  try {
+    const token = extractToken(req);
+    const payload = decryptSession(token);
+    clientKey = payload.clientKey;
+    client = await getClient(req);
+  } catch { res.status(401).end(); return; }
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -150,11 +203,27 @@ app.get('/api/events', (req, res) => {
   // Heartbeat every 25 s to keep the connection alive
   const hb = setInterval(() => { try { res.write(': heartbeat\n\n'); } catch { clearInterval(hb); } }, 25_000);
 
-  session.sseClients.add(res);
+  // Get or create SSE connection for this clientKey
+  let conn = activeSSE.get(clientKey);
+  if (!conn) {
+    conn = { client, sseClients: new Set() };
+    activeSSE.set(clientKey, conn);
+    // Connect realtime in background
+    connectRealtime(client, clientKey);
+  }
+  conn.sseClients.add(res);
 
   req.on('close', () => {
     clearInterval(hb);
-    session.sseClients.delete(res);
+    const c = activeSSE.get(clientKey);
+    if (c) {
+      c.sseClients.delete(res);
+      // If no more SSE clients, disconnect realtime and clean up
+      if (c.sseClients.size === 0) {
+        c.realtime?.disconnect();
+        activeSSE.delete(clientKey);
+      }
+    }
   });
 });
 
@@ -162,9 +231,11 @@ app.get('/api/events', (req, res) => {
 
 app.post('/api/typing', (req, res) => {
   try {
-    const session = getSession(req);
+    const token = extractToken(req);
+    const payload = decryptSession(token);
     const { type, targetId } = req.body as { type: 'channel' | 'conversation'; targetId: string };
-    session.realtime?.sendTyping(type, targetId);
+    const conn = activeSSE.get(payload.clientKey);
+    conn?.realtime?.sendTyping(type, targetId);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
@@ -175,7 +246,7 @@ app.post('/api/typing', (req, res) => {
 
 app.get('/api/companies', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     res.json(await client.getCompanies());
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
@@ -186,7 +257,7 @@ app.get('/api/companies', async (req, res) => {
 
 app.get('/api/channels/:companyId', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     res.json(await client.getChannels(req.params.companyId));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
@@ -195,7 +266,7 @@ app.get('/api/channels/:companyId', async (req, res) => {
 
 app.get('/api/channels/:channelId/members', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const channelId = req.params.channelId;
     // Paginate until all members are fetched (channels can have 500+ members)
     // Note: Stashcat API has a hard cap of ~100 per request regardless of limit param
@@ -218,7 +289,7 @@ app.get('/api/channels/:channelId/members', async (req, res) => {
 
 app.post('/api/channels/:channelId/invite', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { userIds } = req.body as { userIds: string[] };
     await client.inviteUsersToChannel(req.params.channelId, userIds);
     res.json({ ok: true });
@@ -229,7 +300,7 @@ app.post('/api/channels/:channelId/invite', async (req, res) => {
 
 app.delete('/api/channels/:channelId/members/:userId', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     await client.removeUserFromChannel(req.params.channelId, req.params.userId);
     res.json({ ok: true });
   } catch (err) {
@@ -241,7 +312,7 @@ app.delete('/api/channels/:channelId/members/:userId', async (req, res) => {
 
 app.post('/api/channels/:channelId/moderator/:userId', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     await client.addChannelModerator(req.params.channelId, req.params.userId);
     res.json({ ok: true });
   } catch (err) {
@@ -251,7 +322,7 @@ app.post('/api/channels/:channelId/moderator/:userId', async (req, res) => {
 
 app.delete('/api/channels/:channelId/moderator/:userId', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     await client.removeChannelModerator(req.params.channelId, req.params.userId);
     res.json({ ok: true });
   } catch (err) {
@@ -263,7 +334,7 @@ app.delete('/api/channels/:channelId/moderator/:userId', async (req, res) => {
 
 app.patch('/api/channels/:channelId', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { description, company_id } = req.body as { description?: string; company_id: string };
     const result = await client.editChannel({
       channel_id: req.params.channelId,
@@ -280,7 +351,7 @@ app.patch('/api/channels/:channelId', async (req, res) => {
 
 app.get('/api/companies/:companyId/members', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const search = req.query.search as string | undefined;
     const limit = req.query.limit ? Number(req.query.limit) : undefined;
     const offset = req.query.offset ? Number(req.query.offset) : undefined;
@@ -297,7 +368,7 @@ app.get('/api/companies/:companyId/members', async (req, res) => {
 
 app.get('/api/companies/:companyId/groups', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const groups = await client.listGroups(req.params.companyId);
     res.json(groups);
   } catch (err) {
@@ -310,7 +381,7 @@ app.get('/api/companies/:companyId/groups', async (req, res) => {
 
 app.get('/api/companies/:companyId/groups/:groupId/members', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const result = await client.listManagedUsers(req.params.companyId, {
       groupIds: [req.params.groupId],
       limit: 200,
@@ -326,7 +397,7 @@ app.get('/api/companies/:companyId/groups/:groupId/members', async (req, res) =>
 
 app.post('/api/channels', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const {
       name, company_id, description, policies,
       channel_type,                      // 'public' | 'encrypted' | 'password'
@@ -383,7 +454,7 @@ app.post('/api/channels', async (req, res) => {
 
 app.post('/api/conversations', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { member_ids } = req.body as { member_ids: string[] };
     const conversation = await client.createConversation(member_ids);
     console.log(`[conversations/create] created conversation with ${member_ids.length} member(s)`);
@@ -397,7 +468,7 @@ app.post('/api/conversations', async (req, res) => {
 
 app.get('/api/conversations', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const limit = Number(req.query.limit) || 50;
     const offset = Number(req.query.offset) || 0;
     res.json(await client.getConversations({ limit, offset }));
@@ -412,7 +483,7 @@ app.get('/api/conversations', async (req, res) => {
 
 app.post('/api/messages/:messageId/like', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     await client.likeMessage(req.params.messageId);
     res.json({ ok: true });
   } catch (err) {
@@ -422,7 +493,7 @@ app.post('/api/messages/:messageId/like', async (req, res) => {
 
 app.get('/api/messages/:messageId/likes', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const likes = await client.listLikes(req.params.messageId);
     res.json({ likes });
   } catch (err) {
@@ -432,7 +503,7 @@ app.get('/api/messages/:messageId/likes', async (req, res) => {
 
 app.post('/api/messages/:messageId/unlike', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     await client.unlikeMessage(req.params.messageId);
     res.json({ ok: true });
   } catch (err) {
@@ -442,7 +513,7 @@ app.post('/api/messages/:messageId/unlike', async (req, res) => {
 
 app.delete('/api/messages/:messageId', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     await client.deleteMessage(req.params.messageId);
     res.json({ ok: true });
   } catch (err) {
@@ -454,7 +525,7 @@ app.delete('/api/messages/:messageId', async (req, res) => {
 
 app.get('/api/messages/:type/:targetId', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { type, targetId } = req.params;
     const limit = Number(req.query.limit) || 40;
     const offset = Number(req.query.offset) || 0;
@@ -472,7 +543,7 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
 
 app.post('/api/messages/:type/:targetId', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { type, targetId } = req.params;
     const { text, is_forwarded } = req.body as { text: string; is_forwarded?: boolean };
     const chatType = type as 'channel' | 'conversation';
@@ -485,7 +556,7 @@ app.post('/api/messages/:type/:targetId', async (req, res) => {
 
 app.post('/api/messages/:type/:targetId/read', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { type, targetId } = req.params;
     const { messageId } = req.body as { messageId?: string };
     const chatType = type as 'channel' | 'conversation';
@@ -503,7 +574,7 @@ app.post('/api/messages/:type/:targetId/read', async (req, res) => {
 /** List folder contents for channel, conversation, or personal storage */
 app.get('/api/files/folder', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { type, typeId, folderId, offset, limit } = req.query;
     const result = await client.listFolder({
       type: type as string,
@@ -522,7 +593,7 @@ app.get('/api/files/folder', async (req, res) => {
 
 app.get('/api/files/personal', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { folderId, offset, limit } = req.query;
     const result = await client.listPersonalFiles({
       folder_id: (folderId as string | undefined) ?? '0',
@@ -542,7 +613,7 @@ app.get('/api/files/personal', async (req, res) => {
 app.post('/api/files/upload', upload.single('file'), async (req, res) => {
   const tmpPath = req.file?.path;
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     if (!req.file) throw new Error('No file received');
 
     const { type, typeId, folderId } = req.body as { type: string; typeId?: string; folderId?: string };
@@ -574,7 +645,7 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
 
 app.delete('/api/files/:fileId', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     await client.deleteFiles([req.params.fileId]);
     res.json({ ok: true });
   } catch (err) {
@@ -584,7 +655,7 @@ app.delete('/api/files/:fileId', async (req, res) => {
 
 app.patch('/api/files/:fileId', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { name } = req.body as { name: string };
     await client.renameFile(req.params.fileId, name);
     res.json({ ok: true });
@@ -597,7 +668,7 @@ app.patch('/api/files/:fileId', async (req, res) => {
 
 app.get('/api/file/:fileId', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { fileId } = req.params;
     const fileName = (req.query.name as string) || 'download';
 
@@ -622,7 +693,7 @@ app.get('/api/file/:fileId', async (req, res) => {
 app.post('/api/upload/:type/:targetId', upload.single('file'), async (req, res) => {
   const tmpPath = req.file?.path;
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { type, targetId } = req.params;
     const chatType = type as 'channel' | 'conversation';
 
@@ -659,46 +730,12 @@ app.post('/api/upload/:type/:targetId', upload.single('file'), async (req, res) 
 
 app.get('/api/me', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     res.json(await client.getMe());
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
   }
 });
-
-// ── Startup: restore persisted sessions ───────────────────────────────────────
-
-async function restorePersistedSessions(): Promise<void> {
-  const stored = await loadSessions();
-  if (stored.length === 0) return;
-
-  console.log(`[SessionStore] Restoring ${stored.length} session(s)…`);
-
-  await Promise.allSettled(stored.map(async ({ token, serialized, securityPassword }) => {
-    try {
-      const client = StashcatClient.fromSession(serialized, { baseUrl: serialized.baseUrl });
-
-      // Verify session is still valid against Stashcat server
-      await client.getMe();
-
-      // Re-unlock E2E decryption
-      if (securityPassword) {
-        await client.unlockE2E(securityPassword);
-      }
-
-      const session: Session = { client, sseClients: new Set() };
-      sessions.set(token, session);
-
-      // Reconnect realtime in background
-      connectRealtime(client, session, token);
-
-      console.log(`[SessionStore] Restored session ${token.slice(0, 8)}…`);
-    } catch (err) {
-      console.warn(`[SessionStore] Session ${token.slice(0, 8)}… expired or invalid — removing`);
-      await deleteSession(token).catch(() => {});
-    }
-  }));
-}
 
 // ── Link Preview ──────────────────────────────────────────────────────────────
 
@@ -797,7 +834,7 @@ app.get('/api/link-preview', async (req, res) => {
 
 app.get('/api/broadcasts', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     res.json(await client.listBroadcasts());
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
@@ -806,7 +843,7 @@ app.get('/api/broadcasts', async (req, res) => {
 
 app.post('/api/broadcasts', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { name, memberIds } = req.body as { name: string; memberIds: string[] };
     res.json(await client.createBroadcast(name, memberIds));
   } catch (err) {
@@ -816,7 +853,7 @@ app.post('/api/broadcasts', async (req, res) => {
 
 app.delete('/api/broadcasts/:id', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     await client.deleteBroadcast(req.params.id);
     res.json({ ok: true });
   } catch (err) {
@@ -826,7 +863,7 @@ app.delete('/api/broadcasts/:id', async (req, res) => {
 
 app.patch('/api/broadcasts/:id', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { name } = req.body as { name: string };
     await client.renameBroadcast(req.params.id, name);
     res.json({ ok: true });
@@ -837,7 +874,7 @@ app.patch('/api/broadcasts/:id', async (req, res) => {
 
 app.get('/api/broadcasts/:id/messages', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const limit = Number(req.query.limit) || 50;
     const offset = Number(req.query.offset) || 0;
     const messages = await client.getBroadcastContent({
@@ -853,7 +890,7 @@ app.get('/api/broadcasts/:id/messages', async (req, res) => {
 
 app.post('/api/broadcasts/:id/messages', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { text } = req.body as { text: string };
     const msg = await client.sendBroadcastMessage({ list_id: req.params.id, text });
     res.json(msg);
@@ -864,7 +901,7 @@ app.post('/api/broadcasts/:id/messages', async (req, res) => {
 
 app.get('/api/broadcasts/:id/members', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     res.json(await client.listBroadcastMembers(req.params.id));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
@@ -873,7 +910,7 @@ app.get('/api/broadcasts/:id/members', async (req, res) => {
 
 app.post('/api/broadcasts/:id/members', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { memberIds } = req.body as { memberIds: string[] };
     await client.addBroadcastMembers(req.params.id, memberIds);
     res.json({ ok: true });
@@ -884,7 +921,7 @@ app.post('/api/broadcasts/:id/members', async (req, res) => {
 
 app.delete('/api/broadcasts/:id/members', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { memberIds } = req.body as { memberIds: string[] };
     await client.removeBroadcastMembers(req.params.id, memberIds);
     res.json({ ok: true });
@@ -897,7 +934,7 @@ app.delete('/api/broadcasts/:id/members', async (req, res) => {
 
 app.get('/api/calendar/events', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const start = Number(req.query.start);
     const end = Number(req.query.end);
     if (!start || !end) return res.status(400).json({ error: 'start and end required' });
@@ -909,7 +946,7 @@ app.get('/api/calendar/events', async (req, res) => {
 
 app.get('/api/calendar/events/:id', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const event = await client.getEventDetails([req.params.id]);
     if (!event) return res.status(404).json({ error: 'Event not found' });
     res.json(event);
@@ -920,7 +957,7 @@ app.get('/api/calendar/events/:id', async (req, res) => {
 
 app.post('/api/calendar/events', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const eventId = await client.createEvent(req.body);
     res.json({ id: eventId });
   } catch (err) {
@@ -930,7 +967,7 @@ app.post('/api/calendar/events', async (req, res) => {
 
 app.put('/api/calendar/events/:id', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const eventId = await client.editEvent({ ...req.body, event_id: req.params.id });
     res.json({ id: eventId });
   } catch (err) {
@@ -940,7 +977,7 @@ app.put('/api/calendar/events/:id', async (req, res) => {
 
 app.delete('/api/calendar/events/:id', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     await client.deleteEvents([req.params.id]);
     res.json({ ok: true });
   } catch (err) {
@@ -950,7 +987,7 @@ app.delete('/api/calendar/events/:id', async (req, res) => {
 
 app.post('/api/calendar/events/:id/respond', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { status: rsvp } = req.body as { status: string };
     const me = await client.getMe() as Record<string, unknown>;
     await client.respondToEvent(req.params.id, String(me.id), rsvp as 'accepted' | 'declined' | 'open');
@@ -962,7 +999,7 @@ app.post('/api/calendar/events/:id/respond', async (req, res) => {
 
 app.post('/api/calendar/events/:id/invite', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     const { userIds } = req.body as { userIds: string[] };
     await client.inviteToEvent(req.params.id, userIds);
     res.json({ ok: true });
@@ -973,7 +1010,7 @@ app.post('/api/calendar/events/:id/invite', async (req, res) => {
 
 app.get('/api/calendar/channels/:companyId', async (req, res) => {
   try {
-    const { client } = getSession(req);
+    const client = await getClient(req);
     res.json(await client.listChannelsHavingEvents(req.params.companyId));
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
@@ -995,13 +1032,6 @@ if (process.env.NODE_ENV === 'production') {
 
 const PORT = Number(process.env.PORT) || 3001;
 
-restorePersistedSessions().then(() => {
-  app.listen(PORT, () => {
-    console.log(`BBZ Chat backend running on http://localhost:${PORT}`);
-  });
-}).catch((err) => {
-  console.error('Failed to restore sessions:', err);
-  app.listen(PORT, () => {
-    console.log(`BBZ Chat backend running on http://localhost:${PORT}`);
-  });
+app.listen(PORT, () => {
+  console.log(`BBZ Chat backend running on http://localhost:${PORT}`);
 });
