@@ -1226,11 +1226,17 @@ function extractSenderId(msg: Record<string, unknown>): string {
   return '';
 }
 
-/** Extract the first stash.cat meeting link from message text */
-function extractMeetingLink(text: string): string | null {
-  // Links can appear as __https://stash.cat/l/xxx__ or plain URLs
-  const match = text.match(/https?:\/\/stash\.cat\/l\/[a-zA-Z0-9_-]+/);
-  return match ? match[0] : null;
+/** Extract all stash.cat meeting links from message text */
+function extractMeetingLinks(text: string): string[] {
+  // Links can appear as __https://stash.cat/l/xxx__ (markdown) or plain
+  // Use non-greedy match and strip trailing underscores/punctuation
+  const re = /https?:\/\/stash\.cat\/l\/([a-zA-Z0-9]+)/g;
+  const links: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    links.push(`https://stash.cat/l/${m[1]}`); // reconstruct clean URL without trailing __
+  }
+  return links;
 }
 
 app.post('/api/video/start-meeting', async (req, res) => {
@@ -1260,15 +1266,14 @@ app.post('/api/video/start-meeting', async (req, res) => {
     });
     console.log(`[Video] Sent /meet to bot conv ${botInfo.botConvId}`);
 
-    // 4. Poll for NEW bot response messages (max 20 seconds, every 500ms)
+    // 4. Poll for NEW bot response messages (max 30 seconds, every 500ms)
     let inviteLink: string | null = null;
     let moderatorLink: string | null = null;
 
-    for (let attempt = 0; attempt < 40; attempt++) {
+    for (let attempt = 0; attempt < 60; attempt++) {
       await new Promise((r) => setTimeout(r, 500));
 
       const messages = await client.getMessages(botInfo.botConvId, 'conversation', { limit: 10, offset: 0 }) as unknown as Array<Record<string, unknown>>;
-      console.log(`[Video] Poll attempt ${attempt + 1}: got ${messages.length} messages`);
 
       for (const msg of messages) {
         const msgId = String(msg.id);
@@ -1278,21 +1283,31 @@ app.post('/api/video/start-meeting', async (req, res) => {
         if (senderId !== botInfo.botUserId) continue; // Only bot messages
 
         const text = String(msg.text || '');
-        console.log(`[Video] New bot message (id=${msgId}): ${text.slice(0, 120)}`);
+        const links = extractMeetingLinks(text);
+        console.log(`[Video] Attempt ${attempt + 1} — new bot msg id=${msgId}, links=${JSON.stringify(links)}, text=${text.slice(0, 150)}`);
 
-        const link = extractMeetingLink(text);
-        if (!link) continue;
+        if (links.length === 0) continue;
 
-        // Classify: invite link mentions forwarding, moderator link mentions starting
-        if (text.includes('weitergeben') || text.includes('Teilnehmer') || text.includes('einzuladen')) {
-          inviteLink = link;
-        } else if (text.includes('starten') || text.includes('nur für dich') || text.includes('Moderator')) {
-          moderatorLink = link;
+        // Classify by keywords in the message text
+        const isInvite = text.includes('weitergeben') || text.includes('Teilnehmer') || text.includes('einzuladen');
+        const isModerator = text.includes('starten') || text.includes('nur für dich') || text.includes('Konferenz ist bereit');
+
+        if (isInvite) {
+          inviteLink = links[0];
+        } else if (isModerator) {
+          moderatorLink = links[0];
+        } else if (links.length >= 2) {
+          // Single message contains both links (invite first, moderator second)
+          inviteLink = inviteLink ?? links[0];
+          moderatorLink = moderatorLink ?? links[1];
         } else {
-          // Fallback: first unclassified link → invite, second → moderator
-          if (!inviteLink) inviteLink = link;
-          else if (!moderatorLink) moderatorLink = link;
+          // Unclassified single link: assign to whichever slot is still empty
+          if (!inviteLink) inviteLink = links[0];
+          else if (!moderatorLink) moderatorLink = links[0];
         }
+
+        // Mark this message ID so we don't re-process it
+        existingIds.add(msgId);
       }
 
       if (inviteLink && moderatorLink) break;
@@ -1302,7 +1317,7 @@ app.post('/api/video/start-meeting', async (req, res) => {
       return res.status(504).json({ error: 'Chat Bot hat nicht rechtzeitig geantwortet. Bitte versuche es erneut.' });
     }
 
-    console.log(`[Video] Meeting created: invite=${inviteLink}, moderator=${moderatorLink}`);
+    console.log(`[Video] Meeting ready — invite=${inviteLink}, moderator=${moderatorLink}`);
     res.json({ inviteLink, moderatorLink });
 
   } catch (err) {

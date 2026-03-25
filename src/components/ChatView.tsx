@@ -374,9 +374,10 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
             const moderatorTab = window.open('', '_blank');
             try {
               const result = await api.startVideoMeeting(chat.id, chat.type);
-              // Navigate the pre-opened tab to the moderator link
-              if (result.moderatorLink && moderatorTab) {
-                moderatorTab.location.href = result.moderatorLink;
+              // Navigate the pre-opened tab to the moderator link (fallback: invite link)
+              const tabLink = result.moderatorLink ?? result.inviteLink;
+              if (tabLink && moderatorTab) {
+                moderatorTab.location.href = tabLink;
               } else if (moderatorTab) {
                 moderatorTab.close();
               }
