@@ -1333,8 +1333,14 @@ app.get('/api/polls', async (req, res) => {
   try {
     const client = await getClient(req);
     const constraint = (req.query.constraint as string) || 'createdByAndNotArchived';
-    const companyId = req.query.company_id as string | undefined;
-    res.json(await client.listPolls(constraint, companyId));
+    // Auto-resolve company_id if not provided
+    let companyId = req.query.company_id as string | undefined;
+    if (!companyId) {
+      const companies = await client.getCompanies();
+      const firstId = (companies[0] as unknown as Record<string, unknown>)?.id;
+      companyId = firstId ? String(firstId) : undefined;
+    }
+    res.json(await client.listPolls(constraint as 'createdByAndNotArchived' | 'invited' | 'archived', companyId));
   } catch (err) { res.status(500).json({ error: String(err) }); }
 });
 

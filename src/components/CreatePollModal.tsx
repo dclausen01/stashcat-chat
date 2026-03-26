@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Loader2, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react';
+import { X, Plus, Trash2, Loader2, ChevronDown, ChevronUp, BarChart3, Search } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { ChatTarget } from '../types';
@@ -48,6 +48,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
 
   const [chatOptions, setChatOptions] = useState<ChatOption[]>([]);
   const [selectedChats, setSelectedChats] = useState<Set<string>>(new Set());
+  const [chatSearch, setChatSearch] = useState('');
   const [loadingChats, setLoadingChats] = useState(true);
 
   const [submitting, setSubmitting] = useState(false);
@@ -324,25 +325,57 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
               {loadingChats ? (
                 <div className="flex items-center gap-2 text-sm text-surface-400"><Loader2 size={14} className="animate-spin" /> Lade Chats…</div>
               ) : (
-                <div className="max-h-48 overflow-y-auto rounded-xl border border-surface-200 dark:border-surface-700">
-                  {chatOptions.length === 0 && (
-                    <p className="p-3 text-sm text-surface-400">Keine Chats verfügbar</p>
+                <div className="rounded-xl border border-surface-200 dark:border-surface-700 overflow-hidden">
+                  {/* Search field */}
+                  <div className="flex items-center gap-2 border-b border-surface-200 px-3 py-2 dark:border-surface-700 bg-surface-50 dark:bg-surface-800">
+                    <Search size={14} className="shrink-0 text-surface-400" />
+                    <input
+                      type="text"
+                      placeholder="Channel oder Konversation suchen…"
+                      value={chatSearch}
+                      onChange={(e) => setChatSearch(e.target.value)}
+                      className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:text-white"
+                    />
+                    {chatSearch && (
+                      <button type="button" onClick={() => setChatSearch('')} className="text-surface-400 hover:text-surface-600">
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                  {/* List */}
+                  <div className="max-h-44 overflow-y-auto">
+                    {(() => {
+                      const filtered = chatOptions.filter((o) =>
+                        o.name.toLowerCase().includes(chatSearch.toLowerCase())
+                      );
+                      if (filtered.length === 0) return (
+                        <p className="p-3 text-sm text-surface-400">
+                          {chatSearch ? 'Keine Treffer' : 'Keine Chats verfügbar'}
+                        </p>
+                      );
+                      return filtered.map((opt) => (
+                        <label key={opt.id} className={clsx(
+                          'flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-surface-50 dark:hover:bg-surface-800',
+                          selectedChats.has(opt.id) && 'bg-primary-50 dark:bg-primary-900/20',
+                        )}>
+                          <input
+                            type="checkbox"
+                            className="accent-primary-500"
+                            checked={selectedChats.has(opt.id)}
+                            onChange={() => toggleChat(opt.id)}
+                          />
+                          <span className="text-xs font-medium text-surface-400 w-16 shrink-0">{opt.type === 'channel' ? '# Channel' : '💬 Konv.'}</span>
+                          <span className="truncate text-surface-800 dark:text-surface-200">{opt.name}</span>
+                        </label>
+                      ));
+                    })()}
+                  </div>
+                  {/* Selection count */}
+                  {selectedChats.size > 0 && (
+                    <div className="border-t border-surface-200 px-4 py-1.5 text-xs text-primary-600 dark:border-surface-700 dark:text-primary-400">
+                      {selectedChats.size} ausgewählt
+                    </div>
                   )}
-                  {chatOptions.map((opt) => (
-                    <label key={opt.id} className={clsx(
-                      'flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-surface-50 dark:hover:bg-surface-800',
-                      selectedChats.has(opt.id) && 'bg-primary-50 dark:bg-primary-900/20',
-                    )}>
-                      <input
-                        type="checkbox"
-                        className="accent-primary-500"
-                        checked={selectedChats.has(opt.id)}
-                        onChange={() => toggleChat(opt.id)}
-                      />
-                      <span className="text-xs font-medium text-surface-400 w-16 shrink-0">{opt.type === 'channel' ? '# Channel' : '💬 Konv.'}</span>
-                      <span className="truncate text-surface-800 dark:text-surface-200">{opt.name}</span>
-                    </label>
-                  ))}
                 </div>
               )}
             </div>
