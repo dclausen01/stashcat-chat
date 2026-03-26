@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, type KeyboardEvent } from 'react';
-import { Send, Paperclip, Bold, Italic, Strikethrough, Code, List, Heading2, X, Loader2, Reply } from 'lucide-react';
+import { Send, Paperclip, Bold, Italic, Strikethrough, Code, List, Heading2, X, Loader2, Reply, BarChart3 } from 'lucide-react';
 import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react';
 import { clsx } from 'clsx';
 import { useTheme } from '../context/ThemeContext';
@@ -17,6 +17,7 @@ interface MessageInputProps {
   chatName: string;
   replyTo?: ReplyTarget | null;
   onCancelReply?: () => void;
+  onCreatePoll?: () => void;
 }
 
 interface FormatButton {
@@ -51,7 +52,7 @@ const FORMAT_BUTTONS: FormatButton[] = [
   { icon: <List size={15} />, label: 'Liste', action: linePrefix('- ', 'Listenpunkt') },
 ];
 
-export default function MessageInput({ onSend, onUpload, onTyping, chatName, replyTo, onCancelReply }: MessageInputProps) {
+export default function MessageInput({ onSend, onUpload, onTyping, chatName, replyTo, onCancelReply, onCreatePoll }: MessageInputProps) {
   const { theme } = useTheme();
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -60,6 +61,8 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
   const [focused, setFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const attachMenuRef = useRef<HTMLDivElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
   const typingThrottle = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -68,6 +71,17 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
   useEffect(() => {
     if (replyTo) textareaRef.current?.focus();
   }, [replyTo]);
+
+  useEffect(() => {
+    if (!showAttachMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node)) {
+        setShowAttachMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showAttachMenu]);
 
   useEffect(() => {
     if (!showEmoji) return;
@@ -213,21 +227,45 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
         'border-surface-200 focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500/20',
         'dark:border-surface-600 dark:bg-surface-800',
       )}>
-        {/* File attach */}
+        {/* File attach / poll dropdown */}
         <input
           ref={fileInputRef}
           type="file"
           className="hidden"
           onChange={onFileChange}
         />
-        <button
-          type="button"
-          title="Datei anhängen"
-          onClick={() => fileInputRef.current?.click()}
-          className="shrink-0 rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
-        >
-          <Paperclip size={18} />
-        </button>
+        <div ref={attachMenuRef} className="relative shrink-0">
+          <button
+            type="button"
+            title="Anhang"
+            onClick={() => setShowAttachMenu((v) => !v)}
+            className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
+          >
+            <Paperclip size={18} />
+          </button>
+          {showAttachMenu && (
+            <div className="absolute bottom-10 left-0 z-50 min-w-[180px] overflow-hidden rounded-xl border border-surface-200 bg-white shadow-lg dark:border-surface-700 dark:bg-surface-800">
+              <button
+                type="button"
+                onClick={() => { setShowAttachMenu(false); fileInputRef.current?.click(); }}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
+              >
+                <Paperclip size={15} className="text-surface-400" />
+                Datei anhängen
+              </button>
+              {onCreatePoll && (
+                <button
+                  type="button"
+                  onClick={() => { setShowAttachMenu(false); onCreatePoll(); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
+                >
+                  <BarChart3 size={15} className="text-primary-500" />
+                  Umfrage erstellen
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         <textarea
           ref={textareaRef}

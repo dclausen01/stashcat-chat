@@ -8,10 +8,11 @@ import SettingsPanel from './components/SettingsPanel';
 import FileBrowserPanel from './components/FileBrowserPanel';
 import BroadcastsPanel from './components/BroadcastsPanel';
 import CalendarView from './components/CalendarView';
+import PollsView from './components/PollsView';
 import NotificationsPanel from './components/NotificationsPanel';
 import type { ChatTarget } from './types';
 
-type ActiveView = 'chat' | 'calendar';
+type ActiveView = 'chat' | 'calendar' | 'polls';
 
 export default function App() {
   const { loggedIn } = useAuth();
@@ -51,6 +52,11 @@ export default function App() {
     setActiveView('calendar');
   };
 
+  const openPolls = () => {
+    closeAllPanels();
+    setActiveView('polls');
+  };
+
   const handleSelectChat = (chat: ChatTarget) => {
     setActiveView('chat');
     closeAllPanels();
@@ -70,14 +76,18 @@ export default function App() {
         onOpenFileBrowser={() => { closeAllPanels(); setFileBrowserOpen((o) => !o); }}
         onOpenBroadcasts={toggleBroadcasts}
         onOpenCalendar={openCalendar}
+        onOpenPolls={openPolls}
         onOpenNotifications={() => { closeAllPanels(); setNotificationsOpen((o) => !o); }}
         broadcastsOpen={broadcastsOpen}
         calendarOpen={activeView === 'calendar'}
+        pollsOpen={activeView === 'polls'}
         notificationsOpen={notificationsOpen}
       />
 
       {activeView === 'calendar' ? (
         <CalendarView />
+      ) : activeView === 'polls' ? (
+        <PollsView />
       ) : (
         <>
           {activeChat

@@ -506,3 +506,76 @@ export async function deleteNotification(notificationId: string) {
   if (!res.ok) throw new Error('Failed to delete notification');
   return res.json();
 }
+
+// --- Polls (Umfragen) ---
+
+export interface PollAnswer {
+  id: string;
+  answer_text: string;
+  position?: number;
+  votes?: number;
+}
+
+export interface PollQuestion {
+  id: string;
+  name: string;
+  type?: string;
+  answer_limit?: number;
+  position?: number;
+  answers?: PollAnswer[];
+  user_answers?: string[]; // IDs the current user already voted for
+}
+
+export interface Poll {
+  id: string;
+  name: string;
+  description?: string;
+  start_time?: number;
+  end_time?: number;
+  privacy_type?: 'open' | 'hidden' | 'anonymous';
+  hidden_results?: boolean;
+  status?: string; // 'draft' | 'active' | 'archived'
+  company_id?: string;
+  creator?: { id: string; first_name?: string; last_name?: string };
+  participant_count?: number;
+  questions?: PollQuestion[];
+}
+
+export interface CreatePollData {
+  name: string;
+  description?: string;
+  start_time: number;
+  end_time: number;
+  privacy_type?: 'open' | 'hidden' | 'anonymous';
+  hidden_results?: boolean;
+  questions: Array<{ name: string; answer_limit?: number; answers: string[] }>;
+  invite_channel_ids?: string[];
+  invite_conversation_ids?: string[];
+  notify_chat_id?: string;
+  notify_chat_type?: 'channel' | 'conversation';
+}
+
+export async function listPolls(constraint: 'createdByAndNotArchived' | 'invited' | 'archived' = 'createdByAndNotArchived') {
+  return get<Poll[]>(`/polls?constraint=${constraint}`);
+}
+
+export async function getPoll(id: string) {
+  return get<Poll>(`/polls/${id}`);
+}
+
+export async function createPoll(data: CreatePollData): Promise<{ id: string }> {
+  return post<{ id: string }>('/polls', data as unknown as Record<string, unknown>);
+}
+
+export async function deletePoll(id: string): Promise<void> {
+  const res = await fetch(`${BACKEND}/polls/${id}`, { method: 'DELETE', headers: headers() });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+export async function archivePoll(id: string, archive = true): Promise<void> {
+  await post(`/polls/${id}/archive`, { archive });
+}
+
+export async function submitPollAnswer(pollId: string, questionId: string, answerIds: string[]): Promise<void> {
+  await post(`/polls/${pollId}/answer`, { question_id: questionId, answer_ids: answerIds });
+}

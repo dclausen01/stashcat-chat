@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal, Star, FolderOpen, Plus, Radio, CalendarDays, Bell } from 'lucide-react';
+import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal, Star, FolderOpen, Plus, Radio, CalendarDays, Bell, BarChart3 } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -29,13 +29,15 @@ interface SidebarProps {
   onOpenFileBrowser: () => void;
   onOpenBroadcasts: () => void;
   onOpenCalendar: () => void;
+  onOpenPolls: () => void;
   onOpenNotifications: () => void;
   broadcastsOpen: boolean;
   calendarOpen: boolean;
+  pollsOpen: boolean;
   notificationsOpen: boolean;
 }
 
-export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenNotifications, broadcastsOpen, calendarOpen, notificationsOpen }: SidebarProps) {
+export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen }: SidebarProps) {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const [channels, setChannels] = useState<ChatTarget[]>([]);
@@ -410,6 +412,20 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         >
           <CalendarDays size={15} />
           <span>Kalender</span>
+        </button>
+        <div className="h-6 w-px bg-surface-200 dark:bg-surface-700" />
+        <button
+          onClick={onOpenPolls}
+          className={clsx(
+            'flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition',
+            pollsOpen
+              ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
+              : 'text-surface-500 hover:bg-surface-100 hover:text-surface-700 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-200',
+          )}
+          title="Umfragen"
+        >
+          <BarChart3 size={15} />
+          <span>Umfragen</span>
         </button>
       </div>
 
