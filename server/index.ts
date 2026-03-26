@@ -1333,15 +1333,16 @@ app.get('/api/polls', async (req, res) => {
   try {
     const client = await getClient(req);
     const constraint = (req.query.constraint as string) || 'createdByAndNotArchived';
-    // Auto-resolve company_id if not provided
+    // company_id is required by the stashcat API — frontend always sends it
     let companyId = req.query.company_id as string | undefined;
     if (!companyId) {
+      // Fallback: fetch from API (slower but safe)
       const companies = await client.getCompanies();
-      const firstId = (companies[0] as unknown as Record<string, unknown>)?.id;
-      companyId = firstId ? String(firstId) : undefined;
+      const c = companies[0] as unknown as Record<string, unknown>;
+      companyId = c?.id ? String(c.id) : undefined;
+      if (!companyId) return res.status(500).json({ error: 'Kein Unternehmen gefunden' });
     }
     const polls = await client.listPolls(constraint as 'createdByAndNotArchived' | 'invited' | 'archived', companyId);
-    console.log(`[Poll] listPolls(${constraint}, companyId=${companyId}) → ${polls.length} polls`);
     res.json(polls);
   } catch (err) { res.status(500).json({ error: String(err) }); }
 });

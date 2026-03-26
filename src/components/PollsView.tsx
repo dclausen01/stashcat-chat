@@ -196,18 +196,28 @@ export default function PollsView() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [selectedPoll, setSelectedPoll] = useState<Poll | null>(null);
+  const [companyId, setCompanyId] = useState<string>('');
+
+  // Load company_id once on mount
+  useEffect(() => {
+    api.getCompanies().then((cs) => {
+      const id = String((cs[0] as Record<string, unknown>)?.id ?? '');
+      setCompanyId(id);
+    }).catch(() => {});
+  }, []);
 
   const loadPolls = useCallback(async () => {
+    if (!companyId) return; // wait until company_id is known
     setLoading(true);
     try {
-      const data = await api.listPolls(TAB_CONSTRAINT[tab]);
+      const data = await api.listPolls(TAB_CONSTRAINT[tab], companyId);
       setPolls(data);
     } catch {
       setPolls([]);
     } finally {
       setLoading(false);
     }
-  }, [tab]);
+  }, [tab, companyId]);
 
   useEffect(() => { loadPolls(); }, [loadPolls]);
 
