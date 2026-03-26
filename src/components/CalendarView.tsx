@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   ChevronLeft, ChevronRight, Plus, X, Loader2,
   MapPin, Clock, Repeat, Check, XCircle, HelpCircle,
-  Eye, EyeOff, ChevronDown, Pencil, Trash2, Users, Hash, Search,
+  Eye, EyeOff, ChevronDown, Pencil, Trash2, Users, Hash, Search, PanelRight,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
@@ -88,6 +88,12 @@ export default function CalendarView() {
   // Edit modal
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null);
 
+  // Agenda sidebar
+  const [agendaOpen, setAgendaOpen] = useState(true);
+  const [agendaEvents, setAgendaEvents] = useState<CalendarEvent[]>([]);
+  const [agendaLoading, setAgendaLoading] = useState(false);
+  const [agendaFocusDate, setAgendaFocusDate] = useState<Date | null>(null);
+
   // Map of all channel IDs → names (for resolving names in event details)
   const [allChannelNames, setAllChannelNames] = useState<Map<string, string>>(new Map());
 
@@ -161,6 +167,20 @@ export default function CalendarView() {
 
   useEffect(() => { loadEvents(); }, [loadEvents]);
 
+  // Load agenda events (today + 30 days)
+  const loadAgendaEvents = useCallback(() => {
+    const now = new Date();
+    const start = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000);
+    const end = start + 30 * 86400;
+    setAgendaLoading(true);
+    api.listCalendarEvents(start, end)
+      .then((evts) => setAgendaEvents(evts))
+      .catch((err) => console.error('Failed to load agenda:', err))
+      .finally(() => setAgendaLoading(false));
+  }, []);
+
+  useEffect(() => { loadAgendaEvents(); }, [loadAgendaEvents]);
+
   // Filter events by visible sources
   const visibleSourceIds = useMemo(() => new Set(sources.filter((s) => s.visible).map((s) => s.id)), [sources]);
   const filteredEvents = useMemo(() => {
@@ -170,6 +190,14 @@ export default function CalendarView() {
       return visibleSourceIds.has('personal'); // fallback
     });
   }, [events, visibleSourceIds]);
+
+  const filteredAgendaEvents = useMemo(() => {
+    return agendaEvents.filter((e) => {
+      if (e.type === 'personal') return visibleSourceIds.has('personal');
+      if (e.type === 'channel' && e.type_id) return visibleSourceIds.has(String(e.type_id));
+      return visibleSourceIds.has('personal');
+    });
+  }, [agendaEvents, visibleSourceIds]);
 
   // Group events by date
   const eventsByDate = useMemo(() => {
@@ -417,6 +445,19 @@ export default function CalendarView() {
             <Plus size={14} /> Termin
           </button>
 
+          <button
+            onClick={() => setAgendaOpen((o) => !o)}
+            title="Agenda ein-/ausblenden"
+            className={clsx(
+              'rounded-lg p-1.5 transition',
+              agendaOpen
+                ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+                : 'text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800',
+            )}
+          >
+            <PanelRight size={16} />
+          </button>
+
           {loading && <Loader2 size={16} className="animate-spin text-primary-400" />}
         </div>
 
@@ -443,7 +484,7 @@ export default function CalendarView() {
                 return (
                   <div
                     key={i}
-                    onClick={() => { setCreateDate(day); setShowCreate(true); }}
+                    onClick={() => { setAgendaFocusDate(day); if (!agendaOpen) setAgendaOpen(true); setCreateDate(day); setShowCreate(true); }}
                     className={clsx(
                       'flex min-h-0 cursor-pointer flex-col border-b border-r border-surface-100 p-1 transition hover:bg-surface-50 dark:border-surface-800 dark:hover:bg-surface-900',
                       !isCurrentMonth && 'bg-surface-50/50 dark:bg-surface-950/50',
@@ -558,6 +599,30 @@ export default function CalendarView() {
           </div>
         )}
       </div>
+
+      {/* Agenda Sidebar */}
+      {agendaOpen && (
+        <div className="flex w-72 shrink-0 flex-col border-l border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900">
+          <div className="flex shrink-0 items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-700">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500">Agenda · nächste 30 Tage</h3>
+            <button
+              onClick={() => setAgendaOpen(false)}
+              className="rounded p-0.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <AgendaPanel
+              events={filteredAgendaEvents}
+              focusDate={agendaFocusDate}
+              loading={agendaLoading}
+              getEventColor={getEventColor}
+              onEventClick={setSelectedEvent}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Event Detail Modal */}
       {selectedEvent && (
@@ -761,6 +826,117 @@ function getWeekNumber(d: Date): number {
   date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
   const week1 = new Date(date.getFullYear(), 0, 4);
   return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+}
+
+// ── Agenda Panel ─────────────────────────────────────────────────────────────
+
+function AgendaPanel({
+  events,
+  focusDate,
+  loading,
+  getEventColor,
+  onEventClick,
+}: {
+  events: CalendarEvent[];
+  focusDate: Date | null;
+  loading: boolean;
+  getEventColor: (e: CalendarEvent) => typeof CALENDAR_COLORS[0];
+  onEventClick: (e: CalendarEvent) => void;
+}) {
+  const dayRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Build 30-day list: always include today, only other days if they have events
+  const groups = useMemo(() => {
+    const todayDate = new Date();
+    const result: Array<{ date: Date; key: string; dayEvents: CalendarEvent[] }> = [];
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate() + i);
+      const key = dateKey(d);
+      const dayEvents = events
+        .filter((e) => dateKey(new Date(e.start * 1000)) === key)
+        .sort((a, b) => a.start - b.start);
+      if (i === 0 || dayEvents.length > 0) {
+        result.push({ date: d, key, dayEvents });
+      }
+    }
+    return result;
+  }, [events]);
+
+  // Scroll to focusDate when it changes
+  useEffect(() => {
+    if (!focusDate) return;
+    const key = dateKey(focusDate);
+    const el = dayRefs.current.get(key);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [focusDate]);
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 size={16} className="animate-spin text-primary-400" />
+      </div>
+    );
+  }
+
+  const today = new Date();
+
+  return (
+    <div className="h-full overflow-y-auto">
+      {groups.map(({ date, key, dayEvents }) => {
+        const isToday = isSameDay(date, today);
+        const isFocused = focusDate ? isSameDay(date, focusDate) : false;
+        const label = isToday
+          ? 'Heute'
+          : date.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+
+        return (
+          <div key={key} ref={(el) => { if (el) dayRefs.current.set(key, el); else dayRefs.current.delete(key); }}>
+            {/* Day header */}
+            <div className={clsx(
+              'sticky top-0 z-10 border-b px-4 py-2',
+              isFocused
+                ? 'bg-primary-50 border-primary-200 dark:bg-primary-900/20 dark:border-primary-800'
+                : 'bg-surface-50 border-surface-200 dark:bg-surface-900 dark:border-surface-700',
+            )}>
+              <span className={clsx(
+                'text-xs font-semibold',
+                isToday ? 'text-primary-600 dark:text-primary-400' : 'text-surface-600 dark:text-surface-400',
+              )}>
+                {label}
+              </span>
+            </div>
+
+            {/* Events for this day */}
+            <div className="space-y-0.5 px-2 py-1.5">
+              {dayEvents.length === 0 ? (
+                <div className="py-1 pl-2 text-xs text-surface-400">Keine Termine</div>
+              ) : dayEvents.map((evt) => {
+                const color = getEventColor(evt);
+                const isAllDay = evt.allday === '1';
+                return (
+                  <button
+                    key={evt.id}
+                    onClick={() => onEventClick(evt)}
+                    className="flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left transition hover:bg-surface-100 dark:hover:bg-surface-800"
+                  >
+                    <span className={clsx('mt-1.5 h-2 w-2 shrink-0 rounded-full', color.dot)} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-surface-900 dark:text-surface-100">
+                        {evt.name}
+                      </div>
+                      <div className="text-xs text-surface-500">
+                        {isAllDay ? 'Ganztägig' : `${formatTime(evt.start)} – ${formatTime(evt.end)}`}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 // ── Create / Edit Event Modal ────────────────────────────────────────────────
