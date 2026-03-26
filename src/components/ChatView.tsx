@@ -31,6 +31,25 @@ interface TypingUser {
 const PAGE_SIZE = 50;
 const SYSTEM_KINDS = new Set(['joined', 'left', 'removed', 'call_start', 'call_end']);
 
+/** Returns a day-key string (YYYY-M-D) for a Unix timestamp in seconds. */
+function msgDayKey(ts: number): string {
+  const d = new Date(ts * 1000);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+/** Returns a German label for a date separator ("Heute", "Gestern", weekday, or dd.mm.yyyy). */
+function formatDateLabel(ts: number): string {
+  const date = new Date(ts * 1000);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const msgDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round((today.getTime() - msgDay.getTime()) / 86400000);
+  if (diffDays === 0) return 'Heute';
+  if (diffDays === 1) return 'Gestern';
+  if (diffDays < 7) return date.toLocaleDateString('de-DE', { weekday: 'long' });
+  return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, fileBrowserOpen }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
@@ -87,6 +106,18 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
   useEffect(() => {
     if (searchOpen) setTimeout(() => searchInputRef.current?.focus(), 50);
   }, [searchOpen]);
+
+  // Ctrl+F / Cmd+F → toggle in-chat search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const loadMessages = useCallback(async () => {
     setLoading(true);
@@ -570,70 +601,96 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
                 : -1;
               const currentMatchMsgId = currentNormalizedIdx >= 0 ? searchMatches[currentNormalizedIdx] : null;
               const searchMatchSet = new Set(searchMatches);
-              return groups.map((group, gi) => {
-                if (group.isSystem) return <SystemMessage key={gi} msg={group.messages[0]} />;
-                if (group.messages.length === 1 && isVideoMeetingMessage(group.messages[0])) return <VideoMeetingCard key={gi} msg={group.messages[0]} />;
-                return (
-                  <MessageGroup
-                    key={gi}
-                    group={group}
-                    canDeleteAll={isManager && chat.type === 'channel'}
-                    showImagesInline={settings.showImagesInline}
-                    ownBubbleColor={settings.ownBubbleColor}
-                    otherBubbleColor={settings.otherBubbleColor}
-                    messageMap={messageMap}
-                    onDelete={handleDelete}
-                    onLike={handleLike}
-                    onReply={setReplyTo}
-                    onForward={setForwardMsg}
-                    onImageClick={setLightboxUrl}
-                    onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
-                    searchQuery={searchQuery}
-                    searchMatchSet={searchMatchSet}
-                    currentMatchMsgId={currentMatchMsgId}
-                    onMatchRef={(msgId, el) => {
-                      const idx = searchMatches.indexOf(msgId);
-                      if (idx >= 0) searchMatchRefs.current[idx] = el;
-                    }}
-                  />
-                );
+              let lastDayKey = '';
+              return groups.flatMap((group, gi) => {
+                const firstTs = Number(group.messages[0].time);
+                const dayKey = firstTs ? msgDayKey(firstTs) : '';
+                const elements: ReactNode[] = [];
+                if (dayKey && dayKey !== lastDayKey) {
+                  lastDayKey = dayKey;
+                  elements.push(<DateSeparator key={`sep-${gi}`} label={formatDateLabel(firstTs)} />);
+                }
+                if (group.isSystem) {
+                  elements.push(<SystemMessage key={gi} msg={group.messages[0]} />);
+                } else if (group.messages.length === 1 && isVideoMeetingMessage(group.messages[0])) {
+                  elements.push(<VideoMeetingCard key={gi} msg={group.messages[0]} />);
+                } else {
+                  elements.push(
+                    <MessageGroup
+                      key={gi}
+                      group={group}
+                      canDeleteAll={isManager && chat.type === 'channel'}
+                      showImagesInline={settings.showImagesInline}
+                      ownBubbleColor={settings.ownBubbleColor}
+                      otherBubbleColor={settings.otherBubbleColor}
+                      messageMap={messageMap}
+                      onDelete={handleDelete}
+                      onLike={handleLike}
+                      onReply={setReplyTo}
+                      onForward={setForwardMsg}
+                      onImageClick={setLightboxUrl}
+                      onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
+                      searchQuery={searchQuery}
+                      searchMatchSet={searchMatchSet}
+                      currentMatchMsgId={currentMatchMsgId}
+                      onMatchRef={(msgId, el) => {
+                        const idx = searchMatches.indexOf(msgId);
+                        if (idx >= 0) searchMatchRefs.current[idx] = el;
+                      }}
+                    />,
+                  );
+                }
+                return elements;
               });
             })()}
           </div>
         ) : (
           <div className="flex flex-col divide-y divide-surface-100 dark:divide-surface-800">
-            {messages.map((msg) => {
-              if (SYSTEM_KINDS.has(msg.kind ?? '')) {
-                return <SystemMessage key={msg.id} msg={msg} />;
-              }
-              if (isVideoMeetingMessage(msg)) {
-                return <VideoMeetingCard key={msg.id} msg={msg} />;
-              }
-              const globalMatchIdx = searchMatches.indexOf(String(msg.id));
-              const isCurrentMatch = globalMatchIdx >= 0 && ((searchMatchIdx % searchMatches.length + searchMatches.length) % searchMatches.length) === globalMatchIdx;
-              return (
-                <div
-                  key={msg.id}
-                  ref={globalMatchIdx >= 0 ? (el) => { searchMatchRefs.current[globalMatchIdx] = el; } : undefined}
-                  className={clsx(globalMatchIdx >= 0 && 'ring-inset ring-2', isCurrentMatch ? 'ring-yellow-400 dark:ring-yellow-500' : globalMatchIdx >= 0 ? 'ring-yellow-200 dark:ring-yellow-800' : undefined)}
-                >
-                  <PlainTextMessage
-                    msg={msg}
-                    isOwn={String(msg.sender?.id) === userId}
-                    canDelete={String(msg.sender?.id) === userId || (isManager && chat.type === 'channel')}
-                    showImagesInline={settings.showImagesInline}
-                    messageMap={messageMap}
-                    onDelete={handleDelete}
-                    onLike={handleLike}
-                    onReply={setReplyTo}
-                    onForward={setForwardMsg}
-                    onImageClick={setLightboxUrl}
-                    onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
-                    searchQuery={searchQuery}
-                  />
-                </div>
-              );
-            })}
+            {(() => {
+              let lastDayKey = '';
+              return messages.flatMap((msg) => {
+                const ts = Number(msg.time);
+                const dayKey = ts ? msgDayKey(ts) : '';
+                const elements: ReactNode[] = [];
+                if (dayKey && dayKey !== lastDayKey) {
+                  lastDayKey = dayKey;
+                  elements.push(<DateSeparator key={`sep-${msg.id}`} label={formatDateLabel(ts)} />);
+                }
+                if (SYSTEM_KINDS.has(msg.kind ?? '')) {
+                  elements.push(<SystemMessage key={msg.id} msg={msg} />);
+                  return elements;
+                }
+                if (isVideoMeetingMessage(msg)) {
+                  elements.push(<VideoMeetingCard key={msg.id} msg={msg} />);
+                  return elements;
+                }
+                const globalMatchIdx = searchMatches.indexOf(String(msg.id));
+                const isCurrentMatch = globalMatchIdx >= 0 && ((searchMatchIdx % searchMatches.length + searchMatches.length) % searchMatches.length) === globalMatchIdx;
+                elements.push(
+                  <div
+                    key={msg.id}
+                    ref={globalMatchIdx >= 0 ? (el) => { searchMatchRefs.current[globalMatchIdx] = el; } : undefined}
+                    className={clsx(globalMatchIdx >= 0 && 'ring-inset ring-2', isCurrentMatch ? 'ring-yellow-400 dark:ring-yellow-500' : globalMatchIdx >= 0 ? 'ring-yellow-200 dark:ring-yellow-800' : undefined)}
+                  >
+                    <PlainTextMessage
+                      msg={msg}
+                      isOwn={String(msg.sender?.id) === userId}
+                      canDelete={String(msg.sender?.id) === userId || (isManager && chat.type === 'channel')}
+                      showImagesInline={settings.showImagesInline}
+                      messageMap={messageMap}
+                      onDelete={handleDelete}
+                      onLike={handleLike}
+                      onReply={setReplyTo}
+                      onForward={setForwardMsg}
+                      onImageClick={setLightboxUrl}
+                      onPdfClick={(fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name })}
+                      searchQuery={searchQuery}
+                    />
+                  </div>,
+                );
+                return elements;
+              });
+            })()}
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -810,9 +867,12 @@ function MessageGroup({
         )}
 
         {messages.map((msg, i) => {
-          const time = msg.time
-            ? new Date(msg.time * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
-            : '';
+          const timeDate = msg.time ? new Date(msg.time * 1000) : null;
+          const time = timeDate ? timeDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
+          const isToday = timeDate ? msgDayKey(msg.time!) === msgDayKey(Date.now() / 1000) : true;
+          const timeDisplay = (!isToday && timeDate)
+            ? timeDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) + ' · ' + time
+            : time;
           const isFirst = i === 0;
           const isLast = i === messages.length - 1;
           const content = msg.text || (msg.encrypted ? '🔒 *Verschlüsselte Nachricht*' : '');
@@ -910,7 +970,7 @@ function MessageGroup({
                 <div className={clsx('relative z-10 flex items-center gap-1.5 px-1', isOwn ? 'flex-row-reverse' : 'flex-row')}>
                   {isLast && (
                     <span className="flex items-center gap-0.5 text-xs text-surface-400">
-                      {time}
+                      {timeDisplay}
                       {isOwn && (
                         msg.seen_by_others
                           ? <CheckCheck size={13} className="text-primary-500" />
@@ -966,9 +1026,12 @@ function PlainTextMessage({
   searchQuery?: string;
 }) {
   const senderName = msg.sender ? `${msg.sender.first_name} ${msg.sender.last_name}` : 'Unbekannt';
-  const time = msg.time
-    ? new Date(msg.time * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
-    : '';
+  const timeDate = msg.time ? new Date(msg.time * 1000) : null;
+  const time = timeDate ? timeDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
+  const isToday = timeDate ? msgDayKey(msg.time!) === msgDayKey(Date.now() / 1000) : true;
+  const timeDisplay = (!isToday && timeDate)
+    ? timeDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) + ' · ' + time
+    : time;
   const content = msg.text || (msg.encrypted ? '🔒 Verschlüsselte Nachricht' : '');
   const replyTo = msg.reply_to ? messageMap.get(msg.reply_to.message_id) : undefined;
 
@@ -981,7 +1044,7 @@ function PlainTextMessage({
             {senderName}
           </span>
           <span className="flex items-center gap-0.5 text-xs text-surface-400">
-            {time}
+            {timeDisplay}
             {isOwn && (
               msg.seen_by_others
                 ? <CheckCheck size={13} className="text-primary-500" />
@@ -1109,6 +1172,20 @@ function VideoMeetingCard({ msg }: { msg: Message }) {
 }
 
 // ── System message ─────────────────────────────────────────────────────────────
+
+// ── Date separator ─────────────────────────────────────────────────────────────
+
+function DateSeparator({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 py-2 px-4">
+      <div className="h-px flex-1 bg-surface-200 dark:bg-surface-700" />
+      <span className="rounded-full bg-surface-100 px-3 py-0.5 text-xs font-medium text-surface-500 dark:bg-surface-800 dark:text-surface-400 select-none">
+        {label}
+      </span>
+      <div className="h-px flex-1 bg-surface-200 dark:bg-surface-700" />
+    </div>
+  );
+}
 
 function SystemMessage({ msg }: { msg: Message }) {
   const senderName = msg.sender ? `${msg.sender.first_name} ${msg.sender.last_name}`.trim() : 'Jemand';
