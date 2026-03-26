@@ -1366,7 +1366,7 @@ app.post('/api/polls', async (req, res) => {
             const startDate = new Date(start_time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
             const endDate = new Date(end_time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
             const msgText = `📊 **Neue Umfrage: „${name}"**\n${description ? description + '\n' : ''}Zeitraum: ${startDate} – ${endDate}\n\nDie Umfrage wurde geteilt. Öffne den Bereich „Umfragen" in der App, um teilzunehmen.`;
-            await client.sendMessage(notify_chat_id, notify_chat_type, msgText).catch(() => { });
+            await client.sendMessage({ target: notify_chat_id, target_type: notify_chat_type, text: msgText }).catch(() => { });
         }
         res.json({ id: pollId });
     }

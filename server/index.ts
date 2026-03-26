@@ -1352,7 +1352,7 @@ app.get('/api/polls/:id', async (req, res) => {
           return { ...q, answers };
         })
       );
-      (poll as Record<string, unknown>).questions = questionsWithAnswers;
+      (poll as unknown as Record<string, unknown>).questions = questionsWithAnswers;
     }
     res.json(poll);
   } catch (err) { res.status(500).json({ error: String(err) }); }
@@ -1371,7 +1371,7 @@ app.post('/api/polls', async (req, res) => {
 
     // 1. Determine company_id
     const companies = await client.getCompanies();
-    const companyId = String((companies[0] as Record<string, unknown>)?.id ?? '');
+    const companyId = String((companies[0] as unknown as Record<string, unknown>)?.id ?? '');
     if (!companyId) throw new Error('Kein Unternehmen gefunden');
 
     const { name, description, start_time, end_time, privacy_type, hidden_results, questions = [], invite_channel_ids = [], invite_conversation_ids = [], notify_chat_id, notify_chat_type } = req.body as {
@@ -1420,7 +1420,7 @@ app.post('/api/polls', async (req, res) => {
       for (const convId of invite_conversation_ids) {
         const conv = await client.getConversation(convId).catch(() => null);
         if (conv) {
-          const members = (conv as Record<string, unknown>).members as Array<Record<string, unknown>> | undefined;
+          const members = (conv as unknown as Record<string, unknown>).members as Array<Record<string, unknown>> | undefined;
           (members ?? []).forEach((m) => { if (m.id) userIds.add(String(m.id)); });
         }
       }
@@ -1437,7 +1437,7 @@ app.post('/api/polls', async (req, res) => {
       const startDate = new Date(start_time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
       const endDate = new Date(end_time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
       const msgText = `📊 **Neue Umfrage: „${name}"**\n${description ? description + '\n' : ''}Zeitraum: ${startDate} – ${endDate}\n\nDie Umfrage wurde geteilt. Öffne den Bereich „Umfragen" in der App, um teilzunehmen.`;
-      await client.sendMessage(notify_chat_id, notify_chat_type, msgText).catch(() => {});
+      await client.sendMessage({ target: notify_chat_id, target_type: notify_chat_type, text: msgText }).catch(() => {});
     }
 
     res.json({ id: pollId });
