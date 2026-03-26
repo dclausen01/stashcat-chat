@@ -1342,29 +1342,32 @@ app.get('/api/polls', async (req, res) => {
       if (!companyId) return res.status(500).json({ error: 'Kein Unternehmen gefunden' });
     }
 
-    // The stashcat API rejects 'createdByAndNotArchived' — try known alternatives
-    // in order: original value, 'created', 'own', then fall back to no constraint (all polls)
-    const candidateConstraints =
+    // The stashcat API rejects 'createdByAndNotArchived' — try known alternatives.
+    // undefined = omit constraint field entirely (API returns all accessible polls)
+    const candidateConstraints: Array<string | undefined> =
       uiConstraint === 'createdByAndNotArchived'
-        ? ['createdByAndNotArchived', 'created', 'own', '']
-        : [uiConstraint, ''];
+        ? ['createdByAndNotArchived', 'created', 'own', undefined]
+        : [uiConstraint, undefined];
 
     let polls: unknown[] = [];
-    let lastErr: unknown;
+    let succeeded = false;
     for (const c of candidateConstraints) {
       try {
         polls = await client.listPolls(c as 'createdByAndNotArchived' | 'invited' | 'archived', companyId);
-        console.log(`[Poll] listPolls(constraint="${c}", company=${companyId}) → ${polls.length} polls`);
-        break; // success
+        console.log(`[Poll] listPolls(constraint="${c ?? '(none)'}", company=${companyId}) → ${polls.length} polls`);
+        succeeded = true;
+        break;
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        if (msg.includes('invalid_parameter') || msg.includes('invalid value')) {
-          console.warn(`[Poll] constraint "${c}" rejected, trying next…`);
-          lastErr = e;
+        if (msg.includes('invalid_parameter') || msg.includes('invalid value') || msg.includes('missing_values')) {
+          console.warn(`[Poll] constraint "${c ?? '(none)'}" rejected (${msg.slice(0, 80)}), trying next…`);
           continue;
         }
-        throw e; // unexpected error
+        throw e; // unexpected error — rethrow
       }
+    }
+    if (!succeeded) {
+      console.error('[Poll] All constraint candidates failed, returning empty list');
     }
 
     // If uiConstraint is 'createdByAndNotArchived' and we fell back to no constraint,
@@ -1380,9 +1383,6 @@ app.get('/api/polls', async (req, res) => {
       }
     }
 
-    if (!polls.length && lastErr) {
-      return res.status(500).json({ error: String(lastErr) });
-    }
     res.json(polls);
   } catch (err) { res.status(500).json({ error: String(err) }); }
 });
