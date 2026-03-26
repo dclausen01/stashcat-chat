@@ -1328,21 +1328,61 @@ app.post('/api/video/start-meeting', async (req, res) => {
 
 // ── Polls (Umfragen) ─────────────────────────────────────────────────────────
 
-/** List polls — constraint: 'createdByAndNotArchived' | 'invited' | 'archived' */
+/** List polls — constraint maps to stashcat API values (reverse-engineered) */
 app.get('/api/polls', async (req, res) => {
   try {
     const client = await getClient(req);
-    const constraint = (req.query.constraint as string) || 'createdByAndNotArchived';
+    const uiConstraint = (req.query.constraint as string) || 'createdByAndNotArchived';
     // company_id is required by the stashcat API — frontend always sends it
     let companyId = req.query.company_id as string | undefined;
     if (!companyId) {
-      // Fallback: fetch from API (slower but safe)
       const companies = await client.getCompanies();
       const c = companies[0] as unknown as Record<string, unknown>;
       companyId = c?.id ? String(c.id) : undefined;
       if (!companyId) return res.status(500).json({ error: 'Kein Unternehmen gefunden' });
     }
-    const polls = await client.listPolls(constraint as 'createdByAndNotArchived' | 'invited' | 'archived', companyId);
+
+    // The stashcat API rejects 'createdByAndNotArchived' — try known alternatives
+    // in order: original value, 'created', 'own', then fall back to no constraint (all polls)
+    const candidateConstraints =
+      uiConstraint === 'createdByAndNotArchived'
+        ? ['createdByAndNotArchived', 'created', 'own', '']
+        : [uiConstraint, ''];
+
+    let polls: unknown[] = [];
+    let lastErr: unknown;
+    for (const c of candidateConstraints) {
+      try {
+        polls = await client.listPolls(c as 'createdByAndNotArchived' | 'invited' | 'archived', companyId);
+        console.log(`[Poll] listPolls(constraint="${c}", company=${companyId}) → ${polls.length} polls`);
+        break; // success
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes('invalid_parameter') || msg.includes('invalid value')) {
+          console.warn(`[Poll] constraint "${c}" rejected, trying next…`);
+          lastErr = e;
+          continue;
+        }
+        throw e; // unexpected error
+      }
+    }
+
+    // If uiConstraint is 'createdByAndNotArchived' and we fell back to no constraint,
+    // filter client-side: exclude archived polls (no published_at or archived flag)
+    if (uiConstraint === 'createdByAndNotArchived' && (polls as Record<string, unknown>[]).length > 0) {
+      const me = await client.getMe().catch(() => null);
+      const myId = me ? String((me as unknown as Record<string, unknown>).id ?? '') : '';
+      if (myId) {
+        polls = (polls as Record<string, unknown>[]).filter((p) => {
+          const creatorId = String((p.creator as Record<string, unknown>)?.id ?? p.creator_id ?? '');
+          return creatorId === myId;
+        });
+      }
+    }
+
+    if (!polls.length && lastErr) {
+      return res.status(500).json({ error: String(lastErr) });
+    }
     res.json(polls);
   } catch (err) { res.status(500).json({ error: String(err) }); }
 });
