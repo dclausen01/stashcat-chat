@@ -21,6 +21,7 @@ interface ChatViewProps {
   onToggleSettings: () => void;
   onToggleFileBrowser: () => void;
   fileBrowserOpen: boolean;
+  onOpenPolls?: () => void;
 }
 
 interface TypingUser {
@@ -31,6 +32,18 @@ interface TypingUser {
 
 const PAGE_SIZE = 50;
 const SYSTEM_KINDS = new Set(['joined', 'left', 'removed', 'call_start', 'call_end']);
+
+/** Poll invite system message kinds (stashcat may use any of these) */
+const POLL_INVITE_KINDS = new Set([
+  'channel_invited_to_survey', 'survey_invitation', 'poll_invite',
+  'invited_to_poll', 'channel_survey_invite', 'survey_invite',
+]);
+
+function isPollInviteMessage(msg: Message): boolean {
+  if (POLL_INVITE_KINDS.has(msg.kind ?? '')) return true;
+  const text = (msg.text ?? '').toLowerCase();
+  return text.includes('umfrage eingeladen') || text.includes('zur teilnahme an einer umfrage');
+}
 
 /** Returns a day-key string (YYYY-M-D) for a Unix timestamp in seconds. */
 function msgDayKey(ts: number): string {
@@ -51,7 +64,7 @@ function formatDateLabel(ts: number): string {
   return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, fileBrowserOpen }: ChatViewProps) {
+export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, fileBrowserOpen, onOpenPolls }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -613,7 +626,14 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
                   elements.push(<DateSeparator key={`sep-${gi}`} label={formatDateLabel(firstTs)} />);
                 }
                 if (group.isSystem) {
-                  elements.push(<SystemMessage key={gi} msg={group.messages[0]} />);
+                  const sysMsg = group.messages[0];
+                  if (isPollInviteMessage(sysMsg)) {
+                    elements.push(<PollInviteMessage key={gi} msg={sysMsg} onOpenPolls={onOpenPolls} />);
+                  } else {
+                    elements.push(<SystemMessage key={gi} msg={sysMsg} />);
+                  }
+                } else if (group.messages.length === 1 && isPollInviteMessage(group.messages[0])) {
+                  elements.push(<PollInviteMessage key={gi} msg={group.messages[0]} onOpenPolls={onOpenPolls} />);
                 } else if (group.messages.length === 1 && isVideoMeetingMessage(group.messages[0])) {
                   elements.push(<VideoMeetingCard key={gi} msg={group.messages[0]} />);
                 } else {
@@ -660,6 +680,10 @@ export default function ChatView({ chat, onToggleSettings, onToggleFileBrowser, 
                 }
                 if (SYSTEM_KINDS.has(msg.kind ?? '')) {
                   elements.push(<SystemMessage key={msg.id} msg={msg} />);
+                  return elements;
+                }
+                if (isPollInviteMessage(msg)) {
+                  elements.push(<PollInviteMessage key={msg.id} msg={msg} onOpenPolls={onOpenPolls} />);
                   return elements;
                 }
                 if (isVideoMeetingMessage(msg)) {
@@ -1192,6 +1216,32 @@ function DateSeparator({ label }: { label: string }) {
         {label}
       </span>
       <div className="h-px flex-1 bg-surface-200 dark:bg-surface-700" />
+    </div>
+  );
+}
+
+// ── Poll invite system message ────────────────────────────────────────────────
+
+function PollInviteMessage({ msg, onOpenPolls }: { msg: Message; onOpenPolls?: () => void }) {
+  const time = msg.time
+    ? new Date(msg.time * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+    : '';
+  return (
+    <div className="flex justify-center py-2 px-4">
+      <div className="rounded-xl bg-surface-700 px-5 py-3 text-center dark:bg-surface-800 max-w-xs shadow">
+        <p className="text-sm text-surface-100 dark:text-surface-200">
+          Dieser Channel wurde zur Teilnahme an einer Umfrage eingeladen.
+        </p>
+        {onOpenPolls && (
+          <button
+            onClick={onOpenPolls}
+            className="mt-1 block text-sm font-semibold text-yellow-400 hover:text-yellow-300 dark:text-yellow-400 dark:hover:text-yellow-300 transition"
+          >
+            Klicke hier
+          </button>
+        )}
+        {time && <p className="mt-1 text-xs text-surface-400">{time}</p>}
+      </div>
     </div>
   );
 }

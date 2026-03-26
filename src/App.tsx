@@ -96,6 +96,7 @@ export default function App() {
                 onToggleSettings={toggleSettings}
                 onToggleFileBrowser={toggleFileBrowser}
                 fileBrowserOpen={fileBrowserOpen}
+                onOpenPolls={openPolls}
               />
             : <EmptyState />}
           {fileBrowserOpen && (
