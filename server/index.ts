@@ -1340,7 +1340,9 @@ app.get('/api/polls', async (req, res) => {
       const firstId = (companies[0] as unknown as Record<string, unknown>)?.id;
       companyId = firstId ? String(firstId) : undefined;
     }
-    res.json(await client.listPolls(constraint as 'createdByAndNotArchived' | 'invited' | 'archived', companyId));
+    const polls = await client.listPolls(constraint as 'createdByAndNotArchived' | 'invited' | 'archived', companyId);
+    console.log(`[Poll] listPolls(${constraint}, companyId=${companyId}) → ${polls.length} polls`);
+    res.json(polls);
   } catch (err) { res.status(500).json({ error: String(err) }); }
 });
 
@@ -1417,7 +1419,9 @@ app.post('/api/polls', async (req, res) => {
 
     // 4. Invite channels
     if (invite_channel_ids.length > 0) {
-      await client.inviteToPoll(pollId, companyId, 'channels', invite_channel_ids).catch(() => {});
+      await client.inviteToPoll(pollId, companyId, 'channels', invite_channel_ids).catch((e) => {
+        console.warn(`[Poll] inviteToPoll channels failed:`, e instanceof Error ? e.message : e);
+      });
     }
 
     // 5. Invite conversations (resolve members → invite as users)
@@ -1436,14 +1440,28 @@ app.post('/api/polls', async (req, res) => {
     }
 
     // 6. Publish the poll
-    await client.publishPoll(pollId);
+    const published = await client.publishPoll(pollId);
+    if (!published) {
+      // publishPoll returned false — try once more after a short delay
+      await new Promise((r) => setTimeout(r, 800));
+      const retry = await client.publishPoll(pollId).catch(() => false);
+      if (!retry) console.warn(`[Poll] publishPoll returned false for poll ${pollId} — poll may remain as draft`);
+    }
 
-    // 7. Optionally send a notification message to the source chat
-    if (notify_chat_id && notify_chat_type) {
-      const startDate = new Date(start_time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      const endDate = new Date(end_time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      const msgText = `📊 **Neue Umfrage: „${name}"**\n${description ? description + '\n' : ''}Zeitraum: ${startDate} – ${endDate}\n\nDie Umfrage wurde geteilt. Öffne den Bereich „Umfragen" in der App, um teilzunehmen.`;
-      await client.sendMessage({ target: notify_chat_id, target_type: notify_chat_type, text: msgText }).catch(() => {});
+    // 7. Send notification message to ALL selected chats
+    const startDate = new Date(start_time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const endDate = new Date(end_time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const msgText = `📊 **Neue Umfrage: „${name}"**\n${description ? description + '\n' : ''}Zeitraum: ${startDate} – ${endDate}\n\nÖffne den Bereich „Umfragen" in der App, um teilzunehmen.`;
+
+    const notifyTargets: Array<{ id: string; type: 'channel' | 'conversation' }> = [];
+    for (const id of invite_channel_ids) notifyTargets.push({ id, type: 'channel' });
+    for (const id of invite_conversation_ids) notifyTargets.push({ id, type: 'conversation' });
+    // Also notify the source chat if opened from a specific chat (avoids duplicates)
+    if (notify_chat_id && notify_chat_type && !notifyTargets.some((t) => t.id === notify_chat_id)) {
+      notifyTargets.push({ id: notify_chat_id, type: notify_chat_type });
+    }
+    for (const target of notifyTargets) {
+      await client.sendMessage({ target: target.id, target_type: target.type, text: msgText }).catch(() => {});
     }
 
     res.json({ id: pollId });
