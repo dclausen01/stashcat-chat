@@ -288,7 +288,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           </button>
         </div>
         {/* Row 2: Action buttons */}
-        <div className="mt-1.5 flex items-center gap-0.5">
+        <div className="mt-1.5 flex items-center justify-between px-1">
           <button
             onClick={onOpenNotifications}
             className={clsx(
