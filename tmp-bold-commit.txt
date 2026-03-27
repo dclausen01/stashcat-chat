@@ -1,0 +1,3 @@
+[main 527cd4e] fix: render **bold** markdown properly in poll invite messages
+ 3 files changed, 29 insertions(+), 8 deletions(-)
+ rename dist/assets/{index-DBHLUO3m.js => index-DgRKVcOH.js} (87%)

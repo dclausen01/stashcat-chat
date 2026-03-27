@@ -1,0 +1,3 @@
+72ac41d updated CLAUDE.md
+2aa534c feat: expose resetProfileImage method on StashcatClient
+ec8581e Fixed polls-handling

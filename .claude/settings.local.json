@@ -21,7 +21,8 @@
       "Bash(\"C:/Users/claud/OneDrive/Projekte/stashcat-chat/tmp-api-log.txt\")",
       "Bash(\"C:/Users/claud/OneDrive/Projekte/stashcat-chat/tmp-api-status2.txt\")",
       "Bash(npm install:*)",
-      "Bash(ls -la dist/assets/index-*.js)"
+      "Bash(ls -la dist/assets/index-*.js)",
+      "Bash(tee \"C:/Users/claud/OneDrive/Projekte/stashcat-chat/tmp-apibuild.txt\")"
     ]
   }
 }

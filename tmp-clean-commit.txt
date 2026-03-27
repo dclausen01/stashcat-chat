@@ -1,0 +1,3 @@
+[main 192f550] chore: remove debug logs from poll detection
+ 3 files changed, 2 insertions(+), 6 deletions(-)
+ rename dist/assets/{index-BUPXNe3f.js => index-D1035r3d.js} (84%)

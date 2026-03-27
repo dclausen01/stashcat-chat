@@ -87,6 +87,7 @@ async function getClient(req) {
     const payload = (0, token_crypto_1.decryptSession)(token);
     // Check cache
     const cached = clientCache.get(payload.clientKey);
+    console.log(`[getClient] clientKey=${payload.clientKey?.slice(0, 8)} cached=${!!cached}`);
     if (cached && Date.now() < cached.expiresAt) {
         cached.expiresAt = Date.now() + CACHE_TTL; // Refresh TTL
         return cached.client;
@@ -570,11 +571,13 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
         const limit = Number(req.query.limit) || 40;
         const offset = Number(req.query.offset) || 0;
         const chatType = type;
+        console.log(`[getMessages:route] type=${chatType} targetId=${targetId} E2E_unlocked=${client.isE2EUnlocked()}`);
         const messages = await client.getMessages(targetId, chatType, { limit, offset });
         const sorted = [...messages].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
         res.json(sorted);
     }
     catch (err) {
+        console.error(`[getMessages:route] ERROR: ${err instanceof Error ? err.message : err}`);
         res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
     }
 });
