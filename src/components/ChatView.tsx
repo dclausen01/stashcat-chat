@@ -45,7 +45,6 @@ function isPollInviteMessage(msg: Message): boolean {
   const text = msg.text ?? '';
   // Our embedded poll ID marker: [%poll:ID%]
   const isPoll = text.includes('[%poll:') && text.includes('%]');
-  if (isPoll) console.log('[Poll] Detected poll message:', { id: msg.id, text: text.slice(0, 80) });
   const lower = text.toLowerCase();
   return isPoll || lower.includes('umfrage eingeladen') || lower.includes('zur teilnahme an einer umfrage');
 }
@@ -147,9 +146,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
       const msgs = res as unknown as Message[];
-      // DEBUG: log poll messages
-      const pollMsgs = msgs.filter(m => (m.text ?? '').includes('[%poll:'));
-      if (pollMsgs.length > 0) console.log('[Poll] Found poll messages in API response:', pollMsgs.map(m => ({ id: m.id, text: m.text?.slice(0, 50) })));
       setMessages(msgs);
       if (msgs.length < PAGE_SIZE) {
         setHasMore(false);
