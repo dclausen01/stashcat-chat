@@ -15,7 +15,9 @@ async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BACKEND}${path}`, { headers: headers() });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    throw new Error(err.error || `HTTP ${res.status}`);
+    const e = new Error(err.error || `HTTP ${res.status}`);
+    (e as unknown as Record<string, unknown>).debug = err;
+    throw e;
   }
   return res.json();
 }

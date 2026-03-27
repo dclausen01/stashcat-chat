@@ -157,6 +157,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       if (last) api.markAsRead(chat.id, chat.type, String(last.id)).catch(() => {});
     } catch (err) {
       console.error('Failed to load messages:', err);
+      const debug = (err as unknown as Record<string, unknown>)?.debug;
+      if (debug) console.error('Debug info:', debug);
     } finally {
       setLoading(false);
     }

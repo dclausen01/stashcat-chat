@@ -603,8 +603,13 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
     );
     res.json(sorted);
   } catch (err) {
-    console.error(`[getMessages:route] ERROR: ${err instanceof Error ? err.message : err}`);
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error(`[getMessages:route] ERROR: ${error.message}`);
+    res.status(500).json({
+      error: error.message,
+      stack: error.stack,
+      E2E_unlocked: client?.isE2EUnlocked?.() ?? 'unknown'
+    });
   }
 });
 
