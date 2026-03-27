@@ -318,10 +318,13 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
 
             {/* Chat targeting */}
             <div>
-              <h3 className="mb-2 text-sm font-semibold text-surface-800 dark:text-surface-200">
+              <h3 className="mb-1 text-sm font-semibold text-surface-800 dark:text-surface-200">
                 Teilen mit
                 <span className="ml-1.5 text-xs font-normal text-surface-400">(Mehrfachauswahl)</span>
               </h3>
+              <p className="mb-2 text-xs text-surface-500 dark:text-surface-400">
+                Du kannst entweder Channels oder einzelne Kontakte zu der Umfrage einladen. Wenn du auch selbst an deiner Umfrage teilnehmen willst, füge dich selbst hinzu.
+              </p>
               {loadingChats ? (
                 <div className="flex items-center gap-2 text-sm text-surface-400"><Loader2 size={14} className="animate-spin" /> Lade Chats…</div>
               ) : (

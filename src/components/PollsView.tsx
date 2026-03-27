@@ -28,7 +28,7 @@ function isActive(poll: Poll): boolean {
 
 // ── Detail / Vote view ──────────────────────────────────────────────────────
 
-function PollDetail({ poll, onBack, onRefresh }: { poll: Poll; onBack: () => void; onRefresh: () => void }) {
+function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; companyId: string; onBack: () => void; onRefresh: () => void }) {
   const [detail, setDetail] = useState<Poll | null>(null);
   const [loading, setLoading] = useState(true);
   // questionId → set of chosen answerIds
@@ -38,8 +38,8 @@ function PollDetail({ poll, onBack, onRefresh }: { poll: Poll; onBack: () => voi
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.getPoll(poll.id).then((d) => { setDetail(d); setLoading(false); }).catch(() => setLoading(false));
-  }, [poll.id]);
+    api.getPoll(poll.id, companyId).then((d) => { setDetail(d); setLoading(false); }).catch(() => setLoading(false));
+  }, [poll.id, companyId]);
 
   function toggleAnswer(q: PollQuestion, answerId: string) {
     setSelections((prev) => {
@@ -239,6 +239,7 @@ export default function PollsView() {
       <div className="flex flex-1 flex-col overflow-hidden bg-white dark:bg-surface-900">
         <PollDetail
           poll={selectedPoll}
+          companyId={companyId}
           onBack={() => setSelectedPoll(null)}
           onRefresh={() => {
             const id = selectedPoll.id;

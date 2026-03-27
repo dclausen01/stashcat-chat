@@ -561,8 +561,10 @@ export async function listPolls(constraint: 'created_by_and_not_archived' | 'inv
   return get<Poll[]>(url);
 }
 
-export async function getPoll(id: string) {
-  return get<Poll>(`/polls/${id}`);
+export async function getPoll(id: string, companyId?: string) {
+  let url = `/polls/${id}`;
+  if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
+  return get<Poll>(url);
 }
 
 export async function createPoll(data: CreatePollData): Promise<{ id: string }> {
