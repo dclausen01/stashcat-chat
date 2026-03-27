@@ -262,7 +262,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       />
       {/* User header — two rows: user+settings, then action buttons */}
       <div className="shrink-0 border-b border-surface-200 px-3 py-2 dark:border-surface-700">
-        {/* Row 1: Avatar, Name, BBZ Logo, Settings */}
+        {/* Row 1: Avatar, Name, BBZ Logo */}
         <div className="flex items-center gap-2">
           <button
             onClick={onOpenProfile}
@@ -279,13 +279,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
             <div className="truncate text-sm font-semibold text-surface-900 hover:text-primary-600 dark:text-white dark:hover:text-primary-400">{userName}</div>
           </button>
           <img src="/bbz-logo-neu.png" alt="BBZ Chat" className="h-5 w-auto shrink-0 opacity-70" title="BBZ Chat" />
-          <button
-            onClick={onOpenSettings}
-            className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
-            title="Einstellungen"
-          >
-            <Settings size={18} />
-          </button>
         </div>
         {/* Row 2: Action buttons */}
         <div className="mt-1.5 flex items-center justify-between px-1">
@@ -315,6 +308,13 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           </button>
           <button onClick={toggle} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <button
+            onClick={onOpenSettings}
+            className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
+            title="Einstellungen"
+          >
+            <Settings size={16} />
           </button>
           <button onClick={logout} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
             <LogOut size={16} />
