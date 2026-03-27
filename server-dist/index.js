@@ -1426,7 +1426,8 @@ app.post('/api/polls', async (req, res) => {
         // 7. Send notification message to ALL selected chats
         const startDate = new Date(start_time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
         const endDate = new Date(end_time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const msgText = `📊 **Neue Umfrage: „${name}"**\n${description ? description + '\n' : ''}Zeitraum: ${startDate} – ${endDate}\n\nÖffne den Bereich „Umfragen" in der App, um teilzunehmen.`;
+        // Embed poll ID in a parseable format at the end of the message
+        const msgText = `📊 **Neue Umfrage: „${name}"**\n${description ? description + '\n' : ''}Zeitraum: ${startDate} – ${endDate}\n\nKlicke hier, um teilzunehmen. [%poll:${pollId}%]`;
         const notifyTargets = [];
         for (const id of invite_channel_ids)
             notifyTargets.push({ id, type: 'channel' });

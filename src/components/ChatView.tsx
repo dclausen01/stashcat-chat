@@ -1223,19 +1223,34 @@ function DateSeparator({ label }: { label: string }) {
 
 // ── Poll invite system message ────────────────────────────────────────────────
 
+/** Extract poll ID from message text format: [... [%poll:ID%]] */
+function extractPollId(msg: Message): string | undefined {
+  // Try structured fields first
+  const raw = msg as unknown as Record<string, unknown>;
+  if (raw.poll_id) return String(raw.poll_id);
+  if (raw.target_id) return String(raw.target_id);
+  if (raw.survey_id) return String(raw.survey_id);
+  // Parse from text format: "[%poll:ID%]"
+  const match = (msg.text ?? '').match(/\[%poll:([^%]+)%\]$/);
+  return match?.[1];
+}
+
+/** Strip the [%poll:ID%] marker from displayed text */
+function pollMessageText(msg: Message): string {
+  return (msg.text ?? '').replace(/\s*\[%poll:[^%]+%\]\s*$/, '').trim();
+}
+
 function PollInviteMessage({ msg, onOpenPolls, onOpenPoll }: { msg: Message; onOpenPolls?: () => void; onOpenPoll?: (pollId: string) => void }) {
   const time = msg.time
     ? new Date(msg.time * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
     : '';
 
+  const pollId = extractPollId(msg);
+  const displayText = pollMessageText(msg);
+
   const handleClick = () => {
-    // Try to get poll ID from message fields (Stashcat may include it)
-    const pollId = (msg as unknown as Record<string, unknown>).poll_id
-      || (msg as unknown as Record<string, unknown>).target_id
-      || (msg as unknown as Record<string, unknown>).survey_id
-      || (msg as unknown as Record<string, unknown>).id as string | undefined;
     if (pollId && onOpenPoll) {
-      onOpenPoll(String(pollId));
+      onOpenPoll(pollId);
     } else if (onOpenPolls) {
       onOpenPolls();
     }
@@ -1244,8 +1259,8 @@ function PollInviteMessage({ msg, onOpenPolls, onOpenPoll }: { msg: Message; onO
   return (
     <div className="flex justify-center py-2 px-4">
       <div className="rounded-xl bg-surface-700 px-5 py-3 text-center dark:bg-surface-800 max-w-xs shadow">
-        <p className="text-sm text-surface-100 dark:text-surface-200">
-          Dieser Channel wurde zur Teilnahme an einer Umfrage eingeladen.
+        <p className="text-sm text-surface-100 dark:text-surface-200 whitespace-pre-wrap">
+          {displayText}
         </p>
         {(onOpenPolls || onOpenPoll) && (
           <button
