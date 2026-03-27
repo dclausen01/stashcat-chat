@@ -42,7 +42,17 @@ const multer_1 = __importDefault(require("multer"));
 const os_1 = __importDefault(require("os"));
 const path_1 = __importDefault(require("path"));
 const promises_1 = __importDefault(require("fs/promises"));
+const fsSync = __importStar(require("fs"));
 const stashcat_api_1 = require("stashcat-api");
+function debugLog(...args) {
+    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+    const line = `[${new Date().toISOString()}] ${msg}\n`;
+    try {
+        fsSync.appendFileSync(path_1.default.join(__dirname, '..', 'e2e-debug.log'), line);
+    }
+    catch (_) { }
+    console.log(...args);
+}
 const token_crypto_1 = require("./token-crypto");
 // Multer: store uploads in OS temp dir
 const upload = (0, multer_1.default)({ dest: os_1.default.tmpdir() });
@@ -396,6 +406,18 @@ app.patch('/api/channels/:channelId', async (req, res) => {
         res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
     }
 });
+// ── Delete channel ────────────────────────────────────────────────────────────
+app.delete('/api/channels/:channelId', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { channelId } = req.params;
+        await client.deleteChannel(channelId);
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete channel' });
+    }
+});
 // ── Company members (via /manage/list_users) ─────────────────────────────────
 app.get('/api/companies/:companyId/members', async (req, res) => {
     try {
@@ -571,14 +593,23 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
         const limit = Number(req.query.limit) || 40;
         const offset = Number(req.query.offset) || 0;
         const chatType = type;
-        console.log(`[getMessages:route] type=${chatType} targetId=${targetId} E2E_unlocked=${client.isE2EUnlocked()}`);
+        debugLog(`[getMessages:route] type=${chatType} targetId=${targetId} E2E_unlocked=${client.isE2EUnlocked()}`);
+        if (chatType === 'channel') {
+            try {
+                const ch = await client.getChannelInfo(targetId, true);
+                debugLog(`[channel-info] id=${targetId} encrypted=${ch.encrypted} keyLength=${ch.key?.length} keyPrefix=${ch.key?.substring(0, 20)}`);
+            }
+            catch (e) {
+                debugLog(`[channel-info] failed to fetch: ${e instanceof Error ? e.message : e}`);
+            }
+        }
         const messages = await client.getMessages(targetId, chatType, { limit, offset });
         const sorted = [...messages].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
         res.json(sorted);
     }
     catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
-        console.error(`[getMessages:route] ERROR: ${error.message}`);
+        debugLog(`[getMessages:route] ERROR: ${error.message}`);
         res.status(500).json({
             error: error.message,
             stack: error.stack,

@@ -10,7 +10,7 @@ import { StashcatClient, CryptoManager } from 'stashcat-api';
 function debugLog(...args: unknown[]) {
   const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
   const line = `[${new Date().toISOString()}] ${msg}\n`;
-  const logPath = '/tmp/e2e-debug.log';
+  const logPath = path.join(process.cwd(), 'e2e-debug.log');
   try {
     fsSync.appendFileSync(logPath, line);
   } catch (e) {
