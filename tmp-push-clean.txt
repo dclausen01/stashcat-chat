@@ -1,2 +1,0 @@
-To https://github.com/dclausen01/stashcat-chat.git
-   2eca3aa..192f550  main -> main

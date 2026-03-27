@@ -565,8 +565,8 @@ app.delete('/api/messages/:messageId', async (req, res) => {
 });
 // ── Generic message routes (must be AFTER specific ones) ─────────────────────
 app.get('/api/messages/:type/:targetId', async (req, res) => {
+    const client = await getClient(req);
     try {
-        const client = await getClient(req);
         const { type, targetId } = req.params;
         const limit = Number(req.query.limit) || 40;
         const offset = Number(req.query.offset) || 0;
@@ -582,7 +582,7 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
         res.status(500).json({
             error: error.message,
             stack: error.stack,
-            E2E_unlocked: client?.isE2EUnlocked?.() ?? 'unknown'
+            E2E_unlocked: client.isE2EUnlocked()
         });
     }
 });

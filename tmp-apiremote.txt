@@ -1,5 +1,0 @@
-72ac41d updated CLAUDE.md
-2aa534c feat: expose resetProfileImage method on StashcatClient
-ec8581e Fixed polls-handling
-dd47085 fix(polls): correct PollConstraint values (live-verified 2026-03-27)
-e2db7fa feat: add PollManager with 21 survey/poll endpoints

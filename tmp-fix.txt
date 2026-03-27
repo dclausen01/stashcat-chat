@@ -1,1 +1,0 @@
-9a20dbf fix: correct regex pattern for [%poll:ID%] detection
