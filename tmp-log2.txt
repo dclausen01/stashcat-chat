@@ -1,0 +1,2 @@
+e20628a style: move settings button to header action bar with other buttons
+9a20dbf fix: correct regex pattern for [%poll:ID%] detection

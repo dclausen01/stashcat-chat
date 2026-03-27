@@ -1,0 +1,2 @@
+2d4115d fix: simplify poll message detection using includes instead of regex
+e20628a style: move settings button to header action bar with other buttons

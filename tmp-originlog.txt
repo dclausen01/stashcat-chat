@@ -1,0 +1,3 @@
+9a20dbf fix: correct regex pattern for [%poll:ID%] detection
+5213808 style: evenly distribute sidebar header action buttons
+31ca9fb fix: recognize poll messages by [%poll:ID%] marker and clean display text

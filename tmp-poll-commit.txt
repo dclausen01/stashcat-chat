@@ -1,0 +1,1 @@
+31ca9fb fix: recognize poll messages by [%poll:ID%] marker and clean display text

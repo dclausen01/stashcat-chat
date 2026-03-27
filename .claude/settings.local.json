@@ -1,14 +1,27 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(npx tsc:*)"
-    ]
-  },
   "env": {
     "ANTHROPIC_BASE_URL": "https://api.novita.ai/anthropic",
     "ANTHROPIC_AUTH_TOKEN": "sk_z8YB2vedkQuQFkvjFKToLVts6twpf8HYGPZ6GVgKO1U",
-    "ANTHROPIC_MODEL": "zai-org/glm-5",
+    "ANTHROPIC_MODEL": "minimax/minimax-m2.7",
     "ANTHROPIC_SMALL_FAST_MODEL": "minimax/minimax-m2.7"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(npm run:*)",
+      "Bash(tee tmp-build-output.txt)",
+      "Bash(git:*)",
+      "Bash(\"C:/Users/claud/OneDrive/Projekte/stashcat-chat/tmp-api-status.txt\")",
+      "Bash(\"C:/Users/claud/OneDrive/Projekte/stashcat-chat/tmp-last-commit.txt\")",
+      "Bash(\"C:/Users/claud/OneDrive/Projekte/stashcat-chat/tmp-status2.txt\")",
+      "Bash(\"C:/Users/claud/OneDrive/Projekte/stashcat-chat/tmp-final-commit.txt\")",
+      "Bash(\"C:/Users/claud/OneDrive/Projekte/stashcat-chat/tmp-api-log.txt\")",
+      "Bash(\"C:/Users/claud/OneDrive/Projekte/stashcat-chat/tmp-api-status2.txt\")",
+      "Bash(npm install:*)",
+      "Bash(ls -la dist/assets/index-*.js)"
+    ]
   }
-
 }
