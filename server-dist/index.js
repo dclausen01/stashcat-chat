@@ -1267,13 +1267,24 @@ app.post('/api/video/start-meeting', async (req, res) => {
     }
 });
 // ── Polls (Umfragen) ─────────────────────────────────────────────────────────
-/** List polls — constraint: 'createdByAndNotArchived' | 'invited' | 'archived' */
+/** List polls — live-verified constraint values (2026-03-27):
+ *  'created_by_and_not_archived' = eigene, aktive Umfragen
+ *  'invited_and_not_archived'    = eingeladene, aktive Umfragen
+ *  'archived_or_over'            = archivierte / abgelaufene Umfragen */
 app.get('/api/polls', async (req, res) => {
     try {
         const client = await getClient(req);
-        const constraint = req.query.constraint || 'createdByAndNotArchived';
-        const companyId = req.query.company_id;
-        res.json(await client.listPolls(constraint, companyId));
+        const constraint = req.query.constraint || 'invited_and_not_archived';
+        let companyId = req.query.company_id;
+        if (!companyId) {
+            const companies = await client.getCompanies();
+            const c = companies[0];
+            companyId = c?.id ? String(c.id) : undefined;
+            if (!companyId)
+                return res.status(500).json({ error: 'Kein Unternehmen gefunden' });
+        }
+        const polls = await client.listPolls(constraint, companyId);
+        res.json(polls);
     }
     catch (err) {
         res.status(500).json({ error: String(err) });
@@ -1342,7 +1353,9 @@ app.post('/api/polls', async (req, res) => {
         }
         // 4. Invite channels
         if (invite_channel_ids.length > 0) {
-            await client.inviteToPoll(pollId, companyId, 'channels', invite_channel_ids).catch(() => { });
+            await client.inviteToPoll(pollId, companyId, 'channels', invite_channel_ids).catch((e) => {
+                console.warn(`[Poll] inviteToPoll channels failed:`, e instanceof Error ? e.message : e);
+            });
         }
         // 5. Invite conversations (resolve members → invite as users)
         if (invite_conversation_ids.length > 0) {
@@ -1360,13 +1373,29 @@ app.post('/api/polls', async (req, res) => {
             }
         }
         // 6. Publish the poll
-        await client.publishPoll(pollId);
-        // 7. Optionally send a notification message to the source chat
-        if (notify_chat_id && notify_chat_type) {
-            const startDate = new Date(start_time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            const endDate = new Date(end_time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            const msgText = `📊 **Neue Umfrage: „${name}"**\n${description ? description + '\n' : ''}Zeitraum: ${startDate} – ${endDate}\n\nDie Umfrage wurde geteilt. Öffne den Bereich „Umfragen" in der App, um teilzunehmen.`;
-            await client.sendMessage({ target: notify_chat_id, target_type: notify_chat_type, text: msgText }).catch(() => { });
+        const published = await client.publishPoll(pollId);
+        if (!published) {
+            // publishPoll returned false — try once more after a short delay
+            await new Promise((r) => setTimeout(r, 800));
+            const retry = await client.publishPoll(pollId).catch(() => false);
+            if (!retry)
+                console.warn(`[Poll] publishPoll returned false for poll ${pollId} — poll may remain as draft`);
+        }
+        // 7. Send notification message to ALL selected chats
+        const startDate = new Date(start_time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const endDate = new Date(end_time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const msgText = `📊 **Neue Umfrage: „${name}"**\n${description ? description + '\n' : ''}Zeitraum: ${startDate} – ${endDate}\n\nÖffne den Bereich „Umfragen" in der App, um teilzunehmen.`;
+        const notifyTargets = [];
+        for (const id of invite_channel_ids)
+            notifyTargets.push({ id, type: 'channel' });
+        for (const id of invite_conversation_ids)
+            notifyTargets.push({ id, type: 'conversation' });
+        // Also notify the source chat if opened from a specific chat (avoids duplicates)
+        if (notify_chat_id && notify_chat_type && !notifyTargets.some((t) => t.id === notify_chat_id)) {
+            notifyTargets.push({ id: notify_chat_id, type: notify_chat_type });
+        }
+        for (const target of notifyTargets) {
+            await client.sendMessage({ target: target.id, target_type: target.type, text: msgText }).catch(() => { });
         }
         res.json({ id: pollId });
     }

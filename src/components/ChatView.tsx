@@ -1562,13 +1562,13 @@ function LikeBadge({ count, liked, onToggle, messageId }: { count: number; liked
       <button
         onClick={loadLikers}
         className={clsx(
-          'flex items-center gap-1 rounded-full px-1.5 py-0.5 text-xs font-medium transition cursor-pointer',
+          'flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold transition cursor-pointer shadow-sm',
           liked
-            ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
-            : 'bg-surface-100 text-surface-500 hover:bg-amber-50 hover:text-amber-500 dark:bg-surface-800 dark:text-surface-400',
+            ? 'bg-amber-400 text-white dark:bg-amber-500 dark:text-white'
+            : 'bg-surface-100 text-surface-500 hover:bg-amber-100 hover:text-amber-600 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-amber-900/40 dark:hover:text-amber-400',
         )}
       >
-        <ThumbsUp size={13} className={liked ? 'text-amber-500' : ''} />
+        <ThumbsUp size={13} fill={liked ? 'currentColor' : 'none'} />
         {count}
       </button>
       {showPopup && (

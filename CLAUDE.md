@@ -10,6 +10,18 @@
 
 ---
 
+## Environment Notes
+
+**Bash-Ausgaben funktionieren nicht** in dieser Claude-Code-Umgebung — `Bash` liefert immer `(Bash completed with no output)`. Stattdessen immer mit temporären Dateien arbeiten:
+
+```bash
+some-command > /tmp/out.txt 2>&1   # dann mit Read lesen
+```
+
+**Code-Verifikation**: Änderungen werden überprüft durch `npm run build` (muss fehlerfrei durchlaufen) und anschließend Live-Test auf dem Server, den der User durchführt. Kein automatischer Preview-Browser-Test.
+
+---
+
 ## Dev Commands
 
 ```bash
