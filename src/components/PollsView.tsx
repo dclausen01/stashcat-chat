@@ -191,7 +191,12 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
 
 // ── Main view ────────────────────────────────────────────────────────────────
 
-export default function PollsView() {
+interface PollsViewProps {
+  pollIdToOpen?: string | null;
+  onPollOpened?: () => void;
+}
+
+export default function PollsView({ pollIdToOpen, onPollOpened }: PollsViewProps) {
   const [tab, setTab] = useState<Tab>('mine');
   const [polls, setPolls] = useState<Poll[]>([]);
   const [loading, setLoading] = useState(true);
@@ -221,6 +226,17 @@ export default function PollsView() {
   }, [tab, companyId]);
 
   useEffect(() => { loadPolls(); }, [loadPolls]);
+
+  // If pollIdToOpen is provided, fetch and open that specific poll
+  useEffect(() => {
+    if (!pollIdToOpen || !companyId) return;
+    api.getPoll(pollIdToOpen, companyId).then((poll) => {
+      setSelectedPoll(poll);
+      onPollOpened?.();
+    }).catch(() => {
+      onPollOpened?.();
+    });
+  }, [pollIdToOpen, companyId, onPollOpened]);
 
   async function handleDelete(id: string) {
     if (!confirm('Umfrage wirklich löschen?')) return;

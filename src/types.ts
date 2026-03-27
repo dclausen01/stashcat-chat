@@ -70,6 +70,10 @@ export interface Message {
   channel_id?: number;
   seen_by_others?: boolean;
   unread?: boolean;
+  /** Stashcat may include a poll_id reference in poll invite messages */
+  poll_id?: string;
+  /** Or target_id could reference the poll */
+  target_id?: string;
 }
 
 export interface Company {

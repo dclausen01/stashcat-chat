@@ -22,6 +22,7 @@ interface ChatViewProps {
   onToggleFileBrowser: () => void;
   fileBrowserOpen: boolean;
   onOpenPolls?: () => void;
+  onOpenPoll?: (pollId: string) => void;
 }
 
 interface TypingUser {
@@ -64,7 +65,7 @@ function formatDateLabel(ts: number): string {
   return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls }: ChatViewProps) {
+export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -628,12 +629,12 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 if (group.isSystem) {
                   const sysMsg = group.messages[0];
                   if (isPollInviteMessage(sysMsg)) {
-                    elements.push(<PollInviteMessage key={gi} msg={sysMsg} onOpenPolls={onOpenPolls} />);
+                    elements.push(<PollInviteMessage key={gi} msg={sysMsg} onOpenPolls={onOpenPolls} onOpenPoll={onOpenPoll} />);
                   } else {
                     elements.push(<SystemMessage key={gi} msg={sysMsg} />);
                   }
                 } else if (group.messages.length === 1 && isPollInviteMessage(group.messages[0])) {
-                  elements.push(<PollInviteMessage key={gi} msg={group.messages[0]} onOpenPolls={onOpenPolls} />);
+                  elements.push(<PollInviteMessage key={gi} msg={group.messages[0]} onOpenPolls={onOpenPolls} onOpenPoll={onOpenPoll} />);
                 } else if (group.messages.length === 1 && isVideoMeetingMessage(group.messages[0])) {
                   elements.push(<VideoMeetingCard key={gi} msg={group.messages[0]} />);
                 } else {
@@ -683,7 +684,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                   return elements;
                 }
                 if (isPollInviteMessage(msg)) {
-                  elements.push(<PollInviteMessage key={msg.id} msg={msg} onOpenPolls={onOpenPolls} />);
+                  elements.push(<PollInviteMessage key={msg.id} msg={msg} onOpenPolls={onOpenPolls} onOpenPoll={onOpenPoll} />);
                   return elements;
                 }
                 if (isVideoMeetingMessage(msg)) {
@@ -1222,19 +1223,33 @@ function DateSeparator({ label }: { label: string }) {
 
 // ── Poll invite system message ────────────────────────────────────────────────
 
-function PollInviteMessage({ msg, onOpenPolls }: { msg: Message; onOpenPolls?: () => void }) {
+function PollInviteMessage({ msg, onOpenPolls, onOpenPoll }: { msg: Message; onOpenPolls?: () => void; onOpenPoll?: (pollId: string) => void }) {
   const time = msg.time
     ? new Date(msg.time * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
     : '';
+
+  const handleClick = () => {
+    // Try to get poll ID from message fields (Stashcat may include it)
+    const pollId = (msg as unknown as Record<string, unknown>).poll_id
+      || (msg as unknown as Record<string, unknown>).target_id
+      || (msg as unknown as Record<string, unknown>).survey_id
+      || (msg as unknown as Record<string, unknown>).id as string | undefined;
+    if (pollId && onOpenPoll) {
+      onOpenPoll(String(pollId));
+    } else if (onOpenPolls) {
+      onOpenPolls();
+    }
+  };
+
   return (
     <div className="flex justify-center py-2 px-4">
       <div className="rounded-xl bg-surface-700 px-5 py-3 text-center dark:bg-surface-800 max-w-xs shadow">
         <p className="text-sm text-surface-100 dark:text-surface-200">
           Dieser Channel wurde zur Teilnahme an einer Umfrage eingeladen.
         </p>
-        {onOpenPolls && (
+        {(onOpenPolls || onOpenPoll) && (
           <button
-            onClick={onOpenPolls}
+            onClick={handleClick}
             className="mt-1 block text-sm font-semibold text-yellow-400 hover:text-yellow-300 dark:text-yellow-400 dark:hover:text-yellow-300 transition"
           >
             Klicke hier

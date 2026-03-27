@@ -28,6 +28,7 @@ export default function App() {
   const [activeView, setActiveView] = useState<ActiveView>('chat');
   const [channels, setChannels] = useState<ChatTarget[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [pollIdToOpen, setPollIdToOpen] = useState<string | null>(null);
 
   // Close all side panels
   const closeAllPanels = () => {
@@ -61,6 +62,13 @@ export default function App() {
 
   const openPolls = () => {
     closeAllPanels();
+    setPollIdToOpen(null);
+    setActiveView('polls');
+  };
+
+  const openPoll = (pollId: string) => {
+    closeAllPanels();
+    setPollIdToOpen(pollId);
     setActiveView('polls');
   };
 
@@ -106,7 +114,7 @@ export default function App() {
       {activeView === 'calendar' ? (
         <CalendarView />
       ) : activeView === 'polls' ? (
-        <PollsView />
+        <PollsView pollIdToOpen={pollIdToOpen} onPollOpened={() => setPollIdToOpen(null)} />
       ) : (
         <>
           {activeChat
@@ -116,6 +124,7 @@ export default function App() {
                 onToggleFileBrowser={toggleFileBrowser}
                 fileBrowserOpen={fileBrowserOpen}
                 onOpenPolls={openPolls}
+                onOpenPoll={openPoll}
               />
             : homeView === 'cards'
               ? <FavoriteCardsView channels={channels} onSelectChat={handleSelectChat} />
