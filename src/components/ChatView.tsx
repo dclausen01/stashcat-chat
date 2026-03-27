@@ -43,7 +43,8 @@ const POLL_INVITE_KINDS = new Set([
 function isPollInviteMessage(msg: Message): boolean {
   if (POLL_INVITE_KINDS.has(msg.kind ?? '')) return true;
   const text = msg.text ?? '';
-  if (/\[%poll:\w+%\]/.test(text)) return true; // our embedded poll ID marker
+  // Our embedded poll ID marker: [%poll:ID%]
+  if (text.includes('[%poll:') && text.includes('%]')) return true;
   const lower = text.toLowerCase();
   return lower.includes('umfrage eingeladen') || lower.includes('zur teilnahme an einer umfrage');
 }
