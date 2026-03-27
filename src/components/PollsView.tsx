@@ -7,10 +7,11 @@ import CreatePollModal from './CreatePollModal';
 
 type Tab = 'mine' | 'invited' | 'archived';
 
-const TAB_CONSTRAINT: Record<Tab, 'createdByAndNotArchived' | 'invited' | 'archived'> = {
-  mine: 'createdByAndNotArchived',
-  invited: 'invited',
-  archived: 'archived',
+// live-verified 2026-03-27
+const API_CONSTRAINT: Record<Tab, string> = {
+  mine: 'created_by_and_not_archived',
+  invited: 'invited_and_not_archived',
+  archived: 'archived_or_over',
 };
 
 function formatDate(ts?: number) {
@@ -207,10 +208,10 @@ export default function PollsView() {
   }, []);
 
   const loadPolls = useCallback(async () => {
-    if (!companyId) return; // wait until company_id is known
+    if (!companyId) return;
     setLoading(true);
     try {
-      const data = await api.listPolls(TAB_CONSTRAINT[tab], companyId);
+      const data = await api.listPolls(API_CONSTRAINT[tab], companyId);
       setPolls(data);
     } catch {
       setPolls([]);

@@ -555,7 +555,7 @@ export interface CreatePollData {
   notify_chat_type?: 'channel' | 'conversation';
 }
 
-export async function listPolls(constraint: 'createdByAndNotArchived' | 'invited' | 'archived' = 'createdByAndNotArchived', companyId?: string) {
+export async function listPolls(constraint: 'created_by_and_not_archived' | 'invited_and_not_archived' | 'archived_or_over' | string = 'invited_and_not_archived', companyId?: string) {
   let url = `/polls?constraint=${constraint}`;
   if (companyId) url += `&company_id=${encodeURIComponent(companyId)}`;
   return get<Poll[]>(url);

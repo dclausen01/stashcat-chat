@@ -1328,12 +1328,14 @@ app.post('/api/video/start-meeting', async (req, res) => {
 
 // ── Polls (Umfragen) ─────────────────────────────────────────────────────────
 
-/** List polls — constraint maps to stashcat API values (reverse-engineered) */
+/** List polls — live-verified constraint values (2026-03-27):
+ *  'created_by_and_not_archived' = eigene, aktive Umfragen
+ *  'invited_and_not_archived'    = eingeladene, aktive Umfragen
+ *  'archived_or_over'            = archivierte / abgelaufene Umfragen */
 app.get('/api/polls', async (req, res) => {
   try {
     const client = await getClient(req);
-    const uiConstraint = (req.query.constraint as string) || 'createdByAndNotArchived';
-    // company_id is required by the stashcat API — frontend always sends it
+    const constraint = (req.query.constraint as string) || 'invited_and_not_archived';
     let companyId = req.query.company_id as string | undefined;
     if (!companyId) {
       const companies = await client.getCompanies();
@@ -1341,48 +1343,7 @@ app.get('/api/polls', async (req, res) => {
       companyId = c?.id ? String(c.id) : undefined;
       if (!companyId) return res.status(500).json({ error: 'Kein Unternehmen gefunden' });
     }
-
-    // The stashcat API rejects 'createdByAndNotArchived' — try known alternatives.
-    // undefined = omit constraint field entirely (API returns all accessible polls)
-    const candidateConstraints: Array<string | undefined> =
-      uiConstraint === 'createdByAndNotArchived'
-        ? ['createdByAndNotArchived', 'created', 'own', undefined]
-        : [uiConstraint, undefined];
-
-    let polls: unknown[] = [];
-    let succeeded = false;
-    for (const c of candidateConstraints) {
-      try {
-        polls = await client.listPolls(c as 'createdByAndNotArchived' | 'invited' | 'archived', companyId);
-        console.log(`[Poll] listPolls(constraint="${c ?? '(none)'}", company=${companyId}) → ${polls.length} polls`);
-        succeeded = true;
-        break;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        if (msg.includes('invalid_parameter') || msg.includes('invalid value') || msg.includes('missing_values')) {
-          console.warn(`[Poll] constraint "${c ?? '(none)'}" rejected (${msg.slice(0, 80)}), trying next…`);
-          continue;
-        }
-        throw e; // unexpected error — rethrow
-      }
-    }
-    if (!succeeded) {
-      console.error('[Poll] All constraint candidates failed, returning empty list');
-    }
-
-    // If uiConstraint is 'createdByAndNotArchived' and we fell back to no constraint,
-    // filter client-side: exclude archived polls (no published_at or archived flag)
-    if (uiConstraint === 'createdByAndNotArchived' && (polls as Record<string, unknown>[]).length > 0) {
-      const me = await client.getMe().catch(() => null);
-      const myId = me ? String((me as unknown as Record<string, unknown>).id ?? '') : '';
-      if (myId) {
-        polls = (polls as Record<string, unknown>[]).filter((p) => {
-          const creatorId = String((p.creator as Record<string, unknown>)?.id ?? p.creator_id ?? '');
-          return creatorId === myId;
-        });
-      }
-    }
-
+    const polls = await client.listPolls(constraint, companyId);
     res.json(polls);
   } catch (err) { res.status(500).json({ error: String(err) }); }
 });
