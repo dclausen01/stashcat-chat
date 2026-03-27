@@ -132,6 +132,17 @@ export async function editChannel(channelId: string, companyId: string, descript
   }
 }
 
+export async function deleteChannel(channelId: string): Promise<void> {
+  const res = await fetch(`${BACKEND}/channels/${channelId}`, {
+    method: 'DELETE',
+    headers: headers(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+}
+
 export interface ManagedUser {
   id: string;
   first_name: string;

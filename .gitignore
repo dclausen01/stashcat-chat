@@ -29,3 +29,4 @@ dist-ssr
 
 # Claude Code settings (may contain API keys)
 .claude/settings*.json
+.worktrees

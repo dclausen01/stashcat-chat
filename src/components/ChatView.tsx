@@ -11,6 +11,7 @@ import { fileIcon } from '../utils/fileIcon';
 import Avatar from './Avatar';
 import MessageInput from './MessageInput';
 import ChannelMembersPanel from './ChannelMembersPanel';
+import ChannelDropdownMenu from './ChannelDropdownMenu';
 import LinkPreviewCard from './LinkPreviewCard';
 import ChannelDescriptionEditor from './ChannelDescriptionEditor';
 import CreatePollModal from './CreatePollModal';
@@ -491,6 +492,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         >
           {meetingLoading ? <Loader2 size={20} className="animate-spin" /> : <Video size={20} />}
         </button>
+        {chat.type === 'channel' && isManager && (
+          <ChannelDropdownMenu
+            chat={chat}
+            isManager={isManager}
+            onOpenMembers={() => setMembersOpen(true)}
+            onOpenDescriptionEditor={() => setDescEditorOpen(true)}
+          />
+        )}
         {chat.type === 'channel' && (
           <button
             onClick={() => setMembersOpen((o) => !o)}
