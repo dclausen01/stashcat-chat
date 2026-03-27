@@ -391,6 +391,18 @@ app.patch('/api/channels/:channelId', async (req, res) => {
   }
 });
 
+// ── Delete channel ────────────────────────────────────────────────────────────
+app.delete('/api/channels/:channelId', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const { channelId } = req.params;
+    await client.deleteChannel(channelId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete channel' });
+  }
+});
+
 // ── Company members (via /manage/list_users) ─────────────────────────────────
 
 app.get('/api/companies/:companyId/members', async (req, res) => {
