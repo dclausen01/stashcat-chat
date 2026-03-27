@@ -4,7 +4,20 @@ import multer from 'multer';
 import os from 'os';
 import path from 'path';
 import fs from 'fs/promises';
+import * as fsSync from 'fs';
 import { StashcatClient, CryptoManager } from 'stashcat-api';
+
+function debugLog(...args: unknown[]) {
+  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  const line = `[${new Date().toISOString()}] ${msg}\n`;
+  const logPath = '/tmp/e2e-debug.log';
+  try {
+    fsSync.appendFileSync(logPath, line);
+  } catch (e) {
+    console.warn('[debugLog] could not write to', logPath, e instanceof Error ? e.message : e);
+  }
+  console.log(...args);
+}
 import type { RealtimeManager } from 'stashcat-api';
 import type { MessageSyncPayload } from 'stashcat-api';
 import { encryptSession, decryptSession } from './token-crypto';
@@ -608,7 +621,15 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
     const limit = Number(req.query.limit) || 40;
     const offset = Number(req.query.offset) || 0;
     const chatType = type as 'channel' | 'conversation';
-    console.log(`[getMessages:route] type=${chatType} targetId=${targetId} E2E_unlocked=${client.isE2EUnlocked()}`);
+    debugLog(`[getMessages:route] type=${chatType} targetId=${targetId} E2E_unlocked=${client.isE2EUnlocked()}`);
+    if (chatType === 'channel') {
+      try {
+        const ch = await client.getChannelInfo(targetId, true);
+        debugLog(`[channel-info] id=${targetId} encrypted=${ch.encrypted} keyLength=${ch.key?.length} keyPrefix=${ch.key?.substring(0, 20)}`);
+      } catch (e) {
+        debugLog(`[channel-info] failed to fetch: ${e instanceof Error ? e.message : e}`);
+      }
+    }
     const messages = await client.getMessages(targetId, chatType, { limit, offset });
     const sorted = [...messages].sort(
       (a, b) => (Number((a as unknown as Record<string, unknown>).time) || 0) - (Number((b as unknown as Record<string, unknown>).time) || 0)
@@ -616,7 +637,7 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
     res.json(sorted);
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
-    console.error(`[getMessages:route] ERROR: ${error.message}`);
+    debugLog(`[getMessages:route] ERROR: ${error.message}`);
     res.status(500).json({
       error: error.message,
       stack: error.stack,
