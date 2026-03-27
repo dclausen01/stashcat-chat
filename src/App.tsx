@@ -106,7 +106,7 @@ export default function App() {
             <BroadcastsPanel onClose={() => setBroadcastsOpen(false)} />
           )}
           {notificationsOpen && (
-            <NotificationsPanel onClose={() => setNotificationsOpen(false)} />
+            <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} />
           )}
         </>
       )}

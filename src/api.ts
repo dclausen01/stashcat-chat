@@ -481,11 +481,12 @@ export interface AppNotification {
   id: string;
   type: string;
   text?: string;
-  content?: string;
+  content?: unknown;  // API sends objects or strings depending on notification type
   time?: number;
   created_at?: string;
   channel?: { id: string; name: string };
   event?: { id: string; name: string };
+  survey?: { id: string; name?: string; creator?: { id: string; first_name?: string; last_name?: string } };
   sender?: { id: string; first_name: string; last_name: string; image?: string };
   read?: boolean;
 }

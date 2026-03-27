@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Bell, X, Loader2, Hash, CalendarDays, Smartphone, Shield, UserPlus, MessageSquare, Trash2 } from 'lucide-react';
+import { Bell, X, Loader2, Hash, CalendarDays, Smartphone, Shield, UserPlus, MessageSquare, Trash2, BarChart3 } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
 
 interface NotificationsPanelProps {
   onClose: () => void;
+  onOpenPolls?: () => void;
 }
 
 /** Map API notification types to user-friendly German labels + icons */
@@ -25,6 +26,13 @@ const TYPE_MAP: Record<string, { label: string; icon: React.ReactNode }> = {
   event_deleted:           { label: 'Termin abgesagt',                 icon: <CalendarDays size={16} className="text-red-400" /> },
   message_sync:            { label: 'Neue Nachricht',                  icon: <MessageSquare size={16} className="text-primary-500" /> },
   notification:            { label: 'Benachrichtigung',                icon: <Bell size={16} className="text-primary-500" /> },
+  // Poll / Survey types
+  survey_invite:           { label: 'Einladung zu einer Umfrage',      icon: <BarChart3 size={16} className="text-primary-500" /> },
+  poll_invite:             { label: 'Einladung zu einer Umfrage',      icon: <BarChart3 size={16} className="text-primary-500" /> },
+  survey_created:          { label: 'Neue Umfrage erstellt',           icon: <BarChart3 size={16} className="text-primary-500" /> },
+  survey_changed:          { label: 'Umfrage aktualisiert',            icon: <BarChart3 size={16} className="text-amber-500" /> },
+  survey_published:        { label: 'Umfrage veröffentlicht',          icon: <BarChart3 size={16} className="text-green-500" /> },
+  survey_closed:           { label: 'Umfrage beendet',                 icon: <BarChart3 size={16} className="text-surface-400" /> },
 };
 
 function getTypeInfo(type: string): { label: string; icon: React.ReactNode } {
@@ -32,6 +40,7 @@ function getTypeInfo(type: string): { label: string; icon: React.ReactNode } {
   const safeType = type || '';
   if (TYPE_MAP[safeType]) return TYPE_MAP[safeType];
   // Fuzzy match
+  if (safeType.includes('survey') || safeType.includes('poll')) return { label: 'Umfrage', icon: <BarChart3 size={16} className="text-primary-500" /> };
   if (safeType.includes('channel')) return { label: 'Channel-Benachrichtigung', icon: <Hash size={16} className="text-primary-500" /> };
   if (safeType.includes('event') || safeType.includes('calendar')) return { label: 'Kalender-Benachrichtigung', icon: <CalendarDays size={16} className="text-amber-500" /> };
   if (safeType.includes('device') || safeType.includes('login')) return { label: 'Geräte-Benachrichtigung', icon: <Smartphone size={16} className="text-green-500" /> };
@@ -39,6 +48,29 @@ function getTypeInfo(type: string): { label: string; icon: React.ReactNode } {
   // Fallback: humanize the snake_case type
   const humanized = safeType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   return { label: humanized || 'Benachrichtigung', icon: <Bell size={16} className="text-surface-400" /> };
+}
+
+/** Parse poll/survey notification content → creator name + poll title */
+function formatPollNotification(content: unknown): { title: string; creator?: string } | null {
+  if (!content || typeof content !== 'object') return null;
+  const obj = content as Record<string, unknown>;
+  // Must look like a poll object (has id + creator or name)
+  if (!('id' in obj) || (!('creator' in obj) && !('name' in obj))) return null;
+  // Exclude device objects
+  if ('device_id' in obj || 'app_name' in obj) return null;
+
+  const name = obj.name ? String(obj.name) : undefined;
+  const creator = obj.creator && typeof obj.creator === 'object'
+    ? (obj.creator as Record<string, unknown>)
+    : null;
+  const creatorName = creator
+    ? `${String(creator.first_name ?? '')} ${String(creator.last_name ?? '')}`.trim()
+    : undefined;
+
+  return {
+    title: name ? `Umfrage: „${name}"` : 'Umfrage',
+    creator: creatorName || undefined,
+  };
 }
 
 function formatTime(dateStr?: string) {
@@ -89,10 +121,24 @@ function formatDeviceNotification(data: unknown): { title: string; details: stri
 /** Try to parse content as JSON and format it nicely */
 function formatNotificationContent(content: unknown): { text: string; subtext?: string } {
   if (!content) return { text: '' };
-  if (typeof content === 'string') return { text: content };
 
-  // Try to format as device notification
-  const deviceInfo = formatDeviceNotification(content);
+  // Parse JSON strings
+  let parsed = content;
+  if (typeof content === 'string') {
+    try { parsed = JSON.parse(content); } catch { return { text: content }; }
+  }
+
+  // Try poll/survey notification
+  const pollInfo = formatPollNotification(parsed);
+  if (pollInfo) {
+    return {
+      text: pollInfo.title,
+      subtext: pollInfo.creator ? `Eingeladen von ${pollInfo.creator}` : undefined,
+    };
+  }
+
+  // Try device notification
+  const deviceInfo = formatDeviceNotification(parsed);
   if (deviceInfo) {
     return {
       text: deviceInfo.title,
@@ -102,17 +148,14 @@ function formatNotificationContent(content: unknown): { text: string; subtext?: 
 
   // Fallback: stringify but truncate
   try {
-    const str = JSON.stringify(content);
-    if (str.length > 100) {
-      return { text: str.slice(0, 100) + '...' };
-    }
-    return { text: str };
+    const str = JSON.stringify(parsed);
+    return { text: str.length > 120 ? str.slice(0, 120) + '…' : str };
   } catch {
     return { text: '[Objekt]' };
   }
 }
 
-export default function NotificationsPanel({ onClose }: NotificationsPanelProps) {
+export default function NotificationsPanel({ onClose, onOpenPolls }: NotificationsPanelProps) {
   const [notifications, setNotifications] = useState<api.AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -131,6 +174,7 @@ export default function NotificationsPanel({ onClose }: NotificationsPanelProps)
           created_at: n.created_at,
           channel: n.channel && typeof n.channel === 'object' ? { id: String(n.channel.id ?? ''), name: String(n.channel.name ?? '') } : undefined,
           event: n.event && typeof n.event === 'object' ? { id: String(n.event.id ?? ''), name: String(n.event.name ?? '') } : undefined,
+          survey: n.survey && typeof n.survey === 'object' ? n.survey : undefined,
           sender: n.sender && typeof n.sender === 'object' ? { id: String(n.sender.id ?? ''), first_name: String(n.sender.first_name ?? ''), last_name: String(n.sender.last_name ?? ''), image: n.sender.image } : undefined,
           read: Boolean(n.read),
         }));
@@ -193,9 +237,10 @@ export default function NotificationsPanel({ onClose }: NotificationsPanelProps)
           <div className="divide-y divide-surface-100 dark:divide-surface-800">
             {notifications.map((n, i) => {
               const typeInfo = getTypeInfo(n.type);
-              // Use 'content' from API (actual field name) or fall back to 'text'
-              // Try to parse and format the content nicely
-              const rawContent = n.content || n.text;
+              const isPollNotif = n.type?.includes('survey') || n.type?.includes('poll');
+
+              // Content: prefer survey object, then content field, then text
+              const rawContent = n.survey ?? n.content ?? n.text;
               const formatted = formatNotificationContent(rawContent);
 
               // Safely extract channel/event names
@@ -205,9 +250,11 @@ export default function NotificationsPanel({ onClose }: NotificationsPanelProps)
               return (
                 <div
                   key={n.id ?? `notif-${i}`}
+                  onClick={isPollNotif && onOpenPolls ? () => { onOpenPolls(); onClose(); } : undefined}
                   className={clsx(
                     'group/notif flex gap-3 px-4 py-3 transition hover:bg-surface-50 dark:hover:bg-surface-800/50',
                     !n.read && 'bg-primary-50/50 dark:bg-primary-950/20',
+                    isPollNotif && onOpenPolls && 'cursor-pointer',
                   )}
                 >
                   <div className="shrink-0 pt-0.5">
