@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useAuth } from './context/AuthContext';
+import { useSettings } from './context/SettingsContext';
 import LoginPage from './pages/LoginPage';
 import Sidebar from './components/Sidebar';
 import ChatView from './components/ChatView';
@@ -10,18 +11,23 @@ import BroadcastsPanel from './components/BroadcastsPanel';
 import CalendarView from './components/CalendarView';
 import PollsView from './components/PollsView';
 import NotificationsPanel from './components/NotificationsPanel';
+import FavoriteCardsView from './components/FavoriteCardsView';
+import ProfileModal from './components/ProfileModal';
 import type { ChatTarget } from './types';
 
 type ActiveView = 'chat' | 'calendar' | 'polls';
 
 export default function App() {
   const { loggedIn } = useAuth();
+  const { homeView } = useSettings();
   const [activeChat, setActiveChat] = useState<ChatTarget | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [fileBrowserOpen, setFileBrowserOpen] = useState(false);
   const [broadcastsOpen, setBroadcastsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [activeView, setActiveView] = useState<ActiveView>('chat');
+  const [channels, setChannels] = useState<ChatTarget[]>([]);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   // Close all side panels
   const closeAllPanels = () => {
@@ -29,6 +35,7 @@ export default function App() {
     setFileBrowserOpen(false);
     setBroadcastsOpen(false);
     setNotificationsOpen(false);
+    setProfileOpen(false);
   };
 
   const toggleSettings = () => {
@@ -63,6 +70,15 @@ export default function App() {
     setActiveChat(chat);
   };
 
+  const handleGoHome = () => {
+    closeAllPanels();
+    setActiveChat(null);
+  };
+
+  const handleChannelsLoaded = useCallback((loadedChannels: ChatTarget[]) => {
+    setChannels(loadedChannels);
+  }, []);
+
   if (!loggedIn) {
     return <LoginPage />;
   }
@@ -78,10 +94,13 @@ export default function App() {
         onOpenCalendar={openCalendar}
         onOpenPolls={openPolls}
         onOpenNotifications={() => { closeAllPanels(); setNotificationsOpen((o) => !o); }}
+        onOpenSettings={toggleSettings}
+        onOpenProfile={() => { closeAllPanels(); setProfileOpen(true); }}
         broadcastsOpen={broadcastsOpen}
         calendarOpen={activeView === 'calendar'}
         pollsOpen={activeView === 'polls'}
         notificationsOpen={notificationsOpen}
+        onChannelsLoaded={handleChannelsLoaded}
       />
 
       {activeView === 'calendar' ? (
@@ -93,12 +112,14 @@ export default function App() {
           {activeChat
             ? <ChatView
                 chat={activeChat}
-                onToggleSettings={toggleSettings}
+                onGoHome={handleGoHome}
                 onToggleFileBrowser={toggleFileBrowser}
                 fileBrowserOpen={fileBrowserOpen}
                 onOpenPolls={openPolls}
               />
-            : <EmptyState />}
+            : homeView === 'cards'
+              ? <FavoriteCardsView channels={channels} onSelectChat={handleSelectChat} />
+              : <EmptyState />}
           {fileBrowserOpen && (
             <FileBrowserPanel chat={activeChat} onClose={() => setFileBrowserOpen(false)} />
           )}
@@ -111,6 +132,7 @@ export default function App() {
         </>
       )}
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
+      {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
     </div>
   );
 }

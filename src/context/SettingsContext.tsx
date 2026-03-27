@@ -5,6 +5,7 @@ interface Settings {
   bubbleView: boolean;
   ownBubbleColor: string;
   otherBubbleColor: string;
+  homeView: 'info' | 'cards';
 }
 
 interface SettingsContextValue extends Settings {
@@ -12,6 +13,7 @@ interface SettingsContextValue extends Settings {
   setBubbleView: (v: boolean) => void;
   setOwnBubbleColor: (v: string) => void;
   setOtherBubbleColor: (v: string) => void;
+  setHomeView: (v: 'info' | 'cards') => void;
 }
 
 const STORAGE_KEY = 'schulchat_settings';
@@ -19,9 +21,9 @@ const STORAGE_KEY = 'schulchat_settings';
 function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { showImagesInline: true, bubbleView: true, ownBubbleColor: '#4f46e5', otherBubbleColor: '#f3f4f6', ...JSON.parse(raw) as Partial<Settings> };
+    if (raw) return { showImagesInline: true, bubbleView: true, ownBubbleColor: '#4f46e5', otherBubbleColor: '#f3f4f6', homeView: 'info', ...JSON.parse(raw) as Partial<Settings> };
   } catch { /* ignore */ }
-  return { showImagesInline: true, bubbleView: true, ownBubbleColor: '#4f46e5', otherBubbleColor: '#f3f4f6' };
+  return { showImagesInline: true, bubbleView: true, ownBubbleColor: '#4f46e5', otherBubbleColor: '#f3f4f6', homeView: 'info' };
 }
 
 const SettingsContext = createContext<SettingsContextValue>({
@@ -29,10 +31,12 @@ const SettingsContext = createContext<SettingsContextValue>({
   bubbleView: true,
   ownBubbleColor: '#4f46e5',
   otherBubbleColor: '#f3f4f6',
+  homeView: 'info',
   setShowImagesInline: () => {},
   setBubbleView: () => {},
   setOwnBubbleColor: () => {},
   setOtherBubbleColor: () => {},
+  setHomeView: () => {},
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
@@ -53,6 +57,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setBubbleView: (v) => update({ bubbleView: v }),
       setOwnBubbleColor: (v) => update({ ownBubbleColor: v }),
       setOtherBubbleColor: (v) => update({ otherBubbleColor: v }),
+      setHomeView: (v) => update({ homeView: v }),
     }}>
       {children}
     </SettingsContext.Provider>

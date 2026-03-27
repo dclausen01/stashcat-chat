@@ -810,6 +810,49 @@ app.get('/api/me', async (req, res) => {
   }
 });
 
+// ── Account ───────────────────────────────────────────────────────────────────
+
+app.get('/api/account/settings', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    res.json(await client.getAccountSettings());
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.post('/api/account/status', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const { status } = req.body;
+    await client.changeStatus(status);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.post('/api/account/profile-image', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const { imgBase64 } = req.body;
+    await client.storeProfileImage(imgBase64);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
+app.post('/api/account/profile-image/reset', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    await client.resetProfileImage();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
 // ── Link Preview ──────────────────────────────────────────────────────────────
 
 const linkPreviewCache = new Map<string, { title?: string; description?: string; image?: string; siteName?: string; fetchedAt: number }>();

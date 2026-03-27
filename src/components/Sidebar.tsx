@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal, Star, FolderOpen, Plus, Radio, CalendarDays, Bell, BarChart3 } from 'lucide-react';
+import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal, Star, FolderOpen, Plus, Radio, CalendarDays, Bell, BarChart3, Settings } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -31,13 +31,16 @@ interface SidebarProps {
   onOpenCalendar: () => void;
   onOpenPolls: () => void;
   onOpenNotifications: () => void;
+  onOpenSettings: () => void;
+  onOpenProfile: () => void;
   broadcastsOpen: boolean;
   calendarOpen: boolean;
   pollsOpen: boolean;
   notificationsOpen: boolean;
+  onChannelsLoaded?: (channels: ChatTarget[]) => void;
 }
 
-export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen }: SidebarProps) {
+export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, onOpenSettings, onOpenProfile, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen, onChannelsLoaded }: SidebarProps) {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const [channels, setChannels] = useState<ChatTarget[]>([]);
@@ -80,6 +83,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   activeChatRef.current = activeChat;
 
   useEffect(() => { loadData(); }, []);
+  useEffect(() => { onChannelsLoaded?.(channels); }, [channels, onChannelsLoaded]);
 
   async function loadData() {
     try {
@@ -112,6 +116,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       }
       setPrimaryCompanyId(firstCompanyId);
       setChannels(sortChats(allChannels));
+      onChannelsLoaded?.(sortChats(allChannels));
 
       const convTargets: ChatTarget[] = (convList as Array<Record<string, unknown>>).map((c) => {
         const members = (c.members as Array<Record<string, unknown>>) || [];
@@ -255,44 +260,66 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         className="absolute right-0 top-0 z-20 h-full w-1 cursor-col-resize border-r border-surface-200 transition-colors hover:border-primary-400 hover:border-r-2 dark:border-surface-700 dark:hover:border-primary-600"
         title="Breite anpassen"
       />
-      {/* User header — contains app branding + user info + action buttons */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-surface-200 px-3 py-2.5 dark:border-surface-700">
-        <Avatar name={userName} image={userImage} size="sm" />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold text-surface-900 dark:text-white">{userName}</div>
+      {/* User header — two rows: user+settings, then action buttons */}
+      <div className="shrink-0 border-b border-surface-200 px-3 py-2 dark:border-surface-700">
+        {/* Row 1: Avatar, Name, BBZ Logo, Settings */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onOpenProfile}
+            className="rounded-full transition hover:opacity-80"
+            title="Profil bearbeiten"
+          >
+            <Avatar name={userName} image={userImage} size="sm" />
+          </button>
+          <button
+            onClick={onOpenProfile}
+            className="min-w-0 flex-1 text-left"
+            title="Profil bearbeiten"
+          >
+            <div className="truncate text-sm font-semibold text-surface-900 hover:text-primary-600 dark:text-white dark:hover:text-primary-400">{userName}</div>
+          </button>
+          <img src="/bbz-logo-neu.png" alt="BBZ Chat" className="h-5 w-auto shrink-0 opacity-70" title="BBZ Chat" />
+          <button
+            onClick={onOpenSettings}
+            className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
+            title="Einstellungen"
+          >
+            <Settings size={18} />
+          </button>
         </div>
-        {/* BBZ branding — compact, right-aligned */}
-        <img src="/bbz-logo-neu.png" alt="BBZ Chat" className="h-5 w-auto shrink-0 opacity-70" title="BBZ Chat" />
-        <button
-          onClick={onOpenNotifications}
-          className={clsx(
-            'relative rounded-lg p-1.5 transition',
-            notificationsOpen
-              ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-              : 'text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700',
-          )}
-          title="Benachrichtigungen"
-        >
-          <Bell size={18} />
-          {totalUnread > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-              {totalUnread > 99 ? '99+' : totalUnread}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={onOpenFileBrowser}
-          className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
-          title="Meine Dateien"
-        >
-          <FolderOpen size={18} />
-        </button>
-        <button onClick={toggle} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
-          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
-        <button onClick={logout} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
-          <LogOut size={18} />
-        </button>
+        {/* Row 2: Action buttons */}
+        <div className="mt-1.5 flex items-center gap-0.5">
+          <button
+            onClick={onOpenNotifications}
+            className={clsx(
+              'relative rounded-lg p-1.5 transition',
+              notificationsOpen
+                ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+                : 'text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700',
+            )}
+            title="Benachrichtigungen"
+          >
+            <Bell size={16} />
+            {totalUnread > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                {totalUnread > 99 ? '99+' : totalUnread}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={onOpenFileBrowser}
+            className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
+            title="Meine Dateien"
+          >
+            <FolderOpen size={16} />
+          </button>
+          <button onClick={toggle} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <button onClick={logout} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
+            <LogOut size={16} />
+          </button>
+        </div>
       </div>
 
       {/* Search */}

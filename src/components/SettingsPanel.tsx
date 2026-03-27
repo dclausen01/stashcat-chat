@@ -65,7 +65,18 @@ function ColorRow({
 }
 
 export default function SettingsPanel({ onClose }: SettingsPanelProps) {
-  const { showImagesInline, setShowImagesInline, bubbleView, setBubbleView, ownBubbleColor, setOwnBubbleColor, otherBubbleColor, setOtherBubbleColor } = useSettings();
+  const {
+    showImagesInline,
+    setShowImagesInline,
+    bubbleView,
+    setBubbleView,
+    ownBubbleColor,
+    setOwnBubbleColor,
+    otherBubbleColor,
+    setOtherBubbleColor,
+    homeView,
+    setHomeView,
+  } = useSettings();
 
   return (
     <div className="flex h-full w-64 shrink-0 flex-col border-l border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900">
@@ -80,7 +91,18 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
       </div>
 
       <div className="flex flex-col gap-1 overflow-y-auto p-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-500">Anzeige</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-500">Homescreen</p>
+
+        <div className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
+          <ToggleRow
+            label="Cards-Ansicht"
+            description="Favorisierte Channel als Kacheln anzeigen"
+            value={homeView === 'cards'}
+            onChange={(v) => setHomeView(v ? 'cards' : 'info')}
+          />
+        </div>
+
+        <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-surface-500">Anzeige</p>
 
         <div className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
           <ToggleRow

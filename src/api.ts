@@ -584,3 +584,28 @@ export async function archivePoll(id: string, archive = true): Promise<void> {
 export async function submitPollAnswer(pollId: string, questionId: string, answerIds: string[]): Promise<void> {
   await post(`/polls/${pollId}/answer`, { question_id: questionId, answer_ids: answerIds });
 }
+
+// --- Account ---
+
+export interface AccountSettings {
+  email: string;
+  first_name: string;
+  last_name: string;
+  status?: string;
+}
+
+export async function getAccountSettings(): Promise<AccountSettings> {
+  return get<AccountSettings>('/account/settings');
+}
+
+export async function changeStatus(status: string): Promise<void> {
+  await post('/account/status', { status });
+}
+
+export async function uploadProfileImage(imgBase64: string): Promise<void> {
+  await post('/account/profile-image', { imgBase64 });
+}
+
+export async function resetProfileImage(): Promise<void> {
+  await post('/account/profile-image/reset');
+}
