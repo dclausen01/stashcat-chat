@@ -1238,12 +1238,34 @@ function extractPollId(msg: Message): string | undefined {
   return match?.[1];
 }
 
-/** Strip the poll marker and "Klicke hier" trailing text from displayed text */
-function pollMessageText(msg: Message): string {
-  return (msg.text ?? '')
+/** Convert markdown bold **text** to React spans, returns ReactNode[] */
+function renderPollText(text: string): ReactNode[] {
+  // First strip poll marker and "Klicke hier" line
+  const clean = text
     .replace(/\s*\[%poll:[^%]+%\]\s*$/, '')
-    .replace(/\s*Klicke hier,? um teilzunehmen\.?\s*$/i, '')
+    .replace(/\s*Klicke hier,? um teilzunehmen\.?\s*$/im, '')
     .trim();
+
+  // Split on **bold** patterns
+  const parts: ReactNode[] = [];
+  const regex = /\*\*(.+?)\*\*/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  while ((match = regex.exec(clean)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(clean.slice(lastIndex, match.index));
+    }
+    parts.push(
+      <span key={key++} className="font-semibold">{match[1]}</span>
+    );
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < clean.length) {
+    parts.push(clean.slice(lastIndex));
+  }
+  return parts.length > 0 ? parts : [clean];
 }
 
 function PollInviteMessage({ msg, onOpenPolls, onOpenPoll }: { msg: Message; onOpenPolls?: () => void; onOpenPoll?: (pollId: string) => void }) {
@@ -1252,7 +1274,6 @@ function PollInviteMessage({ msg, onOpenPolls, onOpenPoll }: { msg: Message; onO
     : '';
 
   const pollId = extractPollId(msg);
-  const displayText = pollMessageText(msg);
 
   const handleClick = () => {
     if (pollId && onOpenPoll) {
@@ -1266,7 +1287,7 @@ function PollInviteMessage({ msg, onOpenPolls, onOpenPoll }: { msg: Message; onO
     <div className="flex justify-center py-2 px-4">
       <div className="rounded-xl bg-surface-700 px-5 py-3 text-center dark:bg-surface-800 max-w-xs shadow">
         <p className="text-sm text-surface-100 dark:text-surface-200 whitespace-pre-wrap">
-          {displayText}
+          {renderPollText(msg.text ?? '')}
         </p>
         {(onOpenPolls || onOpenPoll) && (
           <button
