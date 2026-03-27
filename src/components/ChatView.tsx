@@ -42,8 +42,10 @@ const POLL_INVITE_KINDS = new Set([
 
 function isPollInviteMessage(msg: Message): boolean {
   if (POLL_INVITE_KINDS.has(msg.kind ?? '')) return true;
-  const text = (msg.text ?? '').toLowerCase();
-  return text.includes('umfrage eingeladen') || text.includes('zur teilnahme an einer umfrage');
+  const text = msg.text ?? '';
+  if (/\[\%poll:[\w]+\%\]/.test(text)) return true; // our embedded poll ID marker
+  const lower = text.toLowerCase();
+  return lower.includes('umfrage eingeladen') || lower.includes('zur teilnahme an einer umfrage');
 }
 
 /** Returns a day-key string (YYYY-M-D) for a Unix timestamp in seconds. */
@@ -1235,9 +1237,12 @@ function extractPollId(msg: Message): string | undefined {
   return match?.[1];
 }
 
-/** Strip the [%poll:ID%] marker from displayed text */
+/** Strip the poll marker and "Klicke hier" trailing text from displayed text */
 function pollMessageText(msg: Message): string {
-  return (msg.text ?? '').replace(/\s*\[%poll:[^%]+%\]\s*$/, '').trim();
+  return (msg.text ?? '')
+    .replace(/\s*\[%poll:[^%]+%\]\s*$/, '')
+    .replace(/\s*Klicke hier,? um teilzunehmen\.?\s*$/i, '')
+    .trim();
 }
 
 function PollInviteMessage({ msg, onOpenPolls, onOpenPoll }: { msg: Message; onOpenPolls?: () => void; onOpenPoll?: (pollId: string) => void }) {
