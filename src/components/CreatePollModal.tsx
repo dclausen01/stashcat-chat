@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Loader2, ChevronDown, ChevronUp, BarChart3, Search } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
+import { useAuth } from '../context/AuthContext';
 import type { ChatTarget } from '../types';
 
 interface Question {
@@ -38,6 +39,7 @@ function dateToTs(dateStr: string): number {
 }
 
 export default function CreatePollModal({ preselectedChat, onClose, onCreated }: Props) {
+  const { user } = useAuth();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [startDate, setStartDate] = useState(today());
@@ -73,11 +75,17 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
           }
         }
 
-        // Conversations
+        // Conversations - derive name from members (like Sidebar does)
+        const currentUserId = String((user as Record<string, unknown>)?.id ?? '');
         for (const c of convs) {
           const raw = c as Record<string, unknown>;
           if (!raw.id) continue;
-          opts.push({ id: String(raw.id), name: String(raw.name ?? raw.title ?? `Konversation ${raw.id}`), type: 'conversation' });
+          const members = (raw.members as Array<Record<string, unknown>>) || [];
+          const otherMembers = members.filter((m) => String(m.id) !== currentUserId);
+          const convName = otherMembers.length > 0
+            ? otherMembers.map((m) => `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim()).join(', ')
+            : 'Eigene Notizen';
+          opts.push({ id: String(raw.id), name: convName, type: 'conversation' });
         }
 
         setChatOptions(opts);
@@ -93,7 +101,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
       }
     }
     load();
-  }, [preselectedChat]);
+  }, [preselectedChat, user]);
 
   // --- Question helpers ---
   function updateQuestion(qi: number, patch: Partial<Question>) {
