@@ -1285,11 +1285,15 @@ function extractPollId(msg: Message): string | undefined {
 function renderPollText(text: string): ReactNode[] {
   if (!text) return [];
 
+  console.debug('[renderPollText] input:', JSON.stringify(text));
+
   // Strip poll marker and "Klicke hier" line
   let clean = text
     .replace(/\s*\[%poll:[^%]+%\]\s*$/, '')
     .replace(/\s*Klicke hier,? um teilzunehmen\.?\s*$/gim, '')
     .trim();
+
+  console.debug('[renderPollText] after cleanup:', JSON.stringify(clean));
 
   // If no bold markers left, return plain text
   if (!clean.includes('**')) return [clean];
@@ -1315,7 +1319,9 @@ function renderPollText(text: string): ReactNode[] {
   if (lastIndex < clean.length) {
     parts.push(clean.slice(lastIndex).replace(/\*\*/g, ''));
   }
-  return parts.length > 0 ? parts : [clean];
+  const result = parts.length > 0 ? parts : [clean];
+  console.debug('[renderPollText] result parts:', parts.length, parts.map(p => typeof p === 'string' ? p : '<span>'));
+  return result;
 }
 
 function PollInviteMessage({ msg, onOpenPolls, onOpenPoll }: { msg: Message; onOpenPolls?: () => void; onOpenPoll?: (pollId: string) => void }) {
@@ -1324,6 +1330,9 @@ function PollInviteMessage({ msg, onOpenPolls, onOpenPoll }: { msg: Message; onO
     : '';
 
   const pollId = extractPollId(msg);
+
+  // Debug: log the raw message text
+  console.debug('[PollInviteMessage] rendering, raw text:', JSON.stringify(msg.text));
 
   const handleClick = () => {
     if (pollId && onOpenPoll) {
