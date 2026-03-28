@@ -101,7 +101,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
       const total = pendingFiles.length;
       const results = await Promise.allSettled(
         pendingFiles.map((file, i) =>
-          onUpload(file, i === 0 ? text.trim() : `${i + 1}/${total}`)
+          onUpload(file, i === 0 ? `${text.trim()} 1/${total}` : `${i + 1}/${total}`)
         )
       );
       const failures = results.filter((r) => r.status === 'rejected');
@@ -273,7 +273,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
                 className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
               >
                 <Paperclip size={15} className="text-surface-400" />
-                Datei anhängen
+                Datei(en) anhängen
               </button>
               {onCreatePoll && (
                 <button
