@@ -214,6 +214,10 @@ export async function moveFile(fileId: string, targetFolderId: string): Promise<
   await post(`/files/${fileId}/move`, { target_folder_id: targetFolderId });
 }
 
+export async function createFolder(name: string, parentId: string, type: string, typeId: string): Promise<Record<string, unknown>> {
+  return post('/files/folder/create', { folder_name: name, parent_id: parentId, type, type_id: typeId });
+}
+
 // --- Conversations ---
 
 export async function createConversation(memberIds: string[]): Promise<Record<string, unknown>> {
