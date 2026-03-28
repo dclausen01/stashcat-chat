@@ -57,7 +57,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [focused, setFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -96,21 +96,36 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
 
   const handleSend = async () => {
     if (sending) return;
-    setSending(true);
-    try {
-      if (pendingFile) {
-        await onUpload(pendingFile, text.trim());
-        setPendingFile(null);
-        setText('');
-      } else {
-        const trimmed = text.trim();
-        if (!trimmed) return;
+    if (pendingFiles.length > 0) {
+      setSending(true);
+      const total = pendingFiles.length;
+      const results = await Promise.allSettled(
+        pendingFiles.map((file, i) =>
+          onUpload(file, i === 0 ? text.trim() : `${i + 1}/${total}`)
+        )
+      );
+      const failures = results.filter((r) => r.status === 'rejected');
+      if (failures.length > 0) {
+        const msg = failures.length === 1
+          ? '1 Datei konnte nicht hochgeladen werden.'
+          : `${failures.length} Dateien konnten nicht hochgeladen werden.`;
+        alert(msg);
+      }
+      setPendingFiles([]);
+      setText('');
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      setSending(false);
+    } else {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      setSending(true);
+      try {
         await onSend(trimmed);
         setText('');
+      } finally {
+        setSending(false);
+        if (textareaRef.current) textareaRef.current.style.height = 'auto';
       }
-      if (textareaRef.current) textareaRef.current.style.height = 'auto';
-    } finally {
-      setSending(false);
     }
   };
 
@@ -162,13 +177,15 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
     setShowEmoji(false);
   }, []);
 
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) setPendingFile(file);
+  const onFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length > 0) {
+      setPendingFiles((prev) => [...prev, ...files]);
+    }
     e.target.value = '';
   };
 
-  const canSend = !sending && (pendingFile !== null || text.trim().length > 0);
+  const canSend = !sending && (pendingFiles.length > 0 || text.trim().length > 0);
 
   return (
     <div className="shrink-0 border-t border-surface-200 p-3 dark:border-surface-700">
@@ -188,22 +205,26 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
         </div>
       )}
 
-      {/* Pending file preview */}
-      {pendingFile && (
+      {/* Pending files preview */}
+      {pendingFiles.length > 0 && (
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 text-sm dark:bg-surface-800">
           <Paperclip size={14} className="shrink-0 text-surface-400" />
-          <span className="min-w-0 flex-1 truncate text-surface-700 dark:text-surface-300">{pendingFile.name}</span>
-          <span className="shrink-0 text-xs text-surface-400">
-            {(pendingFile.size / 1024).toFixed(0)} KB
+          <span className="min-w-0 flex-1 truncate text-surface-700 dark:text-surface-300">
+            {pendingFiles.length === 1 ? pendingFiles[0].name : `${pendingFiles.length} Dateien ausgewählt`}
           </span>
-          <button onClick={() => setPendingFile(null)} className="shrink-0 text-surface-400 hover:text-surface-600">
+          {pendingFiles.length === 1 && (
+            <span className="shrink-0 text-xs text-surface-400">
+              {(pendingFiles[0].size / 1024).toFixed(0)} KB
+            </span>
+          )}
+          <button onClick={() => setPendingFiles([])} className="shrink-0 text-surface-400 hover:text-surface-600">
             <X size={14} />
           </button>
         </div>
       )}
 
       {/* Formatting toolbar — only visible when focused or text present */}
-      <div className={clsx('mb-2 flex items-center gap-0.5', !focused && !text && !pendingFile && 'hidden')}>
+      <div className={clsx('mb-2 flex items-center gap-0.5', !focused && !text && pendingFiles.length === 0 && 'hidden')}>
         {FORMAT_BUTTONS.map((btn) => (
           <button
             key={btn.label}
@@ -231,8 +252,9 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
         <input
           ref={fileInputRef}
           type="file"
+          multiple
           className="hidden"
-          onChange={onFileChange}
+          onChange={onFilesChange}
         />
         <div ref={attachMenuRef} className="relative shrink-0">
           <button
@@ -285,13 +307,13 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
                 if (blob) {
                   const ext = item.type.split('/')[1] || 'png';
                   const file = new File([blob], `Eingefügtes Bild.${ext}`, { type: item.type });
-                  setPendingFile(file);
+                  setPendingFiles([file]);
                 }
                 return;
               }
             }
           }}
-          placeholder={pendingFile ? 'Optionale Nachricht zur Datei...' : replyTo ? 'Antwort schreiben...' : `Nachricht an ${chatName}...`}
+          placeholder={pendingFiles.length > 0 ? 'Optionale Nachricht zu den Dateien...' : replyTo ? 'Antwort schreiben...' : `Nachricht an ${chatName}...`}
           rows={1}
           className="max-h-[200px] flex-1 resize-none bg-transparent font-mono text-sm text-surface-900 outline-none placeholder:font-sans placeholder:text-surface-400 dark:text-white"
         />
