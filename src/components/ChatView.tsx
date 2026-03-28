@@ -681,9 +681,13 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                   }
                 } else if (group.messages.length === 1 && isPollInviteMessage(group.messages[0])) {
                   elements.push(<PollInviteMessage key={gi} msg={group.messages[0]} onOpenPolls={onOpenPolls} onOpenPoll={onOpenPoll} />);
+                } else if (group.messages.length === 1 && isPollInviteMessage(group.messages[0])) {
+                  console.debug('[Render] rendering PollInviteMessage for group', gi);
+                  elements.push(<PollInviteMessage key={gi} msg={group.messages[0]} onOpenPolls={onOpenPolls} onOpenPoll={onOpenPoll} />);
                 } else if (group.messages.length === 1 && isVideoMeetingMessage(group.messages[0])) {
                   elements.push(<VideoMeetingCard key={gi} msg={group.messages[0]} />);
                 } else {
+                  console.debug('[Render] rendering MessageGroup for group', gi, 'isOwn=', group.isOwn, 'msgCount=', group.messages.length, 'first msg text:', group.messages[0].text?.slice(0, 50));
                   elements.push(
                     <MessageGroup
                       key={gi}
