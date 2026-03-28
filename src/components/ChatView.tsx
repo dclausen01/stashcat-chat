@@ -42,17 +42,22 @@ const POLL_INVITE_KINDS = new Set([
 ]);
 
 function isPollInviteMessage(msg: Message): boolean {
-  if (POLL_INVITE_KINDS.has(msg.kind ?? '')) return true;
+  if (POLL_INVITE_KINDS.has(msg.kind ?? '')) {
+    console.debug('[isPollInviteMessage] matched by kind:', msg.kind);
+    return true;
+  }
   const text = msg.text ?? '';
   // Our embedded poll ID marker: [%poll:ID%]
-  if (text.includes('[%poll:') && text.includes('%]')) return true;
+  if (text.includes('[%poll:') && text.includes('%]')) {
+    console.debug('[isPollInviteMessage] matched by [%poll:...] marker');
+    return true;
+  }
   const lower = text.toLowerCase();
   // Also detect German poll invite text patterns
   if (lower.includes('neue umfrage') || lower.includes('umfrage eingeladen') ||
-      lower.includes('teilnahme an einer umfrage') || lower.includes('survey')) return true;
-  // Debug: log why we're returning false
-  if (lower.includes('umfrage') || lower.includes('poll')) {
-    console.debug('[isPollInviteMessage] NOT recognized as poll:', { kind: msg.kind, text: text.slice(0, 100) });
+      lower.includes('teilnahme an einer umfrage') || lower.includes('survey')) {
+    console.debug('[isPollInviteMessage] matched by text pattern');
+    return true;
   }
   return false;
 }
@@ -154,6 +159,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
       const msgs = res as unknown as Message[];
+      console.debug('[loadMessages] loaded', msgs.length, 'messages');
+      // Debug: log any message containing 'umfrage' or 'poll'
+      msgs.forEach((m, i) => {
+        const txt = (m.text ?? '').toLowerCase();
+        if (txt.includes('umfrage') || txt.includes('poll') || txt.includes('survey')) {
+          console.debug('[loadMessages] poll-related msg', i, { kind: m.kind, text: m.text?.slice(0, 100) });
+        }
+      });
       setMessages(msgs);
       if (msgs.length < PAGE_SIZE) {
         setHasMore(false);
@@ -368,6 +381,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
   // Separate system messages from regular ones; group regular by sender
   // Poll invites and video meetings are always standalone (not grouped)
+  console.debug('[groupMessages] processing', messages.length, 'messages, bubbleView=', settings.bubbleView);
   const groups: Array<{ sender: Message['sender']; isOwn: boolean; messages: Message[]; isSystem?: boolean }> = [];
   for (const msg of messages) {
     if (SYSTEM_KINDS.has(msg.kind ?? '')) {
@@ -375,7 +389,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       continue;
     }
     // Poll invites and video meetings are always standalone
-    if (isPollInviteMessage(msg) || isVideoMeetingMessage(msg)) {
+    const isPoll = isPollInviteMessage(msg);
+    const isVideo = isVideoMeetingMessage(msg);
+    if (isPoll || isVideo) {
+      console.debug('[groupMessages] standalone msg:', isPoll ? 'poll' : 'video', msg.text?.slice(0, 50));
       groups.push({ sender: msg.sender, isOwn: false, messages: [msg] });
       continue;
     }
