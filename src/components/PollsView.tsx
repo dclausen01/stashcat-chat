@@ -53,7 +53,9 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
   }
 
   async function submitAll() {
-    const unanswered = d.questions?.filter(q => (selections[q.id] ?? []).length === 0) ?? [];
+    const currentSelections = selections;
+    const questions = (detail ?? poll).questions ?? [];
+    const unanswered = questions.filter(q => (currentSelections[q.id] ?? []).length === 0);
     if (unanswered.length > 0) {
       setError(`Bitte beantworten Sie zuerst alle Fragen (${unanswered.length} fehlen noch).`);
       return;
@@ -62,8 +64,8 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
     setError('');
     try {
       await Promise.all(
-        (d.questions ?? []).map(q =>
-          api.submitPollAnswer(poll.id, q.id, [...(selections[q.id] ?? [])])
+        questions.map(q =>
+          api.submitPollAnswer(poll.id, q.id, [...(currentSelections[q.id] ?? [])])
         )
       );
       setAllSubmitted(true);
@@ -179,6 +181,12 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
           );
         })}
       </div>
+      {allSubmitted && (
+        <div className="flex items-center justify-center gap-2 py-3 text-sm text-green-600 dark:text-green-400">
+          <Check size={16} />
+          Stimme{(d.questions?.length ?? 0) !== 1 ? 'n' : ''} abgegeben
+        </div>
+      )}
       {active && !allSubmitted && (
         <div className="sticky bottom-0 border-t border-surface-200 bg-white px-6 py-4 dark:border-surface-700 dark:bg-surface-900">
           <button
