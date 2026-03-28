@@ -74,6 +74,10 @@ export interface Message {
   poll_id?: string;
   /** Or target_id could reference the poll */
   target_id?: string;
+  /** Message was deleted by the user */
+  deleted?: boolean;
+  /** Message was deleted by a manager/admin */
+  is_deleted_by_manager?: boolean;
 }
 
 export interface Company {

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-const ORIGINAL_HREF = '/favicon.svg';
+const ORIGINAL_HREF = '/bbz-logo-neu.png';
 
 /**
  * Draws a red dot badge on the favicon when `count > 0`.
