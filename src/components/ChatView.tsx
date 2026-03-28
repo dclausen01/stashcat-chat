@@ -50,6 +50,10 @@ function isPollInviteMessage(msg: Message): boolean {
   // Also detect German poll invite text patterns
   if (lower.includes('neue umfrage') || lower.includes('umfrage eingeladen') ||
       lower.includes('teilnahme an einer umfrage') || lower.includes('survey')) return true;
+  // Debug: log why we're returning false
+  if (lower.includes('umfrage') || lower.includes('poll')) {
+    console.debug('[isPollInviteMessage] NOT recognized as poll:', { kind: msg.kind, text: text.slice(0, 100) });
+  }
   return false;
 }
 
