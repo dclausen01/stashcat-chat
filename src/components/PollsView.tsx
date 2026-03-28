@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { BarChart3, Plus, Trash2, Archive, RefreshCw, Loader2, ChevronRight, ChevronLeft, Check } from 'lucide-react';
+import { BarChart3, Plus, Trash2, Archive, RefreshCw, Loader2, ChevronRight, ChevronLeft, Check, PieChart } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { Poll, PollQuestion } from '../api';
@@ -55,7 +55,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
   async function submitAll() {
     const currentSelections = selections;
     const questions = (detail ?? poll).questions ?? [];
-    const unanswered = questions.filter(q => (currentSelections[q.id] ?? []).length === 0);
+    const unanswered = questions.filter(q => (currentSelections[q.id]?.size ?? 0) === 0);
     if (unanswered.length > 0) {
       setError(`Bitte beantworten Sie zuerst alle Fragen (${unanswered.length} fehlen noch).`);
       return;
@@ -191,7 +191,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
         <div className="sticky bottom-0 border-t border-surface-200 bg-white px-6 py-4 dark:border-surface-700 dark:bg-surface-900">
           <button
             onClick={submitAll}
-            disabled={submitting || (d.questions ?? []).some(q => (selections[q.id] ?? []).length === 0)}
+            disabled={submitting || (d.questions ?? []).some(q => (selections[q.id]?.size ?? 0) === 0)}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
           >
             {submitting && <Loader2 size={15} className="animate-spin" />}
@@ -363,6 +363,16 @@ export default function PollsView({ pollIdToOpen, onPollOpened }: PollsViewProps
                     >
                       <Archive size={15} />
                     </button>
+                    {(tab !== 'invited' || poll.hidden_results === false) && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setSelectedPoll(poll); }}
+                        className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 hover:text-primary-600 dark:hover:bg-surface-700"
+                        title={poll.status === 'archived' ? 'Ergebnisse anzeigen (archiviert)' : 'Ergebnisse anzeigen'}
+                      >
+                        <PieChart size={15} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); handleDelete(poll.id); }}
