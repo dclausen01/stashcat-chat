@@ -363,10 +363,16 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const messageMap = new Map(messages.map((m) => [Number(m.id), m]));
 
   // Separate system messages from regular ones; group regular by sender
+  // Poll invites and video meetings are always standalone (not grouped)
   const groups: Array<{ sender: Message['sender']; isOwn: boolean; messages: Message[]; isSystem?: boolean }> = [];
   for (const msg of messages) {
     if (SYSTEM_KINDS.has(msg.kind ?? '')) {
       groups.push({ sender: msg.sender, isOwn: false, messages: [msg], isSystem: true });
+      continue;
+    }
+    // Poll invites and video meetings are always standalone
+    if (isPollInviteMessage(msg) || isVideoMeetingMessage(msg)) {
+      groups.push({ sender: msg.sender, isOwn: false, messages: [msg] });
       continue;
     }
     const isOwn = String(msg.sender?.id) === userId;
