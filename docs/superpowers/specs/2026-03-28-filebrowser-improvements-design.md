@@ -106,17 +106,42 @@ interface Settings {
 
 ### Voraussetzung: createFolder API
 
-**Reverse Engineering nötig:** Stashcat-API Endpunkt zum Erstellen von Ordnern finden.
+**Endpunkt:** `POST /folder/create`
 
-Vermutete Struktur basierend auf `moveFile`:
+**Request-Parameter:**
 ```typescript
-// POST /folder/create
 {
-  name: string,
-  parent_id: string | null,  // '0' für Root
+  folder_name: string,      // Name des neuen Ordners
+  parent_id: string,        // '0' für Root, oder ID des Parent-Ordners
   type: 'channel' | 'conversation' | 'personal',
-  type_id: string
+  type_id: string           // Channel/Conversation/User-ID
 }
+```
+
+**Response:**
+```typescript
+{
+  status: { value: 'OK' },
+  payload: {
+    folder_id: number,
+    folder: {
+      id: number,
+      type: string,
+      type_id: string,
+      parent_id: string | null,
+      name: string,
+      permission: string,
+      size_byte: number,
+      created: number,      // Unix timestamp
+      modified: number
+    }
+  }
+}
+```
+
+**Implementation in stashcat-api:**
+```typescript
+async createFolder(name: string, parentId: string, type: string, typeId: string): Promise<FolderEntry>
 ```
 
 ### Upload-Flow
@@ -165,9 +190,3 @@ interface FolderUploadProgress {
 2. **SettingsContext** - Neue Felder hinzufügen
 3. **Sortierung** - Hook + UI-Integration
 4. **Ordner-Upload** - Progress-Komponente + Upload-Logik
-
----
-
-## Offene Punkte
-
-- [ ] createFolder API-Endpunkt durch Reverse Engineering ermitteln
