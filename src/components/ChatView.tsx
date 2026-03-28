@@ -73,7 +73,6 @@ function formatDateLabel(ts: number): string {
 }
 
 export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll }: ChatViewProps) {
-  console.log('[ChatView] render, chat.id=', chat.id, 'messages.length=', 0);
   const { user } = useAuth();
   const settings = useSettings();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -151,12 +150,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
       const msgs = res as unknown as Message[];
-      // Debug: check for deleted messages
-      const deletedMsgs = msgs.filter(m => m.deleted || m.is_deleted_by_manager);
-      console.log('[loadMessages] loaded', msgs.length, 'messages,', deletedMsgs.length, 'deleted');
-      if (deletedMsgs.length > 0) {
-        console.log('[loadMessages] deleted messages:', deletedMsgs.map(m => ({ id: m.id, deleted: m.deleted, is_deleted_by_manager: m.is_deleted_by_manager, text: m.text?.slice(0, 30) })));
-      }
       setMessages(msgs);
       if (msgs.length < PAGE_SIZE) {
         setHasMore(false);
@@ -238,14 +231,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     setMessages([]);
     setTypingUsers([]);
     setChatDescription(chat.description || '');
-    console.log('[ChatView] calling loadMessages for chat', chat.id);
     loadMessages();
   }, [loadMessages, chat.description]);
-
-  // Debug: log messages state changes
-  useEffect(() => {
-    console.log('[ChatView] messages updated:', messages.length, 'messages');
-  }, [messages]);
 
   // Scroll to bottom after initial load
   useEffect(() => {
@@ -275,12 +262,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       if (!belongsHere) return;
 
       const newMsg = payload as unknown as Message;
-      console.log('[message_sync] received:', { id: newMsg.id, deleted: newMsg.deleted, is_deleted_by_manager: newMsg.is_deleted_by_manager, text: newMsg.text?.slice(0, 30) });
       setMessages((prev) => {
         const existingIdx = prev.findIndex((m) => String(m.id) === String(newMsg.id));
         if (existingIdx >= 0) {
           // Update existing message (e.g. when deleted)
-          console.log('[message_sync] updating existing message at idx', existingIdx);
           const updated = [...prev];
           updated[existingIdx] = { ...updated[existingIdx], ...newMsg };
           return updated;
