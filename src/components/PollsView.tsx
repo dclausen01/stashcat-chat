@@ -33,8 +33,8 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
   const [loading, setLoading] = useState(true);
   // questionId → set of chosen answerIds
   const [selections, setSelections] = useState<Record<string, Set<string>>>({});
-  const [submitting, setSubmitting] = useState<string | null>(null); // questionId being submitted
-  const [submitted, setSubmitted] = useState<Set<string>>(new Set());
+  const [submitting, setSubmitting] = useState<boolean>(false); // submitting in progress
+  const [allSubmitted, setAllSubmitted] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -52,18 +52,25 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
     });
   }
 
-  async function submitQuestion(q: PollQuestion) {
-    const chosen = [...(selections[q.id] ?? [])];
-    if (chosen.length === 0) return;
-    setSubmitting(q.id);
+  async function submitAll() {
+    const unanswered = d.questions?.filter(q => (selections[q.id] ?? []).length === 0) ?? [];
+    if (unanswered.length > 0) {
+      setError(`Bitte beantworten Sie zuerst alle Fragen (${unanswered.length} fehlen noch).`);
+      return;
+    }
+    setSubmitting(true);
     setError('');
     try {
-      await api.submitPollAnswer(poll.id, q.id, chosen);
-      setSubmitted((prev) => new Set([...prev, q.id]));
+      await Promise.all(
+        (d.questions ?? []).map(q =>
+          api.submitPollAnswer(poll.id, q.id, [...(selections[q.id] ?? [])])
+        )
+      );
+      setAllSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fehler beim Abstimmen');
     } finally {
-      setSubmitting(null);
+      setSubmitting(false);
     }
   }
 
@@ -107,7 +114,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
         {error && <p className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">{error}</p>}
 
         {(d.questions ?? []).map((q) => {
-          const alreadyVoted = (q.user_answers?.length ?? 0) > 0 || submitted.has(q.id);
+          const alreadyVoted = (q.user_answers?.length ?? 0) > 0 || allSubmitted;
           const chosen = selections[q.id] ?? new Set<string>();
           const totalVotes = (q.answers ?? []).reduce((s, a) => s + (a.votes ?? 0), 0);
           const showResults = alreadyVoted || !active || d.hidden_results === false;
@@ -165,19 +172,6 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
                 })}
               </div>
 
-              {active && !alreadyVoted && (
-                <button
-                  onClick={() => submitQuestion(q)}
-                  disabled={chosen.size === 0 || submitting === q.id}
-                  className="mt-3 flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
-                >
-                  {submitting === q.id && <Loader2 size={13} className="animate-spin" />}
-                  Abstimmen
-                </button>
-              )}
-              {alreadyVoted && (
-                <p className="mt-2 flex items-center gap-1 text-xs text-green-600 dark:text-green-400"><Check size={12} /> Stimme abgegeben</p>
-              )}
               {showResults && totalVotes > 0 && (
                 <p className="mt-1 text-xs text-surface-400">{totalVotes} Stimme{totalVotes !== 1 ? 'n' : ''} gesamt</p>
               )}
@@ -185,6 +179,18 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
           );
         })}
       </div>
+      {active && !allSubmitted && (
+        <div className="sticky bottom-0 border-t border-surface-200 bg-white px-6 py-4 dark:border-surface-700 dark:bg-surface-900">
+          <button
+            onClick={submitAll}
+            disabled={submitting || (d.questions ?? []).some(q => (selections[q.id] ?? []).length === 0)}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+          >
+            {submitting && <Loader2 size={15} className="animate-spin" />}
+            Abstimmen
+          </button>
+        </div>
+      )}
     </div>
   );
 }
