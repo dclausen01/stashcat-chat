@@ -384,7 +384,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   // Separate system messages from regular ones; group regular by sender
   // Poll invites and video meetings are always standalone (not grouped)
   console.debug('[groupMessages] processing', messages.length, 'messages, bubbleView=', settings.bubbleView);
-  const groups: Array<{ sender: Message['sender']; isOwn: boolean; messages: Message[]; isSystem?: boolean }> = [];
+  const groups: Array<{ sender: Message['sender']; isOwn: boolean; messages: Message[]; isSystem?: boolean; isStandalone?: boolean }> = [];
   for (const msg of messages) {
     if (SYSTEM_KINDS.has(msg.kind ?? '')) {
       groups.push({ sender: msg.sender, isOwn: false, messages: [msg], isSystem: true });
@@ -395,12 +395,13 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     const isVideo = isVideoMeetingMessage(msg);
     if (isPoll || isVideo) {
       console.debug('[groupMessages] standalone msg:', isPoll ? 'poll' : 'video', msg.text?.slice(0, 50));
-      groups.push({ sender: msg.sender, isOwn: false, messages: [msg] });
+      groups.push({ sender: msg.sender, isOwn: false, messages: [msg], isStandalone: true });
       continue;
     }
     const isOwn = String(msg.sender?.id) === userId;
     const last = groups[groups.length - 1];
-    if (last && !last.isSystem && String(last.sender?.id) === String(msg.sender?.id)) {
+    // Don't add to system groups or standalone groups (poll/video)
+    if (last && !last.isSystem && !last.isStandalone && String(last.sender?.id) === String(msg.sender?.id)) {
       last.messages.push(msg);
     } else {
       groups.push({ sender: msg.sender, isOwn, messages: [msg] });
