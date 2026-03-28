@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { MoreVertical, Users, Pencil, Download, Trash2, Loader2 } from 'lucide-react';
+import { MoreVertical, Users, Pencil, Download, Trash2, Loader2, Info, X, Lock, UsersRound, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { ChatTarget } from '../types';
@@ -105,6 +105,110 @@ async function exportChatAsMarkdown(chat: ChatTarget): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
+function typeLabel(type: string): string {
+  switch (type) {
+    case 'closed': return 'Geschlossen';
+    case 'public': return 'Öffentlich';
+    case 'open': return 'Offen';
+    default: return type;
+  }
+}
+
+function InfoRow({ icon: Icon, label, value }: { icon: typeof Info; label: string; value: string | null | undefined }) {
+  return (
+    <div className="flex items-start gap-3 py-2">
+      <Icon size={16} className="mt-0.5 shrink-0 text-surface-400" />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-surface-400">{label}</p>
+        <p className="mt-0.5 text-sm text-surface-900 dark:text-white break-all">{value ?? '—'}</p>
+      </div>
+    </div>
+  );
+}
+
+function ChannelInfoModal({ chat, onClose }: { chat: ChatTarget; onClose: () => void }) {
+  const [info, setInfo] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.getChannelInfo(chat.id).then(ch => {
+      setInfo(ch);
+      setLoading(false);
+    }).catch(err => {
+      setError(err instanceof Error ? err.message : 'Fehler beim Laden');
+      setLoading(false);
+    });
+  }, [chat.id]);
+
+  const createdStr = info
+    ? (info.created_at as number | undefined)
+      ? new Date(Number(info.created_at) * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })
+      : (info.last_activity as number | undefined)
+      ? `Zuletzt aktiv: ${new Date(Number(info.last_activity) * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })}`
+      : 'Unbekannt'
+    : 'Unbekannt';
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl dark:bg-surface-900"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-surface-200 px-6 py-4 dark:border-surface-700">
+          <div className="flex items-center gap-2">
+            <Info size={18} className="text-primary-500" />
+            <h2 className="text-base font-semibold text-surface-900 dark:text-white">Channel-Info</h2>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-700">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="px-6 py-4">
+          {loading && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 size={24} className="animate-spin text-surface-400" />
+            </div>
+          )}
+          {error && (
+            <p className="text-center text-sm text-red-500 py-4">{error}</p>
+          )}
+          {!loading && !error && info && (
+            <div className="space-y-0">
+              <div className="mb-4 border-b border-surface-200 pb-4 dark:border-surface-700">
+                <h3 className="text-xl font-bold text-surface-900 dark:text-white">{String(info.name || '')}</h3>
+                <p className="mt-1">
+                  <span className={clsx(
+                    'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
+                    info.type === 'closed'
+                      ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
+                      : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+                  )}>
+                    {typeLabel(String(info.type || ''))}
+                  </span>
+                </p>
+              </div>
+
+              <InfoRow icon={Lock} label="Verschlüsselung" value={info.encrypted ? `AES 256 (${info.encryption || 'AES'})` : 'Keine'} />
+              <InfoRow icon={UsersRound} label="Mitglieder" value={String(info.user_count ?? 0)} />
+              <InfoRow icon={Clock} label="Erstellt" value={createdStr} />
+              {!!info.description && (
+                <InfoRow icon={Info} label="Beschreibung" value={String(info.description)} />
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DeleteConfirmModal({ chat, onClose, onDeleted }: {
   chat: ChatTarget;
   onClose: () => void;
@@ -182,6 +286,7 @@ export default function ChannelDropdownMenu({
 }: ChannelDropdownMenuProps) {
   const [open, setOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const [exporting, setExporting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -241,6 +346,13 @@ export default function ChannelDropdownMenu({
               Channel-Mitglieder
             </button>
             <button
+              onClick={() => { setOpen(false); setShowInfoModal(true); }}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+            >
+              <Info size={16} className="text-surface-400" />
+              Channel-Info
+            </button>
+            <button
               onClick={() => { setOpen(false); onOpenDescriptionEditor(); }}
               className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
             >
@@ -276,6 +388,9 @@ export default function ChannelDropdownMenu({
             window.location.reload();
           }}
         />
+      )}
+      {showInfoModal && (
+        <ChannelInfoModal chat={chat} onClose={() => setShowInfoModal(false)} />
       )}
     </>
   );

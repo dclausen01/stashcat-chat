@@ -404,6 +404,17 @@ app.patch('/api/channels/:channelId', async (req, res) => {
   }
 });
 
+// ── Channel info ───────────────────────────────────────────────────────────────
+app.get('/api/channels/:channelId/info', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const ch = await client.getChannelInfo(req.params.channelId, true);
+    res.json(ch);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+  }
+});
+
 // ── Delete channel ────────────────────────────────────────────────────────────
 app.delete('/api/channels/:channelId', async (req, res) => {
   try {

@@ -86,6 +86,10 @@ export async function getChannels(companyId: string) {
   return get<Array<Record<string, unknown>>>(`/channels/${companyId}`);
 }
 
+export async function getChannelInfo(channelId: string): Promise<Record<string, unknown>> {
+  return get<Record<string, unknown>>(`/channels/${channelId}/info`);
+}
+
 export async function getChannelMembers(channelId: string) {
   return get<Array<Record<string, unknown>>>(`/channels/${channelId}/members`);
 }
