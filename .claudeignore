@@ -1,0 +1,75 @@
+# --- Dependencies & Package Managers ---
+node_modules/
+bower_components/
+vendor/
+.npm/
+.pnpm-store/
+
+# --- Build Outputs & Artifacts ---
+dist/
+build/
+out/
+target/
+bin/
+obj/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# --- Version Control & IDEs ---
+.git/
+.svn/
+.hg/
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Environment & Secrets (Sehr wichtig!) ---
+.env
+.env.*
+*.pem
+*.key
+*.cert
+secrets.*
+credentials.json
+
+# --- Media & Assets (KI kann diese meist nicht sinnvoll "lesen") ---
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.mp4
+*.webm
+*.pdf
+*.zip
+*.tar.gz
+*.rar
+
+# --- Logs & Temporäre Dateien ---
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.tmp/
+temp/
+cache/
+.eslintcache
+.stylelintcache
+
+# --- Testing & Coverage ---
+coverage/
+.nyc_output/
+*.lcov
+
+# --- Database ---
+*.sqlite
+*.db
+*.dump
+*.sql

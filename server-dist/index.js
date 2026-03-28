@@ -47,10 +47,13 @@ const stashcat_api_1 = require("stashcat-api");
 function debugLog(...args) {
     const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
     const line = `[${new Date().toISOString()}] ${msg}\n`;
+    const logPath = path_1.default.join(process.cwd(), 'e2e-debug.log');
     try {
-        fsSync.appendFileSync(path_1.default.join(__dirname, '..', 'e2e-debug.log'), line);
+        fsSync.appendFileSync(logPath, line);
     }
-    catch (_) { }
+    catch (e) {
+        console.warn('[debugLog] could not write to', logPath, e instanceof Error ? e.message : e);
+    }
     console.log(...args);
 }
 const token_crypto_1 = require("./token-crypto");
@@ -406,6 +409,17 @@ app.patch('/api/channels/:channelId', async (req, res) => {
         res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
     }
 });
+// ── Channel info ───────────────────────────────────────────────────────────────
+app.get('/api/channels/:channelId/info', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const ch = await client.getChannelInfo(req.params.channelId, true);
+        res.json(ch);
+    }
+    catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    }
+});
 // ── Delete channel ────────────────────────────────────────────────────────────
 app.delete('/api/channels/:channelId', async (req, res) => {
     try {
@@ -597,7 +611,10 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
         if (chatType === 'channel') {
             try {
                 const ch = await client.getChannelInfo(targetId, true);
-                debugLog(`[channel-info] id=${targetId} encrypted=${ch.encrypted} keyLength=${ch.key?.length} keyPrefix=${ch.key?.substring(0, 20)}`);
+                // Log raw channel info keys to understand structure
+                // Log ALL keys present in the channel response
+                const allKeys = Object.keys(ch).filter(k => k.includes('key') || k.includes('encryption') || k.includes('crypt'));
+                debugLog(`[channel-info] id=${targetId} allKeyFields=${JSON.stringify(allKeys)} keyLength=${ch.key?.length} fullJson=${JSON.stringify(ch)}`);
             }
             catch (e) {
                 debugLog(`[channel-info] failed to fetch: ${e instanceof Error ? e.message : e}`);
