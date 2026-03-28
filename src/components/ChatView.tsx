@@ -42,6 +42,7 @@ const POLL_INVITE_KINDS = new Set([
 ]);
 
 function isPollInviteMessage(msg: Message): boolean {
+  console.debug('[PollInvite] checking msg:', JSON.stringify({ kind: msg.kind, text: msg.text }));
   if (POLL_INVITE_KINDS.has(msg.kind ?? '')) return true;
   const text = msg.text ?? '';
   // Our embedded poll ID marker: [%poll:ID%]
@@ -693,6 +694,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                   lastDayKey = dayKey;
                   elements.push(<DateSeparator key={`sep-${msg.id}`} label={formatDateLabel(ts)} />);
                 }
+                console.debug('[PollInvite] deciding path:', { kind: msg.kind, isSystemKind: SYSTEM_KINDS.has(msg.kind ?? ''), isPollInvite: isPollInviteMessage(msg) });
                 if (SYSTEM_KINDS.has(msg.kind ?? '')) {
                   elements.push(<SystemMessage key={msg.id} msg={msg} />);
                   return elements;
