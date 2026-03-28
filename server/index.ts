@@ -625,7 +625,8 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
     if (chatType === 'channel') {
       try {
         const ch = await client.getChannelInfo(targetId, true);
-        debugLog(`[channel-info] id=${targetId} encrypted=${ch.encrypted} keyLength=${ch.key?.length} keyPrefix=${ch.key?.substring(0, 20)}`);
+        // Log raw channel info keys to understand structure
+        debugLog(`[channel-info] id=${targetId} encrypted=${ch.encrypted} keyLength=${ch.key?.length} keyPrefix=${ch.key?.substring(0, 20)} raw=${JSON.stringify(ch).substring(0, 200)}`);
       } catch (e) {
         debugLog(`[channel-info] failed to fetch: ${e instanceof Error ? e.message : e}`);
       }
