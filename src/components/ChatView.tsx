@@ -42,13 +42,15 @@ const POLL_INVITE_KINDS = new Set([
 ]);
 
 function isPollInviteMessage(msg: Message): boolean {
-  console.debug('[PollInvite] checking msg:', JSON.stringify({ kind: msg.kind, text: msg.text }));
   if (POLL_INVITE_KINDS.has(msg.kind ?? '')) return true;
   const text = msg.text ?? '';
   // Our embedded poll ID marker: [%poll:ID%]
-  const isPoll = text.includes('[%poll:') && text.includes('%]');
+  if (text.includes('[%poll:') && text.includes('%]')) return true;
   const lower = text.toLowerCase();
-  return isPoll || lower.includes('umfrage eingeladen') || lower.includes('zur teilnahme an einer umfrage');
+  // Also detect German poll invite text patterns
+  if (lower.includes('neue umfrage') || lower.includes('umfrage eingeladen') ||
+      lower.includes('teilnahme an einer umfrage') || lower.includes('survey')) return true;
+  return false;
 }
 
 /** Returns a day-key string (YYYY-M-D) for a Unix timestamp in seconds. */
@@ -694,7 +696,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                   lastDayKey = dayKey;
                   elements.push(<DateSeparator key={`sep-${msg.id}`} label={formatDateLabel(ts)} />);
                 }
-                console.debug('[PollInvite] deciding path:', { kind: msg.kind, isSystemKind: SYSTEM_KINDS.has(msg.kind ?? ''), isPollInvite: isPollInviteMessage(msg) });
                 if (SYSTEM_KINDS.has(msg.kind ?? '')) {
                   elements.push(<SystemMessage key={msg.id} msg={msg} />);
                   return elements;
@@ -1251,16 +1252,20 @@ function extractPollId(msg: Message): string | undefined {
   return match?.[1];
 }
 
-/** Convert markdown bold **text** to React spans, returns ReactNode[] */
+/** Convert message text to React spans, stripping poll markers and bold markers */
 function renderPollText(text: string): ReactNode[] {
-  console.debug('[PollInvite] raw text:', JSON.stringify(text));
-  // First strip poll marker and "Klicke hier" line
-  const clean = text
+  if (!text) return [];
+
+  // Strip poll marker and "Klicke hier" line
+  let clean = text
     .replace(/\s*\[%poll:[^%]+%\]\s*$/, '')
-    .replace(/\s*Klicke hier,? um teilzunehmen\.?\s*$/im, '')
+    .replace(/\s*Klicke hier,? um teilzunehmen\.?\s*$/gim, '')
     .trim();
 
-  // Split on **bold** patterns
+  // If no bold markers left, return plain text
+  if (!clean.includes('**')) return [clean];
+
+  // Split on **bold** patterns, handling German quotes around bold text
   const parts: ReactNode[] = [];
   const regex = /\*\*(.+?)\*\*/g;
   let lastIndex = 0;
@@ -1269,7 +1274,9 @@ function renderPollText(text: string): ReactNode[] {
 
   while ((match = regex.exec(clean)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(clean.slice(lastIndex, match.index));
+      const slice = clean.slice(lastIndex, match.index);
+      // Strip any stray ** from the slice
+      parts.push(slice.replace(/\*\*/g, ''));
     }
     parts.push(
       <span key={key++} className="font-semibold">{match[1]}</span>
@@ -1277,7 +1284,7 @@ function renderPollText(text: string): ReactNode[] {
     lastIndex = regex.lastIndex;
   }
   if (lastIndex < clean.length) {
-    parts.push(clean.slice(lastIndex));
+    parts.push(clean.slice(lastIndex).replace(/\*\*/g, ''));
   }
   return parts.length > 0 ? parts : [clean];
 }
