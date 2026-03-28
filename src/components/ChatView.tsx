@@ -1251,6 +1251,7 @@ function extractPollId(msg: Message): string | undefined {
 
 /** Convert markdown bold **text** to React spans, returns ReactNode[] */
 function renderPollText(text: string): ReactNode[] {
+  console.debug('[PollInvite] raw text:', JSON.stringify(text));
   // First strip poll marker and "Klicke hier" line
   const clean = text
     .replace(/\s*\[%poll:[^%]+%\]\s*$/, '')
