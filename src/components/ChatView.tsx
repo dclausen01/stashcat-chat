@@ -272,6 +272,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   useRealtimeEvents({
     message_sync: (data) => {
       const payload = data as Record<string, unknown>;
+      console.debug('[message_sync] received:', { id: payload.id, kind: payload.kind, text: (payload.text as string)?.slice(0, 100) });
       const currentChat = chatRef.current;
       const belongsHere =
         (currentChat.type === 'channel' && String(payload.channel_id) === currentChat.id) ||
@@ -279,6 +280,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       if (!belongsHere) return;
 
       const newMsg = payload as unknown as Message;
+      console.debug('[message_sync] adding message to state, isPoll=', isPollInviteMessage(newMsg));
       setMessages((prev) => {
         if (prev.find((m) => String(m.id) === String(newMsg.id))) return prev;
         return [...prev, newMsg].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
