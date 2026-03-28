@@ -626,7 +626,9 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
       try {
         const ch = await client.getChannelInfo(targetId, true);
         // Log raw channel info keys to understand structure
-        debugLog(`[channel-info] id=${targetId} encrypted=${ch.encrypted} keyLength=${ch.key?.length} keyPrefix=${ch.key?.substring(0, 20)} raw=${JSON.stringify(ch).substring(0, 200)}`);
+        // Log ALL keys present in the channel response
+        const allKeys = Object.keys(ch).filter(k => k.includes('key') || k.includes('encryption') || k.includes('crypt'));
+        debugLog(`[channel-info] id=${targetId} allKeyFields=${JSON.stringify(allKeys)} keyLength=${ch.key?.length} fullJson=${JSON.stringify(ch)}`);
       } catch (e) {
         debugLog(`[channel-info] failed to fetch: ${e instanceof Error ? e.message : e}`);
       }
