@@ -42,23 +42,14 @@ const POLL_INVITE_KINDS = new Set([
 ]);
 
 function isPollInviteMessage(msg: Message): boolean {
-  if (POLL_INVITE_KINDS.has(msg.kind ?? '')) {
-    console.debug('[isPollInviteMessage] matched by kind:', msg.kind);
-    return true;
-  }
+  if (POLL_INVITE_KINDS.has(msg.kind ?? '')) return true;
   const text = msg.text ?? '';
   // Our embedded poll ID marker: [%poll:ID%]
-  if (text.includes('[%poll:') && text.includes('%]')) {
-    console.debug('[isPollInviteMessage] matched by [%poll:...] marker');
-    return true;
-  }
+  if (text.includes('[%poll:') && text.includes('%]')) return true;
   const lower = text.toLowerCase();
   // Also detect German poll invite text patterns
   if (lower.includes('neue umfrage') || lower.includes('umfrage eingeladen') ||
-      lower.includes('teilnahme an einer umfrage') || lower.includes('survey')) {
-    console.debug('[isPollInviteMessage] matched by text pattern');
-    return true;
-  }
+      lower.includes('teilnahme an einer umfrage') || lower.includes('survey')) return true;
   return false;
 }
 
@@ -159,14 +150,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
       const msgs = res as unknown as Message[];
-      console.debug('[loadMessages] loaded', msgs.length, 'messages');
-      // Debug: log any message containing 'umfrage' or 'poll'
-      msgs.forEach((m, i) => {
-        const txt = (m.text ?? '').toLowerCase();
-        if (txt.includes('umfrage') || txt.includes('poll') || txt.includes('survey')) {
-          console.debug('[loadMessages] poll-related msg', i, { kind: m.kind, text: m.text?.slice(0, 100) });
-        }
-      });
       setMessages(msgs);
       if (msgs.length < PAGE_SIZE) {
         setHasMore(false);
@@ -272,7 +255,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   useRealtimeEvents({
     message_sync: (data) => {
       const payload = data as Record<string, unknown>;
-      console.debug('[message_sync] received:', { id: payload.id, kind: payload.kind, text: (payload.text as string)?.slice(0, 100) });
       const currentChat = chatRef.current;
       const belongsHere =
         (currentChat.type === 'channel' && String(payload.channel_id) === currentChat.id) ||
@@ -280,7 +262,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       if (!belongsHere) return;
 
       const newMsg = payload as unknown as Message;
-      console.debug('[message_sync] adding message to state, isPoll=', isPollInviteMessage(newMsg));
       setMessages((prev) => {
         if (prev.find((m) => String(m.id) === String(newMsg.id))) return prev;
         return [...prev, newMsg].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
@@ -383,7 +364,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
   // Separate system messages from regular ones; group regular by sender
   // Poll invites and video meetings are always standalone (not grouped)
-  console.debug('[groupMessages] processing', messages.length, 'messages, bubbleView=', settings.bubbleView);
   const groups: Array<{ sender: Message['sender']; isOwn: boolean; messages: Message[]; isSystem?: boolean; isStandalone?: boolean }> = [];
   for (const msg of messages) {
     if (SYSTEM_KINDS.has(msg.kind ?? '')) {
@@ -394,7 +374,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     const isPoll = isPollInviteMessage(msg);
     const isVideo = isVideoMeetingMessage(msg);
     if (isPoll || isVideo) {
-      console.debug('[groupMessages] standalone msg:', isPoll ? 'poll' : 'video', msg.text?.slice(0, 50));
       groups.push({ sender: msg.sender, isOwn: false, messages: [msg], isStandalone: true });
       continue;
     }
@@ -683,12 +662,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 } else if (group.messages.length === 1 && isPollInviteMessage(group.messages[0])) {
                   elements.push(<PollInviteMessage key={gi} msg={group.messages[0]} onOpenPolls={onOpenPolls} onOpenPoll={onOpenPoll} />);
                 } else if (group.messages.length === 1 && isPollInviteMessage(group.messages[0])) {
-                  console.debug('[Render] rendering PollInviteMessage for group', gi);
                   elements.push(<PollInviteMessage key={gi} msg={group.messages[0]} onOpenPolls={onOpenPolls} onOpenPoll={onOpenPoll} />);
                 } else if (group.messages.length === 1 && isVideoMeetingMessage(group.messages[0])) {
                   elements.push(<VideoMeetingCard key={gi} msg={group.messages[0]} />);
                 } else {
-                  console.debug('[Render] rendering MessageGroup for group', gi, 'isOwn=', group.isOwn, 'msgCount=', group.messages.length, 'first msg text:', group.messages[0].text?.slice(0, 50));
                   elements.push(
                     <MessageGroup
                       key={gi}
@@ -1290,15 +1267,11 @@ function extractPollId(msg: Message): string | undefined {
 function renderPollText(text: string): ReactNode[] {
   if (!text) return [];
 
-  console.debug('[renderPollText] input:', JSON.stringify(text));
-
   // Strip poll marker and "Klicke hier" line
   let clean = text
     .replace(/\s*\[%poll:[^%]+%\]\s*$/, '')
     .replace(/\s*Klicke hier,? um teilzunehmen\.?\s*$/gim, '')
     .trim();
-
-  console.debug('[renderPollText] after cleanup:', JSON.stringify(clean));
 
   // If no bold markers left, return plain text
   if (!clean.includes('**')) return [clean];
@@ -1324,9 +1297,7 @@ function renderPollText(text: string): ReactNode[] {
   if (lastIndex < clean.length) {
     parts.push(clean.slice(lastIndex).replace(/\*\*/g, ''));
   }
-  const result = parts.length > 0 ? parts : [clean];
-  console.debug('[renderPollText] result parts:', parts.length, parts.map(p => typeof p === 'string' ? p : '<span>'));
-  return result;
+  return parts.length > 0 ? parts : [clean];
 }
 
 function PollInviteMessage({ msg, onOpenPolls, onOpenPoll }: { msg: Message; onOpenPolls?: () => void; onOpenPoll?: (pollId: string) => void }) {
@@ -1335,9 +1306,6 @@ function PollInviteMessage({ msg, onOpenPolls, onOpenPoll }: { msg: Message; onO
     : '';
 
   const pollId = extractPollId(msg);
-
-  // Debug: log the raw message text
-  console.debug('[PollInviteMessage] rendering, raw text:', JSON.stringify(msg.text));
 
   const handleClick = () => {
     if (pollId && onOpenPoll) {
