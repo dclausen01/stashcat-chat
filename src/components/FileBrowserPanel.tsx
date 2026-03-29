@@ -503,7 +503,8 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     setUploading(true);
     try {
       if (tab === 'personal') {
-        await api.uploadToStorage('personal', undefined, file, folderId ?? currentFolderId);
+        const userId = user?.id ? String(user.id) : undefined;
+        await api.uploadToStorage('personal', userId, file, folderId ?? currentFolderId);
       } else if (chat) {
         await api.uploadToStorage(chat.type, chat.id, file, folderId ?? currentFolderId);
       }
