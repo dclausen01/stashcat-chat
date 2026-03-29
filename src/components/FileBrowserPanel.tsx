@@ -657,12 +657,15 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
           if (folderId) {
             createdFolderId = String(folderId);
             folderIdMap.set(folderPath, createdFolderId);
+            // Wait a moment for the folder to be fully registered
+            await new Promise(resolve => setTimeout(resolve, 500));
           }
         } catch (err) {
           console.warn('Failed to create folder, might exist:', folderPath, err);
         }
 
         const targetFolderId = createdFolderId ?? folderIdMap.get(folderPath) ?? parentId;
+        console.log('Target details:', { folderPath, targetFolderId, parentId, uploadType, uploadTypeId: uploadTypeId?.slice(0, 5) + '...' });
         console.log('Uploading files to folder:', folderPath, 'targetFolderId:', targetFolderId, 'Files:', entry.files.length);
         for (const file of entry.files) {
           setUploadProgress(prev => prev ? { ...prev, currentFile: file.name } : null);
