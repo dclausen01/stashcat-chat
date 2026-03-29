@@ -749,8 +749,14 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
 
     // Ensure folder_id is a number for the API
     const folderIdNum = folderId ? parseInt(folderId, 10) : undefined;
-    const debugLog: string[] = [];
-    debugLog.push(`[upload] type=${type} type_id=${resolvedTypeId} folderId=${folderId} folderIdNum=${folderIdNum}`);
+    const logFile = '/tmp/stashcat-upload-debug.log';
+    const log = (msg: string) => {
+      const timestamp = new Date().toISOString();
+      const line = `[${timestamp}] ${msg}\n`;
+      console.log(line.trim());
+      require('fs').appendFileSync(logFile, line);
+    };
+    log(`[upload] type=${type} type_id=${resolvedTypeId} folderId=${folderId} folderIdNum=${folderIdNum}`);
 
     try {
       const result = await client.uploadFile(namedPath, {
@@ -759,10 +765,10 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
         folder: folderIdNum,
         filename: originalName,
       });
-      debugLog.push(`[upload] success: ${JSON.stringify(result)}`);
+      log(`[upload] success: ${JSON.stringify(result)}`);
     } catch (uploadErr) {
-      debugLog.push(`[upload] error: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`);
-      throw new Error(debugLog.join('\n'));
+      log(`[upload] error: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`);
+      throw uploadErr;
     }
 
     await fs.unlink(namedPath).catch(() => {});
