@@ -795,7 +795,7 @@ app.post('/api/folder/delete', async (req, res) => {
   try {
     const client = await getClient(req);
     const { folderId } = req.body as { folderId: string };
-    await client.deleteFolder(folderId);
+    await client.deleteFolder(parseInt(folderId, 10));
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete folder' });
