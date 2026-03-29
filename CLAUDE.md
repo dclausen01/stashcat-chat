@@ -75,7 +75,7 @@ src/
 ├── pages/
 │   └── LoginPage.tsx               # Login form
 ├── components/
-│   ├── Sidebar.tsx                 # Channel/conversation list, search, resize
+│   ├── Sidebar.tsx                 # Channel/conversation list, search, resize (default 360px)
 │   ├── ChatView.tsx                # Message list, send bar, header toolbar
 │   ├── MessageInput.tsx            # Text input, emoji picker, file picker
 │   ├── FileBrowserPanel.tsx        # File browser (folders, upload, download, rename, delete)
