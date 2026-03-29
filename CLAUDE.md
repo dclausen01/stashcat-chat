@@ -80,7 +80,8 @@ src/
 │   ├── MessageInput.tsx            # Text input, emoji picker, file picker
 │   ├── FileBrowserPanel.tsx        # File browser (folders, upload, download, rename, delete)
 │   ├── ChannelMembersPanel.tsx     # Channel member management
-│   ├── ChannelDescriptionEditor.tsx# Inline description edit
+|   ├── ChannelDescriptionEditor.tsx# Inline description edit
+|   ├── ChannelDropdownMenu.tsx     # Channel toolbar: info modal, markdown export, delete
 │   ├── NewChannelModal.tsx         # Create channel form
 │   ├── NewChatModal.tsx            # New direct message: user search
 │   ├── LinkPreviewCard.tsx         # OG preview card for URLs in messages
@@ -148,6 +149,8 @@ All routes are under `/api/` prefix on port 3001.
 | DELETE | `/api/channels/:channelId/moderator/:userId` | Demote from moderator |
 | PATCH | `/api/channels/:channelId` | Edit channel (description) |
 | POST | `/api/channels` | Create new channel |
+| GET | `/api/channels/:channelId/info` | Get full channel info (type, encryption, member count, description) |
+| DELETE | `/api/channels/:channelId` | Delete channel |
 | GET | `/api/companies/:companyId/members` | Company member list |
 | POST | `/api/conversations` | Create encrypted conversation |
 | GET | `/api/conversations` | List conversations |

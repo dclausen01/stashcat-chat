@@ -747,6 +747,18 @@ app.post('/api/files/:fileId/move', async (req, res) => {
         res.status(500).json({ error: e.message });
     }
 });
+// ── Create folder ─────────────────────────────────────────────────────────────
+app.post('/api/files/folder/create', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { folder_name, parent_id, type, type_id } = req.body;
+        const folder = await client.createFolder(folder_name, parent_id, type, type_id);
+        res.json(folder);
+    }
+    catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create folder' });
+    }
+});
 app.delete('/api/files/:fileId', async (req, res) => {
     try {
         const client = await getClient(req);

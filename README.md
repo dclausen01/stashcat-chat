@@ -44,6 +44,7 @@ A React/TypeScript web chat client for Stashcat / schul.cloud, built for BBZ Ren
 - Edit channel description inline
 - Channel description shown below channel name in header
 - Channel members panel: view all members with their roles, invite new users from the company member list, remove members, promote/demote moderators
+- Channel dropdown menu (managers only): Channel-Info modal (type, encryption, member count, creation date, description), Markdown export of all messages, delete channel with confirmation
 
 ### Conversations
 - List all direct conversations
