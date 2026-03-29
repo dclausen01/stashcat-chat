@@ -166,6 +166,7 @@ All routes are under `/api/` prefix on port 3001.
 | GET | `/api/files/personal` | List personal files |
 | POST | `/api/files/delete` | Delete file(s) |
 | POST | `/api/files/folder/create` | Create new folder |
+| POST | `/api/folder/delete` | Delete folder |
 | PATCH | `/api/files/:fileId` | Rename file |
 | POST | `/api/files/upload` | Upload to file storage (multer) |
 | GET | `/api/file/:fileId` | Download / view file (binary stream) |

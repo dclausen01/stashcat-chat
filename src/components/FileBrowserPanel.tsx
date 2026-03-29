@@ -63,6 +63,7 @@ interface ViewProps {
   onPdfClick: (fileId: string, viewUrl: string, name: string) => void;
   onRename: (f: FileEntry) => void;
   onDelete: (f: FileEntry) => void;
+  onDeleteFolder?: (f: FolderEntry) => void;
   renamingId: string | null;
   renameValue: string;
   setRenameValue: (v: string) => void;
@@ -78,12 +79,12 @@ interface ViewProps {
 
 // ── Grid view ─────────────────────────────────────────────────────────────────
 
-function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onRename, onDelete, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder }: ViewProps) {
+function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   return (
     <div className="grid grid-cols-3 gap-2 p-3">
       {folders.map((f) => (
-        <button
+        <div
           key={f.id}
           onClick={() => onFolderClick(f)}
           onDragOver={(e) => { e.preventDefault(); setDropTargetId(f.id); }}
@@ -96,7 +97,7 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
             if (fileId && onDropOnFolder) onDropOnFolder(fileId, f.id);
           }}
           className={clsx(
-            'group flex flex-col items-center gap-1.5 rounded-xl p-2 transition',
+            'group relative flex flex-col items-center gap-1.5 rounded-xl p-2 transition cursor-pointer',
             dropTargetId === f.id
               ? 'bg-primary-100 ring-2 ring-primary-400 dark:bg-primary-900/30'
               : 'hover:bg-surface-100 dark:hover:bg-surface-800',
@@ -104,7 +105,16 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
         >
           <Folder size={40} className="text-amber-400" fill="currentColor" />
           <span className="w-full truncate text-center text-xs text-surface-700 dark:text-surface-300">{f.name}</span>
-        </button>
+          {onDeleteFolder && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDeleteFolder(f); }}
+              className="absolute right-1 top-1 rounded-full p-1 text-surface-400 opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/30"
+              title="Ordner löschen"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
       ))}
       {files.map((f) => {
         const isImage = f.mime?.startsWith('image/');
@@ -200,7 +210,7 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
 
 // ── List view ─────────────────────────────────────────────────────────────────
 
-function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onRename, onDelete, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort }: ViewProps) {
+function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   function SortHeader({ field, label, className = '' }: { field: SortField; label: string; className?: string }) {
@@ -241,7 +251,7 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
 
       <div className="flex flex-col divide-y divide-surface-100 px-1 dark:divide-surface-800">
         {folders.map((f) => (
-          <button
+          <div
             key={f.id}
             onClick={() => onFolderClick(f)}
             onDragOver={(e) => { e.preventDefault(); setDropTargetId(f.id); }}
@@ -254,7 +264,7 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               if (fileId && onDropOnFolder) onDropOnFolder(fileId, f.id);
             }}
             className={clsx(
-              'flex items-center gap-3 px-3 py-2.5 transition',
+              'group flex items-center gap-3 px-3 py-2.5 transition cursor-pointer',
               dropTargetId === f.id
                 ? 'bg-primary-100 ring-2 ring-primary-400 dark:bg-primary-900/30'
                 : 'hover:bg-surface-100 dark:hover:bg-surface-800',
@@ -266,10 +276,19 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
             <span className="min-w-0 flex-1 truncate text-left text-sm text-surface-800 dark:text-surface-200">{f.name}</span>
             <span className="w-16 shrink-0 text-right text-xs text-surface-400" />
             <span className="w-20 shrink-0 text-right text-xs text-surface-400">{formatDate(f.created)}</span>
-            <div className="w-16 shrink-0 flex justify-end">
+            <div className="w-16 shrink-0 flex justify-end items-center gap-1">
+              {onDeleteFolder && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDeleteFolder(f); }}
+                  className="rounded-full p-1 text-surface-400 opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/30"
+                  title="Ordner löschen"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
               <ChevronRight size={14} className="text-surface-400" />
             </div>
-          </button>
+          </div>
         ))}
         {files.map((f) => {
           const isImage = f.mime?.startsWith('image/');
@@ -445,6 +464,16 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     try {
       await api.deleteFile(f.id);
       setFiles((prev) => prev.filter((x) => x.id !== f.id));
+    } catch (err) {
+      alert(`Fehler: ${err instanceof Error ? err.message : err}`);
+    }
+  };
+
+  const handleDeleteFolder = async (f: FolderEntry) => {
+    if (!confirm(`Ordner "${f.name}" und alle Inhalte wirklich löschen?`)) return;
+    try {
+      await api.deleteFolder(f.id);
+      setFolders((prev) => prev.filter((x) => x.id !== f.id));
     } catch (err) {
       alert(`Fehler: ${err instanceof Error ? err.message : err}`);
     }
@@ -674,6 +703,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     onPdfClick: (fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name }),
     onRename: startRename,
     onDelete: handleDelete,
+    onDeleteFolder: handleDeleteFolder,
     renamingId,
     renameValue,
     setRenameValue,
