@@ -52,8 +52,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   const [primaryCompanyId, setPrimaryCompanyId] = useState<string>('');
 
   // Sidebar width (horizontal resize)
-  const [sidebarWidth, setSidebarWidth] = useState(288); // 288px = w-72
-  const sidebarWidthRef = useRef(288);
+  const [sidebarWidth, setSidebarWidth] = useState(360); // 360px = w-[360px] for better file browser visibility
+  const sidebarWidthRef = useRef(360);
   const resizingWidth = useRef(false);
 
   const onWidthMouseDown = useCallback((e: React.MouseEvent) => {
