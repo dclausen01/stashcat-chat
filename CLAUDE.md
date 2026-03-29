@@ -233,6 +233,23 @@ Key components:
 
 At startup, `server/index.ts` loads `.sessions.json` via `session-store.ts` and restores each serialized `StashcatClient` via `StashcatClient.fromSession()`. It then calls `unlockE2E()` using the stored security password and reconnects the `RealtimeManager`. Clients whose sessions are no longer valid on the Stashcat server will silently fail and be dropped.
 
+### File Upload (Resumable Chunked Upload)
+
+Stashcat uses a two-step resumable upload API:
+
+**Step 1: `POST /file/create_upload_context`** (URL-encoded)
+- Request fields: `filename`, `mime`, `filesize`, `num_total_chunks`, `chunk_size`, `folder_type`, `folder_type_id`, `folder_id` (optional), plus auth fields (`client_key`, `device_id`, `identifier`)
+- Response: `{ identifier: "..." }` — a unique upload identifier
+
+**Step 2: `POST /file/upload_chunk`** (Multipart/form-data)
+- Request fields: `client_key`, `device_id`, `identifier`, `current_chunk_number`, `current_chunk_size`, plus file chunk
+- File field name: `-` (literal dash), Content-Type: `application/octet-stream`
+- Response: `{ status: { value: "OK" } }` or final response with `{ payload: { file: FileInfo } }`
+
+**Important:** The `folder_*` fields are ONLY sent in step 1. Step 2 only needs the `identifier` to associate the chunk with the upload context.
+
+The implementation in `stashcat-api/src/files/files.ts` uses the `form-data` package for correct multipart encoding in Node.js. Native Node.js `FormData`/`Blob` may not produce compatible output.
+
 ---
 
 ## Bash Commands

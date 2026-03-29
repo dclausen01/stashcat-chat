@@ -1491,7 +1491,12 @@ app.get('/api/polls/:id', async (req, res) => {
     if (poll.questions && poll.questions.length > 0) {
       const questionsWithAnswers = await Promise.all(
         poll.questions.map(async (q) => {
-          const answers = await client.listPollAnswers(String(q.id)).catch(() => []);
+          const rawAnswers = await client.listPollAnswers(String(q.id)).catch(() => []);
+          // Map answer_count (string from API) to votes (number for frontend)
+          const answers = (rawAnswers as unknown as Array<Record<string, unknown>>).map((a) => ({
+            ...a,
+            votes: Number(a.answer_count ?? 0),
+          }));
           return { ...q, answers };
         })
       );

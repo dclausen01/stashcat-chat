@@ -396,6 +396,31 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   const viewMode = settings.fileBrowserViewMode;
   const setViewMode = settings.setFileBrowserViewMode;
 
+  // Panel width (horizontal resize from left edge)
+  const [panelWidth, setPanelWidth] = useState(384); // 384px = w-96 default
+  const panelWidthRef = useRef(384);
+  const resizingWidth = useRef(false);
+
+  const onWidthMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    resizingWidth.current = true;
+    const startX = e.clientX;
+    const startW = panelWidthRef.current;
+    const onMove = (ev: MouseEvent) => {
+      // Resize from left edge: moving left increases width, moving right decreases
+      const newW = Math.max(280, Math.min(600, startW - (ev.clientX - startX)));
+      setPanelWidth(newW);
+      panelWidthRef.current = newW;
+    };
+    const onUp = () => {
+      resizingWidth.current = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, []);
+
   // Initialize tab based on chat availability
   const [tabInitialized, setTabInitialized] = useState(false);
   useEffect(() => {
@@ -726,7 +751,8 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
 
   return (
     <div
-      className="relative flex h-full w-96 shrink-0 flex-col border-l border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
+      className="relative flex h-full shrink-0 flex-col border-l border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
+      style={{ width: panelWidth }}
       onDragOver={(e) => {
         e.preventDefault();
         // Only show drop overlay for external files, not internal drag
@@ -801,6 +827,12 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
         }
       }}
     >
+      {/* Resize handle (left edge) */}
+      <div
+        onMouseDown={onWidthMouseDown}
+        className="absolute left-0 top-0 z-20 h-full w-1 cursor-col-resize border-l border-surface-200 transition-colors hover:border-primary-400 hover:border-l-2 dark:border-surface-700 dark:hover:border-primary-600"
+      />
+
       {/* External file drop overlay */}
       {dragOver && (
         <div className="absolute inset-0 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-primary-400 bg-primary-50/80 dark:bg-primary-950/80">
@@ -849,13 +881,13 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
             <span key={i} className="flex shrink-0 items-center gap-0.5">
               {i > 0 && <ChevronRight size={11} className="text-surface-300" />}
               {i === crumbs.length - 1 ? (
-                <span className="max-w-[120px] truncate text-xs font-medium text-surface-700 dark:text-surface-300">
+                <span className="max-w-[200px] truncate text-xs font-medium text-surface-700 dark:text-surface-300">
                   {i === 0 ? <Home size={12} className="inline" /> : crumb.name}
                 </span>
               ) : (
                 <button
                   onClick={() => navigateTo(i)}
-                  className="max-w-[80px] truncate text-xs text-surface-400 hover:text-primary-600 dark:hover:text-primary-400"
+                  className="max-w-[140px] truncate text-xs text-surface-400 hover:text-primary-600 dark:hover:text-primary-400"
                 >
                   {i === 0 ? <Home size={12} className="inline" /> : crumb.name}
                 </button>
