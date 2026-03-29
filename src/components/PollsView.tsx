@@ -152,7 +152,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
                       {/* Progress bar */}
                       {showResults && (
                         <div
-                          className="absolute inset-y-0 left-0 bg-primary-100/60 transition-all dark:bg-primary-800/30"
+                          className="absolute inset-y-0 left-0 bg-primary-200/80 transition-all dark:bg-primary-700/40"
                           style={{ width: `${pct}%` }}
                         />
                       )}
@@ -166,7 +166,12 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
                         </div>
                         <span className="flex-1 text-sm text-surface-800 dark:text-surface-200">{a.answer_text}</span>
                         {showResults && (
-                          <span className="text-xs font-medium text-surface-400">{pct}% ({a.votes ?? 0})</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg font-bold text-primary-600 dark:text-primary-400">{pct}%</span>
+                            <span className="rounded-full bg-surface-200 px-2 py-0.5 text-xs font-semibold text-surface-600 dark:bg-surface-700 dark:text-surface-300">
+                              {a.votes ?? 0} Stimme{(a.votes ?? 0) !== 1 ? 'n' : ''}
+                            </span>
+                          </div>
                         )}
                       </div>
                     </button>
@@ -175,7 +180,12 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
               </div>
 
               {showResults && totalVotes > 0 && (
-                <p className="mt-1 text-xs text-surface-400">{totalVotes} Stimme{totalVotes !== 1 ? 'n' : ''} gesamt</p>
+                <div className="mt-3 flex items-center justify-between rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-700/50">
+                  <span className="text-sm font-medium text-surface-600 dark:text-surface-400">Gesamt</span>
+                  <span className="text-base font-bold text-surface-800 dark:text-surface-200">
+                    {totalVotes} Stimme{totalVotes !== 1 ? 'n' : ''}
+                  </span>
+                </div>
               )}
             </div>
           );
