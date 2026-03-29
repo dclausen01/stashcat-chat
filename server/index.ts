@@ -749,7 +749,7 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
 
     // Ensure folder_id is a number for the API
     const folderIdNum = folderId ? parseInt(folderId, 10) : undefined;
-    const logFile = '/tmp/stashcat-upload-debug.log';
+    const logFile = './upload-debug.log';
     const log = (msg: string) => {
       const timestamp = new Date().toISOString();
       const line = `[${timestamp}] ${msg}\n`;
