@@ -530,7 +530,6 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
 
   const handleUpload = async (file: File, folderId?: string) => {
     setUploading(true);
-    console.log('handleUpload called:', file.name, 'folderId:', folderId);
     try {
       if (tab === 'personal') {
         const userId = user?.id ? String(user.id) : undefined;
@@ -568,7 +567,6 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   };
 
   const handleFolderUpload = async (files: File[]) => {
-    console.log('[handleFolderUpload] called with files:', files.map(f => f.webkitRelativePath || f.name));
     const folderMap = new Map<string, { files: File[] }>();
 
     for (const file of files) {
@@ -654,7 +652,6 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
           );
           // API returns: { id: number, type: "personal", ... }
           const folderId = newFolder.id;
-          console.log('Created folder:', folderPath, 'ID:', folderId, 'Full response:', newFolder);
           if (folderId) {
             createdFolderId = String(folderId);
             folderIdMap.set(folderPath, createdFolderId);
@@ -666,8 +663,6 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
         }
 
         const targetFolderId = createdFolderId ?? folderIdMap.get(folderPath) ?? parentId;
-        console.log('Target details:', { folderPath, targetFolderId, parentId, uploadType, uploadTypeId: uploadTypeId?.slice(0, 5) + '...' });
-        console.log('Uploading files to folder:', folderPath, 'targetFolderId:', targetFolderId, 'Files:', entry.files.length);
         for (const file of entry.files) {
           setUploadProgress(prev => prev ? { ...prev, currentFile: file.name } : null);
 
@@ -676,12 +671,9 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
             uploadedFiles++;
             setUploadProgress(prev => prev ? { ...prev, uploadedFiles } : null);
           } catch (err) {
-            const errorMsg = err instanceof Error ? err.message : String(err);
-            console.error('Upload error for', file.name, ':', errorMsg);
-            alert(`Upload-Fehler für ${file.name}:\n${errorMsg}`);
             errors.push({
               file: file.webkitRelativePath || file.name,
-              error: errorMsg,
+              error: err instanceof Error ? err.message : String(err),
             });
           }
         }
@@ -785,7 +777,6 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
         if (filesWithPaths.length > 0) {
           // Check if we have a folder structure
           const hasFolderStructure = filesWithPaths.some(f => f.path.includes('/'));
-          console.log('[onDrop] filesWithPaths:', filesWithPaths.map(f => f.path), 'hasFolderStructure:', hasFolderStructure);
 
           if (hasFolderStructure) {
             await handleFolderUpload(filesWithPaths.map(f => {
