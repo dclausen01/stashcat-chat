@@ -235,18 +235,18 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
   return (
     <div className="flex flex-col">
       {/* Column headers */}
-      <div className="flex items-center gap-3 border-b border-surface-100 px-3 py-2 dark:border-surface-800">
+      <div className="flex items-center border-b border-surface-100 px-3 py-2 dark:border-surface-800">
         <div className="w-10 shrink-0" /> {/* Icon column */}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 px-3">
           <SortHeader field="name" label="Name" />
         </div>
-        <div className="w-16 shrink-0 text-right">
+        <div className="w-20 shrink-0 text-right">
           <SortHeader field="size" label="Größe" className="justify-end" />
         </div>
-        <div className="w-20 shrink-0 text-right">
+        <div className="w-24 shrink-0 text-right px-2">
           <SortHeader field="date" label="Datum" className="justify-end" />
         </div>
-        <div className="w-16 shrink-0" /> {/* Actions column */}
+        <div className="w-12 shrink-0" /> {/* Actions column */}
       </div>
 
       <div className="flex flex-col divide-y divide-surface-100 px-1 dark:divide-surface-800">
@@ -264,7 +264,7 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               if (fileId && onDropOnFolder) onDropOnFolder(fileId, f.id);
             }}
             className={clsx(
-              'group flex items-center gap-3 px-3 py-2.5 transition cursor-pointer',
+              'group flex items-center px-3 py-2.5 transition cursor-pointer',
               dropTargetId === f.id
                 ? 'bg-primary-100 ring-2 ring-primary-400 dark:bg-primary-900/30'
                 : 'hover:bg-surface-100 dark:hover:bg-surface-800',
@@ -273,10 +273,10 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
             <div className="w-10 shrink-0 flex justify-center">
               <Folder size={18} className="text-amber-400" fill="currentColor" />
             </div>
-            <span className="min-w-0 flex-1 truncate text-left text-sm text-surface-800 dark:text-surface-200">{f.name}</span>
-            <span className="w-16 shrink-0 text-right text-xs text-surface-400" />
-            <span className="w-20 shrink-0 text-right text-xs text-surface-400">{formatDate(f.created)}</span>
-            <div className="w-16 shrink-0 flex justify-end items-center gap-1">
+            <span className="min-w-0 flex-1 truncate text-left text-sm text-surface-800 dark:text-surface-200 px-3">{f.name}</span>
+            <span className="w-20 shrink-0 text-right text-xs text-surface-400" /> {/* Leer für Größe */}
+            <span className="w-24 shrink-0 text-right text-xs text-surface-400 px-2">{formatDate(f.created)}</span>
+            <div className="w-12 shrink-0 flex justify-end items-center gap-1">
               {onDeleteFolder && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onDeleteFolder(f); }}
@@ -303,7 +303,7 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               draggable
               onDragStart={(e) => { e.dataTransfer.setData('text/file-id', f.id); onDragFileStart?.(f.id); }}
               onDragEnd={() => onDragFileEnd?.()}
-              className="group flex items-center gap-3 px-3 py-2 hover:bg-surface-50 dark:hover:bg-surface-800/50 cursor-grab active:cursor-grabbing"
+              className="group flex items-center px-3 py-2 hover:bg-surface-50 dark:hover:bg-surface-800/50 cursor-grab active:cursor-grabbing"
             >
               {/* Icon / thumbnail */}
               <div className="w-10 shrink-0 flex justify-center">
@@ -320,7 +320,7 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               </div>
 
               {/* Name */}
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 px-3">
                 {isRenaming ? (
                   <div className="flex items-center gap-1">
                     <input
@@ -344,17 +344,17 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               </div>
 
               {/* Size */}
-              <span className="w-16 shrink-0 text-right text-xs text-surface-400">
+              <span className="w-20 shrink-0 text-right text-xs text-surface-400">
                 {f.size_string}
               </span>
 
               {/* Date */}
-              <span className="w-20 shrink-0 text-right text-xs text-surface-400">
+              <span className="w-24 shrink-0 text-right text-xs text-surface-400 px-2">
                 {formatDate(f.uploaded)}
               </span>
 
               {/* Actions (visible on hover) */}
-              <div className="hidden shrink-0 items-center justify-end gap-0.5 w-16 group-hover:flex">
+              <div className="hidden shrink-0 items-center justify-end gap-0.5 w-12 group-hover:flex">
                 <a
                   href={downloadUrl}
                   download={f.name}
