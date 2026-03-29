@@ -299,7 +299,11 @@ export async function listPersonalFiles(folderId?: string, offset = 0, limit = 2
 }
 
 export async function deleteFile(fileId: string): Promise<void> {
-  const res = await fetch(`${BACKEND}/files/${fileId}`, { method: 'DELETE', headers: headers() });
+  const res = await fetch(`${BACKEND}/files/delete`, {
+    method: 'POST',
+    headers: { ...headers(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileIds: [fileId] }),
+  });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     throw new Error(err.error || `HTTP ${res.status}`);
