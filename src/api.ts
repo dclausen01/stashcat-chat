@@ -310,6 +310,18 @@ export async function deleteFile(fileId: string): Promise<void> {
   }
 }
 
+export async function deleteFolder(folderId: string): Promise<void> {
+  const res = await fetch(`${BACKEND}/folder/delete`, {
+    method: 'POST',
+    headers: { ...headers(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ folderId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+}
+
 export async function renameFile(fileId: string, name: string): Promise<void> {
   const res = await fetch(`${BACKEND}/files/${fileId}`, {
     method: 'PATCH',
