@@ -651,8 +651,8 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
             uploadType,
             uploadTypeId!
           );
-          // API returns: { folder_id: number, folder: { id: number, ... } }
-          const folderId = (newFolder.folder_id as number) ?? (newFolder.folder as Record<string, unknown>)?.id;
+          // API returns: { folder: { id: number, ... } }
+          const folderId = (newFolder.folder as Record<string, unknown>)?.id;
           console.log('Created folder:', folderPath, 'ID:', folderId, 'Full response:', newFolder);
           if (folderId) {
             createdFolderId = String(folderId);
