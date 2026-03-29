@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Grid3x3, List, Upload, Folder, ChevronRight, Home,
-  Trash2, Pencil, Check, Loader2, ExternalLink,
+  Trash2, Pencil, Check, Loader2, ExternalLink, ArrowUp, ArrowDown,
 } from 'lucide-react';
+import { useFileSorting, type SortField, type SortDirection } from '../hooks/useFileSorting';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { fileIcon } from '../utils/fileIcon';
@@ -67,6 +68,10 @@ interface ViewProps {
   onDragFileStart?: (fileId: string) => void;
   onDragFileEnd?: () => void;
   onDropOnFolder?: (fileId: string, folderId: string) => void;
+  // Sorting
+  sortField?: SortField;
+  sortDirection?: SortDirection;
+  onSort?: (field: SortField) => void;
 }
 
 // ── Grid view ─────────────────────────────────────────────────────────────────
@@ -193,120 +198,164 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
 
 // ── List view ─────────────────────────────────────────────────────────────────
 
-function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onRename, onDelete, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder }: ViewProps) {
+function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onRename, onDelete, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+
+  function SortHeader({ field, label, className = '' }: { field: SortField; label: string; className?: string }) {
+    const active = sortField === field;
+    return (
+      <button
+        onClick={() => onSort?.(field)}
+        className={clsx(
+          'flex items-center gap-0.5 text-xs font-medium transition-colors',
+          active ? 'text-surface-700 dark:text-surface-200' : 'text-surface-400 hover:text-surface-600 dark:hover:text-surface-300',
+          className
+        )}
+      >
+        {label}
+        {active && sortDirection && (
+          sortDirection === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />
+        )}
+      </button>
+    );
+  }
+
   return (
-    <div className="flex flex-col divide-y divide-surface-100 px-1 dark:divide-surface-800">
-      {folders.map((f) => (
-        <button
-          key={f.id}
-          onClick={() => onFolderClick(f)}
-          onDragOver={(e) => { e.preventDefault(); setDropTargetId(f.id); }}
-          onDragLeave={() => setDropTargetId(null)}
-          onDrop={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setDropTargetId(null);
-            const fileId = e.dataTransfer.getData('text/file-id');
-            if (fileId && onDropOnFolder) onDropOnFolder(fileId, f.id);
-          }}
-          className={clsx(
-            'flex items-center gap-3 px-3 py-2.5 transition',
-            dropTargetId === f.id
-              ? 'bg-primary-100 ring-2 ring-primary-400 dark:bg-primary-900/30'
-              : 'hover:bg-surface-100 dark:hover:bg-surface-800',
-          )}
-        >
-          <Folder size={18} className="shrink-0 text-amber-400" fill="currentColor" />
-          <span className="min-w-0 flex-1 truncate text-left text-sm text-surface-800 dark:text-surface-200">{f.name}</span>
-          <ChevronRight size={14} className="shrink-0 text-surface-400" />
-        </button>
-      ))}
-      {files.map((f) => {
-        const isImage = f.mime?.startsWith('image/');
-        const isPdf = f.mime === 'application/pdf' || f.ext?.toLowerCase() === 'pdf';
-        const downloadUrl = api.fileDownloadUrl(f.id, f.name);
-        const viewUrl = api.fileViewUrl(f.id, f.name);
-        const isRenaming = renamingId === f.id;
+    <div className="flex flex-col">
+      {/* Column headers */}
+      <div className="flex items-center gap-3 border-b border-surface-100 px-3 py-2 dark:border-surface-800">
+        <div className="w-9 shrink-0" /> {/* Icon column */}
+        <div className="min-w-0 flex-1">
+          <SortHeader field="name" label="Name" />
+        </div>
+        <div className="w-20 shrink-0 text-right">
+          <SortHeader field="size" label="Größe" className="justify-end" />
+        </div>
+        <div className="w-24 shrink-0 text-right">
+          <SortHeader field="date" label="Datum" className="justify-end" />
+        </div>
+        <div className="w-20 shrink-0" /> {/* Actions column */}
+      </div>
 
-        return (
-          <div
+      <div className="flex flex-col divide-y divide-surface-100 px-1 dark:divide-surface-800">
+        {folders.map((f) => (
+          <button
             key={f.id}
-            draggable
-            onDragStart={(e) => { e.dataTransfer.setData('text/file-id', f.id); onDragFileStart?.(f.id); }}
-            onDragEnd={() => onDragFileEnd?.()}
-            className="group flex items-center gap-3 px-3 py-2 hover:bg-surface-50 dark:hover:bg-surface-800/50 cursor-grab active:cursor-grabbing"
+            onClick={() => onFolderClick(f)}
+            onDragOver={(e) => { e.preventDefault(); setDropTargetId(f.id); }}
+            onDragLeave={() => setDropTargetId(null)}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDropTargetId(null);
+              const fileId = e.dataTransfer.getData('text/file-id');
+              if (fileId && onDropOnFolder) onDropOnFolder(fileId, f.id);
+            }}
+            className={clsx(
+              'flex items-center gap-3 px-3 py-2.5 transition',
+              dropTargetId === f.id
+                ? 'bg-primary-100 ring-2 ring-primary-400 dark:bg-primary-900/30'
+                : 'hover:bg-surface-100 dark:hover:bg-surface-800',
+            )}
           >
-            {/* Icon / thumbnail */}
-            <button
-              className="shrink-0"
-              onClick={() => isImage ? onImageClick(viewUrl) : isPdf ? onPdfClick(f.id, viewUrl, f.name) : undefined}
-              title={isImage ? 'Vergrößern' : isPdf ? 'Vorschau' : undefined}
-            >
-              {isImage ? (
-                <img src={viewUrl} alt={f.name} className="h-9 w-9 rounded object-cover" loading="lazy" />
-              ) : (
-                <span className="text-xl">{fileIcon(f.mime, f.ext)}</span>
-              )}
-            </button>
+            <Folder size={18} className="shrink-0 text-amber-400" fill="currentColor" />
+            <span className="min-w-0 flex-1 truncate text-left text-sm text-surface-800 dark:text-surface-200">{f.name}</span>
+            <span className="w-20 shrink-0 text-right text-xs text-surface-400" />
+            <span className="w-24 shrink-0 text-right text-xs text-surface-400">{formatDate(f.created)}</span>
+            <ChevronRight size={14} className="w-20 shrink-0 text-surface-400" />
+          </button>
+        ))}
+        {files.map((f) => {
+          const isImage = f.mime?.startsWith('image/');
+          const isPdf = f.mime === 'application/pdf' || f.ext?.toLowerCase() === 'pdf';
+          const downloadUrl = api.fileDownloadUrl(f.id, f.name);
+          const viewUrl = api.fileViewUrl(f.id, f.name);
+          const isRenaming = renamingId === f.id;
 
-            {/* Name */}
-            <div className="min-w-0 flex-1">
-              {isRenaming ? (
-                <div className="flex items-center gap-1">
-                  <input
-                    autoFocus
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') commitRename(f); if (e.key === 'Escape') commitRename({ ...f, name: f.name }); }}
-                    className="min-w-0 flex-1 rounded border border-primary-400 bg-white px-2 py-0.5 text-xs text-surface-900 outline-none dark:bg-surface-700 dark:text-surface-100"
-                  />
-                  <button onClick={() => commitRename(f)} className="shrink-0 text-primary-600"><Check size={13} /></button>
-                </div>
-              ) : (
-                <span
-                  className="block truncate text-sm text-surface-800 dark:text-surface-200"
-                  onDoubleClick={() => onRename(f)}
-                  title={`${f.name} — Doppelklick zum Umbenennen`}
-                >
-                  {f.name}
-                </span>
-              )}
-              <span className="text-xs text-surface-400">
+          return (
+            <div
+              key={f.id}
+              draggable
+              onDragStart={(e) => { e.dataTransfer.setData('text/file-id', f.id); onDragFileStart?.(f.id); }}
+              onDragEnd={() => onDragFileEnd?.()}
+              className="group flex items-center gap-3 px-3 py-2 hover:bg-surface-50 dark:hover:bg-surface-800/50 cursor-grab active:cursor-grabbing"
+            >
+              {/* Icon / thumbnail */}
+              <button
+                className="shrink-0 w-9"
+                onClick={() => isImage ? onImageClick(viewUrl) : isPdf ? onPdfClick(f.id, viewUrl, f.name) : undefined}
+                title={isImage ? 'Vergrößern' : isPdf ? 'Vorschau' : undefined}
+              >
+                {isImage ? (
+                  <img src={viewUrl} alt={f.name} className="h-9 w-9 rounded object-cover" loading="lazy" />
+                ) : (
+                  <span className="text-xl">{fileIcon(f.mime, f.ext)}</span>
+                )}
+              </button>
+
+              {/* Name */}
+              <div className="min-w-0 flex-1">
+                {isRenaming ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      autoFocus
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') commitRename(f); if (e.key === 'Escape') commitRename({ ...f, name: f.name }); }}
+                      className="min-w-0 flex-1 rounded border border-primary-400 bg-white px-2 py-0.5 text-xs text-surface-900 outline-none dark:bg-surface-700 dark:text-surface-100"
+                    />
+                    <button onClick={() => commitRename(f)} className="shrink-0 text-primary-600"><Check size={13} /></button>
+                  </div>
+                ) : (
+                  <span
+                    className="block truncate text-sm text-surface-800 dark:text-surface-200"
+                    onDoubleClick={() => onRename(f)}
+                    title={`${f.name} — Doppelklick zum Umbenennen`}
+                  >
+                    {f.name}
+                  </span>
+                )}
+              </div>
+
+              {/* Size */}
+              <span className="w-20 shrink-0 text-right text-xs text-surface-400">
                 {f.size_string}
-                {f.size_string && f.uploaded && ' · '}
+              </span>
+
+              {/* Date */}
+              <span className="w-24 shrink-0 text-right text-xs text-surface-400">
                 {formatDate(f.uploaded)}
               </span>
-            </div>
 
-            {/* Actions (visible on hover) */}
-            <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
-              <a
-                href={downloadUrl}
-                download={f.name}
-                className="rounded-md p-1.5 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
-                title="Herunterladen"
-              >
-                <ExternalLink size={14} />
-              </a>
-              <button
-                onClick={() => onRename(f)}
-                className="rounded-md p-1.5 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
-                title="Umbenennen"
-              >
-                <Pencil size={14} />
-              </button>
-              <button
-                onClick={() => onDelete(f)}
-                className="rounded-md p-1.5 text-surface-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                title="Löschen"
-              >
-                <Trash2 size={14} />
-              </button>
+              {/* Actions (visible on hover) */}
+              <div className="hidden shrink-0 items-center justify-end gap-0.5 w-20 group-hover:flex">
+                <a
+                  href={downloadUrl}
+                  download={f.name}
+                  className="rounded-md p-1.5 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
+                  title="Herunterladen"
+                >
+                  <ExternalLink size={14} />
+                </a>
+                <button
+                  onClick={() => onRename(f)}
+                  className="rounded-md p-1.5 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
+                  title="Umbenennen"
+                >
+                  <Pencil size={14} />
+                </button>
+                <button
+                  onClick={() => onDelete(f)}
+                  className="rounded-md p-1.5 text-surface-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                  title="Löschen"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -335,6 +384,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   const [folders, setFolders] = useState<FolderEntry[]>([]);
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const { sortField, sortDirection, setSort, sortedFolders, sortedFiles } = useFileSorting(folders, files);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -436,14 +486,23 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     : null;
 
   const viewProps: ViewProps = {
-    folders, files, onFolderClick: navigateInto,
+    folders: sortedFolders,
+    files: sortedFiles,
+    onFolderClick: navigateInto,
     onImageClick: setLightboxUrl,
     onPdfClick: (fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name }),
-    onRename: startRename, onDelete: handleDelete,
-    renamingId, renameValue, setRenameValue, commitRename,
+    onRename: startRename,
+    onDelete: handleDelete,
+    renamingId,
+    renameValue,
+    setRenameValue,
+    commitRename,
     onDragFileStart: setDragFileId,
     onDragFileEnd: () => setDragFileId(null),
     onDropOnFolder: handleMoveToFolder,
+    sortField,
+    sortDirection,
+    onSort: setSort,
   };
 
   return (
