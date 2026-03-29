@@ -791,9 +791,11 @@ app.post('/api/files/folder/create', async (req, res) => {
 app.delete('/api/files/:fileId', async (req, res) => {
   try {
     const client = await getClient(req);
+    console.log('Deleting file:', req.params.fileId);
     await client.deleteFiles([req.params.fileId]);
     res.json({ ok: true });
   } catch (err) {
+    console.error('Delete file error:', err);
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
   }
 });
