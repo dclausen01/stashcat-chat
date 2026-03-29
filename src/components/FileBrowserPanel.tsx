@@ -530,6 +530,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
 
   const handleUpload = async (file: File, folderId?: string) => {
     setUploading(true);
+    console.log('handleUpload called:', file.name, 'folderId:', folderId);
     try {
       if (tab === 'personal') {
         const userId = user?.id ? String(user.id) : undefined;
@@ -649,12 +650,14 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
             uploadType,
             uploadTypeId!
           );
+          console.log('Created folder:', folderPath, 'ID:', newFolder.id, 'Full response:', newFolder);
           folderIdMap.set(folderPath, String(newFolder.id));
         } catch (err) {
           console.warn('Failed to create folder, might exist:', folderPath, err);
         }
 
         const targetFolderId = folderIdMap.get(folderPath) || parentId;
+        console.log('Uploading files to folder:', folderPath, 'targetFolderId:', targetFolderId, 'Files:', entry.files.length);
         for (const file of entry.files) {
           setUploadProgress(prev => prev ? { ...prev, currentFile: file.name } : null);
 
