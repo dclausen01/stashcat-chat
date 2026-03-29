@@ -747,10 +747,13 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
       resolvedTypeId = String(me.id);
     }
 
+    // Ensure folder_id is a number for the API
+    const folderIdNum = folderId ? parseInt(folderId, 10) : undefined;
+    console.log('[upload] type=', type, 'type_id=', resolvedTypeId, 'folderId=', folderId, 'folderIdNum=', folderIdNum);
     await client.uploadFile(namedPath, {
       type,
       type_id: resolvedTypeId,
-      folder: folderId,
+      folder: folderIdNum,
       filename: originalName,
     });
 
