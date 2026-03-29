@@ -759,10 +759,22 @@ app.post('/api/files/folder/create', async (req, res) => {
         res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create folder' });
     }
 });
-app.delete('/api/files/:fileId', async (req, res) => {
+app.post('/api/folder/delete', async (req, res) => {
     try {
         const client = await getClient(req);
-        await client.deleteFiles([req.params.fileId]);
+        const { folderId } = req.body;
+        await client.deleteFolder(folderId);
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete folder' });
+    }
+});
+app.post('/api/files/delete', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { fileIds } = req.body;
+        await client.deleteFiles(fileIds);
         res.json({ ok: true });
     }
     catch (err) {
