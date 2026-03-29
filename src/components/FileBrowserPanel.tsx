@@ -6,6 +6,7 @@ import {
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { fileIcon } from '../utils/fileIcon';
+import { useSettings } from '../context/SettingsContext';
 import type { ChatTarget } from '../types';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -33,7 +34,6 @@ interface FileEntry {
 
 interface Crumb { id: string | null; name: string }
 type Tab = 'context' | 'personal';
-type ViewMode = 'grid' | 'list';
 
 interface FileBrowserPanelProps {
   chat: ChatTarget | null;
@@ -314,8 +314,23 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
 // ── Main panel ────────────────────────────────────────────────────────────────
 
 export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProps) {
-  const [tab, setTab] = useState<Tab>(chat ? 'context' : 'personal');
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const settings = useSettings();
+  const tab = settings.fileBrowserTab;
+  const setTab = settings.setFileBrowserTab;
+  const viewMode = settings.fileBrowserViewMode;
+  const setViewMode = settings.setFileBrowserViewMode;
+
+  // Initialize tab based on chat availability
+  const [tabInitialized, setTabInitialized] = useState(false);
+  useEffect(() => {
+    if (!tabInitialized) {
+      setTabInitialized(true);
+      if (!chat && tab !== 'personal') {
+        setTab('personal');
+      }
+    }
+  }, [chat, tab, tabInitialized, setTab]);
+
   const [crumbs, setCrumbs] = useState<Crumb[]>([{ id: null, name: 'Alle Dateien' }]);
   const [folders, setFolders] = useState<FolderEntry[]>([]);
   const [files, setFiles] = useState<FileEntry[]>([]);
@@ -512,7 +527,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
 
         {/* View mode toggle */}
         <button
-          onClick={() => setViewMode((m) => m === 'grid' ? 'list' : 'grid')}
+          onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
           className="rounded-md p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
           title={viewMode === 'grid' ? 'Listenansicht' : 'Rasteransicht'}
         >
