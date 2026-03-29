@@ -53,13 +53,17 @@ A React/TypeScript web chat client for Stashcat / schul.cloud, built for BBZ Ren
 
 ### File Browser
 - Browse channel, conversation, or personal file storage
-- Navigate folder hierarchies
+- Navigate folder hierarchies with breadcrumbs
+- **Sort files by name, date, or size** (list view)
+- **Create new folders** with inline naming
+- **Upload entire folder structures** with progress indicator
 - Upload files to any storage context
 - Download files
 - Rename files in place
 - Delete files
 - Inline PDF viewer
 - Image lightbox
+- **Persistent view mode** (grid/list) and tab selection
 
 ### Link Previews
 - Automatic Open Graph / meta-tag preview cards for URLs detected in messages (title, description, image, site name)

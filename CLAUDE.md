@@ -93,7 +93,8 @@ src/
 │   ├── ThemeContext.tsx            # Dark/light toggle (class on <html>)
 │   └── SettingsContext.tsx         # UI settings (bubble view, inline images)
 ├── hooks/
-│   └── useRealtimeEvents.ts        # SSE EventSource, dispatches events
+│   ├── useRealtimeEvents.ts        # SSE EventSource, dispatches events
+│   └── useFileSorting.ts           # File browser sorting logic (name, date, size)
 └── utils/
     └── fileIcon.ts                 # Extension/MIME → icon name
 
@@ -163,7 +164,8 @@ All routes are under `/api/` prefix on port 3001.
 | POST | `/api/typing` | Forward typing indicator via Socket.io |
 | GET | `/api/files/folder` | List folder contents |
 | GET | `/api/files/personal` | List personal files |
-| DELETE | `/api/files/:fileId` | Delete file |
+| POST | `/api/files/delete` | Delete file(s) |
+| POST | `/api/files/folder/create` | Create new folder |
 | PATCH | `/api/files/:fileId` | Rename file |
 | POST | `/api/files/upload` | Upload to file storage (multer) |
 | GET | `/api/file/:fileId` | Download / view file (binary stream) |
