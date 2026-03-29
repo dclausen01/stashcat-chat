@@ -749,27 +749,13 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
 
     // Ensure folder_id is a number for the API
     const folderIdNum = folderId ? parseInt(folderId, 10) : undefined;
-    const logFile = './upload-debug.log';
-    const log = (msg: string) => {
-      const timestamp = new Date().toISOString();
-      const line = `[${timestamp}] ${msg}\n`;
-      console.log(line.trim());
-      require('fs').appendFileSync(logFile, line);
-    };
-    log(`[upload] type=${type} type_id=${resolvedTypeId} folderId=${folderId} folderIdNum=${folderIdNum}`);
 
-    try {
-      const result = await client.uploadFile(namedPath, {
-        type,
-        type_id: resolvedTypeId,
-        folder: folderIdNum,
-        filename: originalName,
-      });
-      log(`[upload] success: ${JSON.stringify(result)}`);
-    } catch (uploadErr) {
-      log(`[upload] error: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`);
-      throw uploadErr;
-    }
+    await client.uploadFile(namedPath, {
+      type,
+      type_id: resolvedTypeId,
+      folder: folderIdNum,
+      filename: originalName,
+    });
 
     await fs.unlink(namedPath).catch(() => {});
     res.json({ ok: true });
