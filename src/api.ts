@@ -353,7 +353,8 @@ export async function uploadToStorage(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    throw new Error(err.error || `HTTP ${res.status}`);
+    const errorMsg = typeof err.error === 'string' ? err.error : JSON.stringify(err.error);
+    throw new Error(errorMsg);
   }
 }
 

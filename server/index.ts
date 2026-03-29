@@ -767,7 +767,10 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     if (tmpPath) await fs.unlink(tmpPath).catch(() => {});
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Upload failed' });
+    const errorDetails = err instanceof Error
+      ? { message: err.message, stack: err.stack, name: err.name }
+      : { message: String(err) };
+    res.status(500).json({ error: errorDetails });
   }
 });
 
