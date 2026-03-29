@@ -643,6 +643,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
         }
 
         const folderName = parts[parts.length - 1];
+        let createdFolderId: string | null = null;
         try {
           const newFolder = await api.createFolder(
             folderName,
@@ -650,13 +651,18 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
             uploadType,
             uploadTypeId!
           );
-          console.log('Created folder:', folderPath, 'ID:', newFolder.id, 'Full response:', newFolder);
-          folderIdMap.set(folderPath, String(newFolder.id));
+          // API returns: { folder_id: number, folder: { id: number, ... } }
+          const folderId = (newFolder.folder_id as number) ?? (newFolder.folder as Record<string, unknown>)?.id;
+          console.log('Created folder:', folderPath, 'ID:', folderId, 'Full response:', newFolder);
+          if (folderId) {
+            createdFolderId = String(folderId);
+            folderIdMap.set(folderPath, createdFolderId);
+          }
         } catch (err) {
           console.warn('Failed to create folder, might exist:', folderPath, err);
         }
 
-        const targetFolderId = folderIdMap.get(folderPath) || parentId;
+        const targetFolderId = createdFolderId ?? folderIdMap.get(folderPath) ?? parentId;
         console.log('Uploading files to folder:', folderPath, 'targetFolderId:', targetFolderId, 'Files:', entry.files.length);
         for (const file of entry.files) {
           setUploadProgress(prev => prev ? { ...prev, currentFile: file.name } : null);

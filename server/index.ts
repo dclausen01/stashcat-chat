@@ -781,7 +781,9 @@ app.post('/api/files/folder/create', async (req, res) => {
       type: string;
       type_id: string;
     };
-    const folder = await client.createFolder(folder_name, parent_id, type, type_id);
+    const response = await client.createFolder(folder_name, parent_id, type, type_id);
+    // Extract payload from API response { status, payload, signature }
+    const folder = (response as Record<string, unknown>)?.payload ?? response;
     res.json(folder);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create folder' });
