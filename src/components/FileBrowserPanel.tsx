@@ -9,6 +9,7 @@ import { clsx } from 'clsx';
 import * as api from '../api';
 import { fileIcon } from '../utils/fileIcon';
 import { useSettings } from '../context/SettingsContext';
+import { useAuth } from '../context/AuthContext';
 import type { ChatTarget } from '../types';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -370,6 +371,7 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
 
 export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProps) {
   const settings = useSettings();
+  const { user } = useAuth();
   const tab = settings.fileBrowserTab;
   const setTab = settings.setFileBrowserTab;
   const viewMode = settings.fileBrowserViewMode;
@@ -478,12 +480,16 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     if (!newFolderName.trim()) return;
     try {
       const uploadType = tab === 'personal' ? 'personal' : chat?.type || 'personal';
-      const uploadTypeId = tab === 'personal' ? undefined : chat?.id;
+      const uploadTypeId = tab === 'personal' ? String(user?.id) : chat?.id;
+      if (!uploadTypeId) {
+        alert('Keine gültige Ziel-ID gefunden');
+        return;
+      }
       await api.createFolder(
         newFolderName.trim(),
         currentFolderId || '0',
         uploadType,
-        uploadTypeId || ''
+        uploadTypeId!
       );
       setNewFolderName('');
       setCreatingFolder(false);
@@ -574,7 +580,17 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     });
 
     const uploadType = tab === 'personal' ? 'personal' : chat?.type || 'personal';
-    const uploadTypeId = tab === 'personal' ? undefined : chat?.id;
+    const uploadTypeId = tab === 'personal' ? String(user?.id) : chat?.id;
+    if (!uploadTypeId) {
+      setUploadProgress({
+        totalFiles,
+        uploadedFiles: 0,
+        currentFile: '',
+        status: 'error',
+        errors: [{ file: '', error: 'Keine gültige Ziel-ID gefunden' }],
+      });
+      return;
+    }
 
     try {
       const sortedFolders = [...folderMap.entries()].sort((a, b) => {
@@ -601,7 +617,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
             folderName,
             parentId,
             uploadType,
-            uploadTypeId || ''
+            uploadTypeId!
           );
           folderIdMap.set(folderPath, String(newFolder.id));
         } catch (err) {
