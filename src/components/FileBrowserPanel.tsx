@@ -676,9 +676,12 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
             uploadedFiles++;
             setUploadProgress(prev => prev ? { ...prev, uploadedFiles } : null);
           } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            console.error('Upload error for', file.name, ':', errorMsg);
+            alert(`Upload-Fehler für ${file.name}:\n${errorMsg}`);
             errors.push({
               file: file.webkitRelativePath || file.name,
-              error: err instanceof Error ? err.message : String(err),
+              error: errorMsg,
             });
           }
         }
