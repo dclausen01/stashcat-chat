@@ -750,12 +750,18 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
     // Ensure folder_id is a number for the API
     const folderIdNum = folderId ? parseInt(folderId, 10) : undefined;
     console.log('[upload] type=', type, 'type_id=', resolvedTypeId, 'folderId=', folderId, 'folderIdNum=', folderIdNum);
-    await client.uploadFile(namedPath, {
-      type,
-      type_id: resolvedTypeId,
-      folder: folderIdNum,
-      filename: originalName,
-    });
+    try {
+      const result = await client.uploadFile(namedPath, {
+        type,
+        type_id: resolvedTypeId,
+        folder: folderIdNum,
+        filename: originalName,
+      });
+      console.log('[upload] success:', result);
+    } catch (uploadErr) {
+      console.error('[upload] error:', uploadErr);
+      throw uploadErr;
+    }
 
     await fs.unlink(namedPath).catch(() => {});
     res.json({ ok: true });
