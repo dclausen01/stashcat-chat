@@ -4,6 +4,7 @@ import {
   Trash2, Pencil, Check, Loader2, ExternalLink, ArrowUp, ArrowDown,
 } from 'lucide-react';
 import { useFileSorting, type SortField, type SortDirection } from '../hooks/useFileSorting';
+import { FolderUploadProgress, type FolderUploadProgressData } from './FolderUploadProgress';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { fileIcon } from '../utils/fileIcon';
@@ -390,6 +391,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [pdfView, setPdfView] = useState<{ fileId: string; viewUrl: string; name: string } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<FolderUploadProgressData | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [dragFileId, setDragFileId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -465,19 +467,155 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     }
   };
 
-  const handleUpload = async (file: File) => {
+  const handleUpload = async (file: File, folderId?: string) => {
     setUploading(true);
     try {
       if (tab === 'personal') {
-        await api.uploadToStorage('personal', undefined, file, currentFolderId);
+        await api.uploadToStorage('personal', undefined, file, folderId ?? currentFolderId);
       } else if (chat) {
-        await api.uploadToStorage(chat.type, chat.id, file, currentFolderId);
+        await api.uploadToStorage(chat.type, chat.id, file, folderId ?? currentFolderId);
       }
-      await loadFolder();
     } catch (err) {
-      alert(`Upload-Fehler: ${err instanceof Error ? err.message : err}`);
+      throw err;
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleFolderInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    e.target.value = '';
+
+    const files = Array.from(fileList);
+    const hasFolderStructure = files.some(f => f.webkitRelativePath?.includes('/'));
+
+    if (hasFolderStructure) {
+      await handleFolderUpload(files);
+    } else {
+      for (const f of files) {
+        try {
+          await handleUpload(f);
+        } catch (err) {
+          alert(`Upload-Fehler: ${err instanceof Error ? err.message : err}`);
+        }
+      }
+      await loadFolder();
+    }
+  };
+
+  const handleFolderUpload = async (files: File[]) => {
+    const folderMap = new Map<string, { files: File[] }>();
+
+    for (const file of files) {
+      const path = file.webkitRelativePath || file.name;
+      const parts = path.split('/');
+      const rootFolder = parts[0];
+
+      if (!folderMap.has(rootFolder)) {
+        folderMap.set(rootFolder, { files: [] });
+      }
+
+      if (parts.length > 2) {
+        for (let i = 1; i < parts.length - 1; i++) {
+          const subfolderPath = parts.slice(0, i + 1).join('/');
+          if (!folderMap.has(subfolderPath)) {
+            folderMap.set(subfolderPath, { files: [] });
+          }
+        }
+      }
+
+      if (parts.length > 1) {
+        const parentPath = parts.slice(0, -1).join('/');
+        const entry = folderMap.get(parentPath);
+        if (entry) entry.files.push(file);
+      } else {
+        const entry = folderMap.get(rootFolder);
+        if (entry) entry.files.push(file);
+      }
+    }
+
+    const totalFiles = files.length;
+    let uploadedFiles = 0;
+    const errors: { file: string; error: string }[] = [];
+
+    setUploadProgress({
+      totalFiles,
+      uploadedFiles: 0,
+      currentFile: '',
+      status: 'uploading',
+      errors: [],
+    });
+
+    const uploadType = tab === 'personal' ? 'personal' : chat?.type || 'personal';
+    const uploadTypeId = tab === 'personal' ? undefined : chat?.id;
+
+    try {
+      const sortedFolders = [...folderMap.entries()].sort((a, b) => {
+        const depthA = a[0].split('/').length;
+        const depthB = b[0].split('/').length;
+        return depthA - depthB;
+      });
+
+      const folderIdMap = new Map<string, string>();
+
+      for (const [folderPath, entry] of sortedFolders) {
+        let parentId = currentFolderId || '0';
+        const parts = folderPath.split('/');
+
+        if (parts.length > 1) {
+          const parentPath = parts.slice(0, -1).join('/');
+          const parentFolderId = folderIdMap.get(parentPath);
+          if (parentFolderId) parentId = parentFolderId;
+        }
+
+        const folderName = parts[parts.length - 1];
+        try {
+          const newFolder = await api.createFolder(
+            folderName,
+            parentId,
+            uploadType,
+            uploadTypeId || ''
+          );
+          folderIdMap.set(folderPath, String(newFolder.id));
+        } catch (err) {
+          console.warn('Failed to create folder, might exist:', folderPath, err);
+        }
+
+        const targetFolderId = folderIdMap.get(folderPath) || parentId;
+        for (const file of entry.files) {
+          setUploadProgress(prev => prev ? { ...prev, currentFile: file.name } : null);
+
+          try {
+            await handleUpload(file, targetFolderId);
+            uploadedFiles++;
+            setUploadProgress(prev => prev ? { ...prev, uploadedFiles } : null);
+          } catch (err) {
+            errors.push({
+              file: file.webkitRelativePath || file.name,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+      }
+
+      setUploadProgress({
+        totalFiles,
+        uploadedFiles,
+        currentFile: '',
+        status: errors.length > 0 ? 'error' : 'complete',
+        errors,
+      });
+
+      await loadFolder();
+    } catch (err) {
+      setUploadProgress({
+        totalFiles,
+        uploadedFiles,
+        currentFile: '',
+        status: 'error',
+        errors: [{ file: 'Allgemein', error: err instanceof Error ? err.message : String(err) }],
+      });
     }
   };
 
@@ -518,7 +656,20 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
         e.preventDefault();
         setDragOver(false);
         const droppedFiles = Array.from(e.dataTransfer.files);
-        for (const f of droppedFiles) await handleUpload(f);
+        const hasFolderStructure = droppedFiles.some(f => f.webkitRelativePath?.includes('/'));
+
+        if (hasFolderStructure) {
+          await handleFolderUpload(droppedFiles);
+        } else {
+          for (const f of droppedFiles) {
+            try {
+              await handleUpload(f);
+            } catch (err) {
+              alert(`Upload-Fehler: ${err instanceof Error ? err.message : err}`);
+            }
+          }
+          await loadFolder();
+        }
       }}
     >
       {/* External file drop overlay */}
@@ -596,22 +747,19 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
         {/* Upload */}
         <button
           onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
+          disabled={uploading || uploadProgress !== null}
           className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 disabled:opacity-50 dark:text-primary-400 dark:hover:bg-primary-900/20"
         >
-          {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-          {uploading ? 'Lädt…' : 'Upload'}
+          {uploading || uploadProgress !== null ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+          {uploading ? 'Lädt…' : uploadProgress !== null ? 'Upload läuft…' : 'Upload'}
         </button>
         <input
           ref={fileInputRef}
           type="file"
           multiple
+          {...{ webkitdirectory: '', directory: '' }}
           className="hidden"
-          onChange={(e) => {
-            const list = Array.from(e.target.files || []);
-            e.target.value = '';
-            list.forEach(handleUpload);
-          }}
+          onChange={handleFolderInputChange}
         />
       </div>
 
@@ -670,6 +818,14 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
             <iframe src={pdfView.viewUrl} className="flex-1 rounded-b-xl" title={pdfView.name} />
           </div>
         </div>
+      )}
+
+      {/* Folder upload progress */}
+      {uploadProgress && (
+        <FolderUploadProgress
+          progress={uploadProgress}
+          onClose={() => setUploadProgress(null)}
+        />
       )}
     </div>
   );
