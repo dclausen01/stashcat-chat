@@ -568,6 +568,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   };
 
   const handleFolderUpload = async (files: File[]) => {
+    console.log('[handleFolderUpload] called with files:', files.map(f => f.webkitRelativePath || f.name));
     const folderMap = new Map<string, { files: File[] }>();
 
     for (const file of files) {
@@ -781,6 +782,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
         if (filesWithPaths.length > 0) {
           // Check if we have a folder structure
           const hasFolderStructure = filesWithPaths.some(f => f.path.includes('/'));
+          console.log('[onDrop] filesWithPaths:', filesWithPaths.map(f => f.path), 'hasFolderStructure:', hasFolderStructure);
 
           if (hasFolderStructure) {
             await handleFolderUpload(filesWithPaths.map(f => {
