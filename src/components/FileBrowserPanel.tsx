@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Grid3x3, List, Upload, Folder, ChevronRight, Home,
-  Trash2, Pencil, Check, Loader2, ExternalLink, ArrowUp, ArrowDown,
+  Trash2, Pencil, Check, Loader2, ExternalLink, ArrowUp, ArrowDown, Plus,
 } from 'lucide-react';
 import { useFileSorting, type SortField, type SortDirection } from '../hooks/useFileSorting';
 import { FolderUploadProgress, type FolderUploadProgressData } from './FolderUploadProgress';
@@ -225,17 +225,17 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
     <div className="flex flex-col">
       {/* Column headers */}
       <div className="flex items-center gap-3 border-b border-surface-100 px-3 py-2 dark:border-surface-800">
-        <div className="w-9 shrink-0" /> {/* Icon column */}
+        <div className="w-10 shrink-0" /> {/* Icon column */}
         <div className="min-w-0 flex-1">
           <SortHeader field="name" label="Name" />
         </div>
-        <div className="w-20 shrink-0 text-right">
+        <div className="w-16 shrink-0 text-right">
           <SortHeader field="size" label="Größe" className="justify-end" />
         </div>
-        <div className="w-24 shrink-0 text-right">
+        <div className="w-20 shrink-0 text-right">
           <SortHeader field="date" label="Datum" className="justify-end" />
         </div>
-        <div className="w-20 shrink-0" /> {/* Actions column */}
+        <div className="w-16 shrink-0" /> {/* Actions column */}
       </div>
 
       <div className="flex flex-col divide-y divide-surface-100 px-1 dark:divide-surface-800">
@@ -259,11 +259,15 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
                 : 'hover:bg-surface-100 dark:hover:bg-surface-800',
             )}
           >
-            <Folder size={18} className="shrink-0 text-amber-400" fill="currentColor" />
+            <div className="w-10 shrink-0 flex justify-center">
+              <Folder size={18} className="text-amber-400" fill="currentColor" />
+            </div>
             <span className="min-w-0 flex-1 truncate text-left text-sm text-surface-800 dark:text-surface-200">{f.name}</span>
-            <span className="w-20 shrink-0 text-right text-xs text-surface-400" />
-            <span className="w-24 shrink-0 text-right text-xs text-surface-400">{formatDate(f.created)}</span>
-            <ChevronRight size={14} className="w-20 shrink-0 text-surface-400" />
+            <span className="w-16 shrink-0 text-right text-xs text-surface-400" />
+            <span className="w-20 shrink-0 text-right text-xs text-surface-400">{formatDate(f.created)}</span>
+            <div className="w-16 shrink-0 flex justify-end">
+              <ChevronRight size={14} className="text-surface-400" />
+            </div>
           </button>
         ))}
         {files.map((f) => {
@@ -282,17 +286,18 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               className="group flex items-center gap-3 px-3 py-2 hover:bg-surface-50 dark:hover:bg-surface-800/50 cursor-grab active:cursor-grabbing"
             >
               {/* Icon / thumbnail */}
-              <button
-                className="shrink-0 w-9"
-                onClick={() => isImage ? onImageClick(viewUrl) : isPdf ? onPdfClick(f.id, viewUrl, f.name) : undefined}
-                title={isImage ? 'Vergrößern' : isPdf ? 'Vorschau' : undefined}
-              >
-                {isImage ? (
-                  <img src={viewUrl} alt={f.name} className="h-9 w-9 rounded object-cover" loading="lazy" />
-                ) : (
-                  <span className="text-xl">{fileIcon(f.mime, f.ext)}</span>
-                )}
-              </button>
+              <div className="w-10 shrink-0 flex justify-center">
+                <button
+                  onClick={() => isImage ? onImageClick(viewUrl) : isPdf ? onPdfClick(f.id, viewUrl, f.name) : undefined}
+                  title={isImage ? 'Vergrößern' : isPdf ? 'Vorschau' : undefined}
+                >
+                  {isImage ? (
+                    <img src={viewUrl} alt={f.name} className="h-9 w-9 rounded object-cover" loading="lazy" />
+                  ) : (
+                    <span className="text-xl">{fileIcon(f.mime, f.ext)}</span>
+                  )}
+                </button>
+              </div>
 
               {/* Name */}
               <div className="min-w-0 flex-1">
@@ -319,17 +324,17 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               </div>
 
               {/* Size */}
-              <span className="w-20 shrink-0 text-right text-xs text-surface-400">
+              <span className="w-16 shrink-0 text-right text-xs text-surface-400">
                 {f.size_string}
               </span>
 
               {/* Date */}
-              <span className="w-24 shrink-0 text-right text-xs text-surface-400">
+              <span className="w-20 shrink-0 text-right text-xs text-surface-400">
                 {formatDate(f.uploaded)}
               </span>
 
               {/* Actions (visible on hover) */}
-              <div className="hidden shrink-0 items-center justify-end gap-0.5 w-20 group-hover:flex">
+              <div className="hidden shrink-0 items-center justify-end gap-0.5 w-16 group-hover:flex">
                 <a
                   href={downloadUrl}
                   download={f.name}
@@ -392,6 +397,8 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   const [pdfView, setPdfView] = useState<{ fileId: string; viewUrl: string; name: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<FolderUploadProgressData | null>(null);
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [dragFileId, setDragFileId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -464,6 +471,25 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
       await loadFolder();
     } catch (err) {
       alert(`Verschieben fehlgeschlagen: ${err instanceof Error ? err.message : err}`);
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) return;
+    try {
+      const uploadType = tab === 'personal' ? 'personal' : chat?.type || 'personal';
+      const uploadTypeId = tab === 'personal' ? undefined : chat?.id;
+      await api.createFolder(
+        newFolderName.trim(),
+        currentFolderId || '0',
+        uploadType,
+        uploadTypeId || ''
+      );
+      setNewFolderName('');
+      setCreatingFolder(false);
+      await loadFolder();
+    } catch (err) {
+      alert(`Ordner erstellen fehlgeschlagen: ${err instanceof Error ? err.message : err}`);
     }
   };
 
@@ -655,20 +681,68 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
       onDrop={async (e) => {
         e.preventDefault();
         setDragOver(false);
-        const droppedFiles = Array.from(e.dataTransfer.files);
-        const hasFolderStructure = droppedFiles.some(f => f.webkitRelativePath?.includes('/'));
 
-        if (hasFolderStructure) {
-          await handleFolderUpload(droppedFiles);
-        } else {
-          for (const f of droppedFiles) {
-            try {
-              await handleUpload(f);
-            } catch (err) {
-              alert(`Upload-Fehler: ${err instanceof Error ? err.message : err}`);
+        // Get files with their relative paths from dataTransfer.items
+        const filesWithPaths: { file: File; path: string }[] = [];
+
+        if (e.dataTransfer.items) {
+          // Use webkitGetAsEntry to get folder structure
+          const getEntries = async (entry: FileSystemEntry, path = ''): Promise<void> => {
+            if (entry.isFile) {
+              const fileEntry = entry as FileSystemFileEntry;
+              await new Promise<void>((resolve) => {
+                fileEntry.file((file) => {
+                  filesWithPaths.push({ file, path: path ? `${path}/${file.name}` : file.name });
+                  resolve();
+                });
+              });
+            } else if (entry.isDirectory) {
+              const dirEntry = entry as FileSystemDirectoryEntry;
+              const reader = dirEntry.createReader();
+              const entries = await new Promise<FileSystemEntry[]>((resolve) => {
+                reader.readEntries(resolve);
+              });
+              for (const childEntry of entries) {
+                await getEntries(childEntry, path ? `${path}/${dirEntry.name}` : dirEntry.name);
+              }
+            }
+          };
+
+          const promises: Promise<void>[] = [];
+          for (let i = 0; i < e.dataTransfer.items.length; i++) {
+            const item = e.dataTransfer.items[i];
+            const entry = item.webkitGetAsEntry();
+            if (entry) {
+              promises.push(getEntries(entry));
             }
           }
-          await loadFolder();
+          await Promise.all(promises);
+        }
+
+        if (filesWithPaths.length > 0) {
+          // Check if we have a folder structure
+          const hasFolderStructure = filesWithPaths.some(f => f.path.includes('/'));
+
+          if (hasFolderStructure) {
+            await handleFolderUpload(filesWithPaths.map(f => {
+              // Create a new File object with webkitRelativePath set
+              const newFile = new File([f.file], f.file.name, { type: f.file.type });
+              Object.defineProperty(newFile, 'webkitRelativePath', {
+                value: f.path,
+                writable: false,
+              });
+              return newFile;
+            }));
+          } else {
+            for (const { file } of filesWithPaths) {
+              try {
+                await handleUpload(file);
+              } catch (err) {
+                alert(`Upload-Fehler: ${err instanceof Error ? err.message : err}`);
+              }
+            }
+            await loadFolder();
+          }
         }
       }}
     >
@@ -744,6 +818,17 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
           {viewMode === 'grid' ? <List size={14} /> : <Grid3x3 size={14} />}
         </button>
 
+        {/* New Folder */}
+        <button
+          onClick={() => setCreatingFolder(true)}
+          disabled={creatingFolder}
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-surface-600 hover:bg-surface-100 disabled:opacity-50 dark:text-surface-400 dark:hover:bg-surface-800"
+          title="Neuer Ordner"
+        >
+          <Plus size={12} />
+          <span className="hidden sm:inline">Ordner</span>
+        </button>
+
         {/* Upload */}
         <button
           onClick={() => fileInputRef.current?.click()}
@@ -765,6 +850,45 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
+        {/* New Folder Input */}
+        {creatingFolder && (
+          <div className="flex items-center gap-2 border-b border-surface-100 px-3 py-2 dark:border-surface-800">
+            <Folder size={16} className="text-primary-500" />
+            <input
+              type="text"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleCreateFolder();
+                if (e.key === 'Escape') {
+                  setCreatingFolder(false);
+                  setNewFolderName('');
+                }
+              }}
+              placeholder="Ordnername..."
+              autoFocus
+              className="flex-1 rounded-md border border-surface-200 bg-white px-2 py-1 text-sm outline-none focus:border-primary-500 dark:border-surface-700 dark:bg-surface-800"
+            />
+            <button
+              onClick={handleCreateFolder}
+              disabled={!newFolderName.trim()}
+              className="rounded-md p-1 text-primary-600 hover:bg-primary-50 disabled:opacity-50 dark:text-primary-400 dark:hover:bg-primary-900/20"
+              title="Erstellen"
+            >
+              <Check size={16} />
+            </button>
+            <button
+              onClick={() => {
+                setCreatingFolder(false);
+                setNewFolderName('');
+              }}
+              className="rounded-md p-1 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800"
+              title="Abbrechen"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
         {loading ? (
           <div className="flex h-32 items-center justify-center">
             <Loader2 size={24} className="animate-spin text-primary-400" />
