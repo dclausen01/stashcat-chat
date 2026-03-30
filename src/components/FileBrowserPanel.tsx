@@ -424,22 +424,31 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   // Initialize tab based on chat availability; reset to 'context' when chat changes
   const [tabInitialized, setTabInitialized] = useState(false);
   const prevChatIdRef = useRef<string | undefined>(undefined);
+  const initialRunRef = useRef(false);
   useEffect(() => {
+    // Always run on first mount (initialRunRef check)
+    if (!initialRunRef.current) {
+      initialRunRef.current = true;
+      if (chat) {
+        setTab('context');
+      } else {
+        setTab('personal');
+      }
+      setTabInitialized(true);
+      return;
+    }
+    // Subsequent runs: only react to chat.id changes
     const chatId = chat?.id;
     if (chatId !== prevChatIdRef.current) {
       prevChatIdRef.current = chatId;
       if (chat) {
-        // When opening from a chat, always default to context files
         setTab('context');
-        setTabInitialized(true);
-      } else if (!tabInitialized) {
-        setTabInitialized(true);
-        if (tab !== 'personal') {
-          setTab('personal');
-        }
       }
+      // When chat becomes undefined, do NOT switch to personal here —
+      // the user might still want to browse personal files; they can switch tabs manually
+      setTabInitialized(true);
     }
-  }, [chat?.id, tabInitialized, setTab]);
+  }, [chat?.id, setTab]);
 
   const [crumbs, setCrumbs] = useState<Crumb[]>([{ id: null, name: 'Alle Dateien' }]);
   const [folders, setFolders] = useState<FolderEntry[]>([]);
