@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Search, LogOut, Sun, Moon, Users, GripHorizontal, Star, FolderOpen, Plus, Radio, CalendarDays, Bell, BarChart3, Settings } from 'lucide-react';
-import { clsx } from 'clsx';
+import { Hash, Search, Users, GripHorizontal, Plus } from 'lucide-react';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
-import Avatar from './Avatar';
 import { useFaviconBadge } from '../hooks/useFaviconBadge';
+import ChatItem from './ChatItem';
+import SidebarHeader from './SidebarHeader';
+import SidebarFooter from './SidebarFooter';
 import NewChannelModal from './NewChannelModal';
 import NewChatModal from './NewChatModal';
 import ChannelDiscoveryModal from './ChannelDiscoveryModal';
@@ -41,8 +41,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, onOpenSettings, onOpenProfile, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen, onChannelsLoaded }: SidebarProps) {
-  const { user, logout } = useAuth();
-  const { theme, toggle } = useTheme();
+  const { user } = useAuth();
   const [channels, setChannels] = useState<ChatTarget[]>([]);
   const [conversations, setConversations] = useState<ChatTarget[]>([]);
   const [search, setSearch] = useState('');
@@ -94,22 +93,21 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
       const allChannels: ChatTarget[] = [];
       let firstCompanyId = '';
-      for (const company of (companies as Array<Record<string, unknown>>)) {
+      for (const company of companies) {
         const cid = String(company.id);
         if (!firstCompanyId) firstCompanyId = cid;
         const channelList = await api.getChannels(cid);
-        for (const ch of (channelList as Array<Record<string, unknown>>)) {
-          const lastMsg = ch.last_message as Record<string, unknown> | undefined;
+        for (const ch of channelList) {
           allChannels.push({
             type: 'channel',
             id: String(ch.id),
-            name: String(ch.name || ''),
-            description: ch.description ? String(ch.description) : undefined,
-            image: ch.image ? String(ch.image) : undefined,
+            name: ch.name || '',
+            description: ch.description,
+            image: ch.image,
             encrypted: Boolean(ch.encrypted),
             unread_count: Number(ch.unread_count || 0),
             favorite: Boolean(ch.favorite),
-            lastActivity: lastMsg ? Number(lastMsg.time || 0) : 0,
+            lastActivity: ch.last_message ? Number(ch.last_message.time || 0) : 0,
             company_id: cid,
           });
         }
@@ -118,9 +116,9 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       setChannels(sortChats(allChannels));
       onChannelsLoaded?.(sortChats(allChannels));
 
-      const convTargets: ChatTarget[] = (convList as Array<Record<string, unknown>>).map((c) => {
-        const members = (c.members as Array<Record<string, unknown>>) || [];
-        const userId = String((user as Record<string, unknown>)?.id);
+      const userId = user?.id ?? '';
+      const convTargets: ChatTarget[] = convList.map((c) => {
+        const members = c.members || [];
         const otherMembers = members.filter((m) => String(m.id) !== userId);
         const name = otherMembers.length > 0
           ? otherMembers.map((m) => `${m.first_name} ${m.last_name}`).join(', ')
@@ -244,11 +242,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     window.addEventListener('mouseup', onUp);
   }, []);
 
-  const userName = user
-    ? `${(user as Record<string, unknown>).first_name} ${(user as Record<string, unknown>).last_name}`
-    : '';
-  const userImage = (user as Record<string, unknown>)?.image as string | undefined;
-
   return (
     <div
       className="relative flex h-full shrink-0 flex-col bg-surface-50 dark:bg-surface-900"
@@ -260,67 +253,14 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         className="absolute right-0 top-0 z-20 h-full w-1 cursor-col-resize border-r border-surface-200 transition-colors hover:border-primary-400 hover:border-r-2 dark:border-surface-700 dark:hover:border-primary-600"
         title="Breite anpassen"
       />
-      {/* User header — two rows: user+settings, then action buttons */}
-      <div className="shrink-0 border-b border-surface-200 px-3 py-2 dark:border-surface-700">
-        {/* Row 1: Avatar, Name, BBZ Logo */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onOpenProfile}
-            className="rounded-full transition hover:opacity-80"
-            title="Profil bearbeiten"
-          >
-            <Avatar name={userName} image={userImage} size="sm" />
-          </button>
-          <button
-            onClick={onOpenProfile}
-            className="min-w-0 flex-1 text-left"
-            title="Profil bearbeiten"
-          >
-            <div className="truncate text-sm font-semibold text-surface-900 hover:text-primary-600 dark:text-white dark:hover:text-primary-400">{userName}</div>
-          </button>
-          <img src="/bbz-logo-neu.png" alt="BBZ Chat" className="h-5 w-auto shrink-0 opacity-70" title="BBZ Chat" />
-        </div>
-        {/* Row 2: Action buttons */}
-        <div className="mt-1.5 flex items-center justify-between px-1">
-          <button
-            onClick={onOpenNotifications}
-            className={clsx(
-              'relative rounded-lg p-1.5 transition',
-              notificationsOpen
-                ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-                : 'text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700',
-            )}
-            title="Benachrichtigungen"
-          >
-            <Bell size={16} />
-            {totalUnread > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
-                {totalUnread > 99 ? '99+' : totalUnread}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={onOpenFileBrowser}
-            className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
-            title="Meine Dateien"
-          >
-            <FolderOpen size={16} />
-          </button>
-          <button onClick={toggle} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-          <button
-            onClick={onOpenSettings}
-            className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
-            title="Einstellungen"
-          >
-            <Settings size={16} />
-          </button>
-          <button onClick={logout} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
-            <LogOut size={16} />
-          </button>
-        </div>
-      </div>
+      <SidebarHeader
+        totalUnread={totalUnread}
+        notificationsOpen={notificationsOpen}
+        onOpenNotifications={onOpenNotifications}
+        onOpenFileBrowser={onOpenFileBrowser}
+        onOpenSettings={onOpenSettings}
+        onOpenProfile={onOpenProfile}
+      />
 
       {/* Search */}
       <div className="shrink-0 p-3">
@@ -411,50 +351,14 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         </div>
       </div>
 
-      {/* Footer toolbar — Broadcasts & Calendar */}
-      <div className="flex shrink-0 items-center border-t border-surface-200 dark:border-surface-700">
-        <button
-          onClick={onOpenBroadcasts}
-          className={clsx(
-            'flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition',
-            broadcastsOpen
-              ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
-              : 'text-surface-500 hover:bg-surface-100 hover:text-surface-700 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-200',
-          )}
-          title="Broadcasts"
-        >
-          <Radio size={15} />
-          <span>Broadcasts</span>
-        </button>
-        <div className="h-6 w-px bg-surface-200 dark:bg-surface-700" />
-        <button
-          onClick={onOpenCalendar}
-          className={clsx(
-            'flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition',
-            calendarOpen
-              ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
-              : 'text-surface-500 hover:bg-surface-100 hover:text-surface-700 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-200',
-          )}
-          title="Kalender"
-        >
-          <CalendarDays size={15} />
-          <span>Kalender</span>
-        </button>
-        <div className="h-6 w-px bg-surface-200 dark:bg-surface-700" />
-        <button
-          onClick={onOpenPolls}
-          className={clsx(
-            'flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition',
-            pollsOpen
-              ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
-              : 'text-surface-500 hover:bg-surface-100 hover:text-surface-700 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-200',
-          )}
-          title="Umfragen"
-        >
-          <BarChart3 size={15} />
-          <span>Umfragen</span>
-        </button>
-      </div>
+      <SidebarFooter
+        broadcastsOpen={broadcastsOpen}
+        calendarOpen={calendarOpen}
+        pollsOpen={pollsOpen}
+        onOpenBroadcasts={onOpenBroadcasts}
+        onOpenCalendar={onOpenCalendar}
+        onOpenPolls={onOpenPolls}
+      />
 
       {/* New channel modal */}
       {showNewChannel && primaryCompanyId && (
@@ -465,11 +369,9 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
             // Add newly created channel to the list and navigate to it
             const newTarget: ChatTarget = {
               type: 'channel',
-              id: String((ch as Record<string, unknown>).id ?? ''),
-              name: String((ch as Record<string, unknown>).name ?? ''),
-              description: (ch as Record<string, unknown>).description
-                ? String((ch as Record<string, unknown>).description)
-                : undefined,
+              id: String(ch.id ?? ''),
+              name: String(ch.name ?? ''),
+              description: ch.description ? String(ch.description) : undefined,
               company_id: primaryCompanyId,
               encrypted: false,
               unread_count: 0,
@@ -486,25 +388,23 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       {showNewChat && primaryCompanyId && (
         <NewChatModal
           companyId={primaryCompanyId}
-          myUserId={String((user as Record<string, unknown>)?.id ?? '')}
+          myUserId={user?.id ?? ''}
           onClose={() => setShowNewChat(false)}
           onCreate={(conv) => {
-            const convData = conv as Record<string, unknown>;
-            const newId = String(convData.id ?? '');
-            const members = (convData.members as Array<Record<string, unknown>>) || [];
-            const userId = String((user as Record<string, unknown>)?.id);
+            const newId = String(conv.id ?? '');
+            const members = conv.members || [];
+            const userId = user?.id ?? '';
             const others = members.filter((m) => String(m.id) !== userId);
             const name = others.length > 0
               ? others.map((m) => `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim()).join(', ')
               : 'Eigene Notizen';
 
-            // Create ChatTarget directly from API response
             const newTarget: ChatTarget = {
               type: 'conversation',
               id: newId,
               name,
               image: others.length === 1 && others[0].image ? String(others[0].image) : undefined,
-              encrypted: Boolean(convData.encrypted),
+              encrypted: Boolean(conv.encrypted),
               unread_count: 0,
               favorite: false,
               lastActivity: Date.now() / 1000,
@@ -515,9 +415,9 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
             onSelectChat(newTarget);
 
             // Also refresh from server in background to sync
-            api.getConversations().then((convList) => {
-              const targets: ChatTarget[] = (convList as Array<Record<string, unknown>>).map((c) => {
-                const m = (c.members as Array<Record<string, unknown>>) || [];
+            api.getConversations().then((freshConvs) => {
+              const targets: ChatTarget[] = freshConvs.map((c) => {
+                const m = c.members || [];
                 const o = m.filter((mb) => String(mb.id) !== userId);
                 return {
                   type: 'conversation' as const,
@@ -562,48 +462,5 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         />
       )}
     </div>
-  );
-}
-
-function ChatItem({ target, active, onSelect, onToggleFavorite }: { target: ChatTarget; active: boolean; onSelect: (t: ChatTarget) => void; onToggleFavorite?: (t: ChatTarget) => void }) {
-  return (
-    <button
-      onClick={() => onSelect(target)}
-      className={clsx(
-        'group/item flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition',
-        active
-          ? 'bg-primary-100 text-primary-900 dark:bg-primary-900/30 dark:text-primary-200'
-          : 'text-surface-700 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800',
-      )}
-    >
-      {target.type === 'channel' ? (
-        target.image
-          ? <Avatar name={target.name} image={target.image} size="sm" />
-          : <Hash size={17} className={clsx('shrink-0', active ? 'text-primary-600 dark:text-primary-400' : 'text-surface-400')} />
-      ) : (
-        <Avatar name={target.name} image={target.image} size="sm" />
-      )}
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">{target.name}</span>
-      {onToggleFavorite && (
-        <span
-          onClick={(e) => { e.stopPropagation(); onToggleFavorite(target); }}
-          title={target.favorite ? 'Favorit entfernen' : 'Als Favorit markieren'}
-          className={clsx(
-            'shrink-0 cursor-pointer transition',
-            target.favorite
-              ? 'text-yellow-400'
-              : 'text-transparent group-hover/item:text-surface-300 dark:group-hover/item:text-surface-600',
-          )}
-        >
-          <Star size={13} className={target.favorite ? 'fill-yellow-400' : ''} />
-        </span>
-      )}
-      {target.encrypted && <span className="shrink-0 text-xs text-surface-400" title="Verschlüsselt">🔒</span>}
-      {(target.unread_count ?? 0) > 0 && (
-        <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary-600 px-1.5 text-xs font-bold text-white">
-          {target.unread_count}
-        </span>
-      )}
-    </button>
   );
 }

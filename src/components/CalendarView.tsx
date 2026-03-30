@@ -64,7 +64,7 @@ interface CalendarSource {
 
 export default function CalendarView() {
   const { user } = useAuth();
-  const userId = String((user as Record<string, unknown>)?.id ?? '');
+  const userId = user?.id ?? '';
 
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -100,7 +100,7 @@ export default function CalendarView() {
   // Load channel calendars + all channel names on mount
   useEffect(() => {
     api.getCompanies().then((companies) => {
-      const cids = (companies as Array<Record<string, unknown>>).map((c) => String(c.id));
+      const cids = companies.map((c) => String(c.id));
 
       // Load channels with events (for calendar sources)
       Promise.all(cids.map((cid) => api.getCalendarChannels(cid))).then((results) => {
@@ -125,7 +125,7 @@ export default function CalendarView() {
       Promise.all(cids.map((cid) => api.getChannels(cid))).then((results) => {
         const nameMap = new Map<string, string>();
         for (const channels of results) {
-          for (const ch of channels as Array<Record<string, unknown>>) {
+          for (const ch of channels) {
             nameMap.set(String(ch.id), String(ch.name ?? ''));
           }
         }
@@ -1008,9 +1008,8 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
   // Get company ID and load channels on mount
   useEffect(() => {
     api.getCompanies().then((c) => {
-      const arr = c as Array<Record<string, unknown>>;
-      if (arr.length > 0) {
-        const cid = String(arr[0].id);
+      if (c.length > 0) {
+        const cid = String(c[0].id);
         setCompanyId(cid);
         // Load channels for the channel picker
         api.getChannels(cid).then((chs) => {

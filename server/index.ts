@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import os from 'os';
 import path from 'path';
@@ -22,12 +23,27 @@ import type { RealtimeManager } from 'stashcat-api';
 import type { MessageSyncPayload } from 'stashcat-api';
 import { encryptSession, decryptSession } from './token-crypto';
 
+/** Extract error message safely from unknown catch values. */
+function errorMessage(err: unknown, fallback = 'Failed'): string {
+  return err instanceof Error ? err.message : fallback;
+}
+
 // Multer: store uploads in OS temp dir
 const upload = multer({ dest: os.tmpdir() });
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Rate limiting — exempt SSE endpoint (long-lived connections)
+const apiLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path === '/api/events',
+});
+app.use('/api/', apiLimiter);
 
 // ── Client cache with TTL ────────────────────────────────────────────────────
 
@@ -108,16 +124,13 @@ async function getClient(req: express.Request): Promise<StashcatClient> {
 
 // ── Realtime setup ───────────────────────────────────────────────────────────
 
-function connectRealtime(client: StashcatClient, clientKey: string) {
-  client.createRealtimeManager({ reconnect: true }).then((rt) => {
+async function connectRealtime(client: StashcatClient, clientKey: string) {
+  try {
+    const rt = await client.createRealtimeManager({ reconnect: true });
     const conn = activeSSE.get(clientKey);
     if (!conn) { rt.disconnect(); return; }
     conn.realtime = rt;
-    return rt.connect();
-  }).then(() => {
-    const conn = activeSSE.get(clientKey);
-    if (!conn?.realtime) return;
-    const rt = conn.realtime;
+    await rt.connect();
 
     rt.on('message_sync', async (data: MessageSyncPayload) => {
       // Suppress Chat Bot conversation messages from reaching the frontend
@@ -133,10 +146,10 @@ function connectRealtime(client: StashcatClient, clientKey: string) {
         try {
           let aesKey: Buffer | undefined;
           const channelId = data.channel_id && data.channel_id !== 0 ? String(data.channel_id) : null;
-          const convId    = data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null;
+          const msgConvId = data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null;
 
-          if (convId) {
-            aesKey = await client.getConversationAesKey(convId);
+          if (msgConvId) {
+            aesKey = await client.getConversationAesKey(msgConvId);
           } else if (channelId) {
             aesKey = await client.getChannelAesKey(channelId);
           }
@@ -146,7 +159,7 @@ function connectRealtime(client: StashcatClient, clientKey: string) {
             payload.text = CryptoManager.decrypt(data.text, aesKey, iv);
           }
         } catch (err) {
-          console.warn('[Realtime] Failed to decrypt message_sync:', (err as Error).message);
+          console.warn('[Realtime] Failed to decrypt message_sync:', errorMessage(err));
         }
       }
 
@@ -158,9 +171,9 @@ function connectRealtime(client: StashcatClient, clientKey: string) {
     });
 
     console.log(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
-  }).catch((err: unknown) => {
+  } catch (err) {
     console.warn('[Realtime] Connection failed:', err);
-  });
+  }
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -189,7 +202,7 @@ app.post('/api/login', async (req, res) => {
     res.json({ token, user: me });
 
   } catch (err) {
-    res.status(401).json({ error: err instanceof Error ? err.message : 'Login failed' });
+    res.status(401).json({ error: errorMessage(err, 'Login failed') });
   }
 });
 
@@ -266,7 +279,7 @@ app.post('/api/typing', (req, res) => {
     conn?.realtime?.sendTyping(type, targetId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -277,7 +290,7 @@ app.get('/api/companies', async (req, res) => {
     const client = await getClient(req);
     res.json(await client.getCompanies());
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -288,7 +301,7 @@ app.get('/api/channels/:companyId/visible', async (req, res) => {
     const client = await getClient(req);
     const channels = await client.getVisibleChannels(req.params.companyId);
     res.json(channels);
-  } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+  } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
 });
 
 app.post('/api/channels/:channelId/join', async (req, res) => {
@@ -296,7 +309,7 @@ app.post('/api/channels/:channelId/join', async (req, res) => {
     const client = await getClient(req);
     await client.joinChannel(req.params.channelId);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+  } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
 });
 
 app.post('/api/channels/:channelId/favorite', async (req, res) => {
@@ -309,7 +322,7 @@ app.post('/api/channels/:channelId/favorite', async (req, res) => {
       await client.setChannelFavorite(req.params.channelId, false);
     }
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+  } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
 });
 
 app.get('/api/channels/:companyId', async (req, res) => {
@@ -317,7 +330,7 @@ app.get('/api/channels/:companyId', async (req, res) => {
     const client = await getClient(req);
     res.json(await client.getChannels(req.params.companyId));
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -340,7 +353,7 @@ app.get('/api/channels/:channelId/members', async (req, res) => {
     if (all.length > 0) console.log('[channels/members] first member:', JSON.stringify(all[0]));
     res.json(all);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -351,7 +364,7 @@ app.post('/api/channels/:channelId/invite', async (req, res) => {
     await client.inviteUsersToChannel(req.params.channelId, userIds);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -361,7 +374,7 @@ app.delete('/api/channels/:channelId/members/:userId', async (req, res) => {
     await client.removeUserFromChannel(req.params.channelId, req.params.userId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -373,7 +386,7 @@ app.post('/api/channels/:channelId/moderator/:userId', async (req, res) => {
     await client.addChannelModerator(req.params.channelId, req.params.userId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -383,7 +396,7 @@ app.delete('/api/channels/:channelId/moderator/:userId', async (req, res) => {
     await client.removeChannelModerator(req.params.channelId, req.params.userId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -400,7 +413,7 @@ app.patch('/api/channels/:channelId', async (req, res) => {
     });
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -411,7 +424,7 @@ app.get('/api/channels/:channelId/info', async (req, res) => {
     const ch = await client.getChannelInfo(req.params.channelId, true);
     res.json(ch);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -423,7 +436,7 @@ app.delete('/api/channels/:channelId', async (req, res) => {
     await client.deleteChannel(channelId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete channel' });
+    res.status(500).json({ error: errorMessage(err, 'Failed to delete channel') });
   }
 });
 
@@ -440,7 +453,7 @@ app.get('/api/companies/:companyId/members', async (req, res) => {
     res.json({ users: result.users, total: result.total });
   } catch (err) {
     console.error('[company-members] Error:', err);
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -453,7 +466,7 @@ app.get('/api/companies/:companyId/groups', async (req, res) => {
     res.json(groups);
   } catch (err) {
     console.error('[company-groups] Error:', err);
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -469,7 +482,7 @@ app.get('/api/companies/:companyId/groups/:groupId/members', async (req, res) =>
     res.json({ users: result.users, total: result.total });
   } catch (err) {
     console.error('[group-members] Error:', err);
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -526,7 +539,7 @@ app.post('/api/channels', async (req, res) => {
     console.log(`[channels/create] created channel: ${(channel as unknown as Record<string,unknown>).name ?? name}`);
     res.json(channel);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create channel' });
+    res.status(500).json({ error: errorMessage(err, 'Failed to create channel') });
   }
 });
 
@@ -540,7 +553,7 @@ app.post('/api/conversations/:convId/favorite', async (req, res) => {
       await client.setConversationFavorite(req.params.convId, false);
     }
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+  } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
 });
 
 // ── Create conversation ───────────────────────────────────────────────────────
@@ -553,7 +566,7 @@ app.post('/api/conversations', async (req, res) => {
     console.log(`[conversations/create] created conversation with ${member_ids.length} member(s)`);
     res.json(conversation);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create conversation' });
+    res.status(500).json({ error: errorMessage(err, 'Failed to create conversation') });
   }
 });
 
@@ -575,7 +588,7 @@ app.get('/api/conversations', async (req, res) => {
     const filtered = conversations.filter((c) => !isBotConversation(String(c.id), payload.clientKey));
     res.json(filtered);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -589,7 +602,7 @@ app.post('/api/messages/:messageId/like', async (req, res) => {
     await client.likeMessage(req.params.messageId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -599,7 +612,7 @@ app.get('/api/messages/:messageId/likes', async (req, res) => {
     const likes = await client.listLikes(req.params.messageId);
     res.json({ likes });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -609,7 +622,7 @@ app.post('/api/messages/:messageId/unlike', async (req, res) => {
     await client.unlikeMessage(req.params.messageId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -619,7 +632,7 @@ app.delete('/api/messages/:messageId', async (req, res) => {
     await client.deleteMessage(req.params.messageId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -641,7 +654,7 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
         const allKeys = Object.keys(ch).filter(k => k.includes('key') || k.includes('encryption') || k.includes('crypt'));
         debugLog(`[channel-info] id=${targetId} allKeyFields=${JSON.stringify(allKeys)} keyLength=${ch.key?.length} fullJson=${JSON.stringify(ch)}`);
       } catch (e) {
-        debugLog(`[channel-info] failed to fetch: ${e instanceof Error ? e.message : e}`);
+        debugLog(`[channel-info] failed to fetch: ${errorMessage(e)}`);
       }
     }
     const messages = await client.getMessages(targetId, chatType, { limit, offset });
@@ -651,11 +664,9 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
     res.json(sorted);
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
-    debugLog(`[getMessages:route] ERROR: ${error.message}`);
+    debugLog(`[getMessages:route] ERROR: ${error.message}\n${error.stack}`);
     res.status(500).json({
       error: error.message,
-      stack: error.stack,
-      E2E_unlocked: client.isE2EUnlocked()
     });
   }
 });
@@ -669,7 +680,7 @@ app.post('/api/messages/:type/:targetId', async (req, res) => {
     await client.sendMessage({ target: targetId, target_type: chatType, text, is_forwarded, reply_to_id, files });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -684,7 +695,7 @@ app.post('/api/messages/:type/:targetId/read', async (req, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -706,7 +717,7 @@ app.get('/api/files/folder', async (req, res) => {
     if (result.files.length > 0) console.log('[files/folder] first file:', JSON.stringify(result.files[0]));
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -724,7 +735,7 @@ app.get('/api/files/personal', async (req, res) => {
     else if (result.folder.length > 0) console.log('[files/personal] first folder:', JSON.stringify(result.folder[0]));
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -761,10 +772,9 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     if (tmpPath) await fs.unlink(tmpPath).catch(() => {});
-    const errorDetails = err instanceof Error
-      ? { message: err.message, stack: err.stack, name: err.name }
-      : { message: String(err) };
-    res.status(500).json({ error: errorDetails });
+    const message = errorMessage(err, String(err));
+    if (err instanceof Error) debugLog(`[files/upload] ERROR: ${err.message}\n${err.stack}`);
+    res.status(500).json({ error: message });
   }
 });
 
@@ -774,7 +784,7 @@ app.post('/api/files/:fileId/move', async (req, res) => {
     const { target_folder_id } = req.body as { target_folder_id: string };
     await client.moveFile(req.params.fileId, target_folder_id);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+  } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
 });
 
 // ── Create folder ─────────────────────────────────────────────────────────────
@@ -790,7 +800,7 @@ app.post('/api/files/folder/create', async (req, res) => {
     const folder = await client.createFolder(folder_name, parent_id, type, type_id);
     res.json(folder);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create folder' });
+    res.status(500).json({ error: errorMessage(err, 'Failed to create folder') });
   }
 });
 
@@ -801,7 +811,7 @@ app.post('/api/folder/delete', async (req, res) => {
     await client.deleteFolder(parseInt(folderId, 10));
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete folder' });
+    res.status(500).json({ error: errorMessage(err, 'Failed to delete folder') });
   }
 });
 
@@ -812,7 +822,7 @@ app.post('/api/files/delete', async (req, res) => {
     await client.deleteFiles(fileIds);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -823,7 +833,7 @@ app.patch('/api/files/:fileId', async (req, res) => {
     await client.renameFile(req.params.fileId, name);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -847,7 +857,7 @@ app.get('/api/file/:fileId', async (req, res) => {
     res.setHeader('Content-Type', info.mime || 'application/octet-stream');
     res.send(buf);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Download failed' });
+    res.status(500).json({ error: errorMessage(err, 'Download failed') });
   }
 });
 
@@ -885,7 +895,7 @@ app.post('/api/upload/:type/:targetId', upload.single('file'), async (req, res) 
     res.json({ ok: true, file: fileInfo });
   } catch (err) {
     if (tmpPath) await fs.unlink(tmpPath).catch(() => {});
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Upload failed' });
+    res.status(500).json({ error: errorMessage(err, 'Upload failed') });
   }
 });
 
@@ -896,7 +906,7 @@ app.get('/api/me', async (req, res) => {
     const client = await getClient(req);
     res.json(await client.getMe());
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -907,7 +917,7 @@ app.get('/api/account/settings', async (req, res) => {
     const client = await getClient(req);
     res.json(await client.getAccountSettings());
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -918,7 +928,7 @@ app.post('/api/account/status', async (req, res) => {
     await client.changeStatus(status);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -929,7 +939,7 @@ app.post('/api/account/profile-image', async (req, res) => {
     await client.storeProfileImage(imgBase64);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -939,7 +949,7 @@ app.post('/api/account/profile-image/reset', async (req, res) => {
     await client.resetProfileImage();
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -948,10 +958,80 @@ app.post('/api/account/profile-image/reset', async (req, res) => {
 const linkPreviewCache = new Map<string, { title?: string; description?: string; image?: string; siteName?: string; fetchedAt: number }>();
 const PREVIEW_TTL = 3600_000; // 1 hour
 
+// SSRF protection: block private/internal IPs
+function isBlockedHost(hostname: string): boolean {
+  return /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.|169\.254\.|localhost|::1|\[::1\]|fc|fd)/i.test(hostname);
+}
+
+/** Extract OG/meta tags from a fetch response and send the preview JSON. */
+async function extractAndRespondPreview(response: Response, url: string, res: express.Response) {
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+    return res.json({ title: url, fetchedAt: Date.now() });
+  }
+
+  const reader = response.body?.getReader();
+  let html = '';
+  if (reader) {
+    const decoder = new TextDecoder();
+    let bytesRead = 0;
+    while (bytesRead < 65536) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      html += decoder.decode(value, { stream: true });
+      bytesRead += value.length;
+    }
+    reader.cancel().catch(() => {});
+  }
+
+  const getMetaContent = (nameOrProp: string): string | undefined => {
+    const propRe = new RegExp(`<meta[^>]+(?:property|name)=["']${nameOrProp}["'][^>]+content=["']([^"']+)["']`, 'i');
+    const propMatch = html.match(propRe);
+    if (propMatch) return propMatch[1];
+    const revRe = new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${nameOrProp}["']`, 'i');
+    const revMatch = html.match(revRe);
+    if (revMatch) return revMatch[1];
+    return undefined;
+  };
+
+  const title = getMetaContent('og:title')
+    || getMetaContent('twitter:title')
+    || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim();
+  const description = getMetaContent('og:description')
+    || getMetaContent('twitter:description')
+    || getMetaContent('description');
+  const image = getMetaContent('og:image')
+    || getMetaContent('twitter:image');
+  const siteName = getMetaContent('og:site_name');
+
+  const decode = (s?: string) => s?.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+
+  const result = {
+    title: decode(title) || url,
+    description: decode(description),
+    image: image?.startsWith('http') ? image : undefined,
+    siteName: decode(siteName),
+    fetchedAt: Date.now(),
+  };
+
+  linkPreviewCache.set(url, result);
+  res.json(result);
+}
+
 app.get('/api/link-preview', async (req, res) => {
   try {
     const url = req.query.url as string;
     if (!url || !/^https?:\/\//.test(url)) {
+      return res.status(400).json({ error: 'Invalid URL' });
+    }
+
+    // SSRF protection: block private/internal IPs
+    try {
+      const parsed = new URL(url);
+      if (isBlockedHost(parsed.hostname)) {
+        return res.status(400).json({ error: 'URL not allowed' });
+      }
+    } catch {
       return res.status(400).json({ error: 'Invalid URL' });
     }
 
@@ -970,66 +1050,35 @@ app.get('/api/link-preview', async (req, res) => {
         'User-Agent': 'Mozilla/5.0 (compatible; LinkPreviewBot/1.0)',
         'Accept': 'text/html,application/xhtml+xml',
       },
-      redirect: 'follow',
+      redirect: 'manual',
     });
     clearTimeout(timeout);
 
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
-      return res.json({ title: url, fetchedAt: Date.now() });
-    }
-
-    // Only read first 64kb for meta extraction
-    const reader = response.body?.getReader();
-    let html = '';
-    if (reader) {
-      const decoder = new TextDecoder();
-      let bytesRead = 0;
-      while (bytesRead < 65536) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        html += decoder.decode(value, { stream: true });
-        bytesRead += value.length;
+    // Follow redirects manually with SSRF check
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get('location');
+      if (location) {
+        try {
+          const redirectUrl = new URL(location, url);
+          if (isBlockedHost(redirectUrl.hostname)) {
+            return res.json({ title: url, fetchedAt: Date.now() });
+          }
+          const ctrl2 = new AbortController();
+          const to2 = setTimeout(() => ctrl2.abort(), 5000);
+          const response2 = await fetch(redirectUrl.href, {
+            signal: ctrl2.signal,
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LinkPreviewBot/1.0)', 'Accept': 'text/html,application/xhtml+xml' },
+            redirect: 'manual',
+          });
+          clearTimeout(to2);
+          return extractAndRespondPreview(response2, url, res);
+        } catch {
+          return res.json({ title: url, fetchedAt: Date.now() });
+        }
       }
-      reader.cancel().catch(() => {});
     }
 
-    // Extract Open Graph and meta tags
-    const getMetaContent = (nameOrProp: string): string | undefined => {
-      // Try og/twitter property
-      const propRe = new RegExp(`<meta[^>]+(?:property|name)=["']${nameOrProp}["'][^>]+content=["']([^"']+)["']`, 'i');
-      const propMatch = html.match(propRe);
-      if (propMatch) return propMatch[1];
-      // Try reversed order: content before property
-      const revRe = new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${nameOrProp}["']`, 'i');
-      const revMatch = html.match(revRe);
-      if (revMatch) return revMatch[1];
-      return undefined;
-    };
-
-    const title = getMetaContent('og:title')
-      || getMetaContent('twitter:title')
-      || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim();
-    const description = getMetaContent('og:description')
-      || getMetaContent('twitter:description')
-      || getMetaContent('description');
-    const image = getMetaContent('og:image')
-      || getMetaContent('twitter:image');
-    const siteName = getMetaContent('og:site_name');
-
-    // Decode HTML entities in extracted strings
-    const decode = (s?: string) => s?.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
-
-    const result = {
-      title: decode(title) || url,
-      description: decode(description),
-      image: image?.startsWith('http') ? image : undefined,
-      siteName: decode(siteName),
-      fetchedAt: Date.now(),
-    };
-
-    linkPreviewCache.set(url, result);
-    res.json(result);
+    return extractAndRespondPreview(response, url, res);
   } catch (err) {
     // Return minimal preview on failure
     res.json({ title: req.query.url, fetchedAt: Date.now() });
@@ -1043,7 +1092,7 @@ app.get('/api/broadcasts', async (req, res) => {
     const client = await getClient(req);
     res.json(await client.listBroadcasts());
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1053,7 +1102,7 @@ app.post('/api/broadcasts', async (req, res) => {
     const { name, memberIds } = req.body as { name: string; memberIds: string[] };
     res.json(await client.createBroadcast(name, memberIds));
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1063,7 +1112,7 @@ app.delete('/api/broadcasts/:id', async (req, res) => {
     await client.deleteBroadcast(req.params.id);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1074,7 +1123,7 @@ app.patch('/api/broadcasts/:id', async (req, res) => {
     await client.renameBroadcast(req.params.id, name);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1090,7 +1139,7 @@ app.get('/api/broadcasts/:id/messages', async (req, res) => {
     });
     res.json(messages);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1101,7 +1150,7 @@ app.post('/api/broadcasts/:id/messages', async (req, res) => {
     const msg = await client.sendBroadcastMessage({ list_id: req.params.id, text });
     res.json(msg);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1110,7 +1159,7 @@ app.get('/api/broadcasts/:id/members', async (req, res) => {
     const client = await getClient(req);
     res.json(await client.listBroadcastMembers(req.params.id));
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1121,7 +1170,7 @@ app.post('/api/broadcasts/:id/members', async (req, res) => {
     await client.addBroadcastMembers(req.params.id, memberIds);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1132,7 +1181,7 @@ app.delete('/api/broadcasts/:id/members', async (req, res) => {
     await client.removeBroadcastMembers(req.params.id, memberIds);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1146,7 +1195,7 @@ app.get('/api/calendar/events', async (req, res) => {
     if (!start || !end) return res.status(400).json({ error: 'start and end required' });
     res.json(await client.listEvents({ start, end }));
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1157,7 +1206,7 @@ app.get('/api/calendar/events/:id', async (req, res) => {
     if (!event) return res.status(404).json({ error: 'Event not found' });
     res.json(event);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1167,7 +1216,7 @@ app.post('/api/calendar/events', async (req, res) => {
     const eventId = await client.createEvent(req.body);
     res.json({ id: eventId });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1177,7 +1226,7 @@ app.put('/api/calendar/events/:id', async (req, res) => {
     const eventId = await client.editEvent({ ...req.body, event_id: req.params.id });
     res.json({ id: eventId });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1187,7 +1236,7 @@ app.delete('/api/calendar/events/:id', async (req, res) => {
     await client.deleteEvents([req.params.id]);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1199,7 +1248,7 @@ app.post('/api/calendar/events/:id/respond', async (req, res) => {
     await client.respondToEvent(req.params.id, String(me.id), rsvp as 'accepted' | 'declined' | 'open');
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1210,7 +1259,7 @@ app.post('/api/calendar/events/:id/invite', async (req, res) => {
     await client.inviteToEvent(req.params.id, userIds);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1219,7 +1268,7 @@ app.get('/api/calendar/channels/:companyId', async (req, res) => {
     const client = await getClient(req);
     res.json(await client.listChannelsHavingEvents(req.params.companyId));
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1232,7 +1281,7 @@ app.get('/api/notifications', async (req, res) => {
     const offset = Number(req.query.offset) || 0;
     res.json(await client.getNotifications(limit, offset));
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1241,7 +1290,7 @@ app.get('/api/notifications/count', async (req, res) => {
     const client = await getClient(req);
     res.json(await client.getNotificationCount());
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1251,7 +1300,7 @@ app.delete('/api/notifications/:notificationId', async (req, res) => {
     await client.deleteNotification(req.params.notificationId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1455,7 +1504,7 @@ app.post('/api/video/start-meeting', async (req, res) => {
 
   } catch (err) {
     console.error('[Video] Error:', err);
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Videokonferenz konnte nicht erstellt werden' });
+    res.status(500).json({ error: errorMessage(err, 'Videokonferenz konnte nicht erstellt werden') });
   }
 });
 
@@ -1560,7 +1609,7 @@ app.post('/api/polls', async (req, res) => {
     // 4. Invite channels
     if (invite_channel_ids.length > 0) {
       await client.inviteToPoll(pollId, companyId, 'channels', invite_channel_ids).catch((e) => {
-        console.warn(`[Poll] inviteToPoll channels failed:`, e instanceof Error ? e.message : e);
+        console.warn(`[Poll] inviteToPoll channels failed:`, errorMessage(e));
       });
     }
 

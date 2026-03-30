@@ -10,7 +10,7 @@ interface ProfileModalProps {
 
 export default function ProfileModal({ onClose }: ProfileModalProps) {
   const { user, setUser } = useAuth();
-  const [status, setStatus] = useState((user as Record<string, unknown>)?.status as string || '');
+  const [status, setStatus] = useState(user?.status || '');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -20,7 +20,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
     setLoading(true);
     try {
       await api.changeStatus(status);
-      setUser({ ...user, status } as Record<string, unknown>);
+      setUser(user ? { ...user, status } : null);
     } catch (err) {
       console.error('Failed to save status:', err);
     } finally {
@@ -56,7 +56,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
           await api.uploadProfileImage(imgBase64);
           // Update user image - add timestamp to bust cache
           const newImage = `data:${file.type};base64,${imgBase64}`;
-          setUser({ ...user, image: newImage });
+          setUser(user ? { ...user, image: newImage } : null);
         } catch (err) {
           console.error('Failed to upload image:', err);
           alert('Fehler beim Hochladen des Bildes.');
@@ -76,7 +76,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
     setUploading(true);
     try {
       await api.resetProfileImage();
-      setUser({ ...user, image: undefined });
+      setUser(user ? { ...user, image: undefined } : null);
     } catch (err) {
       console.error('Failed to remove image:', err);
       alert('Fehler beim Entfernen des Bildes.');
@@ -85,11 +85,9 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
     }
   };
 
-  const userName = user
-    ? `${(user as Record<string, unknown>).first_name} ${(user as Record<string, unknown>).last_name}`
-    : '';
-  const userEmail = (user as Record<string, unknown>)?.email as string || '';
-  const userImage = (user as Record<string, unknown>)?.image as string | undefined;
+  const userName = user ? `${user.first_name} ${user.last_name}` : '';
+  const userEmail = user?.email || '';
+  const userImage = user?.image;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

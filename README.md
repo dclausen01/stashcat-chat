@@ -83,6 +83,12 @@ A React/TypeScript web chat client for Stashcat / schul.cloud, built for BBZ Ren
 - Login page with optional separate security password field
 - Session persistence across server restarts (sessions encrypted with AES-256-GCM in `.sessions.json`)
 
+### Security
+- **SSRF protection**: Link preview endpoint blocks private/internal IP ranges and validates redirect targets
+- **Error sanitization**: Unified `errorMessage()` helper ensures no stack traces leak to clients
+- **Rate limiting**: API endpoints rate-limited to 120 req/min per IP (SSE exempt via `express-rate-limit`)
+- **Session file locking**: Async mutex prevents race conditions in concurrent session store operations
+
 ---
 
 ## Prerequisites
@@ -177,6 +183,9 @@ The Express backend acts as an authenticated API proxy:
 | `src/App.tsx`                                 | Root layout: login gate, sidebar, chat view, file browser, settings panels |
 | `src/pages/LoginPage.tsx`                     | Login form (email, password, optional security password)                    |
 | `src/components/Sidebar.tsx`                  | Channel/conversation list, search, new chat/channel buttons, resize handle  |
+| `src/components/SidebarHeader.tsx`            | User avatar, name, action buttons (notifications, files, theme, settings)   |
+| `src/components/SidebarFooter.tsx`            | Footer toolbar: broadcasts, calendar, polls buttons                         |
+| `src/components/ChatItem.tsx`                 | Single chat list item (channel/conversation) with favorite star toggle      |
 | `src/components/ChatView.tsx`                 | Message list, message rendering, send bar, channel actions toolbar          |
 | `src/components/MessageInput.tsx`             | Compose bar: text input, emoji picker, file attachment button               |
 | `src/components/FileBrowserPanel.tsx`         | File browser: folder navigation, upload, download, rename, delete, lightbox |

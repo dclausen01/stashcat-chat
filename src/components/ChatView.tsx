@@ -105,7 +105,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const loadingMoreRef = useRef(false);
   const hasMoreRef = useRef(true);
 
-  const userId = String((user as Record<string, unknown>)?.id || '');
+  const userId = user?.id ?? '';
 
   // Search: IDs of messages matching the query
   const searchMatches: string[] = searchQuery.trim().length >= 2
@@ -1718,20 +1718,20 @@ function ForwardDialog({ message, onClose }: { message: Message; onClose: () => 
     (async () => {
       try {
         const [companies, convos] = await Promise.all([
-          api.getCompanies() as Promise<Array<Record<string, unknown>>>,
-          api.getConversations() as Promise<Array<Record<string, unknown>>>,
+          api.getCompanies(),
+          api.getConversations(),
         ]);
         const all: typeof targets = [];
         // Load channels
         if (companies.length > 0) {
-          const chans = await api.getChannels(String(companies[0].id)) as Array<Record<string, unknown>>;
+          const chans = await api.getChannels(String(companies[0].id));
           for (const ch of chans) {
             all.push({ id: String(ch.id), name: String(ch.name ?? ''), type: 'channel', image: ch.image ? String(ch.image) : undefined });
           }
         }
         // Conversations
         for (const c of convos) {
-          const members = c.members as Array<Record<string, unknown>> | undefined;
+          const members = c.members;
           const name = members?.map((m) => `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim()).join(', ') || `Konversation ${c.id}`;
           all.push({ id: String(c.id), name, type: 'conversation', image: undefined });
         }

@@ -231,7 +231,7 @@ export default function PollsView({ pollIdToOpen, onPollOpened }: PollsViewProps
   // Load company_id once on mount
   useEffect(() => {
     api.getCompanies().then((cs) => {
-      const id = String((cs[0] as Record<string, unknown>)?.id ?? '');
+      const id = String(cs[0]?.id ?? '');
       setCompanyId(id);
     }).catch(() => {});
   }, []);
@@ -281,12 +281,15 @@ export default function PollsView({ pollIdToOpen, onPollOpened }: PollsViewProps
           poll={selectedPoll}
           companyId={companyId}
           onBack={() => setSelectedPoll(null)}
-          onRefresh={() => {
+          onRefresh={async () => {
             const id = selectedPoll.id;
             setSelectedPoll(null);
-            setTimeout(() => loadPolls(), 100);
-            const found = polls.find((p) => p.id === id);
-            if (found) setSelectedPoll(found);
+            await loadPolls();
+            // Re-fetch fresh detail data for the poll
+            try {
+              const fresh = await api.getPoll(id, companyId);
+              setSelectedPoll(fresh);
+            } catch { /* poll may have been deleted */ }
           }}
         />
       </div>

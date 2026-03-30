@@ -3,7 +3,7 @@ import { X, Plus, Trash2, Loader2, ChevronDown, ChevronUp, BarChart3, Search } f
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
-import type { ChatTarget } from '../types';
+import type { ChatTarget, Channel, Conversation } from '../types';
 
 interface Question {
   name: string;
@@ -62,30 +62,29 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
       try {
         const [companies, convs] = await Promise.all([
           api.getCompanies(),
-          api.getConversations(100, 0).catch(() => [] as Record<string, unknown>[]),
+          api.getConversations(100, 0).catch(() => [] as Conversation[]),
         ]);
         const opts: ChatOption[] = [];
 
         // Channels from first company
         if (companies.length > 0) {
-          const companyId = String((companies[0] as Record<string, unknown>).id ?? '');
-          const channels = await api.getChannels(companyId).catch(() => [] as Record<string, unknown>[]);
+          const companyId = String(companies[0].id ?? '');
+          const channels = await api.getChannels(companyId).catch(() => [] as Channel[]);
           for (const ch of channels) {
-            opts.push({ id: String((ch as Record<string, unknown>).id), name: String((ch as Record<string, unknown>).name ?? ''), type: 'channel' });
+            opts.push({ id: String(ch.id), name: String(ch.name ?? ''), type: 'channel' });
           }
         }
 
         // Conversations - derive name from members (like Sidebar does)
-        const currentUserId = String((user as Record<string, unknown>)?.id ?? '');
+        const currentUserId = user?.id ?? '';
         for (const c of convs) {
-          const raw = c as Record<string, unknown>;
-          if (!raw.id) continue;
-          const members = (raw.members as Array<Record<string, unknown>>) || [];
+          if (!c.id) continue;
+          const members = c.members || [];
           const otherMembers = members.filter((m) => String(m.id) !== currentUserId);
           const convName = otherMembers.length > 0
             ? otherMembers.map((m) => `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim()).join(', ')
             : 'Eigene Notizen';
-          opts.push({ id: String(raw.id), name: convName, type: 'conversation' });
+          opts.push({ id: String(c.id), name: convName, type: 'conversation' });
         }
 
         setChatOptions(opts);

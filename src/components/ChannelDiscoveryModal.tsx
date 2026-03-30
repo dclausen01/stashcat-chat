@@ -32,7 +32,7 @@ export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClos
       try {
         const data = await api.getVisibleChannels(companyId);
         setChannels(
-          (data as Array<Record<string, unknown>>).map((ch) => ({
+          data.map((ch) => ({
             id: String(ch.id),
             name: String(ch.name || ''),
             description: ch.description ? String(ch.description) : undefined,

@@ -18,6 +18,15 @@ const ROOT = process.cwd();
 const STORE_PATH = path.join(ROOT, '.sessions.json');
 const KEY_PATH = path.join(ROOT, '.session-secret');
 
+// Simple async mutex to prevent concurrent read-modify-write races on .sessions.json
+let fileLock: Promise<void> = Promise.resolve();
+function withFileLock<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = fileLock;
+  let resolve: () => void;
+  fileLock = new Promise<void>((r) => { resolve = r; });
+  return prev.then(fn).finally(() => resolve!());
+}
+
 interface StoredEntry {
   serialized: SerializedSession;
   iv: string;
@@ -86,21 +95,23 @@ export async function saveSession(
   serialized: SerializedSession,
   securityPassword: string,
 ): Promise<void> {
-  try {
-    const key = await getOrCreateKey();
-    const enc = encrypt(securityPassword, key);
-    const store = await loadFile();
-    store[token] = {
-      serialized,
-      iv: enc.iv,
-      encryptedSecurityPassword: enc.ciphertext,
-      authTag: enc.authTag,
-      savedAt: Date.now(),
-    };
-    await saveFile(store);
-  } catch (err) {
-    console.warn('[SessionStore] Failed to save session:', (err as Error).message);
-  }
+  return withFileLock(async () => {
+    try {
+      const key = await getOrCreateKey();
+      const enc = encrypt(securityPassword, key);
+      const store = await loadFile();
+      store[token] = {
+        serialized,
+        iv: enc.iv,
+        encryptedSecurityPassword: enc.ciphertext,
+        authTag: enc.authTag,
+        savedAt: Date.now(),
+      };
+      await saveFile(store);
+    } catch (err) {
+      console.warn('[SessionStore] Failed to save session:', (err as Error).message);
+    }
+  });
 }
 
 /** Load and decrypt all stored sessions. */
@@ -129,13 +140,15 @@ export async function loadSessions(): Promise<
 
 /** Remove a session from disk. */
 export async function deleteSession(token: string): Promise<void> {
-  try {
-    const store = await loadFile();
-    if (token in store) {
-      delete store[token];
-      await saveFile(store);
+  return withFileLock(async () => {
+    try {
+      const store = await loadFile();
+      if (token in store) {
+        delete store[token];
+        await saveFile(store);
+      }
+    } catch (err) {
+      console.warn('[SessionStore] Failed to delete session:', (err as Error).message);
     }
-  } catch (err) {
-    console.warn('[SessionStore] Failed to delete session:', (err as Error).message);
-  }
+  });
 }
