@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Grid3x3, List, Upload, Folder, ChevronRight, Home,
   Trash2, Pencil, Check, Loader2, ExternalLink, ArrowUp, ArrowDown, Plus,
+  Square,
 } from 'lucide-react';
 import { useFileSorting, type SortField, type SortDirection } from '../hooks/useFileSorting';
 import { FolderUploadProgress, type FolderUploadProgressData } from './FolderUploadProgress';
@@ -75,18 +76,22 @@ interface ViewProps {
   sortField?: SortField;
   sortDirection?: SortDirection;
   onSort?: (field: SortField) => void;
+  // Selection
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+  onSelectAll: () => void;
 }
 
 // ── Grid view ─────────────────────────────────────────────────────────────────
 
-function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder }: ViewProps) {
+function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, selectedIds, onToggleSelect }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   return (
     <div className="grid grid-cols-3 gap-2 p-3">
       {folders.map((f) => (
         <div
           key={f.id}
-          onClick={() => onFolderClick(f)}
+          onClick={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); onToggleSelect(f.id); } else { onFolderClick(f); } }}
           onDragOver={(e) => { e.preventDefault(); setDropTargetId(f.id); }}
           onDragLeave={() => setDropTargetId(null)}
           onDrop={(e) => {
@@ -100,9 +105,24 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
             'group relative flex flex-col items-center gap-1.5 rounded-xl p-2 transition cursor-pointer',
             dropTargetId === f.id
               ? 'bg-primary-100 ring-2 ring-primary-400 dark:bg-primary-900/30'
-              : 'hover:bg-surface-100 dark:hover:bg-surface-800',
+              : selectedIds.has(f.id)
+                ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                : 'hover:bg-surface-100 dark:hover:bg-surface-800',
           )}
         >
+          {/* Checkbox */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleSelect(f.id); }}
+            className={clsx(
+              'absolute left-1 top-1 z-10 rounded-md p-0.5 transition',
+              selectedIds.has(f.id)
+                ? 'bg-primary-500 text-white'
+                : 'bg-white/80 text-transparent group-hover:bg-surface-200 group-hover:text-surface-600 dark:bg-surface-700/80',
+            )}
+            title={selectedIds.has(f.id) ? 'Auswahl aufheben' : 'Auswählen'}
+          >
+            {selectedIds.has(f.id) ? <Check size={12} /> : <Square size={12} />}
+          </button>
           <Folder size={40} className="text-amber-400" fill="currentColor" />
           <span className="w-full truncate text-center text-xs text-surface-700 dark:text-surface-300">{f.name}</span>
           {onDeleteFolder && (
@@ -129,8 +149,25 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
             draggable
             onDragStart={(e) => { e.dataTransfer.setData('text/file-id', f.id); onDragFileStart?.(f.id); }}
             onDragEnd={() => onDragFileEnd?.()}
-            className="group relative flex flex-col items-center gap-1.5 rounded-xl p-2 hover:bg-surface-100 dark:hover:bg-surface-800 cursor-grab active:cursor-grabbing"
+            onClick={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); onToggleSelect(f.id); } }}
+            className={clsx(
+              'group relative flex flex-col items-center gap-1.5 rounded-xl p-2 hover:bg-surface-100 dark:hover:bg-surface-800 cursor-grab active:cursor-grabbing',
+              selectedIds.has(f.id) && 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20',
+            )}
           >
+            {/* Checkbox */}
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleSelect(f.id); }}
+              className={clsx(
+                'absolute left-1 top-1 z-10 rounded-md p-0.5 transition',
+                selectedIds.has(f.id)
+                  ? 'bg-primary-500 text-white'
+                  : 'bg-white/80 text-transparent group-hover:bg-surface-200 group-hover:text-surface-600 dark:bg-surface-700/80',
+              )}
+              title={selectedIds.has(f.id) ? 'Auswahl aufheben' : 'Auswählen'}
+            >
+              {selectedIds.has(f.id) ? <Check size={12} /> : <Square size={12} />}
+            </button>
             {/* Thumbnail or icon */}
             <button
               className="relative h-14 w-full overflow-hidden rounded-lg"
@@ -210,7 +247,7 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
 
 // ── List view ─────────────────────────────────────────────────────────────────
 
-function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort }: ViewProps) {
+function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort, selectedIds, onToggleSelect, onSelectAll }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   function SortHeader({ field, label, className = '' }: { field: SortField; label: string; className?: string }) {
@@ -236,6 +273,21 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
     <div className="flex flex-col">
       {/* Column headers */}
       <div className="flex items-center border-b border-surface-100 px-3 py-2 dark:border-surface-800">
+        {/* Checkbox column */}
+        <div className="w-10 shrink-0 flex justify-center">
+          <button
+            onClick={() => onSelectAll()}
+            className={clsx(
+              'rounded-md p-1 transition',
+              selectedIds.size === (folders.length + files.length) && selectedIds.size > 0
+                ? 'bg-primary-500 text-white'
+                : 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700',
+            )}
+            title={selectedIds.size === (folders.length + files.length) && selectedIds.size > 0 ? 'Auswahl aufheben' : 'Alle auswählen'}
+          >
+            {selectedIds.size === (folders.length + files.length) && selectedIds.size > 0 ? <Check size={14} /> : <Square size={14} />}
+          </button>
+        </div>
         <div className="w-10 shrink-0" /> {/* Icon column */}
         <div className="min-w-0 flex-1 px-3">
           <SortHeader field="name" label="Name" />
@@ -253,7 +305,7 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
         {folders.map((f) => (
           <div
             key={f.id}
-            onClick={() => onFolderClick(f)}
+            onClick={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); onToggleSelect(f.id); } else { onFolderClick(f); } }}
             onDragOver={(e) => { e.preventDefault(); setDropTargetId(f.id); }}
             onDragLeave={() => setDropTargetId(null)}
             onDrop={(e) => {
@@ -267,9 +319,25 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               'group flex items-center px-3 py-2.5 transition cursor-pointer',
               dropTargetId === f.id
                 ? 'bg-primary-100 ring-2 ring-primary-400 dark:bg-primary-900/30'
-                : 'hover:bg-surface-100 dark:hover:bg-surface-800',
+                : selectedIds.has(f.id)
+                  ? 'bg-primary-50 dark:bg-primary-900/10 ring-2 ring-primary-500'
+                  : 'hover:bg-surface-100 dark:hover:bg-surface-800',
             )}
           >
+            {/* Checkbox */}
+            <div className="w-10 shrink-0 flex justify-center">
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleSelect(f.id); }}
+                className={clsx(
+                  'rounded-md p-1 transition',
+                  selectedIds.has(f.id)
+                    ? 'bg-primary-500 text-white'
+                    : 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700',
+                )}
+              >
+                {selectedIds.has(f.id) ? <Check size={14} /> : <Square size={14} />}
+              </button>
+            </div>
             <div className="w-10 shrink-0 flex justify-center">
               <Folder size={18} className="text-amber-400" fill="currentColor" />
             </div>
@@ -303,8 +371,26 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               draggable
               onDragStart={(e) => { e.dataTransfer.setData('text/file-id', f.id); onDragFileStart?.(f.id); }}
               onDragEnd={() => onDragFileEnd?.()}
-              className="group flex items-center px-3 py-2 hover:bg-surface-50 dark:hover:bg-surface-800/50 cursor-grab active:cursor-grabbing"
+              onClick={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); onToggleSelect(f.id); } }}
+              className={clsx(
+                'group flex items-center px-3 py-2 hover:bg-surface-50 dark:hover:bg-surface-800/50 cursor-grab active:cursor-grabbing',
+                selectedIds.has(f.id) && 'bg-primary-50 dark:bg-primary-900/10 ring-2 ring-primary-500',
+              )}
             >
+              {/* Checkbox */}
+              <div className="w-10 shrink-0 flex justify-center">
+                <button
+                  onClick={(e) => { e.stopPropagation(); onToggleSelect(f.id); }}
+                  className={clsx(
+                    'rounded-md p-1 transition',
+                    selectedIds.has(f.id)
+                      ? 'bg-primary-500 text-white'
+                      : 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700',
+                  )}
+                >
+                  {selectedIds.has(f.id) ? <Check size={14} /> : <Square size={14} />}
+                </button>
+              </div>
               {/* Icon / thumbnail */}
               <div className="w-10 shrink-0 flex justify-center">
                 <button
@@ -462,6 +548,8 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   const [newFolderName, setNewFolderName] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [dragFileId, setDragFileId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [moveModalOpen, setMoveModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentFolderId = crumbs[crumbs.length - 1].id ?? undefined;
@@ -486,12 +574,22 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
 
   useEffect(() => { loadFolder(); }, [loadFolder]);
 
+  // Escape key to clear selection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedIds.size > 0) setSelectedIds(new Set());
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedIds.size]);
+
   const handleTabChange = (t: Tab) => {
     setTab(t);
     setCrumbs([{ id: null, name: 'Alle Dateien' }]);
   };
 
   const navigateInto = (folder: FolderEntry) => {
+    setSelectedIds(new Set()); // clear selection on navigation
     setCrumbs((prev) => [...prev, { id: folder.id, name: folder.name }]);
   };
 
@@ -544,6 +642,69 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
       alert(`Verschieben fehlgeschlagen: ${err instanceof Error ? err.message : err}`);
     }
   };
+
+  // ── Selection handlers ──────────────────────────────────────────────────────
+
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    const allIds = [...sortedFolders.map(f => f.id), ...sortedFiles.map(f => f.id)];
+    setSelectedIds((prev) => prev.size === allIds.length ? new Set() : new Set(allIds));
+  }, [sortedFolders, sortedFiles]);
+
+  const handleBatchDelete = useCallback(async () => {
+    const selFiles = sortedFiles.filter(f => selectedIds.has(f.id));
+    const selFolders = sortedFolders.filter(f => selectedIds.has(f.id));
+    const total = selFiles.length + selFolders.length;
+    if (!confirm(`${total} Item(s) wirklich löschen?`)) return;
+    try {
+      if (selFiles.length > 0) {
+        await api.deleteFiles(selFiles.map(f => f.id));
+        setFiles(prev => prev.filter(f => !selectedIds.has(f.id)));
+      }
+      for (const folder of selFolders) {
+        await api.deleteFolder(folder.id);
+        setFolders(prev => prev.filter(f => f.id !== folder.id));
+      }
+    } catch (err) {
+      alert(`Fehler: ${err instanceof Error ? err.message : err}`);
+    }
+    setSelectedIds(new Set());
+  }, [selectedIds, sortedFiles, sortedFolders]);
+
+  const handleBatchDownload = useCallback(() => {
+    sortedFiles.filter(f => selectedIds.has(f.id)).forEach((f, i) => {
+      setTimeout(() => {
+        const a = document.createElement('a');
+        a.href = api.fileDownloadUrl(f.id, f.name);
+        a.download = f.name;
+        a.click();
+      }, i * 200);
+    });
+  }, [selectedIds, sortedFiles]);
+
+  const handleMoveSelected = useCallback(async (targetFolderId: string) => {
+    setMoveModalOpen(false);
+    try {
+      for (const id of selectedIds) {
+        if (sortedFiles.some(f => f.id === id)) {
+          await api.moveFile(id, targetFolderId);
+        }
+      }
+      await loadFolder();
+      setSelectedIds(new Set());
+    } catch (err) {
+      alert(`Verschieben fehlgeschlagen: ${err instanceof Error ? err.message : err}`);
+    }
+  }, [selectedIds, sortedFiles]);
+
+  // ── /Selection handlers ─────────────────────────────────────────────────────
 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
@@ -762,6 +923,9 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     sortField,
     sortDirection,
     onSort: setSort,
+    selectedIds,
+    onToggleSelect: handleToggleSelect,
+    onSelectAll: handleSelectAll,
   };
 
   return (
@@ -887,6 +1051,41 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
           </div>
         )}
       </div>
+
+      {/* Selection action bar */}
+      {selectedIds.size > 0 && (
+        <div className="shrink-0 flex items-center gap-2 border-b border-surface-100 bg-primary-50 px-3 py-2 dark:bg-primary-900/20 dark:border-surface-800">
+          <span className="text-xs text-primary-700 dark:text-primary-300 font-medium">
+            {selectedIds.size} ausgewählt
+          </span>
+          <div className="flex-1" />
+          <button
+            onClick={() => setMoveModalOpen(true)}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-surface-600 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800"
+          >
+            <Folder size={12} /><span>Verschieben</span>
+          </button>
+          <button
+            onClick={handleBatchDownload}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-surface-600 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800"
+          >
+            <ExternalLink size={12} /><span>Download</span>
+          </button>
+          <button
+            onClick={handleBatchDelete}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+          >
+            <Trash2 size={12} /><span>Löschen</span>
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="rounded-md p-1 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
+            title="Esc"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Toolbar: breadcrumb + view toggle + upload */}
       <div className="flex shrink-0 items-center gap-1 border-b border-surface-100 px-3 py-1.5 dark:border-surface-800">
@@ -1052,6 +1251,63 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
           progress={uploadProgress}
           onClose={() => setUploadProgress(null)}
         />
+      )}
+
+      {/* Move modal */}
+      {moveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-80 rounded-xl border border-surface-200 bg-surface-50 p-4 shadow-xl dark:border-surface-700 dark:bg-surface-900">
+            <h4 className="mb-3 text-sm font-semibold text-surface-900 dark:text-white">
+              Verschieben nach…
+            </h4>
+
+            {/* Current folder (no-op) */}
+            <button
+              onClick={() => setMoveModalOpen(false)}
+              className="mb-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-100 dark:hover:bg-surface-800"
+            >
+              <Home size={14} className="text-surface-400" />
+              <span className="text-surface-700 dark:text-surface-300">Aktueller Ordner</span>
+            </button>
+
+            {/* Parent folder (go back one level) */}
+            {crumbs.length > 1 && (
+              <button
+                onClick={() => { navigateTo(crumbs.length - 2); setMoveModalOpen(false); }}
+                className="mb-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-100 dark:hover:bg-surface-800"
+              >
+                <ArrowUp size={14} className="text-surface-400" />
+                <span className="text-surface-700 dark:text-surface-300">Eine Ebene zurück</span>
+              </button>
+            )}
+
+            {/* Subfolders as destinations */}
+            <div className="max-h-60 overflow-y-auto space-y-1">
+              {sortedFolders.filter(f => !selectedIds.has(f.id)).map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => handleMoveSelected(f.id)}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-100 dark:hover:bg-surface-800"
+                >
+                  <Folder size={14} className="text-amber-400 shrink-0" />
+                  <span className="truncate text-surface-700 dark:text-surface-300">{f.name}</span>
+                </button>
+              ))}
+              {sortedFolders.filter(f => !selectedIds.has(f.id)).length === 0 && (
+                <p className="py-2 text-xs text-surface-400 text-center">Keine Unterordner</p>
+              )}
+            </div>
+
+            <div className="mt-3 flex justify-end">
+              <button
+                onClick={() => setMoveModalOpen(false)}
+                className="rounded-md px-3 py-1.5 text-xs font-medium text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

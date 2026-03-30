@@ -310,6 +310,10 @@ export async function deleteFile(fileId: string): Promise<void> {
   return post('/files/delete', { fileIds: [fileId] });
 }
 
+export async function deleteFiles(fileIds: string[]): Promise<void> {
+  return post('/files/delete', { fileIds });
+}
+
 export async function deleteFolder(folderId: string): Promise<void> {
   return post('/folder/delete', { folderId });
 }
