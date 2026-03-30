@@ -421,16 +421,25 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     window.addEventListener('mouseup', onUp);
   }, []);
 
-  // Initialize tab based on chat availability
+  // Initialize tab based on chat availability; reset to 'context' when chat changes
   const [tabInitialized, setTabInitialized] = useState(false);
+  const prevChatIdRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!tabInitialized) {
-      setTabInitialized(true);
-      if (!chat && tab !== 'personal') {
-        setTab('personal');
+    const chatId = chat?.id;
+    if (chatId !== prevChatIdRef.current) {
+      prevChatIdRef.current = chatId;
+      if (chat) {
+        // When opening from a chat, always default to context files
+        setTab('context');
+        setTabInitialized(true);
+      } else if (!tabInitialized) {
+        setTabInitialized(true);
+        if (tab !== 'personal') {
+          setTab('personal');
+        }
       }
     }
-  }, [chat, tab, tabInitialized, setTab]);
+  }, [chat?.id, tabInitialized, setTab]);
 
   const [crumbs, setCrumbs] = useState<Crumb[]>([{ id: null, name: 'Alle Dateien' }]);
   const [folders, setFolders] = useState<FolderEntry[]>([]);
