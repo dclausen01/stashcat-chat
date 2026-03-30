@@ -199,7 +199,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
             </span>
             <p className="truncate text-xs text-surface-500">{replyTo.text?.slice(0, 100) || 'Nachricht'}</p>
           </div>
-          <button onClick={onCancelReply} className="shrink-0 text-surface-400 hover:text-surface-600">
+          <button onClick={onCancelReply} className="shrink-0 text-surface-500 hover:text-surface-600">
             <X size={14} />
           </button>
         </div>
@@ -208,16 +208,16 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
       {/* Pending files preview */}
       {pendingFiles.length > 0 && (
         <div className="mb-2 flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 text-sm dark:bg-surface-800">
-          <Paperclip size={14} className="shrink-0 text-surface-400" />
+          <Paperclip size={14} className="shrink-0 text-surface-500" />
           <span className="min-w-0 flex-1 truncate text-surface-700 dark:text-surface-300">
             {pendingFiles.length === 1 ? pendingFiles[0].name : `${pendingFiles.length} Dateien ausgewählt`}
           </span>
           {pendingFiles.length === 1 && (
-            <span className="shrink-0 text-xs text-surface-400">
+            <span className="shrink-0 text-xs text-surface-500">
               {(pendingFiles[0].size / 1024).toFixed(0)} KB
             </span>
           )}
-          <button onClick={() => setPendingFiles([])} className="shrink-0 text-surface-400 hover:text-surface-600">
+          <button onClick={() => setPendingFiles([])} className="shrink-0 text-surface-500 hover:text-surface-600">
             <X size={14} />
           </button>
         </div>
@@ -231,12 +231,12 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
             type="button"
             title={btn.label}
             onMouseDown={(e) => { e.preventDefault(); applyFormat(btn); }}
-            className="rounded p-1.5 text-surface-400 hover:bg-surface-100 hover:text-surface-700 dark:hover:bg-surface-800 dark:hover:text-surface-300"
+            className="rounded p-1.5 text-surface-500 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-800 dark:hover:text-surface-300"
           >
             {btn.icon}
           </button>
         ))}
-        <div className="ml-auto text-xs text-surface-400">
+        <div className="ml-auto text-xs text-surface-500">
           <kbd className="rounded bg-surface-100 px-1 py-0.5 font-mono text-[10px] dark:bg-surface-800">Enter</kbd> Senden{' · '}
           <kbd className="rounded bg-surface-100 px-1 py-0.5 font-mono text-[10px] dark:bg-surface-800">⇧Enter</kbd> Neue Zeile
         </div>
@@ -261,7 +261,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
             type="button"
             title="Anhang"
             onClick={() => setShowAttachMenu((v) => !v)}
-            className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
+            className="rounded-lg p-1.5 text-surface-500 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
           >
             <Paperclip size={18} />
           </button>
@@ -272,7 +272,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
                 onClick={() => { setShowAttachMenu(false); fileInputRef.current?.click(); }}
                 className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
               >
-                <Paperclip size={15} className="text-surface-400" />
+                <Paperclip size={15} className="text-surface-500" />
                 Datei(en) anhängen
               </button>
               {onCreatePoll && (
@@ -315,7 +315,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
           }}
           placeholder={pendingFiles.length > 0 ? 'Optionale Nachricht zu den Dateien...' : replyTo ? 'Antwort schreiben...' : `Nachricht an ${chatName}...`}
           rows={1}
-          className="max-h-[200px] flex-1 resize-none bg-transparent font-mono text-sm text-surface-900 outline-none placeholder:font-sans placeholder:text-surface-400 dark:text-white"
+          className="max-h-[200px] flex-1 resize-none bg-transparent font-mono text-sm text-surface-900 outline-none placeholder:font-sans placeholder:text-surface-500 dark:text-white"
         />
 
         {/* Emoji picker toggle */}
@@ -324,7 +324,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
             type="button"
             title="Emoji"
             onClick={() => setShowEmoji((v) => !v)}
-            className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
+            className="rounded-lg p-1.5 text-surface-500 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
           >
             😊
           </button>

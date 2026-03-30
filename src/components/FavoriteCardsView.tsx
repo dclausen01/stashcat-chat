@@ -12,12 +12,12 @@ export default function FavoriteCardsView({ channels, onSelectChat }: FavoriteCa
 
   if (favorites.length === 0) {
     return (
-      <div className="flex h-full flex-1 flex-col items-center justify-center bg-white text-surface-400 dark:bg-surface-950">
+      <div className="flex h-full flex-1 flex-col items-center justify-center bg-white text-surface-500 dark:bg-surface-950">
         <Star size={64} className="mb-4 text-surface-300 dark:text-surface-600" />
-        <h2 className="text-xl font-semibold text-surface-600 dark:text-surface-400">
+        <h2 className="text-xl font-semibold text-surface-600 dark:text-surface-500">
           Keine Favoriten
         </h2>
-        <p className="mt-2 max-w-md text-center text-sm text-surface-400">
+        <p className="mt-2 max-w-md text-center text-sm text-surface-500">
           Markiere Channels als Favorit, um sie hier als Kacheln zu sehen.
         </p>
       </div>
@@ -53,7 +53,7 @@ function ChannelCard({ channel, onClick }: { channel: ChatTarget; onClick: () =>
   return (
     <button
       onClick={onClick}
-      className="group relative flex flex-col items-center rounded-xl bg-surface-50 p-4 text-center transition hover:bg-surface-100 hover:shadow-md dark:bg-surface-800 dark:hover:bg-surface-700"
+      className="group relative flex flex-col items-center rounded-xl bg-surface-50 p-4 text-center transition hover:bg-surface-200 hover:shadow-md dark:bg-surface-800 dark:hover:bg-surface-700"
     >
       {(channel.unread_count ?? 0) > 0 && (
         <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
@@ -73,7 +73,7 @@ function ChannelCard({ channel, onClick }: { channel: ChatTarget; onClick: () =>
         {channel.name}
       </span>
       {channel.encrypted && (
-        <span className="mt-1 text-xs text-surface-400" title="Verschlüsselt">🔒</span>
+        <span className="mt-1 text-xs text-surface-500" title="Verschlüsselt">🔒</span>
       )}
     </button>
   );

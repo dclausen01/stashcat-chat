@@ -107,7 +107,7 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               ? 'bg-primary-100 ring-2 ring-primary-400 dark:bg-primary-900/30'
               : selectedIds.has(f.id)
                 ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                : 'hover:bg-surface-100 dark:hover:bg-surface-800',
+                : 'hover:bg-surface-200 dark:hover:bg-surface-800',
           )}
         >
           {/* Checkbox */}
@@ -124,11 +124,11 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
             {selectedIds.has(f.id) ? <Check size={12} /> : <Square size={12} />}
           </button>
           <Folder size={40} className="text-amber-400" fill="currentColor" />
-          <span className="w-full truncate text-center text-xs text-surface-700 dark:text-surface-300">{f.name}</span>
+          <span className="w-full truncate text-center text-xs text-surface-700 dark:text-surface-400">{f.name}</span>
           {onDeleteFolder && (
             <button
               onClick={(e) => { e.stopPropagation(); onDeleteFolder(f); }}
-              className="absolute right-1 top-1 rounded-full p-1 text-surface-400 opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/30"
+              className="absolute right-1 top-1 rounded-full p-1 text-surface-500 opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/30"
               title="Ordner löschen"
             >
               <Trash2 size={14} />
@@ -151,7 +151,7 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
             onDragEnd={() => onDragFileEnd?.()}
             onClick={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); onToggleSelect(f.id); } }}
             className={clsx(
-              'group relative flex flex-col items-center gap-1.5 rounded-xl p-2 hover:bg-surface-100 dark:hover:bg-surface-800 cursor-grab active:cursor-grabbing',
+              'group relative flex flex-col items-center gap-1.5 rounded-xl p-2 hover:bg-surface-200 dark:hover:bg-surface-800 cursor-grab active:cursor-grabbing',
               selectedIds.has(f.id) && 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20',
             )}
           >
@@ -228,7 +228,7 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               </div>
             ) : (
               <span
-                className="w-full truncate text-center text-xs text-surface-700 dark:text-surface-300"
+                className="w-full truncate text-center text-xs text-surface-700 dark:text-surface-400"
                 onDoubleClick={() => onRename(f)}
                 title={f.name}
               >
@@ -236,7 +236,7 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               </span>
             )}
             {f.size_string && (
-              <span className="text-[10px] text-surface-400">{f.size_string}</span>
+              <span className="text-[10px] text-surface-500">{f.size_string}</span>
             )}
           </div>
         );
@@ -257,7 +257,7 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
         onClick={() => onSort?.(field)}
         className={clsx(
           'flex items-center gap-0.5 text-xs font-medium transition-colors',
-          active ? 'text-surface-700 dark:text-surface-200' : 'text-surface-400 hover:text-surface-600 dark:hover:text-surface-300',
+          active ? 'text-surface-700 dark:text-surface-200' : 'text-surface-500 hover:text-surface-600 dark:hover:text-surface-400',
           className
         )}
       >
@@ -281,7 +281,7 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               'rounded-md p-1 transition',
               selectedIds.size === (folders.length + files.length) && selectedIds.size > 0
                 ? 'bg-primary-500 text-white'
-                : 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700',
+                : 'text-surface-500 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700',
             )}
             title={selectedIds.size === (folders.length + files.length) && selectedIds.size > 0 ? 'Auswahl aufheben' : 'Alle auswählen'}
           >
@@ -321,7 +321,7 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
                 ? 'bg-primary-100 ring-2 ring-primary-400 dark:bg-primary-900/30'
                 : selectedIds.has(f.id)
                   ? 'bg-primary-50 dark:bg-primary-900/10 ring-2 ring-primary-500'
-                  : 'hover:bg-surface-100 dark:hover:bg-surface-800',
+                  : 'hover:bg-surface-200 dark:hover:bg-surface-800',
             )}
           >
             {/* Checkbox */}
@@ -332,7 +332,7 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
                   'rounded-md p-1 transition',
                   selectedIds.has(f.id)
                     ? 'bg-primary-500 text-white'
-                    : 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700',
+                    : 'text-surface-500 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700',
                 )}
               >
                 {selectedIds.has(f.id) ? <Check size={14} /> : <Square size={14} />}
@@ -342,12 +342,12 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               <Folder size={18} className="text-amber-400" fill="currentColor" />
             </div>
             <span className="min-w-0 flex-1 truncate text-left text-sm text-surface-800 dark:text-surface-200 px-3">{f.name}</span>
-            <span className="w-24 shrink-0 text-right text-xs text-surface-400 px-2">{formatDate(f.created)}</span>
+            <span className="w-24 shrink-0 text-right text-xs text-surface-500 px-2">{formatDate(f.created)}</span>
             <div className="w-20 shrink-0 flex justify-end items-center gap-1">
               {onDeleteFolder && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onDeleteFolder(f); }}
-                  className="rounded-full p-1 text-surface-400 opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/30"
+                  className="rounded-full p-1 text-surface-500 opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/30"
                   title="Ordner löschen"
                 >
                   <Trash2 size={14} />
@@ -383,7 +383,7 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
                     'rounded-md p-1 transition',
                     selectedIds.has(f.id)
                       ? 'bg-primary-500 text-white'
-                      : 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700',
+                      : 'text-surface-500 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700',
                   )}
                 >
                   {selectedIds.has(f.id) ? <Check size={14} /> : <Square size={14} />}
@@ -428,12 +428,12 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               </div>
 
               {/* Size */}
-              <span className="w-20 shrink-0 text-right text-xs text-surface-400 transition-opacity group-hover:opacity-0">
+              <span className="w-20 shrink-0 text-right text-xs text-surface-500 transition-opacity group-hover:opacity-0">
                 {f.size_string}
               </span>
 
               {/* Date */}
-              <span className="w-24 shrink-0 text-right text-xs text-surface-400 px-2 transition-opacity group-hover:opacity-0">
+              <span className="w-24 shrink-0 text-right text-xs text-surface-500 px-2 transition-opacity group-hover:opacity-0">
                 {formatDate(f.uploaded)}
               </span>
 
@@ -442,21 +442,21 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
                 <a
                   href={downloadUrl}
                   download={f.name}
-                  className="rounded-md p-1.5 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
+                  className="rounded-md p-1.5 text-surface-500 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
                   title="Herunterladen"
                 >
                   <ExternalLink size={14} />
                 </a>
                 <button
                   onClick={() => onRename(f)}
-                  className="rounded-md p-1.5 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
+                  className="rounded-md p-1.5 text-surface-500 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
                   title="Umbenennen"
                 >
                   <Pencil size={14} />
                 </button>
                 <button
                   onClick={() => onDelete(f)}
-                  className="rounded-md p-1.5 text-surface-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                  className="rounded-md p-1.5 text-surface-500 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
                   title="Löschen"
                 >
                   <Trash2 size={14} />
@@ -1024,7 +1024,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
       <div className="shrink-0 border-b border-surface-200 dark:border-surface-700">
         <div className="flex items-center gap-2 px-4 pt-3 pb-2">
           <h3 className="flex-1 text-sm font-semibold text-surface-900 dark:text-white">Dateiablage</h3>
-          <button onClick={onClose} className="rounded-md p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
+          <button onClick={onClose} className="rounded-md p-1.5 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700">
             <X size={16} />
           </button>
         </div>
@@ -1040,7 +1040,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
                   'flex-1 border-b-2 px-3 py-2 text-xs font-medium transition-colors',
                   tab === t
                     ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400'
-                    : 'border-transparent text-surface-500 hover:text-surface-700 dark:hover:text-surface-300',
+                    : 'border-transparent text-surface-500 hover:text-surface-700 dark:hover:text-surface-400',
                 )}
               >
                 {t === 'context' ? contextLabel : 'Meine Dateien'}
@@ -1059,13 +1059,13 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
           <div className="flex-1" />
           <button
             onClick={() => setMoveModalOpen(true)}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-surface-600 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800"
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-surface-600 hover:bg-surface-200 dark:text-surface-400 dark:hover:bg-surface-800"
           >
             <Folder size={12} /><span>Verschieben</span>
           </button>
           <button
             onClick={handleBatchDownload}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-surface-600 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800"
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-surface-600 hover:bg-surface-200 dark:text-surface-400 dark:hover:bg-surface-800"
           >
             <ExternalLink size={12} /><span>Download</span>
           </button>
@@ -1077,7 +1077,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
           </button>
           <button
             onClick={() => setSelectedIds(new Set())}
-            className="rounded-md p-1 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
+            className="rounded-md p-1 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700"
             title="Esc"
           >
             <X size={14} />
@@ -1091,15 +1091,15 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
         <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
           {crumbs.map((crumb, i) => (
             <span key={i} className="flex shrink-0 items-center gap-0.5">
-              {i > 0 && <ChevronRight size={11} className="text-surface-300" />}
+              {i > 0 && <ChevronRight size={11} className="text-surface-400" />}
               {i === crumbs.length - 1 ? (
-                <span className="max-w-[200px] truncate text-xs font-medium text-surface-700 dark:text-surface-300">
+                <span className="max-w-[200px] truncate text-xs font-medium text-surface-700 dark:text-surface-400">
                   {i === 0 ? <Home size={12} className="inline" /> : crumb.name}
                 </span>
               ) : (
                 <button
                   onClick={() => navigateTo(i)}
-                  className="max-w-[140px] truncate text-xs text-surface-400 hover:text-primary-600 dark:hover:text-primary-400"
+                  className="max-w-[140px] truncate text-xs text-surface-500 hover:text-primary-600 dark:hover:text-primary-400"
                 >
                   {i === 0 ? <Home size={12} className="inline" /> : crumb.name}
                 </button>
@@ -1111,7 +1111,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
         {/* View mode toggle */}
         <button
           onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-          className="rounded-md p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
+          className="rounded-md p-1.5 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700"
           title={viewMode === 'grid' ? 'Listenansicht' : 'Rasteransicht'}
         >
           {viewMode === 'grid' ? <List size={14} /> : <Grid3x3 size={14} />}
@@ -1121,7 +1121,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
         <button
           onClick={() => setCreatingFolder(true)}
           disabled={creatingFolder}
-          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-surface-600 hover:bg-surface-100 disabled:opacity-50 dark:text-surface-400 dark:hover:bg-surface-800"
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-surface-600 hover:bg-surface-200 disabled:opacity-50 dark:text-surface-500 dark:hover:bg-surface-800"
           title="Neuer Ordner"
         >
           <Plus size={12} />
@@ -1181,7 +1181,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
                 setCreatingFolder(false);
                 setNewFolderName('');
               }}
-              className="rounded-md p-1 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800"
+              className="rounded-md p-1 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-800"
               title="Abbrechen"
             >
               <X size={16} />
@@ -1193,7 +1193,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
             <Loader2 size={24} className="animate-spin text-primary-400" />
           </div>
         ) : folders.length === 0 && files.length === 0 ? (
-          <div className="flex h-32 flex-col items-center justify-center gap-2 text-surface-400">
+          <div className="flex h-32 flex-col items-center justify-center gap-2 text-surface-500">
             <Folder size={36} className="opacity-30" />
             <p className="text-sm">Keine Dateien vorhanden</p>
           </div>
@@ -1233,10 +1233,10 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
           >
             <div className="flex shrink-0 items-center gap-3 border-b border-surface-700 px-4 py-2">
               <span className="flex-1 truncate text-sm font-medium text-white">{pdfView.name}</span>
-              <a href={api.fileDownloadUrl(pdfView.fileId, pdfView.name)} download={pdfView.name} className="rounded-md p-1.5 text-surface-300 hover:bg-surface-700" title="Herunterladen">
+              <a href={api.fileDownloadUrl(pdfView.fileId, pdfView.name)} download={pdfView.name} className="rounded-md p-1.5 text-surface-400 hover:bg-surface-700" title="Herunterladen">
                 <ExternalLink size={16} />
               </a>
-              <button onClick={() => setPdfView(null)} className="rounded-md p-1.5 text-surface-300 hover:bg-surface-700"><X size={16} /></button>
+              <button onClick={() => setPdfView(null)} className="rounded-md p-1.5 text-surface-400 hover:bg-surface-700"><X size={16} /></button>
             </div>
             <iframe src={pdfView.viewUrl} className="flex-1 rounded-b-xl" title={pdfView.name} />
           </div>
@@ -1262,20 +1262,20 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
             {/* Current folder (no-op) */}
             <button
               onClick={() => setMoveModalOpen(false)}
-              className="mb-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-100 dark:hover:bg-surface-800"
+              className="mb-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-200 dark:hover:bg-surface-800"
             >
-              <Home size={14} className="text-surface-400" />
-              <span className="text-surface-700 dark:text-surface-300">Aktueller Ordner</span>
+              <Home size={14} className="text-surface-500" />
+              <span className="text-surface-700 dark:text-surface-400">Aktueller Ordner</span>
             </button>
 
             {/* Parent folder (go back one level) */}
             {crumbs.length > 1 && (
               <button
                 onClick={() => { navigateTo(crumbs.length - 2); setMoveModalOpen(false); }}
-                className="mb-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-100 dark:hover:bg-surface-800"
+                className="mb-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-200 dark:hover:bg-surface-800"
               >
-                <ArrowUp size={14} className="text-surface-400" />
-                <span className="text-surface-700 dark:text-surface-300">Eine Ebene zurück</span>
+                <ArrowUp size={14} className="text-surface-500" />
+                <span className="text-surface-700 dark:text-surface-400">Eine Ebene zurück</span>
               </button>
             )}
 
@@ -1285,21 +1285,21 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
                 <button
                   key={f.id}
                   onClick={() => handleMoveSelected(f.id)}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-100 dark:hover:bg-surface-800"
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-200 dark:hover:bg-surface-800"
                 >
                   <Folder size={14} className="text-amber-400 shrink-0" />
-                  <span className="truncate text-surface-700 dark:text-surface-300">{f.name}</span>
+                  <span className="truncate text-surface-700 dark:text-surface-400">{f.name}</span>
                 </button>
               ))}
               {sortedFolders.filter(f => !selectedIds.has(f.id)).length === 0 && (
-                <p className="py-2 text-xs text-surface-400 text-center">Keine Unterordner</p>
+                <p className="py-2 text-xs text-surface-500 text-center">Keine Unterordner</p>
               )}
             </div>
 
             <div className="mt-3 flex justify-end">
               <button
                 onClick={() => setMoveModalOpen(false)}
-                className="rounded-md px-3 py-1.5 text-xs font-medium text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800"
+                className="rounded-md px-3 py-1.5 text-xs font-medium text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-800"
               >
                 Abbrechen
               </button>

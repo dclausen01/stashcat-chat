@@ -211,7 +211,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
       <div className="flex shrink-0 items-center gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
         <h3 className="flex-1 text-sm font-semibold text-surface-900 dark:text-white">
           Mitglieder
-          {!loadingMembers && <span className="ml-1 text-surface-400">({members.length})</span>}
+          {!loadingMembers && <span className="ml-1 text-surface-600">({members.length})</span>}
         </h3>
         {canManage && !showInvite && (
           <button
@@ -222,7 +222,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
             <UserPlus size={14} /> Einladen
           </button>
         )}
-        <button onClick={onClose} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
+        <button onClick={onClose} className="rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700">
           <X size={16} />
         </button>
       </div>
@@ -232,35 +232,35 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
         <div className="shrink-0 border-b border-surface-200 p-3 dark:border-surface-700">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-surface-500 uppercase tracking-wide">Einladen</span>
+              <span className="text-xs font-semibold text-surface-600 uppercase tracking-wide">Einladen</span>
               <button
                 type="button"
                 onClick={() => setShowGroups(false)}
-                className={clsx('rounded px-2 py-0.5 text-xs font-medium transition', !showGroups ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300' : 'text-surface-400 hover:text-surface-600')}
+                className={clsx('rounded px-2 py-0.5 text-xs font-medium transition', !showGroups ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300' : 'text-surface-600 hover:text-surface-600')}
               >
                 Nutzer
               </button>
               <button
                 type="button"
                 onClick={() => setShowGroups(true)}
-                className={clsx('rounded px-2 py-0.5 text-xs font-medium transition', showGroups ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300' : 'text-surface-400 hover:text-surface-600')}
+                className={clsx('rounded px-2 py-0.5 text-xs font-medium transition', showGroups ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300' : 'text-surface-600 hover:text-surface-600')}
               >
                 Gruppen
               </button>
             </div>
-            <button onClick={() => setShowInvite(false)} className="text-surface-400 hover:text-surface-600">
+            <button onClick={() => setShowInvite(false)} className="text-surface-600 hover:text-surface-600">
               <X size={14} />
             </button>
           </div>
           <div className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
-            <Search size={14} className="shrink-0 text-surface-400" />
+            <Search size={14} className="shrink-0 text-surface-600" />
             <input
               type="text"
               value={showGroups ? groupFilter : searchQuery}
               onChange={(e) => showGroups ? setGroupFilter(e.target.value) : setSearchQuery(e.target.value)}
               placeholder={showGroups ? 'Gruppe suchen…' : 'Name oder E-Mail…'}
               autoFocus
-              className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:text-white"
+              className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:text-white"
             />
           </div>
 
@@ -270,7 +270,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
               {loadingUsers ? (
                 <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-primary-400" /></div>
               ) : filteredUsers.length === 0 ? (
-                <p className="py-3 text-center text-xs text-surface-400">
+                <p className="py-3 text-center text-xs text-surface-600">
                   {searchQuery
                     ? 'Keine Treffer'
                     : searchTotal === 0
@@ -291,7 +291,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
                       <Avatar name={name} image={u.image} size="sm" />
                       <div className="min-w-0 flex-1 text-left">
                         <div className="truncate text-sm font-medium text-surface-900 dark:text-surface-100">{name}</div>
-                        {u.email && <div className="truncate text-xs text-surface-400">{u.email}</div>}
+                        {u.email && <div className="truncate text-xs text-surface-600">{u.email}</div>}
                       </div>
                       {inviting === uid
                         ? <Loader2 size={14} className="shrink-0 animate-spin text-primary-400" />
@@ -309,7 +309,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
               {loadingGroups ? (
                 <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-primary-400" /></div>
               ) : filteredGroups.length === 0 ? (
-                <p className="py-3 text-center text-xs text-surface-400">
+                <p className="py-3 text-center text-xs text-surface-600">
                   {groupFilter ? 'Keine Gruppen gefunden' : 'Keine Gruppen verfügbar'}
                 </p>
               ) : (
@@ -325,7 +325,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
                     </div>
                     <div className="min-w-0 flex-1 text-left">
                       <div className="truncate text-sm font-medium text-surface-900 dark:text-surface-100">{g.name}</div>
-                      <div className="text-xs text-surface-400">{g.count} Mitglieder</div>
+                      <div className="text-xs text-surface-600">{g.count} Mitglieder</div>
                     </div>
                     {invitingGroup === g.id
                       ? <Loader2 size={14} className="shrink-0 animate-spin text-primary-400" />
@@ -342,16 +342,16 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
       {!showInvite && members.length > 10 && (
         <div className="shrink-0 px-3 pb-1 pt-2">
           <div className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-1.5 dark:bg-surface-800">
-            <Search size={13} className="shrink-0 text-surface-400" />
+            <Search size={13} className="shrink-0 text-surface-600" />
             <input
               type="text"
               value={memberFilter}
               onChange={(e) => setMemberFilter(e.target.value)}
               placeholder="Mitglieder filtern..."
-              className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:text-white"
+              className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:text-white"
             />
             {memberFilter && (
-              <button onClick={() => setMemberFilter('')} className="text-surface-400 hover:text-surface-600">
+              <button onClick={() => setMemberFilter('')} className="text-surface-600 hover:text-surface-600">
                 <X size={12} />
               </button>
             )}
@@ -364,7 +364,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
         {loadingMembers ? (
           <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-primary-400" /></div>
         ) : members.length === 0 ? (
-          <p className="py-8 text-center text-sm text-surface-400">Keine Mitglieder gefunden</p>
+          <p className="py-8 text-center text-sm text-surface-600">Keine Mitglieder gefunden</p>
         ) : (
           members.filter((m) => {
             if (!memberFilter) return true;
@@ -378,7 +378,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
             return (
               <div
                 key={uid || name}
-                className="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-100 dark:hover:bg-surface-800"
+                className="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-200 dark:hover:bg-surface-800"
               >
                 <Avatar name={name} image={m.image} size="sm" />
                 <div className="min-w-0 flex-1">
@@ -388,7 +388,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
                       <ShieldCheck size={13} className="shrink-0 text-primary-500" />
                     )}
                   </div>
-                  {m.email && <div className="truncate text-xs text-surface-400">{m.email}</div>}
+                  {m.email && <div className="truncate text-xs text-surface-600">{m.email}</div>}
                 </div>
 
                 {/* Action buttons — only for managers, not on self */}

@@ -77,7 +77,7 @@ export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClos
         <div className="flex items-center gap-3 border-b border-surface-200 px-5 py-4 dark:border-surface-700">
           <Hash size={20} className="text-primary-500" />
           <h2 className="flex-1 text-lg font-semibold text-surface-900 dark:text-white">Channels entdecken</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800">
+          <button onClick={onClose} className="rounded-lg p-1 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-800">
             <X size={18} />
           </button>
         </div>
@@ -85,13 +85,13 @@ export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClos
         {/* Search */}
         <div className="border-b border-surface-200 px-5 py-3 dark:border-surface-700">
           <div className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
-            <Search size={16} className="text-surface-400" />
+            <Search size={16} className="text-surface-500" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Channel suchen..."
-              className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:text-white"
+              className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-500 dark:text-white"
               autoFocus
             />
           </div>
@@ -104,7 +104,7 @@ export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClos
               <Loader2 size={24} className="animate-spin text-primary-400" />
             </div>
           ) : filtered.length === 0 ? (
-            <div className="py-8 text-center text-sm text-surface-400">
+            <div className="py-8 text-center text-sm text-surface-500">
               {search ? 'Keine Channels gefunden' : 'Keine sichtbaren Channels'}
             </div>
           ) : (
@@ -119,25 +119,25 @@ export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClos
                     <Avatar name={ch.name} image={ch.image} size="sm" />
                   ) : (
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-100 dark:bg-surface-800">
-                      <Hash size={16} className="text-surface-400" />
+                      <Hash size={16} className="text-surface-500" />
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="truncate text-sm font-medium text-surface-900 dark:text-white">{ch.name}</span>
-                      {ch.encrypted && <Lock size={12} className="shrink-0 text-surface-400" />}
+                      {ch.encrypted && <Lock size={12} className="shrink-0 text-surface-500" />}
                     </div>
                     {ch.description && (
                       <p className="truncate text-xs text-surface-500">{ch.description}</p>
                     )}
                     {ch.member_count !== undefined && (
-                      <span className="flex items-center gap-1 text-xs text-surface-400">
+                      <span className="flex items-center gap-1 text-xs text-surface-500">
                         <Users size={11} /> {ch.member_count}
                       </span>
                     )}
                   </div>
                   {alreadyJoined ? (
-                    <span className="shrink-0 rounded-lg bg-surface-100 px-3 py-1.5 text-xs font-medium text-surface-400 dark:bg-surface-800">
+                    <span className="shrink-0 rounded-lg bg-surface-100 px-3 py-1.5 text-xs font-medium text-surface-500 dark:bg-surface-800">
                       Beigetreten
                     </span>
                   ) : (

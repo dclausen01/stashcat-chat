@@ -358,14 +358,14 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
         {activeBroadcast ? (
           <>
             <button onClick={() => { setActiveBroadcast(null); setShowAddMembers(false); }}
-              className="rounded-lg p-1 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
+              className="rounded-lg p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700">
               <ArrowLeft size={16} />
             </button>
             <Radio size={16} className="shrink-0 text-primary-500" />
             <h3 className="flex-1 truncate text-sm font-semibold text-surface-900 dark:text-white">
               {activeBroadcast.name}
             </h3>
-            <span className="flex items-center gap-1 text-xs text-surface-400">
+            <span className="flex items-center gap-1 text-xs text-surface-600">
               <Users size={12} /> {activeBroadcast.member_count}
             </span>
           </>
@@ -380,7 +380,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
             </button>
           </>
         )}
-        <button onClick={onClose} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
+        <button onClick={onClose} className="rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700">
           <X size={16} />
         </button>
       </div>
@@ -391,12 +391,12 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
           <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)}
             placeholder="Name der Broadcast-Liste..." autoFocus
             onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-            className="flex-1 rounded-lg bg-surface-100 px-3 py-1.5 text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:bg-surface-800 dark:text-white" />
+            className="flex-1 rounded-lg bg-surface-100 px-3 py-1.5 text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:bg-surface-800 dark:text-white" />
           <button onClick={handleCreate} disabled={creating || !newName.trim()}
             className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700 disabled:opacity-50">
             {creating ? <Loader2 size={14} className="animate-spin" /> : 'Erstellen'}
           </button>
-          <button onClick={() => { setShowCreate(false); setNewName(''); }} className="text-surface-400 hover:text-surface-600">
+          <button onClick={() => { setShowCreate(false); setNewName(''); }} className="text-surface-600 hover:text-surface-600">
             <X size={14} />
           </button>
         </div>
@@ -409,14 +409,14 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
             className={clsx('flex-1 py-2 text-xs font-medium transition',
               activeTab === 'messages'
                 ? 'border-b-2 border-primary-500 text-primary-600 dark:text-primary-400'
-                : 'text-surface-500 hover:text-surface-700 dark:text-surface-400')}>
+                : 'text-surface-600 hover:text-surface-700 dark:text-surface-600')}>
             Nachrichten
           </button>
           <button onClick={() => switchTab('members')}
             className={clsx('flex-1 py-2 text-xs font-medium transition',
               activeTab === 'members'
                 ? 'border-b-2 border-primary-500 text-primary-600 dark:text-primary-400'
-                : 'text-surface-500 hover:text-surface-700 dark:text-surface-400')}>
+                : 'text-surface-600 hover:text-surface-700 dark:text-surface-600')}>
             Empfänger ({activeBroadcast.member_count})
           </button>
         </div>
@@ -432,12 +432,12 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
               {loadingMessages ? (
                 <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-primary-400" /></div>
               ) : messages.length === 0 ? (
-                <p className="py-8 text-center text-sm text-surface-400">Noch keine Nachrichten</p>
+                <p className="py-8 text-center text-sm text-surface-600">Noch keine Nachrichten</p>
               ) : (
                 messages.map((msg) => (
                   <div key={msg.id} className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
                     <div className="whitespace-pre-wrap text-sm text-surface-900 dark:text-surface-100">{msg.text}</div>
-                    <div className="mt-1 text-xs text-surface-400">{formatTime(msg.time)}</div>
+                    <div className="mt-1 text-xs text-surface-600">{formatTime(msg.time)}</div>
                   </div>
                 ))
               )}
@@ -448,7 +448,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
                 <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
                   placeholder="Nachricht an alle Empfänger..."
-                  className="flex-1 rounded-lg bg-surface-100 px-3 py-2 text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:bg-surface-800 dark:text-white" />
+                  className="flex-1 rounded-lg bg-surface-100 px-3 py-2 text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:bg-surface-800 dark:text-white" />
                 <button onClick={handleSend} disabled={sending || !newMessage.trim()}
                   className="rounded-lg bg-primary-600 p-2 text-white hover:bg-primary-700 disabled:opacity-50">
                   {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
@@ -463,8 +463,8 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
             {showAddMembers ? (
               <div className="shrink-0 border-b border-surface-200 p-3 dark:border-surface-700">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-surface-500">Empfänger hinzufügen</span>
-                  <button onClick={() => setShowAddMembers(false)} className="text-surface-400 hover:text-surface-600">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-surface-600">Empfänger hinzufügen</span>
+                  <button onClick={() => setShowAddMembers(false)} className="text-surface-600 hover:text-surface-600">
                     <X size={14} />
                   </button>
                 </div>
@@ -473,14 +473,14 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
                   <button
                     onClick={() => setShowGroupsTab(false)}
                     className={clsx('flex-1 rounded-md py-1.5 text-xs font-medium transition',
-                      !showGroupsTab ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-700 dark:text-white' : 'text-surface-500 hover:text-surface-700')}
+                      !showGroupsTab ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-700 dark:text-white' : 'text-surface-600 hover:text-surface-700')}
                   >
                     Nutzer
                   </button>
                   <button
                     onClick={() => setShowGroupsTab(true)}
                     className={clsx('flex-1 rounded-md py-1.5 text-xs font-medium transition',
-                      showGroupsTab ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-700 dark:text-white' : 'text-surface-500 hover:text-surface-700')}
+                      showGroupsTab ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-700 dark:text-white' : 'text-surface-600 hover:text-surface-700')}
                   >
                     Gruppen
                   </button>
@@ -490,16 +490,16 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
                   /* ── Groups tab ─── */
                   <div className="mt-2">
                     <div className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
-                      <Search size={14} className="shrink-0 text-surface-400" />
+                      <Search size={14} className="shrink-0 text-surface-600" />
                       <input type="text" value={groupFilter} onChange={(e) => setGroupFilter(e.target.value)}
                         placeholder="Gruppe suchen..."
-                        className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:text-white" />
+                        className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:text-white" />
                     </div>
                     <div className="mt-2 max-h-64 overflow-y-auto">
                       {loadingContacts ? (
                         <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-primary-400" /></div>
                       ) : filteredGroups.length === 0 ? (
-                        <p className="py-3 text-center text-xs text-surface-400">
+                        <p className="py-3 text-center text-xs text-surface-600">
                           {groupFilter ? 'Keine Gruppen gefunden' : 'Keine Gruppen verfügbar'}
                         </p>
                       ) : (
@@ -515,7 +515,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
                             </div>
                             <div className="min-w-0 flex-1 text-left">
                               <div className="truncate text-sm text-surface-800 dark:text-surface-200">{g.name}</div>
-                              <div className="text-xs text-surface-400">{g.count} Mitglieder</div>
+                              <div className="text-xs text-surface-600">{g.count} Mitglieder</div>
                             </div>
                             {invitingGroup === g.id
                               ? <Loader2 size={13} className="shrink-0 animate-spin text-primary-400" />
@@ -529,11 +529,11 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
                   /* ── Users tab ─── */
                   <div className="mt-2">
                     <div className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
-                      <Search size={14} className="shrink-0 text-surface-400" />
+                      <Search size={14} className="shrink-0 text-surface-600" />
                       <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Name oder E-Mail suchen..."
                         autoFocus
-                        className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:text-white" />
+                        className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:text-white" />
                     </div>
 
                     <div className="mt-2 max-h-64 overflow-y-auto">
@@ -549,18 +549,18 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
                                 <Avatar name={userName(u)} image={u.image} size="xs" />
                                 <div className="min-w-0 flex-1 text-left">
                                   <div className="truncate text-sm text-surface-800 dark:text-surface-200">{userName(u)}</div>
-                                  {u.email && <div className="truncate text-xs text-surface-400">{u.email}</div>}
+                                  {u.email && <div className="truncate text-xs text-surface-600">{u.email}</div>}
                                 </div>
                                 {adding === uid ? <Loader2 size={13} className="shrink-0 animate-spin text-primary-400" /> : <UserPlus size={13} className="shrink-0 text-primary-500" />}
                               </button>
                             );
                           })}
                           {filteredUsers.length > 50 && (
-                            <div className="px-2 py-1 text-xs text-surface-400">+{filteredUsers.length - 50} weitere — Suche eingrenzen</div>
+                            <div className="px-2 py-1 text-xs text-surface-600">+{filteredUsers.length - 50} weitere — Suche eingrenzen</div>
                           )}
                         </>
                       ) : (
-                        <p className="py-3 text-center text-xs text-surface-400">
+                        <p className="py-3 text-center text-xs text-surface-600">
                           {searchQuery ? 'Keine Treffer' : 'Keine Kontakte gefunden'}
                         </p>
                       )}
@@ -570,7 +570,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
               </div>
             ) : (
               <div className="flex shrink-0 items-center justify-between border-b border-surface-200 px-4 py-2 dark:border-surface-700">
-                <span className="text-xs text-surface-500">{members.length} Empfänger</span>
+                <span className="text-xs text-surface-600">{members.length} Empfänger</span>
                 <button onClick={handleShowAddMembers}
                   className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-900/20">
                   <UserPlus size={14} /> Hinzufügen
@@ -582,12 +582,12 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
             {!showAddMembers && members.length > 10 && (
               <div className="shrink-0 px-3 pb-1 pt-2">
                 <div className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-1.5 dark:bg-surface-800">
-                  <Search size={13} className="shrink-0 text-surface-400" />
+                  <Search size={13} className="shrink-0 text-surface-600" />
                   <input type="text" value={memberFilter} onChange={(e) => setMemberFilter(e.target.value)}
                     placeholder="Empfänger filtern..."
-                    className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:text-white" />
+                    className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:text-white" />
                   {memberFilter && (
-                    <button onClick={() => setMemberFilter('')} className="text-surface-400 hover:text-surface-600">
+                    <button onClick={() => setMemberFilter('')} className="text-surface-600 hover:text-surface-600">
                       <X size={12} />
                     </button>
                   )}
@@ -602,7 +602,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
               ) : members.length === 0 ? (
                 <div className="py-8 text-center">
                   <Users size={24} className="mx-auto mb-2 text-surface-300" />
-                  <p className="text-sm text-surface-400">Noch keine Empfänger</p>
+                  <p className="text-sm text-surface-600">Noch keine Empfänger</p>
                   <button onClick={handleShowAddMembers}
                     className="mt-2 text-sm font-medium text-primary-500 hover:text-primary-600">
                     Jetzt hinzufügen
@@ -617,11 +617,11 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
                   const uid = String(m.id);
                   return (
                     <div key={uid}
-                      className="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-100 dark:hover:bg-surface-800">
+                      className="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-200 dark:hover:bg-surface-800">
                       <Avatar name={userName(m)} image={m.image} size="sm" />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium text-surface-900 dark:text-surface-100">{userName(m)}</div>
-                        {m.email && <div className="truncate text-xs text-surface-400">{m.email}</div>}
+                        {m.email && <div className="truncate text-xs text-surface-600">{m.email}</div>}
                       </div>
                       <button onClick={() => handleRemoveMember(uid)} disabled={removing === uid}
                         className="hidden shrink-0 rounded-md p-1 text-surface-300 transition hover:bg-red-100 hover:text-red-600 group-hover:block dark:text-surface-600 dark:hover:bg-red-900/30 dark:hover:text-red-400">
@@ -642,7 +642,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
           ) : broadcasts.length === 0 ? (
             <div className="py-8 text-center">
               <Radio size={32} className="mx-auto mb-2 text-surface-300" />
-              <p className="text-sm text-surface-400">Keine Broadcast-Listen vorhanden</p>
+              <p className="text-sm text-surface-600">Keine Broadcast-Listen vorhanden</p>
               <button onClick={() => setShowCreate(true)}
                 className="mt-2 text-sm font-medium text-primary-500 hover:text-primary-600">
                 Erste Liste erstellen
@@ -651,7 +651,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
           ) : (
             broadcasts.map((b) => (
               <div key={b.id}
-                className="group flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-surface-100 dark:hover:bg-surface-800">
+                className="group flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-surface-200 dark:hover:bg-surface-800">
                 <button onClick={() => openBroadcast(b)}
                   className="flex min-w-0 flex-1 items-center gap-3 text-left">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30">
@@ -669,7 +669,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
                     ) : (
                       <div className="truncate text-sm font-medium text-surface-900 dark:text-surface-100">{b.name}</div>
                     )}
-                    <div className="flex items-center gap-2 text-xs text-surface-400">
+                    <div className="flex items-center gap-2 text-xs text-surface-600">
                       <span>{b.member_count} Empfänger</span>
                       {b.lastAction > 0 && <span>· {formatTime(b.lastAction)}</span>}
                     </div>

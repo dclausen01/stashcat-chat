@@ -71,7 +71,7 @@ export default function LinkPreviewCard({ url, isOwn }: LinkPreviewCardProps) {
         {/* Site name */}
         <div className={clsx(
           'mb-0.5 flex items-center gap-1 text-xs',
-          isOwn ? 'text-primary-200' : 'text-surface-400 dark:text-surface-500',
+          isOwn ? 'text-primary-200' : 'text-surface-500 dark:text-surface-500',
         )}>
           <Globe size={11} className="shrink-0" />
           <span className="truncate">{preview.siteName || hostname}</span>
@@ -91,7 +91,7 @@ export default function LinkPreviewCard({ url, isOwn }: LinkPreviewCardProps) {
         {preview.description && (
           <div className={clsx(
             'mt-0.5 line-clamp-2 text-xs leading-relaxed',
-            isOwn ? 'text-primary-100/80' : 'text-surface-500 dark:text-surface-400',
+            isOwn ? 'text-primary-100/80' : 'text-surface-500 dark:text-surface-500',
           )}>
             {preview.description}
           </div>
@@ -101,7 +101,7 @@ export default function LinkPreviewCard({ url, isOwn }: LinkPreviewCardProps) {
       {/* External link icon */}
       <div className={clsx(
         'flex shrink-0 items-center px-2.5',
-        isOwn ? 'text-primary-200' : 'text-surface-300 dark:text-surface-600',
+        isOwn ? 'text-primary-200' : 'text-surface-400 dark:text-surface-600',
       )}>
         <ExternalLink size={14} />
       </div>

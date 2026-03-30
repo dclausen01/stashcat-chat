@@ -34,7 +34,7 @@ export function FolderUploadProgress({ progress, onClose }: FolderUploadProgress
           {progress.status !== 'uploading' && (
             <button
               onClick={onClose}
-              className="rounded-md p-1 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-700"
+              className="rounded-md p-1 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700"
             >
               <X size={18} />
             </button>
@@ -52,7 +52,7 @@ export function FolderUploadProgress({ progress, onClose }: FolderUploadProgress
               style={{ width: `${percent}%` }}
             />
           </div>
-          <div className="mt-1 flex justify-between text-xs text-surface-500 dark:text-surface-400">
+          <div className="mt-1 flex justify-between text-xs text-surface-500 dark:text-surface-500">
             <span>{progress.uploadedFiles} / {progress.totalFiles} Dateien</span>
             <span>{percent}%</span>
           </div>
@@ -83,7 +83,7 @@ export function FolderUploadProgress({ progress, onClose }: FolderUploadProgress
             </div>
             <div className="mt-2 max-h-32 overflow-y-auto rounded-md bg-surface-100 p-2 dark:bg-surface-900">
               {progress.errors.map((err, i) => (
-                <div key={i} className="text-xs text-surface-600 dark:text-surface-400">
+                <div key={i} className="text-xs text-surface-600 dark:text-surface-500">
                   <span className="font-medium">{err.file}</span>: {err.error}
                 </div>
               ))}

@@ -117,9 +117,9 @@ function typeLabel(type: string): string {
 function InfoRow({ icon: Icon, label, value }: { icon: typeof Info; label: string; value: string | null | undefined }) {
   return (
     <div className="flex items-start gap-3 py-2">
-      <Icon size={16} className="mt-0.5 shrink-0 text-surface-400" />
+      <Icon size={16} className="mt-0.5 shrink-0 text-surface-500" />
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-surface-400">{label}</p>
+        <p className="text-xs font-medium text-surface-500">{label}</p>
         <p className="mt-0.5 text-sm text-surface-900 dark:text-white break-all">{value ?? '—'}</p>
       </div>
     </div>
@@ -164,7 +164,7 @@ function ChannelInfoModal({ chat, onClose }: { chat: ChatTarget; onClose: () => 
             <Info size={18} className="text-primary-500" />
             <h2 className="text-base font-semibold text-surface-900 dark:text-white">Channel-Info</h2>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-700">
+          <button onClick={onClose} className="rounded-lg p-1.5 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700">
             <X size={18} />
           </button>
         </div>
@@ -173,7 +173,7 @@ function ChannelInfoModal({ chat, onClose }: { chat: ChatTarget; onClose: () => 
         <div className="px-6 py-4">
           {loading && (
             <div className="flex items-center justify-center py-8">
-              <Loader2 size={24} className="animate-spin text-surface-400" />
+              <Loader2 size={24} className="animate-spin text-surface-500" />
             </div>
           )}
           {error && (
@@ -255,7 +255,7 @@ function DeleteConfirmModal({ chat, onClose, onDeleted }: {
         <div className="flex gap-2 px-6 pb-6 pt-2">
           <button
             onClick={onClose}
-            className="flex-1 rounded-lg border border-surface-300 px-4 py-2 text-sm font-medium text-surface-700 transition hover:bg-surface-100 dark:border-surface-600 dark:text-surface-300 dark:hover:bg-surface-800"
+            className="flex-1 rounded-lg border border-surface-300 px-4 py-2 text-sm font-medium text-surface-700 transition hover:bg-surface-200 dark:border-surface-600 dark:text-surface-300 dark:hover:bg-surface-800"
           >
             Abbrechen
           </button>
@@ -329,7 +329,7 @@ export default function ChannelDropdownMenu({
             'rounded-lg p-2 transition',
             open
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-              : 'text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800',
+              : 'text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-800',
           )}
           title="Channel-Optionen"
         >
@@ -340,31 +340,31 @@ export default function ChannelDropdownMenu({
           <div className="absolute right-0 top-full z-40 mt-1 w-52 rounded-xl border border-surface-200 bg-white py-1 shadow-xl dark:border-surface-700 dark:bg-surface-800">
             <button
               onClick={() => { setOpen(false); onOpenMembers(); }}
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-surface-700 transition hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-surface-700"
             >
-              <Users size={16} className="text-surface-400" />
+              <Users size={16} className="text-surface-500" />
               Channel-Mitglieder
             </button>
             <button
               onClick={() => { setOpen(false); setShowInfoModal(true); }}
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-surface-700 transition hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-surface-700"
             >
-              <Info size={16} className="text-surface-400" />
+              <Info size={16} className="text-surface-500" />
               Channel-Info
             </button>
             <button
               onClick={() => { setOpen(false); onOpenDescriptionEditor(); }}
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-surface-700 transition hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-surface-700"
             >
-              <Pencil size={16} className="text-surface-400" />
+              <Pencil size={16} className="text-surface-500" />
               Beschreibung bearbeiten
             </button>
             <button
               onClick={handleExport}
               disabled={exporting}
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-surface-700 transition hover:bg-surface-100 disabled:opacity-50 dark:text-surface-200 dark:hover:bg-surface-700"
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-surface-700 transition hover:bg-surface-200 disabled:opacity-50 dark:text-surface-200 dark:hover:bg-surface-700"
             >
-              <Download size={16} className="text-surface-400" />
+              <Download size={16} className="text-surface-500" />
               Als Markdown exportieren
             </button>
             <div className="my-1 border-t border-surface-200 dark:border-surface-700" />

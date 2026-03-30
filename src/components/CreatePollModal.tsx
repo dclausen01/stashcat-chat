@@ -210,7 +210,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
         <div className="flex items-center gap-3 border-b border-surface-200 px-6 py-4 dark:border-surface-700">
           <BarChart3 size={22} className="text-primary-500" />
           <h2 className="flex-1 text-lg font-semibold text-surface-900 dark:text-white">Neue Umfrage</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800">
+          <button onClick={onClose} className="rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800">
             <X size={18} />
           </button>
         </div>
@@ -240,11 +240,11 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
             {/* Dates */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-surface-500 dark:text-surface-400">Startdatum</label>
+                <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-600">Startdatum</label>
                 <input type="date" className="w-full rounded-lg border border-surface-200 bg-surface-50 px-3 py-2 text-sm text-surface-900 outline-none focus:border-primary-500 dark:border-surface-700 dark:bg-surface-800 dark:text-white" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-surface-500 dark:text-surface-400">Enddatum</label>
+                <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-600">Enddatum</label>
                 <input type="date" className="w-full rounded-lg border border-surface-200 bg-surface-50 px-3 py-2 text-sm text-surface-900 outline-none focus:border-primary-500 dark:border-surface-700 dark:bg-surface-800 dark:text-white" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
               </div>
             </div>
@@ -252,7 +252,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
             {/* Privacy */}
             <div className="flex flex-wrap items-center gap-4">
               <div>
-                <label className="mb-1 block text-xs font-medium text-surface-500 dark:text-surface-400">Datenschutz</label>
+                <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-600">Datenschutz</label>
                 <select
                   className="rounded-lg border border-surface-200 bg-surface-50 px-3 py-2 text-sm text-surface-900 outline-none focus:border-primary-500 dark:border-surface-700 dark:bg-surface-800 dark:text-white"
                   value={privacyType}
@@ -263,7 +263,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
                   <option value="anonymous">Anonym</option>
                 </select>
               </div>
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-surface-700 dark:text-surface-300">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-surface-700 dark:text-surface-400">
                 <input type="checkbox" className="accent-primary-500" checked={hiddenResults} onChange={(e) => setHiddenResults(e.target.checked)} />
                 Ergebnisse zunächst verbergen
               </label>
@@ -294,8 +294,8 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
                         <option value={1}>Einfachauswahl</option>
                         <option value={0}>Mehrfachauswahl</option>
                       </select>
-                      <button type="button" onClick={() => moveQuestion(qi, -1)} disabled={qi === 0} className="rounded p-1 text-surface-400 hover:text-surface-600 disabled:opacity-30"><ChevronUp size={14} /></button>
-                      <button type="button" onClick={() => moveQuestion(qi, 1)} disabled={qi === questions.length - 1} className="rounded p-1 text-surface-400 hover:text-surface-600 disabled:opacity-30"><ChevronDown size={14} /></button>
+                      <button type="button" onClick={() => moveQuestion(qi, -1)} disabled={qi === 0} className="rounded p-1 text-surface-600 hover:text-surface-600 disabled:opacity-30"><ChevronUp size={14} /></button>
+                      <button type="button" onClick={() => moveQuestion(qi, 1)} disabled={qi === questions.length - 1} className="rounded p-1 text-surface-600 hover:text-surface-600 disabled:opacity-30"><ChevronDown size={14} /></button>
                       <button type="button" onClick={() => removeQuestion(qi)} disabled={questions.length <= 1} className="rounded p-1 text-red-400 hover:text-red-600 disabled:opacity-30"><Trash2 size={14} /></button>
                     </div>
                     <div className="space-y-2 pl-5">
@@ -308,7 +308,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
                             value={a}
                             onChange={(e) => updateAnswer(qi, ai, e.target.value)}
                           />
-                          <button type="button" onClick={() => removeAnswer(qi, ai)} disabled={q.answers.length <= 2} className="rounded p-0.5 text-surface-300 hover:text-red-400 disabled:opacity-30"><X size={13} /></button>
+                          <button type="button" onClick={() => removeAnswer(qi, ai)} disabled={q.answers.length <= 2} className="rounded p-0.5 text-surface-400 hover:text-red-400 disabled:opacity-30"><X size={13} /></button>
                         </div>
                       ))}
                       <button type="button" onClick={() => addAnswer(qi)} className="flex items-center gap-1 text-xs text-primary-500 hover:text-primary-700">
@@ -318,7 +318,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
                   </div>
                 ))}
               </div>
-              <button type="button" onClick={addQuestion} className="mt-3 flex items-center gap-1.5 rounded-lg border border-dashed border-surface-300 px-4 py-2 text-sm text-surface-500 hover:border-primary-400 hover:text-primary-600 dark:border-surface-600 dark:hover:border-primary-500">
+              <button type="button" onClick={addQuestion} className="mt-3 flex items-center gap-1.5 rounded-lg border border-dashed border-surface-300 px-4 py-2 text-sm text-surface-600 hover:border-primary-400 hover:text-primary-600 dark:border-surface-600 dark:hover:border-primary-500">
                 <Plus size={15} /> Frage hinzufügen
               </button>
             </div>
@@ -327,27 +327,27 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
             <div>
               <h3 className="mb-1 text-sm font-semibold text-surface-800 dark:text-surface-200">
                 Teilen mit
-                <span className="ml-1.5 text-xs font-normal text-surface-400">(Mehrfachauswahl)</span>
+                <span className="ml-1.5 text-xs font-normal text-surface-600">(Mehrfachauswahl)</span>
               </h3>
-              <p className="mb-2 text-xs text-surface-500 dark:text-surface-400">
+              <p className="mb-2 text-xs text-surface-600 dark:text-surface-600">
                 Du kannst entweder Channels oder einzelne Kontakte zu der Umfrage einladen. Wenn du auch selbst an deiner Umfrage teilnehmen willst, füge dich selbst hinzu.
               </p>
               {loadingChats ? (
-                <div className="flex items-center gap-2 text-sm text-surface-400"><Loader2 size={14} className="animate-spin" /> Lade Chats…</div>
+                <div className="flex items-center gap-2 text-sm text-surface-600"><Loader2 size={14} className="animate-spin" /> Lade Chats…</div>
               ) : (
                 <div className="rounded-xl border border-surface-200 dark:border-surface-700 overflow-hidden">
                   {/* Search field */}
                   <div className="flex items-center gap-2 border-b border-surface-200 px-3 py-2 dark:border-surface-700 bg-surface-50 dark:bg-surface-800">
-                    <Search size={14} className="shrink-0 text-surface-400" />
+                    <Search size={14} className="shrink-0 text-surface-600" />
                     <input
                       type="text"
                       placeholder="Channel oder Konversation suchen…"
                       value={chatSearch}
                       onChange={(e) => setChatSearch(e.target.value)}
-                      className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:text-white"
+                      className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:text-white"
                     />
                     {chatSearch && (
-                      <button type="button" onClick={() => setChatSearch('')} className="text-surface-400 hover:text-surface-600">
+                      <button type="button" onClick={() => setChatSearch('')} className="text-surface-600 hover:text-surface-600">
                         <X size={13} />
                       </button>
                     )}
@@ -359,7 +359,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
                         o.name.toLowerCase().includes(chatSearch.toLowerCase())
                       );
                       if (filtered.length === 0) return (
-                        <p className="p-3 text-sm text-surface-400">
+                        <p className="p-3 text-sm text-surface-600">
                           {chatSearch ? 'Keine Treffer' : 'Keine Chats verfügbar'}
                         </p>
                       );
@@ -374,7 +374,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
                             checked={selectedChats.has(opt.id)}
                             onChange={() => toggleChat(opt.id)}
                           />
-                          <span className="text-xs font-medium text-surface-400 w-16 shrink-0">{opt.type === 'channel' ? '# Channel' : '💬 Konv.'}</span>
+                          <span className="text-xs font-medium text-surface-600 w-16 shrink-0">{opt.type === 'channel' ? '# Channel' : '💬 Konv.'}</span>
                           <span className="truncate text-surface-800 dark:text-surface-200">{opt.name}</span>
                         </label>
                       ));
@@ -397,7 +397,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
 
           {/* Footer */}
           <div className="flex justify-end gap-3 border-t border-surface-200 px-6 py-4 dark:border-surface-700">
-            <button type="button" onClick={onClose} className="rounded-lg border border-surface-200 px-4 py-2 text-sm text-surface-600 hover:bg-surface-50 dark:border-surface-700 dark:text-surface-300 dark:hover:bg-surface-800">
+            <button type="button" onClick={onClose} className="rounded-lg border border-surface-200 px-4 py-2 text-sm text-surface-600 hover:bg-surface-50 dark:border-surface-700 dark:text-surface-400 dark:hover:bg-surface-800">
               Abbrechen
             </button>
             <button

@@ -265,13 +265,13 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       {/* Search */}
       <div className="shrink-0 p-3">
         <div className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
-          <Search size={16} className="text-surface-400" />
+          <Search size={16} className="text-surface-500" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Suchen..."
-            className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:text-white"
+            className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-500 dark:text-white"
           />
         </div>
       </div>
@@ -292,7 +292,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
               <button
                 onClick={() => setShowNewChannel(true)}
                 disabled={!primaryCompanyId}
-                className="rounded-md p-0.5 text-surface-400 transition hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 dark:hover:text-surface-300 disabled:opacity-30"
+                className="rounded-md p-0.5 text-surface-500 transition hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 dark:hover:text-surface-300 disabled:opacity-30"
                 title="Neuen Channel erstellen"
               >
                 <Plus size={14} />
@@ -315,9 +315,9 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         {/* Drag handle */}
         <div
           onMouseDown={onMouseDown}
-          className="group flex shrink-0 cursor-row-resize items-center justify-center border-y border-surface-200 py-0.5 hover:bg-surface-100 dark:border-surface-700 dark:hover:bg-surface-800"
+          className="group flex shrink-0 cursor-row-resize items-center justify-center border-y border-surface-200 py-0.5 hover:bg-surface-200 dark:border-surface-700 dark:hover:bg-surface-800"
         >
-          <GripHorizontal size={16} className="text-surface-300 group-hover:text-surface-500 dark:text-surface-600 dark:group-hover:text-surface-400" />
+          <GripHorizontal size={16} className="text-surface-300 group-hover:text-surface-500 dark:text-surface-600 dark:group-hover:text-surface-500" />
         </div>
 
         {/* Conversations panel */}
@@ -330,7 +330,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
               <button
                 onClick={() => setShowNewChat(true)}
                 disabled={!primaryCompanyId}
-                className="rounded-md p-0.5 text-surface-400 transition hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 dark:hover:text-surface-300 disabled:opacity-30"
+                className="rounded-md p-0.5 text-surface-500 transition hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 dark:hover:text-surface-300 disabled:opacity-30"
                 title="Neue Direktnachricht starten"
               >
                 <Plus size={14} />

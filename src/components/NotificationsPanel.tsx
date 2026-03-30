@@ -12,11 +12,11 @@ interface NotificationsPanelProps {
 /** Map API notification types to user-friendly German labels + icons */
 const TYPE_MAP: Record<string, { label: string; icon: React.ReactNode }> = {
   new_device_connected:    { label: 'Neues Gerät verbunden',           icon: <Smartphone size={16} className="text-green-500" /> },
-  device_disconnected:     { label: 'Gerät getrennt',                  icon: <Smartphone size={16} className="text-surface-400" /> },
+  device_disconnected:     { label: 'Gerät getrennt',                  icon: <Smartphone size={16} className="text-surface-500" /> },
   new_login:               { label: 'Neue Anmeldung',                  icon: <Shield size={16} className="text-blue-500" /> },
   channel_invite:          { label: 'Einladung in einen Channel',      icon: <Hash size={16} className="text-primary-500" /> },
   channel_membership_gained: { label: 'Channel beigetreten',           icon: <Hash size={16} className="text-green-500" /> },
-  channel_membership_lost: { label: 'Channel verlassen',               icon: <Hash size={16} className="text-surface-400" /> },
+  channel_membership_lost: { label: 'Channel verlassen',               icon: <Hash size={16} className="text-surface-500" /> },
   channel_created:         { label: 'Neuer Channel erstellt',          icon: <Hash size={16} className="text-primary-500" /> },
   channel_deleted:         { label: 'Channel gelöscht',                icon: <Hash size={16} className="text-red-400" /> },
   channel_modified:        { label: 'Channel aktualisiert',            icon: <Hash size={16} className="text-amber-500" /> },
@@ -32,7 +32,7 @@ const TYPE_MAP: Record<string, { label: string; icon: React.ReactNode }> = {
   survey_created:          { label: 'Neue Umfrage erstellt',           icon: <BarChart3 size={16} className="text-primary-500" /> },
   survey_changed:          { label: 'Umfrage aktualisiert',            icon: <BarChart3 size={16} className="text-amber-500" /> },
   survey_published:        { label: 'Umfrage veröffentlicht',          icon: <BarChart3 size={16} className="text-green-500" /> },
-  survey_closed:           { label: 'Umfrage beendet',                 icon: <BarChart3 size={16} className="text-surface-400" /> },
+  survey_closed:           { label: 'Umfrage beendet',                 icon: <BarChart3 size={16} className="text-surface-500" /> },
 };
 
 function getTypeInfo(type: string): { label: string; icon: React.ReactNode } {
@@ -47,7 +47,7 @@ function getTypeInfo(type: string): { label: string; icon: React.ReactNode } {
   if (safeType.includes('invite')) return { label: 'Einladung', icon: <UserPlus size={16} className="text-primary-500" /> };
   // Fallback: humanize the snake_case type
   const humanized = safeType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-  return { label: humanized || 'Benachrichtigung', icon: <Bell size={16} className="text-surface-400" /> };
+  return { label: humanized || 'Benachrichtigung', icon: <Bell size={16} className="text-surface-500" /> };
 }
 
 /** Parse poll/survey notification content → creator name + poll title */
@@ -211,13 +211,13 @@ export default function NotificationsPanel({ onClose, onOpenPolls }: Notificatio
         {notifications.length > 0 && (
           <button
             onClick={handleDeleteAll}
-            className="rounded-md px-2 py-1 text-xs text-surface-400 transition hover:bg-surface-100 hover:text-surface-600 dark:hover:bg-surface-800 dark:hover:text-surface-300"
+            className="rounded-md px-2 py-1 text-xs text-surface-500 transition hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-800 dark:hover:text-surface-400"
             title="Alle löschen"
           >
             <Trash2 size={13} />
           </button>
         )}
-        <button onClick={onClose} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800">
+        <button onClick={onClose} className="rounded-lg p-1.5 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-800">
           <X size={16} />
         </button>
       </div>
@@ -229,7 +229,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls }: Notificatio
             <Loader2 size={24} className="animate-spin text-primary-400" />
           </div>
         ) : notifications.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-surface-400">
+          <div className="flex flex-col items-center justify-center py-12 text-surface-500">
             <Bell size={32} className="mb-2 opacity-50" />
             <p className="text-sm">Keine Benachrichtigungen</p>
           </div>
@@ -268,7 +268,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls }: Notificatio
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-semibold text-surface-500 dark:text-surface-400">
+                      <span className="text-xs font-semibold text-surface-500 dark:text-surface-500">
                         {typeInfo.label}
                       </span>
                       {!n.read && (
@@ -281,11 +281,11 @@ export default function NotificationsPanel({ onClose, onOpenPolls }: Notificatio
                       </p>
                     )}
                     {formatted.subtext && (
-                      <p className="mt-0.5 text-xs text-surface-500 dark:text-surface-400">
+                      <p className="mt-0.5 text-xs text-surface-500 dark:text-surface-500">
                         {formatted.subtext}
                       </p>
                     )}
-                    <div className="mt-0.5 flex items-center gap-2 text-xs text-surface-400">
+                    <div className="mt-0.5 flex items-center gap-2 text-xs text-surface-500">
                       {channelName && (
                         <span className="flex items-center gap-0.5">
                           <Hash size={10} /> {channelName}
@@ -301,7 +301,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls }: Notificatio
                   </div>
                   <button
                     onClick={() => handleDelete(n.id)}
-                    className="shrink-0 rounded-md p-1 text-surface-300 opacity-0 transition group-hover/notif:opacity-100 hover:bg-surface-100 hover:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-400"
+                    className="shrink-0 rounded-md p-1 text-surface-400 opacity-0 transition group-hover/notif:opacity-100 hover:bg-surface-200 hover:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-500"
                     title="Löschen"
                   >
                     <X size={14} />

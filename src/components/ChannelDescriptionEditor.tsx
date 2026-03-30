@@ -144,7 +144,7 @@ export default function ChannelDescriptionEditor({ chat, onClose, onSaved }: Cha
           <h2 className="flex-1 text-base font-semibold text-surface-900 dark:text-white">
             Channel-Beschreibung bearbeiten
           </h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800">
+          <button onClick={onClose} className="rounded-lg p-1.5 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-800">
             <X size={18} />
           </button>
         </div>
@@ -176,7 +176,7 @@ export default function ChannelDescriptionEditor({ chat, onClose, onSaved }: Cha
                   <div className="relative">
                     <button
                       onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(showEmojiPicker === idx ? null : idx); }}
-                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-surface-300 text-lg transition hover:bg-surface-100 dark:border-surface-600 dark:hover:bg-surface-800"
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-surface-300 text-lg transition hover:bg-surface-200 dark:border-surface-600 dark:hover:bg-surface-800"
                       title="Symbol wählen"
                     >
                       {link.emoji}
@@ -196,7 +196,7 @@ export default function ChannelDescriptionEditor({ chat, onClose, onSaved }: Cha
                               setShowEmojiPicker(null);
                             }}
                             className={clsx(
-                              'flex h-8 w-8 items-center justify-center rounded-md text-lg transition hover:bg-surface-100 dark:hover:bg-surface-700',
+                              'flex h-8 w-8 items-center justify-center rounded-md text-lg transition hover:bg-surface-200 dark:hover:bg-surface-700',
                               link.emoji === p.emoji && 'bg-primary-100 dark:bg-primary-900/30',
                             )}
                             title={p.label}
@@ -236,7 +236,7 @@ export default function ChannelDescriptionEditor({ chat, onClose, onSaved }: Cha
               Vorschau
             </label>
             <div className="whitespace-pre-wrap rounded-lg bg-surface-50 px-3 py-2 text-sm text-surface-700 dark:bg-surface-800 dark:text-surface-300">
-              {fullDescription || <span className="italic text-surface-400">Keine Beschreibung</span>}
+              {fullDescription || <span className="italic text-surface-500">Keine Beschreibung</span>}
             </div>
           </div>
 
@@ -251,7 +251,7 @@ export default function ChannelDescriptionEditor({ chat, onClose, onSaved }: Cha
         <div className="flex items-center justify-end gap-2 border-t border-surface-200 px-5 py-3 dark:border-surface-700">
           <button
             onClick={onClose}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-surface-600 transition hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-surface-600 transition hover:bg-surface-200 dark:text-surface-500 dark:hover:bg-surface-800"
           >
             Abbrechen
           </button>

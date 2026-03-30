@@ -20,7 +20,7 @@ function ToggleRow({
     <label className="flex cursor-pointer items-start gap-3">
       <div className="flex-1">
         <div className="text-sm font-medium text-surface-900 dark:text-surface-100">{label}</div>
-        {description && <div className="mt-0.5 text-xs text-surface-500">{description}</div>}
+        {description && <div className="mt-0.5 text-xs text-surface-600">{description}</div>}
       </div>
       <button
         role="switch"
@@ -84,14 +84,14 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         <h3 className="text-sm font-semibold text-surface-900 dark:text-white">Einstellungen</h3>
         <button
           onClick={onClose}
-          className="rounded-md p-1 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
+          className="rounded-md p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700"
         >
           <X size={16} />
         </button>
       </div>
 
       <div className="flex flex-col gap-1 overflow-y-auto p-4">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-500">Homescreen</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-surface-600">Homescreen</p>
 
         <div className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
           <ToggleRow
@@ -102,7 +102,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           />
         </div>
 
-        <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-surface-500">Anzeige</p>
+        <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-surface-600">Anzeige</p>
 
         <div className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
           <ToggleRow
@@ -122,7 +122,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           />
         </div>
 
-        <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-surface-500">Farben</p>
+        <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-surface-600">Farben</p>
 
         <div className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
           <ColorRow

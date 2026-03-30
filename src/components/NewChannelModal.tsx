@@ -137,7 +137,7 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800"
+            className="rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800"
           >
             <X size={18} />
           </button>
@@ -149,7 +149,7 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
 
             {/* Name */}
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-500">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-600">
                 Channel-Name <span className="text-red-500">*</span>
               </label>
               <input
@@ -164,8 +164,8 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
 
             {/* Description */}
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-500">
-                Beschreibung <span className="text-surface-400 font-normal normal-case">(optional)</span>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-600">
+                Beschreibung <span className="text-surface-600 font-normal normal-case">(optional)</span>
               </label>
               <input
                 type="text"
@@ -178,8 +178,8 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
 
             {/* Policies */}
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-500">
-                Channel-Richtlinien <span className="text-surface-400 font-normal normal-case">(optional)</span>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-600">
+                Channel-Richtlinien <span className="text-surface-600 font-normal normal-case">(optional)</span>
               </label>
               <textarea
                 value={policies}
@@ -188,14 +188,14 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
                 placeholder="Channel-Richtlinien"
                 className="w-full resize-y rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm text-surface-900 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
               />
-              <p className="mt-1 text-xs text-surface-400">
+              <p className="mt-1 text-xs text-surface-600">
                 Falls gesetzt, müssen neue Mitglieder diese Richtlinien beim Beitritt akzeptieren.
               </p>
             </div>
 
             {/* Channel type dropdown */}
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-500">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-600">
                 Channeltyp <span className="text-red-400">*</span>
               </label>
               <div className="relative">
@@ -204,9 +204,9 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
                   onClick={() => setTypeOpen((o) => !o)}
                   className="flex w-full items-center gap-2 rounded-lg border border-surface-300 bg-white px-3 py-2.5 text-left text-sm transition hover:border-surface-400 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
                 >
-                  <span className="text-surface-500 dark:text-surface-400">{selectedType.icon}</span>
+                  <span className="text-surface-600 dark:text-surface-600">{selectedType.icon}</span>
                   <span className="flex-1 font-medium text-surface-900 dark:text-white">{selectedType.label}</span>
-                  <ChevronDown size={15} className={clsx('shrink-0 text-surface-400 transition', typeOpen && 'rotate-180')} />
+                  <ChevronDown size={15} className={clsx('shrink-0 text-surface-600 transition', typeOpen && 'rotate-180')} />
                 </button>
                 {typeOpen && (
                   <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-surface-200 bg-white shadow-xl dark:border-surface-600 dark:bg-surface-800">
@@ -220,28 +220,28 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
                           ct.value === channelType && 'bg-primary-50 dark:bg-primary-900/20',
                         )}
                       >
-                        <span className={clsx('mt-0.5 shrink-0', ct.value === channelType ? 'text-primary-600 dark:text-primary-400' : 'text-surface-400')}>
+                        <span className={clsx('mt-0.5 shrink-0', ct.value === channelType ? 'text-primary-600 dark:text-primary-400' : 'text-surface-600')}>
                           {ct.icon}
                         </span>
                         <div>
                           <div className={clsx('font-semibold', ct.value === channelType ? 'text-primary-700 dark:text-primary-300' : 'text-surface-900 dark:text-surface-100')}>
                             {ct.label}
                           </div>
-                          <div className="text-xs text-surface-400">{ct.desc}</div>
+                          <div className="text-xs text-surface-600">{ct.desc}</div>
                         </div>
                       </button>
                     ))}
                   </div>
                 )}
               </div>
-              <p className="mt-1 text-xs text-surface-400">{selectedType.desc}</p>
+              <p className="mt-1 text-xs text-surface-600">{selectedType.desc}</p>
             </div>
 
             {/* Password fields (only when password type) */}
             {channelType === 'password' && (
               <div className="space-y-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-400">Kennwort</label>
+                  <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-600">Kennwort</label>
                   <input
                     type="password"
                     value={password}
@@ -251,7 +251,7 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-400">Kennwort wiederholen</label>
+                  <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-600">Kennwort wiederholen</label>
                   <input
                     type="password"
                     value={password2}
@@ -278,7 +278,7 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
                     />
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-semibold text-surface-800 dark:text-surface-200">{t.label}</div>
-                      <div className="text-xs text-surface-400">{t.desc}</div>
+                      <div className="text-xs text-surface-600">{t.desc}</div>
                     </div>
                   </div>
                 ))}
@@ -297,7 +297,7 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-surface-600 transition hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-surface-600 transition hover:bg-surface-200 dark:text-surface-600 dark:hover:bg-surface-800"
             >
               Abbrechen
             </button>

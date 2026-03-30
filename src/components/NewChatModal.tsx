@@ -97,7 +97,7 @@ export default function NewChatModal({ companyId, myUserId, onClose, onCreate }:
         <div className="flex items-center gap-3 border-b border-surface-200 px-5 py-4 dark:border-surface-700">
           <MessageSquarePlus size={18} className="text-primary-500" />
           <h2 className="flex-1 text-base font-semibold text-surface-900 dark:text-white">Neue Direktnachricht</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800">
+          <button onClick={onClose} className="rounded-lg p-1.5 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-800">
             <X size={18} />
           </button>
         </div>
@@ -115,21 +115,21 @@ export default function NewChatModal({ companyId, myUserId, onClose, onCreate }:
                 <X size={11} />
               </button>
             ))}
-            <span className="ml-auto self-center text-xs text-surface-400">{selected.length}/{MAX_MEMBERS}</span>
+            <span className="ml-auto self-center text-xs text-surface-500">{selected.length}/{MAX_MEMBERS}</span>
           </div>
         )}
 
         {/* Search */}
         <div className="shrink-0 border-b border-surface-100 px-4 py-3 dark:border-surface-800">
           <div className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
-            <Search size={15} className="shrink-0 text-surface-400" />
+            <Search size={15} className="shrink-0 text-surface-500" />
             <input
               ref={inputRef}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Name oder E-Mail suchen…"
-              className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:text-white"
+              className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-500 dark:text-white"
             />
           </div>
         </div>
@@ -143,7 +143,7 @@ export default function NewChatModal({ companyId, myUserId, onClose, onCreate }:
           ) : error && selected.length === 0 ? (
             <p className="py-4 text-center text-sm text-red-500">{error}</p>
           ) : allUsers.length === 0 ? (
-            <p className="py-6 text-center text-sm text-surface-400">
+            <p className="py-6 text-center text-sm text-surface-500">
               {query ? 'Keine Treffer' : 'Keine Kontakte gefunden'}
             </p>
           ) : (
@@ -157,7 +157,7 @@ export default function NewChatModal({ companyId, myUserId, onClose, onCreate }:
                   key={uid}
                   onClick={() => toggleUser(u)}
                   disabled={isDisabled}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-surface-100 dark:hover:bg-surface-800 disabled:opacity-40"
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-surface-200 dark:hover:bg-surface-800 disabled:opacity-40"
                 >
                   <div className="relative">
                     <Avatar name={name} image={u.image} size="sm" />
@@ -169,7 +169,7 @@ export default function NewChatModal({ companyId, myUserId, onClose, onCreate }:
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium text-surface-900 dark:text-surface-100">{name}</div>
-                    {u.email && <div className="truncate text-xs text-surface-400">{u.email}</div>}
+                    {u.email && <div className="truncate text-xs text-surface-500">{u.email}</div>}
                   </div>
                 </button>
               );

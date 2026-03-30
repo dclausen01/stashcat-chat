@@ -434,7 +434,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         {chat.type === 'channel' ? (
           chat.image
             ? <Avatar name={chat.name} image={chat.image} size="md" />
-            : <Hash size={22} className="text-surface-400" />
+            : <Hash size={22} className="text-surface-600" />
         ) : (
           <Avatar name={chat.name} image={chat.image} size="md" />
         )}
@@ -442,13 +442,13 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           <h2 className="truncate text-base font-semibold text-surface-900 dark:text-white">{chat.name}</h2>
           {chatDescription ? (
             <div className="flex items-center gap-1">
-              <p className="min-w-0 truncate text-xs text-surface-500 dark:text-surface-400">
+              <p className="min-w-0 truncate text-xs text-surface-600 dark:text-surface-600">
                 <LinkifiedText text={chatDescription} />
               </p>
               {isManager && chat.type === 'channel' && (
                 <button
                   onClick={() => setDescEditorOpen(true)}
-                  className="shrink-0 rounded p-0.5 text-surface-300 transition hover:bg-surface-100 hover:text-surface-500 dark:text-surface-600 dark:hover:bg-surface-800 dark:hover:text-surface-400"
+                  className="shrink-0 rounded p-0.5 text-surface-400 transition hover:bg-surface-200 hover:text-surface-600 dark:text-surface-600 dark:hover:bg-surface-800 dark:hover:text-surface-600"
                   title="Beschreibung bearbeiten"
                 >
                   <Pencil size={11} />
@@ -458,7 +458,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           ) : isManager && chat.type === 'channel' ? (
             <button
               onClick={() => setDescEditorOpen(true)}
-              className="flex items-center gap-1 text-xs text-surface-400 transition hover:text-primary-500"
+              className="flex items-center gap-1 text-xs text-surface-600 transition hover:text-primary-500"
             >
               <Pencil size={11} /> Beschreibung hinzufügen
             </button>
@@ -504,7 +504,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             'rounded-lg p-2 transition',
             meetingLoading
               ? 'animate-pulse text-primary-500'
-              : 'text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800',
+              : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
           )}
           title="Videokonferenz starten"
         >
@@ -525,7 +525,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               'rounded-lg p-2 transition',
               membersOpen
                 ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-                : 'text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800',
+                : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
             )}
             title="Mitglieder"
           >
@@ -538,7 +538,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             'rounded-lg p-2 transition',
             fileBrowserOpen
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-              : 'text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800',
+              : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
           )}
           title="Dateiablage"
         >
@@ -550,7 +550,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             'rounded-lg p-2 transition',
             searchOpen
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-              : 'text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800',
+              : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
           )}
           title="Suche (Ctrl+F)"
         >
@@ -558,7 +558,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         </button>
         <button
           onClick={onGoHome}
-          className="rounded-lg p-2 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800"
+          className="rounded-lg p-2 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800"
           title="Zur Startseite"
         >
           <Home size={20} />
@@ -568,7 +568,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       {/* In-chat search bar */}
       {searchOpen && (
         <div className="flex shrink-0 items-center gap-2 border-b border-surface-200 bg-surface-50 px-4 py-2 dark:border-surface-700 dark:bg-surface-900/50">
-          <Search size={15} className="shrink-0 text-surface-400" />
+          <Search size={15} className="shrink-0 text-surface-600" />
           <input
             ref={searchInputRef}
             type="text"
@@ -579,10 +579,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               if (e.key === 'Enter') setSearchMatchIdx((i) => i + (e.shiftKey ? -1 : 1));
             }}
             placeholder="In Nachrichten suchen…"
-            className="min-w-0 flex-1 bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:text-white"
+            className="min-w-0 flex-1 bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:text-white"
           />
           {searchQuery.trim().length >= 2 && (
-            <span className="shrink-0 text-xs text-surface-400">
+            <span className="shrink-0 text-xs text-surface-600">
               {searchMatches.length === 0
                 ? hasMore ? 'Keine Treffer (in geladenen Nachrichten)' : 'Keine Treffer'
                 : `${((searchMatchIdx % searchMatches.length) + searchMatches.length) % searchMatches.length + 1} / ${searchMatches.length}${hasMore ? ' (in geladenen Nachrichten)' : ''}`}
@@ -590,15 +590,15 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           )}
           {searchMatches.length > 0 && (
             <>
-              <button onClick={() => setSearchMatchIdx((i) => i - 1)} className="rounded p-1 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700" title="Vorheriger Treffer (Shift+Enter)">
+              <button onClick={() => setSearchMatchIdx((i) => i - 1)} className="rounded p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700" title="Vorheriger Treffer (Shift+Enter)">
                 <ArrowDown size={14} className="rotate-180" />
               </button>
-              <button onClick={() => setSearchMatchIdx((i) => i + 1)} className="rounded p-1 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700" title="Nächster Treffer (Enter)">
+              <button onClick={() => setSearchMatchIdx((i) => i + 1)} className="rounded p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700" title="Nächster Treffer (Enter)">
                 <ArrowDown size={14} />
               </button>
             </>
           )}
-          <button onClick={() => { setSearchOpen(false); setSearchQuery(''); }} className="rounded p-1 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
+          <button onClick={() => { setSearchOpen(false); setSearchQuery(''); }} className="rounded p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700">
             <X size={15} />
           </button>
         </div>
@@ -620,7 +620,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           <div className="flex justify-center pb-3">
             <button
               onClick={loadOlder}
-              className="flex items-center gap-1.5 rounded-full border border-surface-200 bg-white px-4 py-1.5 text-xs font-medium text-surface-500 shadow-sm transition hover:border-primary-300 hover:text-primary-600 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-400 dark:hover:border-primary-600 dark:hover:text-primary-400"
+              className="flex items-center gap-1.5 rounded-full border border-surface-200 bg-white px-4 py-1.5 text-xs font-medium text-surface-600 shadow-sm transition hover:border-primary-300 hover:text-primary-600 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-600 dark:hover:border-primary-600 dark:hover:text-primary-400"
             >
               <ArrowDown size={12} className="rotate-180" />
               Ältere Nachrichten laden
@@ -628,7 +628,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           </div>
         )}
         {!loadingMore && !hasMore && messages.length > 0 && (
-          <div className="pb-3 text-center text-xs text-surface-400">Anfang des Verlaufs</div>
+          <div className="pb-3 text-center text-xs text-surface-600">Anfang des Verlaufs</div>
         )}
 
         {loading ? (
@@ -636,7 +636,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             <Loader2 size={32} className="animate-spin text-primary-500" />
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-surface-400">
+          <div className="flex h-full flex-col items-center justify-center text-surface-600">
             <Hash size={48} className="mb-3" />
             <p className="text-lg font-medium">Noch keine Nachrichten</p>
             <p className="text-sm">Schreibe die erste Nachricht!</p>
@@ -768,7 +768,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
       {/* Typing indicator */}
       {typingUsers.length > 0 && (
-        <div className="shrink-0 px-6 pb-1 text-xs text-surface-400 italic">
+        <div className="shrink-0 px-6 pb-1 text-xs text-surface-600 italic">
           {typingUsers.length === 1
             ? 'Jemand tippt…'
             : `${typingUsers.length} Personen tippen…`}
@@ -855,14 +855,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             <a
               href={api.fileDownloadUrl(pdfView.fileId, pdfView.name)}
               download={pdfView.name}
-              className="rounded-md p-1.5 text-surface-300 hover:bg-surface-700"
+              className="rounded-md p-1.5 text-surface-400 hover:bg-surface-700"
               title="Herunterladen"
             >
               <ExternalLink size={16} />
             </a>
             <button
               onClick={() => setPdfView(null)}
-              className="rounded-md p-1.5 text-surface-300 hover:bg-surface-700"
+              className="rounded-md p-1.5 text-surface-400 hover:bg-surface-700"
             >
               <X size={16} />
             </button>
@@ -929,7 +929,7 @@ function MessageGroup({
 
       <div className={clsx('flex min-w-0 max-w-[75%] flex-col gap-0.5', isOwn ? 'items-end' : 'items-start')}>
         {!isOwn && (
-          <span className="mb-0.5 pl-1 text-xs font-semibold text-surface-600 dark:text-surface-400">
+          <span className="mb-0.5 pl-1 text-xs font-semibold text-surface-600 dark:text-surface-600">
             {senderName}
           </span>
         )}
@@ -974,7 +974,7 @@ function MessageGroup({
                     'flex items-center justify-center rounded-md p-1 transition',
                     msg.liked
                       ? 'text-amber-500 dark:text-amber-400'
-                      : 'text-surface-400 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700 dark:hover:text-amber-400',
+                      : 'text-surface-600 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700 dark:hover:text-amber-400',
                   )}
                 >
                   <ThumbsUp size={13} />
@@ -982,21 +982,21 @@ function MessageGroup({
                 <button
                   onClick={() => onReply(msg)}
                   title="Antworten"
-                  className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-surface-200 hover:text-primary-600 dark:hover:bg-surface-700 dark:hover:text-primary-400 transition"
+                  className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 hover:text-primary-600 dark:hover:bg-surface-700 dark:hover:text-primary-400 transition"
                 >
                   <Reply size={13} />
                 </button>
                 <button
                   onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }}
                   title="Kopieren"
-                  className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200 transition"
+                  className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200 transition"
                 >
                   <Copy size={13} />
                 </button>
                 <button
                   onClick={() => onForward(msg)}
                   title="Weiterleiten"
-                  className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200 transition"
+                  className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200 transition"
                 >
                   <Forward size={13} />
                 </button>
@@ -1004,7 +1004,7 @@ function MessageGroup({
                   <button
                     onClick={() => onDelete(String(msg.id))}
                     title="Löschen"
-                    className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition"
+                    className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition"
                   >
                     <Trash2 size={13} />
                   </button>
@@ -1026,7 +1026,7 @@ function MessageGroup({
               >
                 {replyTo && <ReplyQuote msg={replyTo} isOwn={isOwn} />}
                 {msg.is_forwarded && (
-                  <div className={clsx('mb-1 flex items-center gap-1 text-[11px] italic', isOwn ? 'text-primary-200' : 'text-surface-400')}>
+                  <div className={clsx('mb-1 flex items-center gap-1 text-[11px] italic', isOwn ? 'text-primary-200' : 'text-surface-600')}>
                     <Forward size={10} /> Weitergeleitet
                   </div>
                 )}
@@ -1039,7 +1039,7 @@ function MessageGroup({
               {(isLast || (msg.likes ?? 0) > 0) && (
                 <div className={clsx('relative z-10 flex items-center gap-1.5 px-1', isOwn ? 'flex-row-reverse' : 'flex-row')}>
                   {isLast && (
-                    <span className="flex items-center gap-0.5 text-xs text-surface-400">
+                    <span className="flex items-center gap-0.5 text-xs text-surface-600">
                       {timeDisplay}
                       {isOwn && (
                         msg.seen_by_others
@@ -1115,7 +1115,7 @@ function PlainTextMessage({
           <span className={clsx('text-sm font-semibold', isOwn ? 'text-primary-700 dark:text-primary-400' : 'text-surface-900 dark:text-surface-100')}>
             {senderName}
           </span>
-          <span className="flex items-center gap-0.5 text-xs text-surface-400">
+          <span className="flex items-center gap-0.5 text-xs text-surface-600">
             {timeDisplay}
             {isOwn && (
               msg.seen_by_others
@@ -1134,7 +1134,7 @@ function PlainTextMessage({
         </div>
         {replyTo && <ReplyQuote msg={replyTo} isOwn={false} />}
         {msg.is_forwarded && (
-          <div className="mb-1 flex items-center gap-1 text-[11px] italic text-surface-400">
+          <div className="mb-1 flex items-center gap-1 text-[11px] italic text-surface-600">
             <Forward size={10} /> Weitergeleitet
           </div>
         )}
@@ -1151,7 +1151,7 @@ function PlainTextMessage({
           title={msg.liked ? 'Like entfernen' : 'Gefällt mir'}
           className={clsx(
             'flex items-center justify-center rounded-md p-1 transition',
-            msg.liked ? 'text-amber-500' : 'text-surface-400 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700',
+            msg.liked ? 'text-amber-500' : 'text-surface-600 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700',
           )}
         >
           <ThumbsUp size={13} />
@@ -1159,21 +1159,21 @@ function PlainTextMessage({
         <button
           onClick={() => onReply(msg)}
           title="Antworten"
-          className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-surface-200 hover:text-primary-600 dark:hover:bg-surface-700 dark:hover:text-primary-400 transition"
+          className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 hover:text-primary-600 dark:hover:bg-surface-700 dark:hover:text-primary-400 transition"
         >
           <Reply size={13} />
         </button>
         <button
           onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }}
           title="Kopieren"
-          className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 transition"
+          className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 transition"
         >
           <Copy size={13} />
         </button>
         <button
           onClick={() => onForward(msg)}
           title="Weiterleiten"
-          className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 transition"
+          className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 transition"
         >
           <Forward size={13} />
         </button>
@@ -1181,7 +1181,7 @@ function PlainTextMessage({
           <button
             onClick={() => onDelete(String(msg.id))}
             title="Löschen"
-            className="flex items-center justify-center rounded-md p-1 text-surface-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition"
+            className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition"
           >
             <Trash2 size={13} />
           </button>
@@ -1251,7 +1251,7 @@ function DateSeparator({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3 py-2 px-4">
       <div className="h-px flex-1 bg-surface-200 dark:bg-surface-700" />
-      <span className="rounded-full bg-surface-100 px-3 py-0.5 text-xs font-medium text-surface-500 dark:bg-surface-800 dark:text-surface-400 select-none">
+      <span className="rounded-full bg-surface-100 px-3 py-0.5 text-xs font-medium text-surface-600 dark:bg-surface-800 dark:text-surface-600 select-none">
         {label}
       </span>
       <div className="h-px flex-1 bg-surface-200 dark:bg-surface-700" />
@@ -1339,7 +1339,7 @@ function PollInviteMessage({ msg, onOpenPolls, onOpenPoll }: { msg: Message; onO
             Klicke hier
           </button>
         )}
-        {time && <p className="mt-1 text-xs text-surface-400">{time}</p>}
+        {time && <p className="mt-1 text-xs text-surface-600">{time}</p>}
       </div>
     </div>
   );
@@ -1377,9 +1377,9 @@ function SystemMessage({ msg }: { msg: Message }) {
 
   return (
     <div className="flex justify-center py-1">
-      <div className="rounded-full bg-surface-100 px-4 py-1.5 text-xs text-surface-500 dark:bg-surface-800 dark:text-surface-400">
+      <div className="rounded-full bg-surface-100 px-4 py-1.5 text-xs text-surface-600 dark:bg-surface-800 dark:text-surface-600">
         <span className="font-medium">{text}</span>
-        {time && <span className="ml-2 text-surface-400">{date}, {time}</span>}
+        {time && <span className="ml-2 text-surface-600">{date}, {time}</span>}
       </div>
     </div>
   );
@@ -1398,7 +1398,7 @@ function ReplyQuote({ msg, isOwn }: { msg: Message; isOwn: boolean }) {
       'mb-1.5 rounded-lg border-l-3 px-2.5 py-1.5 text-xs',
       isOwn
         ? 'border-primary-300 bg-primary-700/50 text-primary-100'
-        : 'border-surface-400 bg-surface-200/60 text-surface-600 dark:bg-surface-700/60 dark:text-surface-400',
+        : 'border-surface-400 bg-surface-200/60 text-surface-600 dark:bg-surface-700/60 dark:text-surface-600',
     )}>
       <div className="font-semibold">{senderName}</div>
       <div className="line-clamp-2 opacity-80">{preview || 'Nachricht'}</div>
@@ -1456,7 +1456,7 @@ function FileList({
                   'inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition',
                   isOwn
                     ? 'bg-primary-700 text-primary-100 hover:bg-primary-800'
-                    : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-300 dark:hover:bg-surface-600',
+                    : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-surface-600',
                 )}
               >
                 <span>{fileIcon(f.mime, f.ext)}</span>
@@ -1471,7 +1471,7 @@ function FileList({
                     'inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition',
                     isOwn
                       ? 'bg-primary-700 text-primary-100 hover:bg-primary-800'
-                      : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-300 dark:hover:bg-surface-600',
+                      : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-surface-600',
                   )}
                 >
                   <FileText size={12} /> Vorschau
@@ -1666,7 +1666,7 @@ function LikeBadge({ count, liked, onToggle, messageId }: { count: number; liked
           'flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold transition cursor-pointer shadow-sm',
           liked
             ? 'bg-amber-400 text-white dark:bg-amber-500 dark:text-white'
-            : 'bg-surface-100 text-surface-500 hover:bg-amber-100 hover:text-amber-600 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-amber-900/40 dark:hover:text-amber-400',
+            : 'bg-surface-100 text-surface-600 hover:bg-amber-100 hover:text-amber-600 dark:bg-surface-700 dark:text-surface-600 dark:hover:bg-amber-900/40 dark:hover:text-amber-400',
         )}
       >
         <ThumbsUp size={13} fill={liked ? 'currentColor' : 'none'} />
@@ -1674,7 +1674,7 @@ function LikeBadge({ count, liked, onToggle, messageId }: { count: number; liked
       </button>
       {showPopup && (
         <div className="absolute bottom-full left-1/2 z-20 mb-1.5 -translate-x-1/2 w-48 rounded-xl bg-white px-1 py-1.5 shadow-xl ring-1 ring-surface-200 dark:bg-surface-800 dark:ring-surface-700">
-          <div className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-surface-400">
+          <div className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-surface-600">
             Gefällt {count} {count === 1 ? 'Person' : 'Personen'}
           </div>
           {loadingLikers ? (
@@ -1684,12 +1684,12 @@ function LikeBadge({ count, liked, onToggle, messageId }: { count: number; liked
               {likers.map((l, i) => (
                 <div key={i} className="flex items-center gap-2 rounded-lg px-2 py-1">
                   <Avatar name={l.name} image={l.image} size="xs" />
-                  <span className="truncate text-xs text-surface-700 dark:text-surface-300">{l.name}</span>
+                  <span className="truncate text-xs text-surface-700 dark:text-surface-400">{l.name}</span>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="px-2 py-1 text-xs text-surface-400">{likeError || 'Keine Daten'}</div>
+            <div className="px-2 py-1 text-xs text-surface-600">{likeError || 'Keine Daten'}</div>
           )}
           <div className="mt-1 border-t border-surface-100 px-1 pt-1 dark:border-surface-700">
             <button
@@ -1770,7 +1770,7 @@ function ForwardDialog({ message, onClose }: { message: Message; onClose: () => 
         <div className="flex items-center gap-3 border-b border-surface-200 px-5 py-4 dark:border-surface-700">
           <Forward size={18} className="shrink-0 text-primary-500" />
           <h2 className="flex-1 text-sm font-semibold text-surface-900 dark:text-white">Nachricht weiterleiten</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800">
+          <button onClick={onClose} className="rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800">
             <X size={16} />
           </button>
         </div>
@@ -1778,7 +1778,7 @@ function ForwardDialog({ message, onClose }: { message: Message; onClose: () => 
         {/* Message preview */}
         {preview && (
           <div className="border-b border-surface-200 px-5 py-3 dark:border-surface-700">
-            <div className="rounded-lg bg-surface-50 px-3 py-2 text-xs text-surface-600 dark:bg-surface-800 dark:text-surface-400">
+            <div className="rounded-lg bg-surface-50 px-3 py-2 text-xs text-surface-600 dark:bg-surface-800 dark:text-surface-600">
               {preview}
             </div>
           </div>
@@ -1787,14 +1787,14 @@ function ForwardDialog({ message, onClose }: { message: Message; onClose: () => 
         {/* Search */}
         <div className="px-5 pt-3">
           <div className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
-            <Search size={14} className="shrink-0 text-surface-400" />
+            <Search size={14} className="shrink-0 text-surface-600" />
             <input
               type="text"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Channel oder Konversation suchen..."
               autoFocus
-              className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:text-white"
+              className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:text-white"
             />
           </div>
         </div>
@@ -1804,22 +1804,22 @@ function ForwardDialog({ message, onClose }: { message: Message; onClose: () => 
           {loading ? (
             <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-primary-400" /></div>
           ) : filtered.length === 0 ? (
-            <p className="py-4 text-center text-xs text-surface-400">Keine Ziele gefunden</p>
+            <p className="py-4 text-center text-xs text-surface-600">Keine Ziele gefunden</p>
           ) : (
             filtered.map((t) => (
               <button
                 key={`${t.type}-${t.id}`}
                 onClick={() => handleForward(t)}
                 disabled={forwarding === t.id}
-                className="flex w-full items-center gap-2 rounded-lg px-2 py-2 hover:bg-surface-100 disabled:opacity-50 dark:hover:bg-surface-800"
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-2 hover:bg-surface-200 disabled:opacity-50 dark:hover:bg-surface-800"
               >
                 {t.type === 'channel' ? (
-                  t.image ? <Avatar name={t.name} image={t.image} size="xs" /> : <Hash size={14} className="shrink-0 text-surface-400" />
+                  t.image ? <Avatar name={t.name} image={t.image} size="xs" /> : <Hash size={14} className="shrink-0 text-surface-600" />
                 ) : (
                   <Avatar name={t.name} size="xs" />
                 )}
                 <span className="min-w-0 flex-1 truncate text-left text-sm text-surface-800 dark:text-surface-200">{t.name}</span>
-                <span className="shrink-0 text-[10px] uppercase text-surface-400">{t.type === 'channel' ? 'Channel' : 'Chat'}</span>
+                <span className="shrink-0 text-[10px] uppercase text-surface-600">{t.type === 'channel' ? 'Channel' : 'Chat'}</span>
                 {forwarding === t.id && <Loader2 size={14} className="shrink-0 animate-spin text-primary-400" />}
               </button>
             ))

@@ -315,14 +315,14 @@ export default function CalendarView() {
       {/* Sidebar — Calendar filters */}
       <div className="flex w-56 shrink-0 flex-col border-r border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900">
         <div className="shrink-0 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500">Kalender</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-600">Kalender</h3>
         </div>
         <div className="flex-1 overflow-y-auto p-2">
           {/* Personal calendar category */}
           <div className="mb-1">
             <button
               onClick={() => setPersonalCollapsed(!personalCollapsed)}
-              className="flex w-full items-center gap-1 rounded-md px-2 py-1 text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800"
+              className="flex w-full items-center gap-1 rounded-md px-2 py-1 text-left text-[11px] font-semibold uppercase tracking-wider text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800"
             >
               {personalCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
               <span className="flex-1">Persönlich</span>
@@ -331,7 +331,7 @@ export default function CalendarView() {
                 className="rounded p-0.5 hover:bg-surface-200 dark:hover:bg-surface-700"
                 title={personalSources.every((s) => s.visible) ? 'Alle ausblenden' : 'Alle einblenden'}
               >
-                {personalSources.every((s) => s.visible) ? <Eye size={11} className="text-surface-400" /> : <EyeOff size={11} className="text-surface-300" />}
+                {personalSources.every((s) => s.visible) ? <Eye size={11} className="text-surface-600" /> : <EyeOff size={11} className="text-surface-400" />}
               </button>
             </button>
             {!personalCollapsed && personalSources.map((src) => {
@@ -340,10 +340,10 @@ export default function CalendarView() {
                 <button
                   key={src.id}
                   onClick={() => toggleSource(src.id)}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 pl-6 text-left text-sm transition hover:bg-surface-100 dark:hover:bg-surface-800"
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 pl-6 text-left text-sm transition hover:bg-surface-200 dark:hover:bg-surface-800"
                 >
                   <span className={clsx('h-2.5 w-2.5 shrink-0 rounded-full', src.visible ? color.dot : 'bg-surface-300 dark:bg-surface-600')} />
-                  <span className={clsx('min-w-0 flex-1 truncate', src.visible ? 'text-surface-900 dark:text-surface-100' : 'text-surface-400 line-through')}>
+                  <span className={clsx('min-w-0 flex-1 truncate', src.visible ? 'text-surface-900 dark:text-surface-100' : 'text-surface-600 line-through')}>
                     {src.name}
                   </span>
                 </button>
@@ -356,7 +356,7 @@ export default function CalendarView() {
             <div className="mb-1">
               <button
                 onClick={() => setChannelsCollapsed(!channelsCollapsed)}
-                className="flex w-full items-center gap-1 rounded-md px-2 py-1 text-left text-[11px] font-semibold uppercase tracking-wider text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800"
+                className="flex w-full items-center gap-1 rounded-md px-2 py-1 text-left text-[11px] font-semibold uppercase tracking-wider text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800"
               >
                 {channelsCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
                 <span className="flex-1">Channel-Kalender</span>
@@ -365,7 +365,7 @@ export default function CalendarView() {
                   className="rounded p-0.5 hover:bg-surface-200 dark:hover:bg-surface-700"
                   title={channelSources.every((s) => s.visible) ? 'Alle ausblenden' : 'Alle einblenden'}
                 >
-                  {channelSources.every((s) => s.visible) ? <Eye size={11} className="text-surface-400" /> : <EyeOff size={11} className="text-surface-300" />}
+                  {channelSources.every((s) => s.visible) ? <Eye size={11} className="text-surface-600" /> : <EyeOff size={11} className="text-surface-400" />}
                 </button>
               </button>
               {!channelsCollapsed && channelSources.map((src) => {
@@ -374,10 +374,10 @@ export default function CalendarView() {
                   <button
                     key={src.id}
                     onClick={() => toggleSource(src.id)}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 pl-6 text-left text-sm transition hover:bg-surface-100 dark:hover:bg-surface-800"
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 pl-6 text-left text-sm transition hover:bg-surface-200 dark:hover:bg-surface-800"
                   >
                     <span className={clsx('h-2.5 w-2.5 shrink-0 rounded-full', src.visible ? color.dot : 'bg-surface-300 dark:bg-surface-600')} />
-                    <span className={clsx('min-w-0 flex-1 truncate', src.visible ? 'text-surface-900 dark:text-surface-100' : 'text-surface-400 line-through')}>
+                    <span className={clsx('min-w-0 flex-1 truncate', src.visible ? 'text-surface-900 dark:text-surface-100' : 'text-surface-600 line-through')}>
                       {src.name}
                     </span>
                   </button>
@@ -400,10 +400,10 @@ export default function CalendarView() {
         {/* Toolbar */}
         <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 px-4 py-2.5 dark:border-surface-700">
           <div className="flex items-center gap-1">
-            <button onClick={() => navigate(-1)} className="rounded-lg p-1.5 text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800">
+            <button onClick={() => navigate(-1)} className="rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800">
               <ChevronLeft size={18} />
             </button>
-            <button onClick={() => navigate(1)} className="rounded-lg p-1.5 text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800">
+            <button onClick={() => navigate(1)} className="rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800">
               <ChevronRight size={18} />
             </button>
           </div>
@@ -420,7 +420,7 @@ export default function CalendarView() {
                 'rounded-md px-3 py-1 text-xs font-medium transition',
                 viewMode === 'month'
                   ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-700 dark:text-white'
-                  : 'text-surface-500 hover:text-surface-700 dark:text-surface-400',
+                  : 'text-surface-600 hover:text-surface-700 dark:text-surface-600',
               )}
             >
               Monat
@@ -431,7 +431,7 @@ export default function CalendarView() {
                 'rounded-md px-3 py-1 text-xs font-medium transition',
                 viewMode === 'week'
                   ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-700 dark:text-white'
-                  : 'text-surface-500 hover:text-surface-700 dark:text-surface-400',
+                  : 'text-surface-600 hover:text-surface-700 dark:text-surface-600',
               )}
             >
               Woche
@@ -452,7 +452,7 @@ export default function CalendarView() {
               'rounded-lg p-1.5 transition',
               agendaOpen
                 ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-                : 'text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800',
+                : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
             )}
           >
             <PanelRight size={16} />
@@ -467,7 +467,7 @@ export default function CalendarView() {
             {/* Weekday headers */}
             <div className="grid shrink-0 grid-cols-7 border-b border-surface-200 dark:border-surface-700">
               {WEEKDAYS.map((wd) => (
-                <div key={wd} className="border-r border-surface-100 px-2 py-1.5 text-center text-xs font-semibold text-surface-500 last:border-r-0 dark:border-surface-800">
+                <div key={wd} className="border-r border-surface-200 px-2 py-1.5 text-center text-xs font-semibold text-surface-600 last:border-r-0 dark:border-surface-800">
                   {wd}
                 </div>
               ))}
@@ -486,13 +486,13 @@ export default function CalendarView() {
                     key={i}
                     onClick={() => { setAgendaFocusDate(day); if (!agendaOpen) setAgendaOpen(true); setCreateDate(day); setShowCreate(true); }}
                     className={clsx(
-                      'flex min-h-0 cursor-pointer flex-col border-b border-r border-surface-100 p-1 transition hover:bg-surface-50 dark:border-surface-800 dark:hover:bg-surface-900',
+                      'flex min-h-0 cursor-pointer flex-col border-b border-r border-surface-200 p-1 transition hover:bg-surface-50 dark:border-surface-800 dark:hover:bg-surface-900',
                       !isCurrentMonth && 'bg-surface-50/50 dark:bg-surface-950/50',
                     )}
                   >
                     <div className={clsx(
                       'mb-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-medium',
-                      isToday ? 'bg-primary-600 text-white' : isCurrentMonth ? 'text-surface-700 dark:text-surface-300' : 'text-surface-400',
+                      isToday ? 'bg-primary-600 text-white' : isCurrentMonth ? 'text-surface-700 dark:text-surface-400' : 'text-surface-600',
                     )}>
                       {day.getDate()}
                     </div>
@@ -515,7 +515,7 @@ export default function CalendarView() {
                         );
                       })}
                       {dayEvents.length > 3 && (
-                        <div className="px-1 text-[10px] font-medium text-surface-400">+{dayEvents.length - 3} weitere</div>
+                        <div className="px-1 text-[10px] font-medium text-surface-600">+{dayEvents.length - 3} weitere</div>
                       )}
                     </div>
                   </div>
@@ -528,12 +528,12 @@ export default function CalendarView() {
           <div className="flex min-h-0 flex-1 flex-col">
             {/* Day headers */}
             <div className="grid shrink-0 grid-cols-[60px_repeat(7,1fr)] border-b border-surface-200 dark:border-surface-700">
-              <div className="border-r border-surface-100 dark:border-surface-800" /> {/* time column header */}
+              <div className="border-r border-surface-200 dark:border-surface-800" /> {/* time column header */}
               {weekDays.map((day) => {
                 const isToday = isSameDay(day, today);
                 return (
-                  <div key={dateKey(day)} className="border-r border-surface-100 px-2 py-2 text-center last:border-r-0 dark:border-surface-800">
-                    <div className="text-xs text-surface-500">{WEEKDAYS[(day.getDay() + 6) % 7]}</div>
+                  <div key={dateKey(day)} className="border-r border-surface-200 px-2 py-2 text-center last:border-r-0 dark:border-surface-800">
+                    <div className="text-xs text-surface-600">{WEEKDAYS[(day.getDay() + 6) % 7]}</div>
                     <div className={clsx(
                       'mx-auto mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold',
                       isToday ? 'bg-primary-600 text-white' : 'text-surface-900 dark:text-surface-100',
@@ -550,7 +550,7 @@ export default function CalendarView() {
               <div className="grid grid-cols-[60px_repeat(7,1fr)]">
                 {Array.from({ length: 24 }, (_, hour) => (
                   <div key={hour} className="contents">
-                    <div className="flex h-12 items-start justify-end border-b border-r border-surface-100 pr-2 pt-0.5 text-[10px] text-surface-400 dark:border-surface-800">
+                    <div className="flex h-12 items-start justify-end border-b border-r border-surface-200 pr-2 pt-0.5 text-[10px] text-surface-600 dark:border-surface-800">
                       {String(hour).padStart(2, '0')}:00
                     </div>
                     {weekDays.map((day) => {
@@ -571,7 +571,7 @@ export default function CalendarView() {
                             setCreateDate(d);
                             setShowCreate(true);
                           }}
-                          className="relative h-12 cursor-pointer border-b border-r border-surface-100 hover:bg-surface-50 last:border-r-0 dark:border-surface-800 dark:hover:bg-surface-900"
+                          className="relative h-12 cursor-pointer border-b border-r border-surface-200 hover:bg-surface-50 last:border-r-0 dark:border-surface-800 dark:hover:bg-surface-900"
                         >
                           {hourEvents.map((evt) => {
                             const color = getEventColor(evt);
@@ -604,10 +604,10 @@ export default function CalendarView() {
       {agendaOpen && (
         <div className="flex w-72 shrink-0 flex-col border-l border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900">
           <div className="flex shrink-0 items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-700">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-500">Agenda · nächste 30 Tage</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-600">Agenda · nächste 30 Tage</h3>
             <button
               onClick={() => setAgendaOpen(false)}
-              className="rounded p-0.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
+              className="rounded p-0.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700"
             >
               <X size={14} />
             </button>
@@ -632,7 +632,7 @@ export default function CalendarView() {
               <div>
                 <h3 className="text-lg font-semibold text-surface-900 dark:text-white">{selectedEvent.name}</h3>
                 {selectedEvent.type === 'channel' && (
-                  <span className="text-xs text-surface-400">Channel: {String(
+                  <span className="text-xs text-surface-600">Channel: {String(
                     (selectedEvent.channel as Record<string, unknown>)?.name
                     ?? allChannelNames.get(String((selectedEvent.channel as Record<string, unknown>)?.id ?? selectedEvent.type_id))
                     ?? sources.find((s) => s.id === String((selectedEvent.channel as Record<string, unknown>)?.id ?? selectedEvent.type_id))?.name
@@ -640,13 +640,13 @@ export default function CalendarView() {
                   )}</span>
                 )}
               </div>
-              <button onClick={() => setSelectedEvent(null)} className="rounded-lg p-1 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800">
+              <button onClick={() => setSelectedEvent(null)} className="rounded-lg p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800">
                 <X size={18} />
               </button>
             </div>
 
             <div className="space-y-3 text-sm">
-              <div className="flex items-center gap-2 text-surface-600 dark:text-surface-300">
+              <div className="flex items-center gap-2 text-surface-600 dark:text-surface-400">
                 <Clock size={15} className="shrink-0" />
                 <span>
                   {selectedEvent.allday === '1'
@@ -656,21 +656,21 @@ export default function CalendarView() {
               </div>
 
               {selectedEvent.location && (
-                <div className="flex items-center gap-2 text-surface-600 dark:text-surface-300">
+                <div className="flex items-center gap-2 text-surface-600 dark:text-surface-400">
                   <MapPin size={15} className="shrink-0" />
                   <span>{selectedEvent.location}</span>
                 </div>
               )}
 
               {selectedEvent.repeat && selectedEvent.repeat !== 'none' && (
-                <div className="flex items-center gap-2 text-surface-600 dark:text-surface-300">
+                <div className="flex items-center gap-2 text-surface-600 dark:text-surface-400">
                   <Repeat size={15} className="shrink-0" />
                   <span>Wiederholung: {selectedEvent.repeat}</span>
                 </div>
               )}
 
               {selectedEvent.description && (
-                <div className="rounded-lg bg-surface-50 p-3 text-surface-700 dark:bg-surface-800 dark:text-surface-300">
+                <div className="rounded-lg bg-surface-50 p-3 text-surface-700 dark:bg-surface-800 dark:text-surface-400">
                   {selectedEvent.description}
                 </div>
               )}
@@ -678,7 +678,7 @@ export default function CalendarView() {
               {/* Invites / RSVP */}
               {selectedEvent.invites && selectedEvent.invites.length > 0 && (
                 <div className="mt-2">
-                  <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-surface-500 uppercase">
+                  <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-surface-600 uppercase">
                     <Users size={12} />
                     Einladungen ({selectedEvent.invites.length})
                   </div>
@@ -739,14 +739,14 @@ export default function CalendarView() {
                 if (sharedChannels.length === 0) return null;
                 return (
                   <div className="mt-2">
-                    <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-surface-500 uppercase">
+                    <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-surface-600 uppercase">
                       <Hash size={12} />
                       Geteilte Channels ({sharedChannels.length})
                     </div>
                     <div className="space-y-1">
                       {sharedChannels.map((sc) => (
-                        <div key={sc.id} className="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-300">
-                          <Hash size={13} className="text-surface-400" />
+                        <div key={sc.id} className="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-400">
+                          <Hash size={13} className="text-surface-600" />
                           <span>{sc.name}</span>
                         </div>
                       ))}
@@ -757,7 +757,7 @@ export default function CalendarView() {
 
               {/* Creator */}
               {selectedEvent.creator && (
-                <div className="text-xs text-surface-400">
+                <div className="text-xs text-surface-600">
                   Erstellt von: {selectedEvent.creator.first_name} {selectedEvent.creator.last_name}
                 </div>
               )}
@@ -786,7 +786,7 @@ export default function CalendarView() {
               )}
               <button
                 onClick={() => setSelectedEvent(null)}
-                className="rounded-lg bg-surface-100 px-3 py-1.5 text-xs font-medium text-surface-700 hover:bg-surface-200 dark:bg-surface-800 dark:text-surface-300"
+                className="rounded-lg bg-surface-100 px-3 py-1.5 text-xs font-medium text-surface-700 hover:bg-surface-200 dark:bg-surface-800 dark:text-surface-400"
               >
                 Schließen
               </button>
@@ -900,7 +900,7 @@ function AgendaPanel({
             )}>
               <span className={clsx(
                 'text-xs font-semibold',
-                isToday ? 'text-primary-600 dark:text-primary-400' : 'text-surface-600 dark:text-surface-400',
+                isToday ? 'text-primary-600 dark:text-primary-400' : 'text-surface-600 dark:text-surface-600',
               )}>
                 {label}
               </span>
@@ -909,7 +909,7 @@ function AgendaPanel({
             {/* Events for this day */}
             <div className="space-y-0.5 px-2 py-1.5">
               {dayEvents.length === 0 ? (
-                <div className="py-1 pl-2 text-xs text-surface-400">Keine Termine</div>
+                <div className="py-1 pl-2 text-xs text-surface-600">Keine Termine</div>
               ) : dayEvents.map((evt) => {
                 const color = getEventColor(evt);
                 const isAllDay = evt.allday === '1';
@@ -917,14 +917,14 @@ function AgendaPanel({
                   <button
                     key={evt.id}
                     onClick={() => onEventClick(evt)}
-                    className="flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left transition hover:bg-surface-100 dark:hover:bg-surface-800"
+                    className="flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left transition hover:bg-surface-200 dark:hover:bg-surface-800"
                   >
                     <span className={clsx('mt-1.5 h-2 w-2 shrink-0 rounded-full', color.dot)} />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium text-surface-900 dark:text-surface-100">
                         {evt.name}
                       </div>
-                      <div className="text-xs text-surface-500">
+                      <div className="text-xs text-surface-600">
                         {isAllDay ? 'Ganztägig' : `${formatTime(evt.start)} – ${formatTime(evt.end)}`}
                       </div>
                     </div>
@@ -1107,7 +1107,7 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
           <h3 className="text-lg font-semibold text-surface-900 dark:text-white">
             {isEdit ? 'Termin bearbeiten' : 'Neuer Termin'}
           </h3>
-          <button onClick={onClose} className="rounded-lg p-1 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800">
+          <button onClick={onClose} className="rounded-lg p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800">
             <X size={18} />
           </button>
         </div>
@@ -1119,12 +1119,12 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
             onChange={(e) => setName(e.target.value)}
             placeholder="Titel *"
             autoFocus
-            className="w-full rounded-lg bg-surface-100 px-3 py-2 text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:bg-surface-800 dark:text-white"
+            className="w-full rounded-lg bg-surface-100 px-3 py-2 text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:bg-surface-800 dark:text-white"
           />
 
           {/* Point 7: Category selector */}
           <div>
-            <label className="mb-1 block text-xs text-surface-500">Kategorie</label>
+            <label className="mb-1 block text-xs text-surface-600">Kategorie</label>
             <div className="flex rounded-lg bg-surface-100 p-0.5 dark:bg-surface-800">
               <button
                 type="button"
@@ -1133,7 +1133,7 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
                   'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition',
                   category === 'personal'
                     ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-700 dark:text-white'
-                    : 'text-surface-500 hover:text-surface-700 dark:text-surface-400',
+                    : 'text-surface-600 hover:text-surface-700 dark:text-surface-600',
                 )}
               >
                 Persönlich
@@ -1145,7 +1145,7 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
                   'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition',
                   category === 'channel'
                     ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-700 dark:text-white'
-                    : 'text-surface-500 hover:text-surface-700 dark:text-surface-400',
+                    : 'text-surface-600 hover:text-surface-700 dark:text-surface-600',
                 )}
               >
                 Channel
@@ -1156,7 +1156,7 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
           {/* Channel selector removed — channels are selected below in the unified picker */}
 
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-400">
+            <label className="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-600">
               <input type="checkbox" checked={allday} onChange={(e) => setAllday(e.target.checked)} className="rounded" />
               Ganztägig
             </label>
@@ -1164,7 +1164,7 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="mb-1 block text-xs text-surface-500">Start</label>
+              <label className="mb-1 block text-xs text-surface-600">Start</label>
               <input
                 type={allday ? 'date' : 'datetime-local'}
                 value={allday ? startStr.slice(0, 10) : startStr}
@@ -1173,7 +1173,7 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-surface-500">Ende</label>
+              <label className="mb-1 block text-xs text-surface-600">Ende</label>
               <input
                 type={allday ? 'date' : 'datetime-local'}
                 value={allday ? endStr.slice(0, 10) : endStr}
@@ -1188,7 +1188,7 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             placeholder="Ort"
-            className="w-full rounded-lg bg-surface-100 px-3 py-2 text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:bg-surface-800 dark:text-white"
+            className="w-full rounded-lg bg-surface-100 px-3 py-2 text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:bg-surface-800 dark:text-white"
           />
 
           <textarea
@@ -1196,11 +1196,11 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Beschreibung"
             rows={3}
-            className="w-full rounded-lg bg-surface-100 px-3 py-2 text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:bg-surface-800 dark:text-white resize-none"
+            className="w-full rounded-lg bg-surface-100 px-3 py-2 text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:bg-surface-800 dark:text-white resize-none"
           />
 
           <div>
-            <label className="mb-1 block text-xs text-surface-500">Wiederholung</label>
+            <label className="mb-1 block text-xs text-surface-600">Wiederholung</label>
             <select
               value={repeat}
               onChange={(e) => setRepeat(e.target.value)}
@@ -1218,7 +1218,7 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
           {!isEdit && category === 'personal' && (
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <label className="text-xs text-surface-500">Personen einladen</label>
+                <label className="text-xs text-surface-600">Personen einladen</label>
                 <button
                   type="button"
                   onClick={() => { setShowPersonPicker(!showPersonPicker); setSearchQuery(''); }}
@@ -1246,20 +1246,20 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
               {showPersonPicker && (
                 <div className="rounded-lg border border-surface-200 dark:border-surface-700">
                   <div className="flex items-center gap-2 border-b border-surface-200 px-3 py-1.5 dark:border-surface-700">
-                    <Search size={13} className="text-surface-400" />
+                    <Search size={13} className="text-surface-600" />
                     <input
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Name oder E-Mail..."
-                      className="w-full bg-transparent text-sm outline-none placeholder:text-surface-400 text-surface-900 dark:text-white"
+                      className="w-full bg-transparent text-sm outline-none placeholder:text-surface-600 text-surface-900 dark:text-white"
                     />
                   </div>
                   <div className="max-h-36 overflow-y-auto p-1">
                     {loadingPicker ? (
                       <div className="flex justify-center py-3"><Loader2 size={16} className="animate-spin text-primary-400" /></div>
                     ) : searchResults.length === 0 ? (
-                      <p className="py-2 text-center text-xs text-surface-400">{searchQuery ? 'Keine Treffer' : 'Name eingeben...'}</p>
+                      <p className="py-2 text-center text-xs text-surface-600">{searchQuery ? 'Keine Treffer' : 'Name eingeben...'}</p>
                     ) : (
                       searchResults.map((u) => {
                         const uid = String(u.id);
@@ -1272,7 +1272,7 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
                             onClick={() => toggleInviteUser(uid)}
                             className={clsx(
                               'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition',
-                              selected ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-surface-100 dark:hover:bg-surface-800',
+                              selected ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-surface-200 dark:hover:bg-surface-800',
                             )}
                           >
                             <div className={clsx(
@@ -1282,7 +1282,7 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
                               {selected && <Check size={10} />}
                             </div>
                             <span className="truncate text-surface-900 dark:text-surface-100">{uname}</span>
-                            {u.email && <span className="ml-auto truncate text-xs text-surface-400">{u.email}</span>}
+                            {u.email && <span className="ml-auto truncate text-xs text-surface-600">{u.email}</span>}
                           </button>
                         );
                       })
@@ -1297,7 +1297,7 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
           {!isEdit && category === 'channel' && (
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <label className="text-xs text-surface-500">Channels auswählen *</label>
+                <label className="text-xs text-surface-600">Channels auswählen *</label>
                 <button
                   type="button"
                   onClick={() => { setShowChannelPicker(!showChannelPicker); setSearchQuery(''); }}
@@ -1324,18 +1324,18 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
               {showChannelPicker && (
                 <div className="rounded-lg border border-surface-200 dark:border-surface-700">
                   <div className="flex items-center gap-2 border-b border-surface-200 px-3 py-1.5 dark:border-surface-700">
-                    <Search size={13} className="text-surface-400" />
+                    <Search size={13} className="text-surface-600" />
                     <input
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Channel suchen..."
-                      className="w-full bg-transparent text-sm outline-none placeholder:text-surface-400 text-surface-900 dark:text-white"
+                      className="w-full bg-transparent text-sm outline-none placeholder:text-surface-600 text-surface-900 dark:text-white"
                     />
                   </div>
                   <div className="max-h-36 overflow-y-auto p-1">
                     {filteredChannels.length === 0 ? (
-                      <p className="py-2 text-center text-xs text-surface-400">Keine Channels</p>
+                      <p className="py-2 text-center text-xs text-surface-600">Keine Channels</p>
                     ) : (
                       filteredChannels.map((ch) => {
                         const cid = String(ch.id);
@@ -1347,7 +1347,7 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
                             onClick={() => toggleInviteChannel(cid)}
                             className={clsx(
                               'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition',
-                              selected ? 'bg-green-50 dark:bg-green-900/20' : 'hover:bg-surface-100 dark:hover:bg-surface-800',
+                              selected ? 'bg-green-50 dark:bg-green-900/20' : 'hover:bg-surface-200 dark:hover:bg-surface-800',
                             )}
                           >
                             <div className={clsx(
@@ -1356,7 +1356,7 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
                             )}>
                               {selected && <Check size={10} />}
                             </div>
-                            <Hash size={13} className="shrink-0 text-surface-400" />
+                            <Hash size={13} className="shrink-0 text-surface-600" />
                             <span className="truncate text-surface-900 dark:text-surface-100">{ch.name}</span>
                           </button>
                         );
@@ -1370,7 +1370,7 @@ function CreateEventModal({ initialDate, editingEvent, onClose, onCreated }: {
         </div>
 
         <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800">
+          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-surface-600 hover:bg-surface-200 dark:text-surface-600 dark:hover:bg-surface-800">
             Abbrechen
           </button>
           <button

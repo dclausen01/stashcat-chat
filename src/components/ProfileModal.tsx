@@ -97,7 +97,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
           <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Mein Profil</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-700"
+            className="rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700"
           >
             <X size={20} />
           </button>
@@ -130,25 +130,25 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
           {/* User info (read-only from LDAP) */}
           <div className="mb-6 space-y-3">
             <div>
-              <label className="block text-xs font-medium text-surface-500">Name</label>
+              <label className="block text-xs font-medium text-surface-600">Name</label>
               <div className="mt-1 text-sm text-surface-900 dark:text-white">{userName}</div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-surface-500">E-Mail</label>
+              <label className="block text-xs font-medium text-surface-600">E-Mail</label>
               <div className="mt-1 text-sm text-surface-900 dark:text-white">{userEmail}</div>
             </div>
           </div>
 
           {/* Status (editable) */}
           <div className="mb-6">
-            <label className="block text-xs font-medium text-surface-500">Status</label>
+            <label className="block text-xs font-medium text-surface-600">Status</label>
             <div className="mt-1 flex gap-2">
               <input
                 type="text"
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
                 placeholder="z.B. Im Meeting, Arbeiten von zuhause..."
-                className="flex-1 rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm text-surface-900 placeholder:text-surface-400 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-surface-600 dark:bg-surface-700 dark:text-white"
+                className="flex-1 rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm text-surface-900 placeholder:text-surface-600 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 dark:border-surface-600 dark:bg-surface-700 dark:text-white"
                 maxLength={100}
               />
               <button
@@ -166,7 +166,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
             <button
               onClick={handleRemoveImage}
               disabled={uploading}
-              className="w-full rounded-lg border border-surface-300 py-2 text-sm text-surface-600 hover:bg-surface-50 disabled:opacity-50 dark:border-surface-600 dark:text-surface-400 dark:hover:bg-surface-700"
+              className="w-full rounded-lg border border-surface-300 py-2 text-sm text-surface-600 hover:bg-surface-50 disabled:opacity-50 dark:border-surface-600 dark:text-surface-600 dark:hover:bg-surface-700"
             >
               Profilbild entfernen
             </button>
@@ -174,7 +174,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
         </div>
 
         {/* Footer hint */}
-        <div className="rounded-b-xl border-t border-surface-200 bg-surface-50 px-4 py-3 text-center text-xs text-surface-400 dark:border-surface-700 dark:bg-surface-900">
+        <div className="rounded-b-xl border-t border-surface-200 bg-surface-50 px-4 py-3 text-center text-xs text-surface-600 dark:border-surface-700 dark:bg-surface-900">
           Name und E-Mail werden über LDAP synchronisiert.
         </div>
       </div>
