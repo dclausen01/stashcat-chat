@@ -344,12 +344,12 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               </div>
 
               {/* Size */}
-              <span className="w-20 shrink-0 text-right text-xs text-surface-400">
+              <span className="w-20 shrink-0 text-right text-xs text-surface-400 transition-opacity group-hover:opacity-0">
                 {f.size_string}
               </span>
 
               {/* Date */}
-              <span className="w-24 shrink-0 text-right text-xs text-surface-400 px-2">
+              <span className="w-24 shrink-0 text-right text-xs text-surface-400 px-2 transition-opacity group-hover:opacity-0">
                 {formatDate(f.uploaded)}
               </span>
 
