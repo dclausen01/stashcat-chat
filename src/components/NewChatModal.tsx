@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Search, MessageSquarePlus, Loader2, Check } from 'lucide-react';
 import * as api from '../api';
+import type { Conversation } from '../types';
 import Avatar from './Avatar';
 
 interface RawUser {
@@ -15,7 +16,7 @@ interface NewChatModalProps {
   companyId: string;
   myUserId: string;
   onClose: () => void;
-  onCreate: (conversation: Record<string, unknown>) => void;
+  onCreate: (conversation: Conversation) => void;
 }
 
 function userName(u: RawUser): string {
@@ -77,7 +78,7 @@ export default function NewChatModal({ companyId, myUserId, onClose, onCreate }:
     try {
       const memberIds = selected.map((u) => String(u.id));
       const conversation = await api.createConversation(memberIds);
-      onCreate(conversation as Record<string, unknown>);
+      onCreate(conversation);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fehler beim Erstellen');

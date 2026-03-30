@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import os from 'os';
 import path from 'path';
@@ -22,12 +23,27 @@ import type { RealtimeManager } from 'stashcat-api';
 import type { MessageSyncPayload } from 'stashcat-api';
 import { encryptSession, decryptSession } from './token-crypto';
 
+/** Extract error message safely from unknown catch values. */
+function errorMessage(err: unknown, fallback = 'Failed'): string {
+  return err instanceof Error ? err.message : fallback;
+}
+
 // Multer: store uploads in OS temp dir
 const upload = multer({ dest: os.tmpdir() });
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Rate limiting — exempt SSE endpoint (long-lived connections)
+const apiLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path === '/api/events',
+});
+app.use('/api/', apiLimiter);
 
 // ── Client cache with TTL ────────────────────────────────────────────────────
 
@@ -143,7 +159,7 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
             payload.text = CryptoManager.decrypt(data.text, aesKey, iv);
           }
         } catch (err) {
-          console.warn('[Realtime] Failed to decrypt message_sync:', (err as Error).message);
+          console.warn('[Realtime] Failed to decrypt message_sync:', errorMessage(err));
         }
       }
 
@@ -186,7 +202,7 @@ app.post('/api/login', async (req, res) => {
     res.json({ token, user: me });
 
   } catch (err) {
-    res.status(401).json({ error: err instanceof Error ? err.message : 'Login failed' });
+    res.status(401).json({ error: errorMessage(err, 'Login failed') });
   }
 });
 
@@ -263,7 +279,7 @@ app.post('/api/typing', (req, res) => {
     conn?.realtime?.sendTyping(type, targetId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -274,7 +290,7 @@ app.get('/api/companies', async (req, res) => {
     const client = await getClient(req);
     res.json(await client.getCompanies());
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -285,7 +301,7 @@ app.get('/api/channels/:companyId/visible', async (req, res) => {
     const client = await getClient(req);
     const channels = await client.getVisibleChannels(req.params.companyId);
     res.json(channels);
-  } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+  } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
 });
 
 app.post('/api/channels/:channelId/join', async (req, res) => {
@@ -293,7 +309,7 @@ app.post('/api/channels/:channelId/join', async (req, res) => {
     const client = await getClient(req);
     await client.joinChannel(req.params.channelId);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+  } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
 });
 
 app.post('/api/channels/:channelId/favorite', async (req, res) => {
@@ -306,7 +322,7 @@ app.post('/api/channels/:channelId/favorite', async (req, res) => {
       await client.setChannelFavorite(req.params.channelId, false);
     }
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+  } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
 });
 
 app.get('/api/channels/:companyId', async (req, res) => {
@@ -314,7 +330,7 @@ app.get('/api/channels/:companyId', async (req, res) => {
     const client = await getClient(req);
     res.json(await client.getChannels(req.params.companyId));
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -337,7 +353,7 @@ app.get('/api/channels/:channelId/members', async (req, res) => {
     if (all.length > 0) console.log('[channels/members] first member:', JSON.stringify(all[0]));
     res.json(all);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -348,7 +364,7 @@ app.post('/api/channels/:channelId/invite', async (req, res) => {
     await client.inviteUsersToChannel(req.params.channelId, userIds);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -358,7 +374,7 @@ app.delete('/api/channels/:channelId/members/:userId', async (req, res) => {
     await client.removeUserFromChannel(req.params.channelId, req.params.userId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -370,7 +386,7 @@ app.post('/api/channels/:channelId/moderator/:userId', async (req, res) => {
     await client.addChannelModerator(req.params.channelId, req.params.userId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -380,7 +396,7 @@ app.delete('/api/channels/:channelId/moderator/:userId', async (req, res) => {
     await client.removeChannelModerator(req.params.channelId, req.params.userId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -397,7 +413,7 @@ app.patch('/api/channels/:channelId', async (req, res) => {
     });
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -408,7 +424,7 @@ app.get('/api/channels/:channelId/info', async (req, res) => {
     const ch = await client.getChannelInfo(req.params.channelId, true);
     res.json(ch);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -420,7 +436,7 @@ app.delete('/api/channels/:channelId', async (req, res) => {
     await client.deleteChannel(channelId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete channel' });
+    res.status(500).json({ error: errorMessage(err, 'Failed to delete channel') });
   }
 });
 
@@ -437,7 +453,7 @@ app.get('/api/companies/:companyId/members', async (req, res) => {
     res.json({ users: result.users, total: result.total });
   } catch (err) {
     console.error('[company-members] Error:', err);
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -450,7 +466,7 @@ app.get('/api/companies/:companyId/groups', async (req, res) => {
     res.json(groups);
   } catch (err) {
     console.error('[company-groups] Error:', err);
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -466,7 +482,7 @@ app.get('/api/companies/:companyId/groups/:groupId/members', async (req, res) =>
     res.json({ users: result.users, total: result.total });
   } catch (err) {
     console.error('[group-members] Error:', err);
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -523,7 +539,7 @@ app.post('/api/channels', async (req, res) => {
     console.log(`[channels/create] created channel: ${(channel as unknown as Record<string,unknown>).name ?? name}`);
     res.json(channel);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create channel' });
+    res.status(500).json({ error: errorMessage(err, 'Failed to create channel') });
   }
 });
 
@@ -537,7 +553,7 @@ app.post('/api/conversations/:convId/favorite', async (req, res) => {
       await client.setConversationFavorite(req.params.convId, false);
     }
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+  } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
 });
 
 // ── Create conversation ───────────────────────────────────────────────────────
@@ -550,7 +566,7 @@ app.post('/api/conversations', async (req, res) => {
     console.log(`[conversations/create] created conversation with ${member_ids.length} member(s)`);
     res.json(conversation);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create conversation' });
+    res.status(500).json({ error: errorMessage(err, 'Failed to create conversation') });
   }
 });
 
@@ -572,7 +588,7 @@ app.get('/api/conversations', async (req, res) => {
     const filtered = conversations.filter((c) => !isBotConversation(String(c.id), payload.clientKey));
     res.json(filtered);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -586,7 +602,7 @@ app.post('/api/messages/:messageId/like', async (req, res) => {
     await client.likeMessage(req.params.messageId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -596,7 +612,7 @@ app.get('/api/messages/:messageId/likes', async (req, res) => {
     const likes = await client.listLikes(req.params.messageId);
     res.json({ likes });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -606,7 +622,7 @@ app.post('/api/messages/:messageId/unlike', async (req, res) => {
     await client.unlikeMessage(req.params.messageId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -616,7 +632,7 @@ app.delete('/api/messages/:messageId', async (req, res) => {
     await client.deleteMessage(req.params.messageId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -638,7 +654,7 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
         const allKeys = Object.keys(ch).filter(k => k.includes('key') || k.includes('encryption') || k.includes('crypt'));
         debugLog(`[channel-info] id=${targetId} allKeyFields=${JSON.stringify(allKeys)} keyLength=${ch.key?.length} fullJson=${JSON.stringify(ch)}`);
       } catch (e) {
-        debugLog(`[channel-info] failed to fetch: ${e instanceof Error ? e.message : e}`);
+        debugLog(`[channel-info] failed to fetch: ${errorMessage(e)}`);
       }
     }
     const messages = await client.getMessages(targetId, chatType, { limit, offset });
@@ -664,7 +680,7 @@ app.post('/api/messages/:type/:targetId', async (req, res) => {
     await client.sendMessage({ target: targetId, target_type: chatType, text, is_forwarded, reply_to_id, files });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -679,7 +695,7 @@ app.post('/api/messages/:type/:targetId/read', async (req, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -701,7 +717,7 @@ app.get('/api/files/folder', async (req, res) => {
     if (result.files.length > 0) console.log('[files/folder] first file:', JSON.stringify(result.files[0]));
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -719,7 +735,7 @@ app.get('/api/files/personal', async (req, res) => {
     else if (result.folder.length > 0) console.log('[files/personal] first folder:', JSON.stringify(result.folder[0]));
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -756,7 +772,7 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     if (tmpPath) await fs.unlink(tmpPath).catch(() => {});
-    const message = err instanceof Error ? err.message : String(err);
+    const message = errorMessage(err, String(err));
     if (err instanceof Error) debugLog(`[files/upload] ERROR: ${err.message}\n${err.stack}`);
     res.status(500).json({ error: message });
   }
@@ -768,7 +784,7 @@ app.post('/api/files/:fileId/move', async (req, res) => {
     const { target_folder_id } = req.body as { target_folder_id: string };
     await client.moveFile(req.params.fileId, target_folder_id);
     res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: (e as Error).message }); }
+  } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
 });
 
 // ── Create folder ─────────────────────────────────────────────────────────────
@@ -784,7 +800,7 @@ app.post('/api/files/folder/create', async (req, res) => {
     const folder = await client.createFolder(folder_name, parent_id, type, type_id);
     res.json(folder);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create folder' });
+    res.status(500).json({ error: errorMessage(err, 'Failed to create folder') });
   }
 });
 
@@ -795,7 +811,7 @@ app.post('/api/folder/delete', async (req, res) => {
     await client.deleteFolder(parseInt(folderId, 10));
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete folder' });
+    res.status(500).json({ error: errorMessage(err, 'Failed to delete folder') });
   }
 });
 
@@ -806,7 +822,7 @@ app.post('/api/files/delete', async (req, res) => {
     await client.deleteFiles(fileIds);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -817,7 +833,7 @@ app.patch('/api/files/:fileId', async (req, res) => {
     await client.renameFile(req.params.fileId, name);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -841,7 +857,7 @@ app.get('/api/file/:fileId', async (req, res) => {
     res.setHeader('Content-Type', info.mime || 'application/octet-stream');
     res.send(buf);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Download failed' });
+    res.status(500).json({ error: errorMessage(err, 'Download failed') });
   }
 });
 
@@ -879,7 +895,7 @@ app.post('/api/upload/:type/:targetId', upload.single('file'), async (req, res) 
     res.json({ ok: true, file: fileInfo });
   } catch (err) {
     if (tmpPath) await fs.unlink(tmpPath).catch(() => {});
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Upload failed' });
+    res.status(500).json({ error: errorMessage(err, 'Upload failed') });
   }
 });
 
@@ -890,7 +906,7 @@ app.get('/api/me', async (req, res) => {
     const client = await getClient(req);
     res.json(await client.getMe());
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -901,7 +917,7 @@ app.get('/api/account/settings', async (req, res) => {
     const client = await getClient(req);
     res.json(await client.getAccountSettings());
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -912,7 +928,7 @@ app.post('/api/account/status', async (req, res) => {
     await client.changeStatus(status);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -923,7 +939,7 @@ app.post('/api/account/profile-image', async (req, res) => {
     await client.storeProfileImage(imgBase64);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -933,7 +949,7 @@ app.post('/api/account/profile-image/reset', async (req, res) => {
     await client.resetProfileImage();
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1076,7 +1092,7 @@ app.get('/api/broadcasts', async (req, res) => {
     const client = await getClient(req);
     res.json(await client.listBroadcasts());
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1086,7 +1102,7 @@ app.post('/api/broadcasts', async (req, res) => {
     const { name, memberIds } = req.body as { name: string; memberIds: string[] };
     res.json(await client.createBroadcast(name, memberIds));
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1096,7 +1112,7 @@ app.delete('/api/broadcasts/:id', async (req, res) => {
     await client.deleteBroadcast(req.params.id);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1107,7 +1123,7 @@ app.patch('/api/broadcasts/:id', async (req, res) => {
     await client.renameBroadcast(req.params.id, name);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1123,7 +1139,7 @@ app.get('/api/broadcasts/:id/messages', async (req, res) => {
     });
     res.json(messages);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1134,7 +1150,7 @@ app.post('/api/broadcasts/:id/messages', async (req, res) => {
     const msg = await client.sendBroadcastMessage({ list_id: req.params.id, text });
     res.json(msg);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1143,7 +1159,7 @@ app.get('/api/broadcasts/:id/members', async (req, res) => {
     const client = await getClient(req);
     res.json(await client.listBroadcastMembers(req.params.id));
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1154,7 +1170,7 @@ app.post('/api/broadcasts/:id/members', async (req, res) => {
     await client.addBroadcastMembers(req.params.id, memberIds);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1165,7 +1181,7 @@ app.delete('/api/broadcasts/:id/members', async (req, res) => {
     await client.removeBroadcastMembers(req.params.id, memberIds);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1179,7 +1195,7 @@ app.get('/api/calendar/events', async (req, res) => {
     if (!start || !end) return res.status(400).json({ error: 'start and end required' });
     res.json(await client.listEvents({ start, end }));
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1190,7 +1206,7 @@ app.get('/api/calendar/events/:id', async (req, res) => {
     if (!event) return res.status(404).json({ error: 'Event not found' });
     res.json(event);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1200,7 +1216,7 @@ app.post('/api/calendar/events', async (req, res) => {
     const eventId = await client.createEvent(req.body);
     res.json({ id: eventId });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1210,7 +1226,7 @@ app.put('/api/calendar/events/:id', async (req, res) => {
     const eventId = await client.editEvent({ ...req.body, event_id: req.params.id });
     res.json({ id: eventId });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1220,7 +1236,7 @@ app.delete('/api/calendar/events/:id', async (req, res) => {
     await client.deleteEvents([req.params.id]);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1232,7 +1248,7 @@ app.post('/api/calendar/events/:id/respond', async (req, res) => {
     await client.respondToEvent(req.params.id, String(me.id), rsvp as 'accepted' | 'declined' | 'open');
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1243,7 +1259,7 @@ app.post('/api/calendar/events/:id/invite', async (req, res) => {
     await client.inviteToEvent(req.params.id, userIds);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1252,7 +1268,7 @@ app.get('/api/calendar/channels/:companyId', async (req, res) => {
     const client = await getClient(req);
     res.json(await client.listChannelsHavingEvents(req.params.companyId));
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1265,7 +1281,7 @@ app.get('/api/notifications', async (req, res) => {
     const offset = Number(req.query.offset) || 0;
     res.json(await client.getNotifications(limit, offset));
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1274,7 +1290,7 @@ app.get('/api/notifications/count', async (req, res) => {
     const client = await getClient(req);
     res.json(await client.getNotificationCount());
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1284,7 +1300,7 @@ app.delete('/api/notifications/:notificationId', async (req, res) => {
     await client.deleteNotification(req.params.notificationId);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' });
+    res.status(500).json({ error: errorMessage(err) });
   }
 });
 
@@ -1488,7 +1504,7 @@ app.post('/api/video/start-meeting', async (req, res) => {
 
   } catch (err) {
     console.error('[Video] Error:', err);
-    res.status(500).json({ error: err instanceof Error ? err.message : 'Videokonferenz konnte nicht erstellt werden' });
+    res.status(500).json({ error: errorMessage(err, 'Videokonferenz konnte nicht erstellt werden') });
   }
 });
 
@@ -1593,7 +1609,7 @@ app.post('/api/polls', async (req, res) => {
     // 4. Invite channels
     if (invite_channel_ids.length > 0) {
       await client.inviteToPoll(pollId, companyId, 'channels', invite_channel_ids).catch((e) => {
-        console.warn(`[Poll] inviteToPoll channels failed:`, e instanceof Error ? e.message : e);
+        console.warn(`[Poll] inviteToPoll channels failed:`, errorMessage(e));
       });
     }
 

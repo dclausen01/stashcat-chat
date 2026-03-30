@@ -231,7 +231,7 @@ export default function PollsView({ pollIdToOpen, onPollOpened }: PollsViewProps
   // Load company_id once on mount
   useEffect(() => {
     api.getCompanies().then((cs) => {
-      const id = String((cs[0] as Record<string, unknown>)?.id ?? '');
+      const id = String(cs[0]?.id ?? '');
       setCompanyId(id);
     }).catch(() => {});
   }, []);

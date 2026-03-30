@@ -1,3 +1,5 @@
+import type { User, Company, Channel, Conversation } from './types';
+
 const BACKEND = import.meta.env.DEV ? '/backend/api' : '/api';
 
 let token = '';
@@ -35,6 +37,47 @@ async function post<T>(path: string, body: Record<string, unknown> = {}): Promis
   return res.json();
 }
 
+async function del<T = void>(path: string, body?: Record<string, unknown>): Promise<T> {
+  const res = await fetch(`${BACKEND}${path}`, {
+    method: 'DELETE',
+    headers: headers(),
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
+
+async function patch<T = void>(path: string, body: Record<string, unknown> = {}): Promise<T> {
+  const res = await fetch(`${BACKEND}${path}`, {
+    method: 'PATCH',
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
+
+async function put<T = void>(path: string, body: Record<string, unknown> = {}): Promise<T> {
+  const res = await fetch(`${BACKEND}${path}`, {
+    method: 'PUT',
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 // --- Session ---
 
 export function isLoggedIn(): boolean {
@@ -53,7 +96,7 @@ export function clearSession() {
 // --- Auth ---
 
 export async function login(email: string, password: string, securityPassword: string) {
-  const res = await post<{ token: string; user: Record<string, unknown> }>('/login', {
+  const res = await post<{ token: string; user: User }>('/login', {
     email,
     password,
     securityPassword,
@@ -71,27 +114,27 @@ export async function logout() {
 // --- User ---
 
 export async function getMe() {
-  return get<Record<string, unknown>>('/me');
+  return get<User>('/me');
 }
 
 // --- Companies ---
 
 export async function getCompanies() {
-  return get<Array<Record<string, unknown>>>('/companies');
+  return get<Company[]>('/companies');
 }
 
 // --- Channels ---
 
 export async function getChannels(companyId: string) {
-  return get<Array<Record<string, unknown>>>(`/channels/${companyId}`);
+  return get<Channel[]>(`/channels/${companyId}`);
 }
 
-export async function getChannelInfo(channelId: string): Promise<Record<string, unknown>> {
-  return get<Record<string, unknown>>(`/channels/${channelId}/info`);
+export async function getChannelInfo(channelId: string) {
+  return get<Channel>(`/channels/${channelId}/info`);
 }
 
 export async function getChannelMembers(channelId: string) {
-  return get<Array<Record<string, unknown>>>(`/channels/${channelId}/members`);
+  return get<Array<Record<string, unknown> & { id: string; first_name?: string; last_name?: string; image?: string; manager?: boolean }>>(`/channels/${channelId}/members`);
 }
 
 export async function inviteToChannel(channelId: string, userIds: string[]): Promise<void> {
@@ -99,14 +142,7 @@ export async function inviteToChannel(channelId: string, userIds: string[]): Pro
 }
 
 export async function removeFromChannel(channelId: string, userId: string): Promise<void> {
-  const res = await fetch(`${BACKEND}/channels/${channelId}/members/${userId}`, {
-    method: 'DELETE',
-    headers: headers(),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
+  return del(`/channels/${channelId}/members/${userId}`);
 }
 
 export async function addModerator(channelId: string, userId: string): Promise<void> {
@@ -114,37 +150,15 @@ export async function addModerator(channelId: string, userId: string): Promise<v
 }
 
 export async function removeModerator(channelId: string, userId: string): Promise<void> {
-  const res = await fetch(`${BACKEND}/channels/${channelId}/moderator/${userId}`, {
-    method: 'DELETE',
-    headers: headers(),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
+  return del(`/channels/${channelId}/moderator/${userId}`);
 }
 
 export async function editChannel(channelId: string, companyId: string, description: string): Promise<void> {
-  const res = await fetch(`${BACKEND}/channels/${channelId}`, {
-    method: 'PATCH',
-    headers: headers(),
-    body: JSON.stringify({ description, company_id: companyId }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
+  return patch(`/channels/${channelId}`, { description, company_id: companyId });
 }
 
 export async function deleteChannel(channelId: string): Promise<void> {
-  const res = await fetch(`${BACKEND}/channels/${channelId}`, {
-    method: 'DELETE',
-    headers: headers(),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
+  return del(`/channels/${channelId}`);
 }
 
 export interface ManagedUser {
@@ -194,8 +208,8 @@ export async function createChannel(opts: {
   show_membership_activities?: boolean;
   password?: string;
   password_repeat?: string;
-}): Promise<Record<string, unknown>> {
-  return post<Record<string, unknown>>('/channels', opts);
+}): Promise<Channel> {
+  return post<Channel>('/channels', opts);
 }
 
 export async function setFavorite(type: 'channel' | 'conversation', id: string, favorite: boolean): Promise<void> {
@@ -203,7 +217,7 @@ export async function setFavorite(type: 'channel' | 'conversation', id: string, 
 }
 
 export async function getVisibleChannels(companyId: string) {
-  return get<Array<Record<string, unknown>>>(`/channels/${companyId}/visible`);
+  return get<Channel[]>(`/channels/${companyId}/visible`);
 }
 
 export async function joinChannel(channelId: string): Promise<void> {
@@ -220,21 +234,22 @@ export async function createFolder(name: string, parentId: string, type: string,
 
 // --- Conversations ---
 
-export async function createConversation(memberIds: string[]): Promise<Record<string, unknown>> {
-  return post<Record<string, unknown>>('/conversations', { member_ids: memberIds });
+export async function createConversation(memberIds: string[]): Promise<Conversation> {
+  return post<Conversation>('/conversations', { member_ids: memberIds });
 }
 
-export async function getConversation(id: string): Promise<Record<string, unknown>> {
-  return get<Record<string, unknown>>(`/conversations/${id}`);
+export async function getConversation(id: string): Promise<Conversation> {
+  return get<Conversation>(`/conversations/${id}`);
 }
 
 export async function getConversations(limit = 50, offset = 0) {
-  return get<Array<Record<string, unknown>>>(`/conversations?limit=${limit}&offset=${offset}`);
+  return get<Conversation[]>(`/conversations?limit=${limit}&offset=${offset}`);
 }
 
 // --- Messages ---
 
 export async function getMessages(targetId: string, type: 'channel' | 'conversation', limit = 40, offset = 0) {
+  // Messages come back with dynamic shapes from the API — keep as Record for now
   return get<Array<Record<string, unknown>>>(`/messages/${type}/${targetId}?limit=${limit}&offset=${offset}`);
 }
 
@@ -261,14 +276,7 @@ export async function unlikeMessage(messageId: string): Promise<void> {
 }
 
 export async function deleteMessage(messageId: string): Promise<void> {
-  const res = await fetch(`${BACKEND}/messages/${messageId}`, {
-    method: 'DELETE',
-    headers: headers(),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
+  return del(`/messages/${messageId}`);
 }
 
 export async function markAsRead(targetId: string, type: 'channel' | 'conversation', messageId?: string) {
@@ -299,39 +307,15 @@ export async function listPersonalFiles(folderId?: string, offset = 0, limit = 2
 }
 
 export async function deleteFile(fileId: string): Promise<void> {
-  const res = await fetch(`${BACKEND}/files/delete`, {
-    method: 'POST',
-    headers: { ...headers(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fileIds: [fileId] }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
+  return post('/files/delete', { fileIds: [fileId] });
 }
 
 export async function deleteFolder(folderId: string): Promise<void> {
-  const res = await fetch(`${BACKEND}/folder/delete`, {
-    method: 'POST',
-    headers: { ...headers(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ folderId }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
+  return post('/folder/delete', { folderId });
 }
 
 export async function renameFile(fileId: string, name: string): Promise<void> {
-  const res = await fetch(`${BACKEND}/files/${fileId}`, {
-    method: 'PATCH',
-    headers: headers(),
-    body: JSON.stringify({ name }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
+  return patch(`/files/${fileId}`, { name });
 }
 
 export async function uploadToStorage(
@@ -392,15 +376,11 @@ export async function createBroadcast(name: string, memberIds: string[]): Promis
 }
 
 export async function deleteBroadcast(id: string): Promise<void> {
-  const res = await fetch(`${BACKEND}/broadcasts/${id}`, { method: 'DELETE', headers: headers() });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return del(`/broadcasts/${id}`);
 }
 
 export async function renameBroadcast(id: string, name: string): Promise<void> {
-  const res = await fetch(`${BACKEND}/broadcasts/${id}`, {
-    method: 'PATCH', headers: headers(), body: JSON.stringify({ name }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return patch(`/broadcasts/${id}`, { name });
 }
 
 export async function getBroadcastMessages(id: string, limit = 50, offset = 0) {
@@ -420,10 +400,7 @@ export async function addBroadcastMembers(id: string, memberIds: string[]): Prom
 }
 
 export async function removeBroadcastMembers(id: string, memberIds: string[]): Promise<void> {
-  const res = await fetch(`${BACKEND}/broadcasts/${id}/members`, {
-    method: 'DELETE', headers: headers(), body: JSON.stringify({ memberIds }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return del(`/broadcasts/${id}/members`, { memberIds });
 }
 
 // --- Calendar ---
@@ -464,16 +441,11 @@ export async function createCalendarEvent(data: Record<string, unknown>): Promis
 }
 
 export async function editCalendarEvent(id: string, data: Record<string, unknown>): Promise<{ id: string }> {
-  const res = await fetch(`${BACKEND}/calendar/events/${id}`, {
-    method: 'PUT', headers: headers(), body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  return put<{ id: string }>(`/calendar/events/${id}`, data);
 }
 
 export async function deleteCalendarEvent(id: string): Promise<void> {
-  const res = await fetch(`${BACKEND}/calendar/events/${id}`, { method: 'DELETE', headers: headers() });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return del(`/calendar/events/${id}`);
 }
 
 export async function respondToCalendarEvent(id: string, status: 'accepted' | 'declined' | 'open'): Promise<void> {
@@ -538,12 +510,7 @@ export async function getNotificationCount() {
 }
 
 export async function deleteNotification(notificationId: string) {
-  const res = await fetch(`${BACKEND}/notifications/${notificationId}`, {
-    method: 'DELETE',
-    headers: headers(),
-  });
-  if (!res.ok) throw new Error('Failed to delete notification');
-  return res.json();
+  return del<Record<string, unknown>>(`/notifications/${notificationId}`);
 }
 
 // --- Polls (Umfragen) ---
@@ -611,8 +578,7 @@ export async function createPoll(data: CreatePollData): Promise<{ id: string }> 
 }
 
 export async function deletePoll(id: string): Promise<void> {
-  const res = await fetch(`${BACKEND}/polls/${id}`, { method: 'DELETE', headers: headers() });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return del(`/polls/${id}`);
 }
 
 export async function archivePoll(id: string, archive = true): Promise<void> {

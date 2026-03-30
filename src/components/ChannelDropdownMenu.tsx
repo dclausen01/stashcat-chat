@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { MoreVertical, Users, Pencil, Download, Trash2, Loader2, Info, X, Lock, UsersRound, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
-import type { ChatTarget } from '../types';
+import type { ChatTarget, Channel } from '../types';
 
 interface ChannelDropdownMenuProps {
   chat: ChatTarget;
@@ -127,7 +127,7 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof Info; label: strin
 }
 
 function ChannelInfoModal({ chat, onClose }: { chat: ChatTarget; onClose: () => void }) {
-  const [info, setInfo] = useState<Record<string, unknown> | null>(null);
+  const [info, setInfo] = useState<Channel | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -142,9 +142,9 @@ function ChannelInfoModal({ chat, onClose }: { chat: ChatTarget; onClose: () => 
   }, [chat.id]);
 
   const createdStr = info
-    ? (info.created_at as number | undefined)
+    ? info.created_at
       ? new Date(Number(info.created_at) * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })
-      : (info.last_activity as number | undefined)
+      : info.last_activity
       ? `Zuletzt aktiv: ${new Date(Number(info.last_activity) * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })}`
       : 'Unbekannt'
     : 'Unbekannt';

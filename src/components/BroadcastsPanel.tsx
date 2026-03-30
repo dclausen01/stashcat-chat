@@ -159,7 +159,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
   const loadContacts = useCallback(async () => {
     setLoadingContacts(true);
     try {
-      const companies = await api.getCompanies() as Array<Record<string, unknown>>;
+      const companies = await api.getCompanies();
       if (companies.length === 0) return;
       const companyId = String(companies[0].id);
       companyIdRef.current = companyId;
@@ -171,7 +171,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
       ]);
       setCompanyUsers(usersResult.users as unknown as RawUser[]);
       setGroups(grps.map((g) => ({ id: String(g.id), name: g.name, count: g.count })));
-      setChannels((chans as Array<Record<string, unknown>>).map((ch) => ({
+      setChannels(chans.map((ch) => ({
         id: String(ch.id),
         name: String(ch.name ?? ''),
         member_count: Number(ch.member_count ?? 0),

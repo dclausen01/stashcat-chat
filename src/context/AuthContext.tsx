@@ -1,15 +1,16 @@
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import * as api from '../api';
+import type { User } from '../types';
 
 interface AuthState {
   loggedIn: boolean;
-  user: Record<string, unknown> | null;
+  user: User | null;
 }
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string, securityPassword: string) => Promise<void>;
   logout: () => void;
-  setUser: (user: Record<string, unknown> | null) => void;
+  setUser: (user: User | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -38,12 +39,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ loggedIn: false, user: null });
   }, []);
 
-  const setUser = useCallback((user: Record<string, unknown> | null) => {
+  const setUser = useCallback((user: User | null) => {
     setState((prev) => ({ ...prev, user }));
   }, []);
 
+  const value = useMemo(
+    () => ({ ...state, login, logout, setUser }),
+    [state, login, logout, setUser],
+  );
+
   return (
-    <AuthContext value={{ ...state, login, logout, setUser }}>
+    <AuthContext value={value}>
       {children}
     </AuthContext>
   );

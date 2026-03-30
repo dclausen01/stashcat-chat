@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { X, Hash, Lock, KeyRound, Loader2, ChevronDown } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
+import type { Channel } from '../types';
 
 interface NewChannelModalProps {
   companyId: string;
   onClose: () => void;
-  onCreate: (channel: Record<string, unknown>) => void;
+  onCreate: (channel: Channel) => void;
 }
 
 type ChannelType = 'public' | 'encrypted' | 'password';

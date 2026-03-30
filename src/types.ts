@@ -4,6 +4,7 @@ export interface User {
   last_name: string;
   email?: string;
   image?: string;
+  status?: string;
   online?: boolean;
   socket_id?: string;
 }
@@ -19,6 +20,16 @@ export interface Channel {
   member_count?: number;
   favorite?: boolean;
   company_id?: string;
+  /** Channel type from API info endpoint (e.g. 'open', 'closed') */
+  type?: string;
+  /** Encryption type label (e.g. 'AES') — returned by channel info */
+  encryption?: string;
+  /** Total user count — returned by channel info */
+  user_count?: number;
+  /** Unix timestamp (seconds) of channel creation */
+  created_at?: number;
+  /** Unix timestamp (seconds) of last activity */
+  last_activity?: number;
 }
 
 export interface Conversation {
@@ -28,6 +39,9 @@ export interface Conversation {
   unread_count?: number;
   last_message?: Message;
   favorite?: boolean;
+  is_favorite?: boolean;
+  last_action?: number;
+  last_activity?: number;
   name?: string;
 }
 

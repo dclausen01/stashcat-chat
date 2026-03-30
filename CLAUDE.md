@@ -76,6 +76,9 @@ src/
 │   └── LoginPage.tsx               # Login form
 ├── components/
 │   ├── Sidebar.tsx                 # Channel/conversation list, search, resize (default 360px)
+│   ├── SidebarHeader.tsx           # User avatar, name, action buttons (notifications, files, theme, settings, logout)
+│   ├── SidebarFooter.tsx           # Broadcasts, calendar, polls footer buttons
+│   ├── ChatItem.tsx                # Single chat list item (channel/conversation) with favorite toggle
 │   ├── ChatView.tsx                # Message list, send bar, header toolbar
 │   ├── MessageInput.tsx            # Text input, emoji picker, file picker
 │   ├── FileBrowserPanel.tsx        # File browser (folders, upload, download, rename, delete)
@@ -181,10 +184,12 @@ All routes are under `/api/` prefix on port 3001.
 
 - **TypeScript strict mode** — no implicit `any`, no unchecked indexing.
 - **Functional components only** — no class components.
-- **React 19** — use standard hooks (`useState`, `useEffect`, `useCallback`, `useRef`).
-- All API response shapes from the backend are typed at the call site in `api.ts` or with local interfaces in the component.
+- **React 19** — use standard hooks (`useState`, `useEffect`, `useCallback`, `useRef`, `useMemo`).
+- API response shapes are typed via interfaces in `src/types.ts` (`User`, `Company`, `Channel`, `Conversation`). The `api.ts` helpers (`get`, `post`, `del`, `patch`, `put`) return typed responses — avoid `Record<string, unknown>`.
+- Context values (e.g. `AuthContext`) are memoized with `useMemo` to prevent unnecessary re-renders.
 - Use `clsx` for conditional class names.
 - Icon imports come from `lucide-react` (tree-shaken per icon).
+- Large components are decomposed into focused sub-components (e.g. `Sidebar` → `SidebarHeader`, `SidebarFooter`, `ChatItem`).
 
 ---
 
@@ -201,6 +206,14 @@ The `/api/link-preview` endpoint fetches arbitrary URLs to extract Open Graph me
 ### Error Response Sanitization
 
 Server error responses (`res.status(500).json(...)`) never include `stack` traces or internal error details beyond the error message. Stack traces are logged server-side via `debugLog()` for debugging but not exposed to clients.
+
+### Unified Error Handling
+
+All catch blocks in `server/index.ts` use the `errorMessage(err, fallback)` helper to safely extract error messages from unknown catch values. This replaces inconsistent patterns like `(e as Error).message` or inline ternaries, ensuring no stack traces leak to clients.
+
+### Rate Limiting
+
+`express-rate-limit` is applied to all `/api/` routes (120 requests per minute per IP). The SSE endpoint (`/api/events`) is exempt because it uses long-lived connections.
 
 ### Session Store File Locking
 

@@ -40,7 +40,7 @@ interface ChannelMembersPanelProps {
 
 export default function ChannelMembersPanel({ chat, isManager: isManagerProp, onClose }: ChannelMembersPanelProps) {
   const { user } = useAuth();
-  const myId = String((user as Record<string, unknown>)?.id || '');
+  const myId = user?.id ?? '';
   const [members, setMembers] = useState<RawMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [isManagerDetected, setIsManagerDetected] = useState(false);
