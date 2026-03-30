@@ -298,7 +298,7 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
         <div className="w-24 shrink-0 text-right px-2">
           <SortHeader field="date" label="Datum" className="justify-end" />
         </div>
-        <div className="w-12 shrink-0" /> {/* Actions column */}
+        <div className="w-20 shrink-0" /> {/* Actions column */}
       </div>
 
       <div className="flex flex-col divide-y divide-surface-100 px-1 dark:divide-surface-800">
