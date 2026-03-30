@@ -115,20 +115,16 @@ async function getClient(req) {
     return client;
 }
 // ── Realtime setup ───────────────────────────────────────────────────────────
-function connectRealtime(client, clientKey) {
-    client.createRealtimeManager({ reconnect: true }).then((rt) => {
+async function connectRealtime(client, clientKey) {
+    try {
+        const rt = await client.createRealtimeManager({ reconnect: true });
         const conn = activeSSE.get(clientKey);
         if (!conn) {
             rt.disconnect();
             return;
         }
         conn.realtime = rt;
-        return rt.connect();
-    }).then(() => {
-        const conn = activeSSE.get(clientKey);
-        if (!conn?.realtime)
-            return;
-        const rt = conn.realtime;
+        await rt.connect();
         rt.on('message_sync', async (data) => {
             // Suppress Chat Bot conversation messages from reaching the frontend
             const convId = data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null;
@@ -141,9 +137,9 @@ function connectRealtime(client, clientKey) {
                 try {
                     let aesKey;
                     const channelId = data.channel_id && data.channel_id !== 0 ? String(data.channel_id) : null;
-                    const convId = data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null;
-                    if (convId) {
-                        aesKey = await client.getConversationAesKey(convId);
+                    const msgConvId = data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null;
+                    if (msgConvId) {
+                        aesKey = await client.getConversationAesKey(msgConvId);
                     }
                     else if (channelId) {
                         aesKey = await client.getChannelAesKey(channelId);
@@ -163,9 +159,10 @@ function connectRealtime(client, clientKey) {
             pushSSE(clientKey, 'typing', { chatType, chatId, userId });
         });
         console.log(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
-    }).catch((err) => {
+    }
+    catch (err) {
         console.warn('[Realtime] Connection failed:', err);
-    });
+    }
 }
 // ── Auth ──────────────────────────────────────────────────────────────────────
 app.post('/api/login', async (req, res) => {
@@ -626,11 +623,9 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
     }
     catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
-        debugLog(`[getMessages:route] ERROR: ${error.message}`);
+        debugLog(`[getMessages:route] ERROR: ${error.message}\n${error.stack}`);
         res.status(500).json({
             error: error.message,
-            stack: error.stack,
-            E2E_unlocked: client.isE2EUnlocked()
         });
     }
 });
@@ -721,10 +716,12 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
             const me = await client.getMe();
             resolvedTypeId = String(me.id);
         }
+        // Ensure folder_id is a number for the API
+        const folderIdNum = folderId ? parseInt(folderId, 10) : undefined;
         await client.uploadFile(namedPath, {
             type,
             type_id: resolvedTypeId,
-            folder: folderId,
+            folder: folderIdNum,
             filename: originalName,
         });
         await promises_1.default.unlink(namedPath).catch(() => { });
@@ -733,7 +730,10 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
     catch (err) {
         if (tmpPath)
             await promises_1.default.unlink(tmpPath).catch(() => { });
-        res.status(500).json({ error: err instanceof Error ? err.message : 'Upload failed' });
+        const message = err instanceof Error ? err.message : String(err);
+        if (err instanceof Error)
+            debugLog(`[files/upload] ERROR: ${err.message}\n${err.stack}`);
+        res.status(500).json({ error: message });
     }
 });
 app.post('/api/files/:fileId/move', async (req, res) => {
@@ -763,7 +763,7 @@ app.post('/api/folder/delete', async (req, res) => {
     try {
         const client = await getClient(req);
         const { folderId } = req.body;
-        await client.deleteFolder(folderId);
+        await client.deleteFolder(parseInt(folderId, 10));
         res.json({ ok: true });
     }
     catch (err) {
@@ -901,10 +901,75 @@ app.post('/api/account/profile-image/reset', async (req, res) => {
 // ── Link Preview ──────────────────────────────────────────────────────────────
 const linkPreviewCache = new Map();
 const PREVIEW_TTL = 3600_000; // 1 hour
+// SSRF protection: block private/internal IPs
+function isBlockedHost(hostname) {
+    return /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.|169\.254\.|localhost|::1|\[::1\]|fc|fd)/i.test(hostname);
+}
+/** Extract OG/meta tags from a fetch response and send the preview JSON. */
+async function extractAndRespondPreview(response, url, res) {
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+        return res.json({ title: url, fetchedAt: Date.now() });
+    }
+    const reader = response.body?.getReader();
+    let html = '';
+    if (reader) {
+        const decoder = new TextDecoder();
+        let bytesRead = 0;
+        while (bytesRead < 65536) {
+            const { done, value } = await reader.read();
+            if (done)
+                break;
+            html += decoder.decode(value, { stream: true });
+            bytesRead += value.length;
+        }
+        reader.cancel().catch(() => { });
+    }
+    const getMetaContent = (nameOrProp) => {
+        const propRe = new RegExp(`<meta[^>]+(?:property|name)=["']${nameOrProp}["'][^>]+content=["']([^"']+)["']`, 'i');
+        const propMatch = html.match(propRe);
+        if (propMatch)
+            return propMatch[1];
+        const revRe = new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${nameOrProp}["']`, 'i');
+        const revMatch = html.match(revRe);
+        if (revMatch)
+            return revMatch[1];
+        return undefined;
+    };
+    const title = getMetaContent('og:title')
+        || getMetaContent('twitter:title')
+        || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim();
+    const description = getMetaContent('og:description')
+        || getMetaContent('twitter:description')
+        || getMetaContent('description');
+    const image = getMetaContent('og:image')
+        || getMetaContent('twitter:image');
+    const siteName = getMetaContent('og:site_name');
+    const decode = (s) => s?.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+    const result = {
+        title: decode(title) || url,
+        description: decode(description),
+        image: image?.startsWith('http') ? image : undefined,
+        siteName: decode(siteName),
+        fetchedAt: Date.now(),
+    };
+    linkPreviewCache.set(url, result);
+    res.json(result);
+}
 app.get('/api/link-preview', async (req, res) => {
     try {
         const url = req.query.url;
         if (!url || !/^https?:\/\//.test(url)) {
+            return res.status(400).json({ error: 'Invalid URL' });
+        }
+        // SSRF protection: block private/internal IPs
+        try {
+            const parsed = new URL(url);
+            if (isBlockedHost(parsed.hostname)) {
+                return res.status(400).json({ error: 'URL not allowed' });
+            }
+        }
+        catch {
             return res.status(400).json({ error: 'Invalid URL' });
         }
         // Check cache
@@ -920,62 +985,34 @@ app.get('/api/link-preview', async (req, res) => {
                 'User-Agent': 'Mozilla/5.0 (compatible; LinkPreviewBot/1.0)',
                 'Accept': 'text/html,application/xhtml+xml',
             },
-            redirect: 'follow',
+            redirect: 'manual',
         });
         clearTimeout(timeout);
-        const contentType = response.headers.get('content-type') || '';
-        if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
-            return res.json({ title: url, fetchedAt: Date.now() });
-        }
-        // Only read first 64kb for meta extraction
-        const reader = response.body?.getReader();
-        let html = '';
-        if (reader) {
-            const decoder = new TextDecoder();
-            let bytesRead = 0;
-            while (bytesRead < 65536) {
-                const { done, value } = await reader.read();
-                if (done)
-                    break;
-                html += decoder.decode(value, { stream: true });
-                bytesRead += value.length;
+        // Follow redirects manually with SSRF check
+        if ([301, 302, 303, 307, 308].includes(response.status)) {
+            const location = response.headers.get('location');
+            if (location) {
+                try {
+                    const redirectUrl = new URL(location, url);
+                    if (isBlockedHost(redirectUrl.hostname)) {
+                        return res.json({ title: url, fetchedAt: Date.now() });
+                    }
+                    const ctrl2 = new AbortController();
+                    const to2 = setTimeout(() => ctrl2.abort(), 5000);
+                    const response2 = await fetch(redirectUrl.href, {
+                        signal: ctrl2.signal,
+                        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LinkPreviewBot/1.0)', 'Accept': 'text/html,application/xhtml+xml' },
+                        redirect: 'manual',
+                    });
+                    clearTimeout(to2);
+                    return extractAndRespondPreview(response2, url, res);
+                }
+                catch {
+                    return res.json({ title: url, fetchedAt: Date.now() });
+                }
             }
-            reader.cancel().catch(() => { });
         }
-        // Extract Open Graph and meta tags
-        const getMetaContent = (nameOrProp) => {
-            // Try og/twitter property
-            const propRe = new RegExp(`<meta[^>]+(?:property|name)=["']${nameOrProp}["'][^>]+content=["']([^"']+)["']`, 'i');
-            const propMatch = html.match(propRe);
-            if (propMatch)
-                return propMatch[1];
-            // Try reversed order: content before property
-            const revRe = new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${nameOrProp}["']`, 'i');
-            const revMatch = html.match(revRe);
-            if (revMatch)
-                return revMatch[1];
-            return undefined;
-        };
-        const title = getMetaContent('og:title')
-            || getMetaContent('twitter:title')
-            || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim();
-        const description = getMetaContent('og:description')
-            || getMetaContent('twitter:description')
-            || getMetaContent('description');
-        const image = getMetaContent('og:image')
-            || getMetaContent('twitter:image');
-        const siteName = getMetaContent('og:site_name');
-        // Decode HTML entities in extracted strings
-        const decode = (s) => s?.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
-        const result = {
-            title: decode(title) || url,
-            description: decode(description),
-            image: image?.startsWith('http') ? image : undefined,
-            siteName: decode(siteName),
-            fetchedAt: Date.now(),
-        };
-        linkPreviewCache.set(url, result);
-        res.json(result);
+        return extractAndRespondPreview(response, url, res);
     }
     catch (err) {
         // Return minimal preview on failure
@@ -1421,7 +1458,12 @@ app.get('/api/polls/:id', async (req, res) => {
         // Fetch answers for each question
         if (poll.questions && poll.questions.length > 0) {
             const questionsWithAnswers = await Promise.all(poll.questions.map(async (q) => {
-                const answers = await client.listPollAnswers(String(q.id)).catch(() => []);
+                const rawAnswers = await client.listPollAnswers(String(q.id)).catch(() => []);
+                // Map answer_count (string from API) to votes (number for frontend)
+                const answers = rawAnswers.map((a) => ({
+                    ...a,
+                    votes: Number(a.answer_count ?? 0),
+                }));
                 return { ...q, answers };
             }));
             poll.questions = questionsWithAnswers;

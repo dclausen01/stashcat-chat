@@ -83,6 +83,11 @@ A React/TypeScript web chat client for Stashcat / schul.cloud, built for BBZ Ren
 - Login page with optional separate security password field
 - Session persistence across server restarts (sessions encrypted with AES-256-GCM in `.sessions.json`)
 
+### Security
+- **SSRF protection**: Link preview endpoint blocks private/internal IP ranges and validates redirect targets
+- **Error sanitization**: Server error responses never expose stack traces or internal paths
+- **Session file locking**: Async mutex prevents race conditions in concurrent session store operations
+
 ---
 
 ## Prerequisites

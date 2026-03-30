@@ -281,12 +281,15 @@ export default function PollsView({ pollIdToOpen, onPollOpened }: PollsViewProps
           poll={selectedPoll}
           companyId={companyId}
           onBack={() => setSelectedPoll(null)}
-          onRefresh={() => {
+          onRefresh={async () => {
             const id = selectedPoll.id;
             setSelectedPoll(null);
-            setTimeout(() => loadPolls(), 100);
-            const found = polls.find((p) => p.id === id);
-            if (found) setSelectedPoll(found);
+            await loadPolls();
+            // Re-fetch fresh detail data for the poll
+            try {
+              const fresh = await api.getPoll(id, companyId);
+              setSelectedPoll(fresh);
+            } catch { /* poll may have been deleted */ }
           }}
         />
       </div>

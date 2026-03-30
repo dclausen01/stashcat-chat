@@ -188,6 +188,26 @@ All routes are under `/api/` prefix on port 3001.
 
 ---
 
+## Security Hardening
+
+### SSRF Protection (Link Preview)
+
+The `/api/link-preview` endpoint fetches arbitrary URLs to extract Open Graph metadata. To prevent Server-Side Request Forgery (SSRF), the endpoint:
+
+1. **Validates the URL** against a blocklist of private/internal IP ranges (127.x, 10.x, 172.16-31.x, 192.168.x, 169.254.x, localhost, IPv6 loopback, fc/fd ranges).
+2. **Uses `redirect: 'manual'`** instead of `redirect: 'follow'` to inspect redirect targets before following them.
+3. **Re-checks the blocklist** on redirect targets to prevent DNS rebinding or redirect-based SSRF.
+
+### Error Response Sanitization
+
+Server error responses (`res.status(500).json(...)`) never include `stack` traces or internal error details beyond the error message. Stack traces are logged server-side via `debugLog()` for debugging but not exposed to clients.
+
+### Session Store File Locking
+
+`session-store.ts` uses an async mutex (`withFileLock()`) to serialize all read-modify-write operations on `.sessions.json`, preventing race conditions when multiple concurrent requests save or delete sessions simultaneously.
+
+---
+
 ## Known Patterns
 
 ### isManager Detection
