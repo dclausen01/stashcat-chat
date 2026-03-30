@@ -18,19 +18,21 @@
 some-command > /tmp/out.txt 2>&1   # dann mit Read lesen
 ```
 
-**Code-Verifikation**: Änderungen werden überprüft durch `npm run build` (muss fehlerfrei durchlaufen) und anschließend Live-Test auf dem Server, den der User durchführt. Kein automatischer Preview-Browser-Test.
+**Build**: Mit `yarn` statt `npm` builden — `yarn build`. `npm run build` funktioniert nicht, weil das Projekt yarn als Paketmanager nutzt.
+
+**Code-Verifikation**: Änderungen werden überprüft durch `yarn build` (muss fehlerfrei durchlaufen) und anschließend Live-Test auf dem Server, den der User durchführt. Kein automatischer Preview-Browser-Test.
 
 ---
 
 ## Dev Commands
 
 ```bash
-npm start          # Start both frontend (port 5173) and backend (port 3001) concurrently
-npm run dev        # Vite dev server only (frontend)
-npm run server     # Express backend only (tsx server/index.ts)
-npm run build      # tsc -b + vite build (production)
-npm run preview    # Serve production build
-npm run lint       # ESLint
+yarn start       # Start both frontend (port 5173) and backend (port 3001) concurrently
+yarn dev         # Vite dev server only (frontend)
+yarn server      # Express backend only (tsx server/index.ts)
+yarn build       # tsc -b + vite build (production)
+yarn preview     # Serve production build
+yarn lint        # ESLint
 ```
 
 The Vite dev server proxies `/backend/api/*` → `http://localhost:3001/api/*`.
@@ -230,6 +232,10 @@ The Stashcat API does not return a clean `isManager: boolean` field. Manager sta
 ### File Listing
 
 The folder listing API (`/folder/get`) returns either `content.file` (singular, one file) or `content.files` (array). The server normalizes this into `{ folder: [...], files: [...] }` before returning to the frontend, so `FileBrowserPanel` always receives an array.
+
+### File Browser Tab Default
+
+When the file browser is opened from a chat/channel (via the icon in the chat header), it **always defaults to the channel/conversation files tab** ("Dateien"), regardless of the previously persisted tab selection. The user can still manually switch to "Meine Dateien" via the tab bar. This is implemented by tracking the `chat.id` via a ref in `FileBrowserPanel` and resetting the tab to `'context'` whenever the chat changes.
 
 ### Realtime (SSE + Socket.io)
 

@@ -53,6 +53,7 @@ A React/TypeScript web chat client for Stashcat / schul.cloud, built for BBZ Ren
 
 ### File Browser
 - Browse channel, conversation, or personal file storage
+- **Opens on channel/conversation files by default** when accessed from a chat (user can still switch to "Meine Dateien" via tab)
 - Navigate folder hierarchies with breadcrumbs
 - **Sort files by name, date, or size** (list view)
 - **Create new folders** with inline naming
@@ -129,12 +130,12 @@ Open [http://localhost:5173](http://localhost:5173).
 
 | Command           | Description                                  |
 | ----------------- | -------------------------------------------- |
-| `npm start`       | Start both frontend and backend concurrently |
-| `npm run dev`     | Start Vite dev server (frontend only)        |
-| `npm run server`  | Start Express backend with tsx               |
-| `npm run build`   | TypeScript check + Vite production build     |
-| `npm run preview` | Serve the production build locally           |
-| `npm run lint`    | ESLint check                                 |
+| `yarn start`      | Start both frontend and backend concurrently |
+| `yarn dev`        | Start Vite dev server (frontend only)        |
+| `yarn server`     | Start Express backend with tsx               |
+| `yarn build`      | TypeScript check + Vite production build     |
+| `yarn preview`    | Serve the production build locally           |
+| `yarn lint`       | ESLint check                                 |
 
 ---
 
