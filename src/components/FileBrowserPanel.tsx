@@ -342,7 +342,6 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               <Folder size={18} className="text-amber-400" fill="currentColor" />
             </div>
             <span className="min-w-0 flex-1 truncate text-left text-sm text-surface-800 dark:text-surface-200 px-3">{f.name}</span>
-            <span className="w-20 shrink-0 text-right text-xs text-surface-400" /> {/* Leer für Größe */}
             <span className="w-24 shrink-0 text-right text-xs text-surface-400 px-2">{formatDate(f.created)}</span>
             <div className="w-20 shrink-0 flex justify-end items-center gap-1">
               {onDeleteFolder && (
@@ -354,7 +353,6 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
                   <Trash2 size={14} />
                 </button>
               )}
-              <ChevronRight size={14} className="text-surface-400" />
             </div>
           </div>
         ))}
