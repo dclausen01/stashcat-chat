@@ -162,7 +162,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
                       disabled={alreadyVoted || !active}
                       onClick={() => !alreadyVoted && active && toggleAnswer(q, a.id)}
                       className={clsx(
-                        'relative w-full overflow-hidden rounded-xl border px-4 py-2.5 text-left transition',
+                        'relative w-full rounded-xl border px-4 py-2.5 text-left transition',
                         isChosen
                           ? 'border-primary-400 bg-primary-50 dark:border-primary-600 dark:bg-primary-900/30'
                           : 'border-surface-200 bg-white hover:border-surface-300 hover:bg-surface-50 dark:border-surface-600 dark:bg-surface-700 dark:hover:bg-surface-600',
@@ -172,7 +172,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
                       {/* Progress bar */}
                       {showResults && (
                         <div
-                          className="absolute inset-y-0 left-0 bg-primary-200/80 transition-all dark:bg-primary-700/40"
+                          className="absolute inset-y-0 left-0 overflow-hidden rounded-xl bg-primary-200/80 transition-all dark:bg-primary-700/40"
                           style={{ width: `${pct}%` }}
                         />
                       )}
@@ -203,7 +203,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
                               </span>
                             )}
                             {openVoterDropdown === a.id && a.users && a.users.length > 0 && (
-                              <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border border-surface-200 bg-white py-1.5 shadow-lg dark:border-surface-600 dark:bg-surface-800">
+                              <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-lg border border-surface-200 bg-white py-1.5 shadow-lg dark:border-surface-600 dark:bg-surface-800">
                                 {a.users.map((u) => (
                                   <div key={u.id} className="flex items-center gap-2 px-3 py-1.5">
                                     <Avatar name={`${u.first_name ?? ''} ${u.last_name ?? ''}`.trim()} image={u.image} size="xs" />
