@@ -15,6 +15,7 @@ import ChannelDropdownMenu from './ChannelDropdownMenu';
 import LinkPreviewCard from './LinkPreviewCard';
 import ChannelDescriptionEditor from './ChannelDescriptionEditor';
 import CreatePollModal from './CreatePollModal';
+import CreateEventModal from './CreateEventModal';
 import type { ChatTarget, Message } from '../types';
 
 interface ChatViewProps {
@@ -24,6 +25,7 @@ interface ChatViewProps {
   fileBrowserOpen: boolean;
   onOpenPolls?: () => void;
   onOpenPoll?: (pollId: string) => void;
+  onOpenCalendar?: () => void;
 }
 
 interface TypingUser {
@@ -53,6 +55,12 @@ function isPollInviteMessage(msg: Message): boolean {
   return false;
 }
 
+function isCalendarEventMessage(msg: Message): boolean {
+  const text = msg.text ?? '';
+  if (text.includes('[%event:') && text.includes('%]')) return true;
+  return false;
+}
+
 /** Returns a day-key string (YYYY-M-D) for a Unix timestamp in seconds. */
 function msgDayKey(ts: number): string {
   const d = new Date(ts * 1000);
@@ -72,7 +80,7 @@ function formatDateLabel(ts: number): string {
   return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll }: ChatViewProps) {
+export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -91,6 +99,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const [meetingLoading, setMeetingLoading] = useState(false);
   const [showPollModal, setShowPollModal] = useState(false);
+  const [showEventModal, setShowEventModal] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -380,10 +389,11 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       groups.push({ sender: msg.sender, isOwn: false, messages: [msg], isSystem: true });
       continue;
     }
-    // Poll invites and video meetings are always standalone
+    // Poll invites, calendar events, and video meetings are always standalone
     const isPoll = isPollInviteMessage(msg);
     const isVideo = isVideoMeetingMessage(msg);
-    if (isPoll || isVideo) {
+    const isEvent = isCalendarEventMessage(msg);
+    if (isPoll || isVideo || isEvent) {
       groups.push({ sender: msg.sender, isOwn: false, messages: [msg], isStandalone: true });
       continue;
     }
@@ -666,13 +676,15 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                   const sysMsg = group.messages[0];
                   if (isPollInviteMessage(sysMsg)) {
                     elements.push(<PollInviteMessage key={gi} msg={sysMsg} onOpenPolls={onOpenPolls} onOpenPoll={onOpenPoll} />);
+                  } else if (isCalendarEventMessage(sysMsg)) {
+                    elements.push(<CalendarEventCard key={gi} msg={sysMsg} onOpenCalendar={onOpenCalendar} />);
                   } else {
                     elements.push(<SystemMessage key={gi} msg={sysMsg} />);
                   }
                 } else if (group.messages.length === 1 && isPollInviteMessage(group.messages[0])) {
                   elements.push(<PollInviteMessage key={gi} msg={group.messages[0]} onOpenPolls={onOpenPolls} onOpenPoll={onOpenPoll} />);
-                } else if (group.messages.length === 1 && isPollInviteMessage(group.messages[0])) {
-                  elements.push(<PollInviteMessage key={gi} msg={group.messages[0]} onOpenPolls={onOpenPolls} onOpenPoll={onOpenPoll} />);
+                } else if (group.messages.length === 1 && isCalendarEventMessage(group.messages[0])) {
+                  elements.push(<CalendarEventCard key={gi} msg={group.messages[0]} onOpenCalendar={onOpenCalendar} />);
                 } else if (group.messages.length === 1 && isVideoMeetingMessage(group.messages[0])) {
                   elements.push(<VideoMeetingCard key={gi} msg={group.messages[0]} />);
                 } else {
@@ -723,6 +735,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 }
                 if (isPollInviteMessage(msg)) {
                   elements.push(<PollInviteMessage key={msg.id} msg={msg} onOpenPolls={onOpenPolls} onOpenPoll={onOpenPoll} />);
+                  return elements;
+                }
+                if (isCalendarEventMessage(msg)) {
+                  elements.push(<CalendarEventCard key={msg.id} msg={msg} onOpenCalendar={onOpenCalendar} />);
                   return elements;
                 }
                 if (isVideoMeetingMessage(msg)) {
@@ -788,12 +804,20 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         </div>
       )}
 
-      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} />
+      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} />
       {showPollModal && (
         <CreatePollModal
           preselectedChat={chat}
           onClose={() => setShowPollModal(false)}
           onCreated={() => setShowPollModal(false)}
+        />
+      )}
+      {showEventModal && (
+        <CreateEventModal
+          initialDate={null}
+          preselectedChat={chat}
+          onClose={() => setShowEventModal(false)}
+          onCreated={() => setShowEventModal(false)}
         />
       )}
       </div>{/* end main chat area */}
@@ -1341,6 +1365,54 @@ function PollInviteMessage({ msg, onOpenPolls, onOpenPoll }: { msg: Message; onO
             className="mt-1 block text-sm font-semibold text-yellow-400 hover:text-yellow-300 dark:text-yellow-400 dark:hover:text-yellow-300 transition"
           >
             Klicke hier
+          </button>
+        )}
+        {time && <p className="mt-1 text-xs text-surface-600">{time}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ── Calendar event notification card ─────────────────────────────────────────
+
+function renderEventText(text: string): ReactNode[] {
+  if (!text) return [];
+  let clean = text
+    .replace(/\s*\[%event:[^%]+%\]\s*$/, '')
+    .replace(/\s*Details im Kalender ansehen\.?\s*$/gim, '')
+    .trim();
+  if (!clean.includes('**')) return [clean];
+  const parts: ReactNode[] = [];
+  const regex = /\*\*(.+?)\*\*/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = regex.exec(clean)) !== null) {
+    if (match.index > lastIndex) parts.push(clean.slice(lastIndex, match.index).replace(/\*\*/g, ''));
+    parts.push(<span key={key++} className="font-semibold">{match[1]}</span>);
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < clean.length) parts.push(clean.slice(lastIndex).replace(/\*\*/g, ''));
+  return parts.length > 0 ? parts : [clean];
+}
+
+function CalendarEventCard({ msg, onOpenCalendar }: { msg: Message; onOpenCalendar?: () => void }) {
+  const time = msg.time
+    ? new Date(msg.time * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+    : '';
+
+  return (
+    <div className="flex justify-center py-2 px-4">
+      <div className="rounded-xl bg-surface-700 px-5 py-3 text-center dark:bg-surface-800 max-w-xs shadow">
+        <p className="text-sm text-surface-100 dark:text-surface-200 whitespace-pre-wrap">
+          {renderEventText(msg.text ?? '')}
+        </p>
+        {onOpenCalendar && (
+          <button
+            onClick={onOpenCalendar}
+            className="mt-1 block text-sm font-semibold text-green-400 hover:text-green-300 dark:text-green-400 dark:hover:text-green-300 transition"
+          >
+            Im Kalender ansehen
           </button>
         )}
         {time && <p className="mt-1 text-xs text-surface-600">{time}</p>}

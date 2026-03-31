@@ -40,30 +40,35 @@ export default function App() {
   };
 
   const toggleSettings = () => {
+    const wasOpen = settingsOpen;
     closeAllPanels();
-    setSettingsOpen((o) => !o);
+    if (!wasOpen) setSettingsOpen(true);
   };
 
   const toggleFileBrowser = () => {
+    const wasOpen = fileBrowserOpen;
     closeAllPanels();
-    setFileBrowserOpen((o) => !o);
+    if (!wasOpen) setFileBrowserOpen(true);
   };
 
   const toggleBroadcasts = () => {
+    const wasOpen = broadcastsOpen;
     closeAllPanels();
     setActiveView('chat');
-    setBroadcastsOpen((o) => !o);
+    if (!wasOpen) setBroadcastsOpen(true);
   };
 
   const openCalendar = () => {
+    const wasOpen = activeView === 'calendar';
     closeAllPanels();
-    setActiveView('calendar');
+    setActiveView(wasOpen ? 'chat' : 'calendar');
   };
 
   const openPolls = () => {
+    const wasOpen = activeView === 'polls';
     closeAllPanels();
     setPollIdToOpen(null);
-    setActiveView('polls');
+    setActiveView(wasOpen ? 'chat' : 'polls');
   };
 
   const openPoll = (pollId: string) => {
@@ -97,13 +102,13 @@ export default function App() {
         activeChat={activeChat}
         onSelectChat={handleSelectChat}
         loggedIn={loggedIn}
-        onOpenFileBrowser={() => { closeAllPanels(); setFileBrowserOpen((o) => !o); }}
+        onOpenFileBrowser={toggleFileBrowser}
         onOpenBroadcasts={toggleBroadcasts}
         onOpenCalendar={openCalendar}
         onOpenPolls={openPolls}
-        onOpenNotifications={() => { closeAllPanels(); setNotificationsOpen((o) => !o); }}
+        onOpenNotifications={() => { const wasOpen = notificationsOpen; closeAllPanels(); if (!wasOpen) setNotificationsOpen(true); }}
         onOpenSettings={toggleSettings}
-        onOpenProfile={() => { closeAllPanels(); setProfileOpen(true); }}
+        onOpenProfile={() => { const wasOpen = profileOpen; closeAllPanels(); if (!wasOpen) setProfileOpen(true); }}
         broadcastsOpen={broadcastsOpen}
         calendarOpen={activeView === 'calendar'}
         pollsOpen={activeView === 'polls'}
@@ -125,6 +130,7 @@ export default function App() {
                 fileBrowserOpen={fileBrowserOpen}
                 onOpenPolls={openPolls}
                 onOpenPoll={openPoll}
+                onOpenCalendar={openCalendar}
               />
             : homeView === 'cards'
               ? <FavoriteCardsView channels={channels} onSelectChat={handleSelectChat} />

@@ -568,6 +568,16 @@ app.get('/api/conversations', async (req, res) => {
         res.status(500).json({ error: errorMessage(err) });
     }
 });
+app.get('/api/conversations/:id', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const conv = await client.getConversation(req.params.id);
+        res.json(conv);
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
 // ── Messages ──────────────────────────────────────────────────────────────────
 // ── Specific message routes MUST come before the generic :type/:targetId routes ──
 app.post('/api/messages/:messageId/like', async (req, res) => {
@@ -1161,7 +1171,28 @@ app.get('/api/calendar/events/:id', async (req, res) => {
 app.post('/api/calendar/events', async (req, res) => {
     try {
         const client = await getClient(req);
-        const eventId = await client.createEvent(req.body);
+        const { notify_chat_id, notify_chat_type, ...eventData } = req.body;
+        const eventId = await client.createEvent(eventData);
+        // Send notification message to the source chat (if provided)
+        if (notify_chat_id && notify_chat_type && eventId) {
+            try {
+                const eName = eventData.name || 'Unbenannt';
+                const startTs = Number(eventData.start);
+                const endTs = Number(eventData.end);
+                const isAllday = eventData.allday === true || eventData.allday === '1';
+                const dateOpts = { day: '2-digit', month: '2-digit', year: 'numeric' };
+                const timeOpts = { hour: '2-digit', minute: '2-digit' };
+                const startDate = new Date(startTs * 1000).toLocaleDateString('de-DE', dateOpts);
+                const endDate = new Date(endTs * 1000).toLocaleDateString('de-DE', dateOpts);
+                const startTime = isAllday ? '' : `, ${new Date(startTs * 1000).toLocaleTimeString('de-DE', timeOpts)} Uhr`;
+                const endTime = isAllday ? '' : `, ${new Date(endTs * 1000).toLocaleTimeString('de-DE', timeOpts)} Uhr`;
+                const loc = eventData.location ? `\nOrt: ${eventData.location}` : '';
+                const desc = eventData.description ? `\n${eventData.description}` : '';
+                const msgText = `📅 **Neuer Termin: „${eName}"**${desc}\n${isAllday ? 'Ganztägig: ' : ''}${startDate}${startTime} – ${endDate}${endTime}${loc}\n\nDetails im Kalender ansehen. [%event:${eventId}%]`;
+                await client.sendMessage({ target: notify_chat_id, target_type: notify_chat_type, text: msgText }).catch(() => { });
+            }
+            catch { /* non-critical */ }
+        }
         res.json({ id: eventId });
     }
     catch (err) {
