@@ -342,13 +342,13 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               <Folder size={18} className="text-amber-400" fill="currentColor" />
             </div>
             <span className="min-w-0 flex-1 truncate text-left text-sm text-surface-800 dark:text-surface-200 px-3">{f.name}</span>
-            <span className="w-20 shrink-0" /> {/* Leer — Größe hat keine Bedeutung für Ordner */}
-            <span className="w-24 shrink-0 text-right text-xs text-surface-500 px-2">{formatDate(f.created)}</span>
-            <div className="w-20 shrink-0 flex justify-end items-center gap-1">
+            <span className="w-20 shrink-0 text-right text-xs text-surface-500 transition-opacity group-hover:opacity-0" /> {/* Leer — Größe hat keine Bedeutung für Ordner */}
+            <span className="w-24 shrink-0 text-right text-xs text-surface-500 px-2 transition-opacity group-hover:opacity-0">{formatDate(f.created)}</span>
+            <div className="hidden shrink-0 items-center justify-end gap-0.5 w-20 group-hover:flex">
               {onDeleteFolder && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onDeleteFolder(f); }}
-                  className="rounded-full p-1 text-surface-500 opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/30"
+                  className="rounded-full p-1 text-surface-500 transition hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-900/30"
                   title="Ordner löschen"
                 >
                   <Trash2 size={14} />
