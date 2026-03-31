@@ -53,8 +53,11 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   const [primaryCompanyId, setPrimaryCompanyId] = useState<string>('');
 
   // Sidebar width (horizontal resize)
-  const [sidebarWidth, setSidebarWidth] = useState(360); // 360px = w-[360px] for better file browser visibility
-  const sidebarWidthRef = useRef(360);
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem('schulchat_sidebar_width');
+    return saved ? Number(saved) : 360;
+  });
+  const sidebarWidthRef = useRef(sidebarWidth);
   const resizingWidth = useRef(false);
 
   const onWidthMouseDown = useCallback((e: React.MouseEvent) => {
@@ -69,6 +72,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     };
     const onUp = () => {
       resizingWidth.current = false;
+      localStorage.setItem('schulchat_sidebar_width', String(sidebarWidthRef.current));
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };

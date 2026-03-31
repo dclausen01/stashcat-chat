@@ -495,8 +495,11 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   const setViewMode = settings.setFileBrowserViewMode;
 
   // Panel width (horizontal resize from left edge)
-  const [panelWidth, setPanelWidth] = useState(384); // 384px = w-96 default
-  const panelWidthRef = useRef(384);
+  const [panelWidth, setPanelWidth] = useState(() => {
+    const saved = localStorage.getItem('schulchat_filebrowser_width');
+    return saved ? Number(saved) : 384;
+  });
+  const panelWidthRef = useRef(panelWidth);
   const resizingWidth = useRef(false);
 
   const onWidthMouseDown = useCallback((e: React.MouseEvent) => {
@@ -512,6 +515,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     };
     const onUp = () => {
       resizingWidth.current = false;
+      localStorage.setItem('schulchat_filebrowser_width', String(panelWidthRef.current));
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
