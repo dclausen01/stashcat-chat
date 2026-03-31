@@ -76,7 +76,12 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     setOtherBubbleColor,
     homeView,
     setHomeView,
+    notificationsEnabled,
+    setNotificationsEnabled,
   } = useSettings();
+
+  const notificationPermission = typeof Notification !== 'undefined' ? Notification.permission : 'denied';
+  const notificationsDenied = notificationPermission === 'denied';
 
   return (
     <div className="flex h-full w-64 shrink-0 flex-col border-l border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900">
@@ -99,6 +104,29 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             description="Favorisierte Channel als Kacheln anzeigen"
             value={homeView === 'cards'}
             onChange={(v) => setHomeView(v ? 'cards' : 'info')}
+          />
+        </div>
+
+        <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-surface-600">Benachrichtigungen</p>
+
+        <div className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
+          <ToggleRow
+            label="Desktop-Benachrichtigungen"
+            description={
+              notificationsDenied
+                ? 'Im Browser blockiert — bitte in den Browser-Einstellungen erlauben'
+                : 'OS-Benachrichtigungen bei neuen Nachrichten anzeigen'
+            }
+            value={notificationsEnabled && !notificationsDenied}
+            onChange={(v) => {
+              if (v && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+                Notification.requestPermission().then((perm) => {
+                  setNotificationsEnabled(perm === 'granted');
+                }).catch(() => {});
+              } else {
+                setNotificationsEnabled(v);
+              }
+            }}
           />
         </div>
 

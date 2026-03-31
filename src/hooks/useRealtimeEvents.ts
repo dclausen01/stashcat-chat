@@ -2,7 +2,10 @@ import { useEffect, useRef } from 'react';
 
 type SSEHandler = (data: unknown) => void;
 
-/** Connects to the backend SSE stream and dispatches events to registered handlers. */
+/** Connects to the backend SSE stream and dispatches events to registered handlers.
+ *  Detects reconnections and dispatches a synthetic 'reconnect' event so consumers
+ *  can re-fetch missed data.
+ */
 export function useRealtimeEvents(
   handlers: Record<string, SSEHandler>,
   enabled: boolean
@@ -16,6 +19,8 @@ export function useRealtimeEvents(
 
     const token = localStorage.getItem('schulchat_token');
     if (!token) return;
+
+    let wasDisconnected = false;
 
     // EventSource doesn't support custom headers — pass token as query param
     const apiBase = import.meta.env.DEV ? '/backend/api' : '/api';
@@ -32,7 +37,16 @@ export function useRealtimeEvents(
     es.addEventListener('message_sync', (e) => dispatch(e, 'message_sync'));
     es.addEventListener('typing', (e) => dispatch(e, 'typing'));
 
+    es.onopen = () => {
+      if (wasDisconnected) {
+        wasDisconnected = false;
+        // Notify consumers so they can re-fetch missed data
+        handlersRef.current['reconnect']?.({});
+      }
+    };
+
     es.onerror = () => {
+      wasDisconnected = true;
       // EventSource auto-reconnects on error
     };
 

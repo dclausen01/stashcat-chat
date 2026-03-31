@@ -293,6 +293,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         return [...filtered, { userId: typingUserId, at: Date.now() }];
       });
     },
+    reconnect: () => {
+      // Re-fetch messages after SSE reconnection to catch any missed during disconnect
+      loadMessages();
+    },
   }, true);
 
   const handleScroll = useCallback(() => {

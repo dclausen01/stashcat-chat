@@ -8,6 +8,7 @@ interface Settings {
   homeView: 'info' | 'cards';
   fileBrowserViewMode: 'grid' | 'list';
   fileBrowserTab: 'context' | 'personal';
+  notificationsEnabled: boolean;
 }
 
 interface SettingsContextValue extends Settings {
@@ -18,6 +19,7 @@ interface SettingsContextValue extends Settings {
   setHomeView: (v: 'info' | 'cards') => void;
   setFileBrowserViewMode: (v: 'grid' | 'list') => void;
   setFileBrowserTab: (v: 'context' | 'personal') => void;
+  setNotificationsEnabled: (v: boolean) => void;
 }
 
 const STORAGE_KEY = 'schulchat_settings';
@@ -33,6 +35,7 @@ function loadSettings(): Settings {
       homeView: 'info',
       fileBrowserViewMode: 'grid',
       fileBrowserTab: 'context',
+      notificationsEnabled: true,
       ...JSON.parse(raw) as Partial<Settings>
     };
   } catch { /* ignore */ }
@@ -44,6 +47,7 @@ function loadSettings(): Settings {
     homeView: 'info',
     fileBrowserViewMode: 'grid',
     fileBrowserTab: 'context',
+    notificationsEnabled: true,
   };
 }
 
@@ -55,6 +59,7 @@ const SettingsContext = createContext<SettingsContextValue>({
   homeView: 'info',
   fileBrowserViewMode: 'grid',
   fileBrowserTab: 'context',
+  notificationsEnabled: true,
   setShowImagesInline: () => {},
   setBubbleView: () => {},
   setOwnBubbleColor: () => {},
@@ -62,6 +67,7 @@ const SettingsContext = createContext<SettingsContextValue>({
   setHomeView: () => {},
   setFileBrowserViewMode: () => {},
   setFileBrowserTab: () => {},
+  setNotificationsEnabled: () => {},
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
@@ -85,6 +91,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setHomeView: (v) => update({ homeView: v }),
       setFileBrowserViewMode: (v) => update({ fileBrowserViewMode: v }),
       setFileBrowserTab: (v) => update({ fileBrowserTab: v }),
+      setNotificationsEnabled: (v) => update({ notificationsEnabled: v }),
     }}>
       {children}
     </SettingsContext.Provider>

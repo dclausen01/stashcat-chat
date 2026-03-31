@@ -98,7 +98,9 @@ src/
 │   ├── ThemeContext.tsx            # Dark/light toggle (class on <html>)
 │   └── SettingsContext.tsx         # UI settings (bubble view, inline images)
 ├── hooks/
-│   ├── useRealtimeEvents.ts        # SSE EventSource, dispatches events
+│   ├── useRealtimeEvents.ts        # SSE EventSource, dispatches events, reconnect detection
+│   ├── useNotifications.ts         # Browser Notification API (OS notifications)
+│   ├── useFaviconBadge.ts          # Canvas-based red badge on favicon
 │   └── useFileSorting.ts           # File browser sorting logic (name, date, size)
 └── utils/
     └── fileIcon.ts                 # Extension/MIME → icon name
@@ -244,9 +246,20 @@ Two layers:
 1. **Socket.io** (`RealtimeManager` from `stashcat-api`): connects to `push.stashcat.com` per session after login. Receives `message_sync` and `user-started-typing` events.
 2. **SSE** (`/api/events`): the browser subscribes via `EventSource`. The server's `pushSSE()` helper fans out Socket.io events to all connected SSE clients for that session.
 
-`useRealtimeEvents.ts` opens the `EventSource` and emits custom DOM events or calls callbacks that components subscribe to.
+`useRealtimeEvents.ts` opens the `EventSource` and dispatches events to registered handler callbacks. It detects SSE reconnections (via `onopen` after `onerror`) and dispatches a synthetic `reconnect` event, allowing consumers (Sidebar, ChatView) to re-fetch missed data automatically.
 
 E2E-encrypted `message_sync` events are decrypted by the server (using `getConversationAesKey()` or `getChannelAesKey()`) before being pushed over SSE.
+
+### Browser OS Notifications
+
+The app uses the browser Notification API (not push/service worker) to show OS-level notifications when new messages arrive while the tab is in the background:
+
+- **Hook**: `useNotifications.ts` encapsulates permission management and `notify()` logic.
+- **Permission**: Requested lazily on first `message_sync` event (not on app load) for better UX.
+- **Display rules**: Only shown when `document.hidden === true`, `notificationsEnabled` setting is on, and permission is `'granted'`.
+- **Tag**: Uses `tag: 'stashcat-msg'` so rapid messages replace each other instead of stacking.
+- **Settings toggle**: "Desktop-Benachrichtigungen" in SettingsPanel, persisted in localStorage.
+- **Favicon badge**: `useFaviconBadge.ts` draws a red dot with unread count on the favicon via Canvas overlay (independent of OS notifications).
 
 ### Video Meetings (Jitsi via Chat Bot)
 
