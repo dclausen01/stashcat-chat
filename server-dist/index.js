@@ -568,6 +568,16 @@ app.get('/api/conversations', async (req, res) => {
         res.status(500).json({ error: errorMessage(err) });
     }
 });
+app.get('/api/conversations/:id', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const conv = await client.getConversation(req.params.id);
+        res.json(conv);
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
 // ── Messages ──────────────────────────────────────────────────────────────────
 // ── Specific message routes MUST come before the generic :type/:targetId routes ──
 app.post('/api/messages/:messageId/like', async (req, res) => {
