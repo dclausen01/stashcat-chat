@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { BarChart3, Plus, Trash2, Archive, RefreshCw, Loader2, ChevronRight, ChevronLeft, Check, PieChart, ChevronDown } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
@@ -40,6 +41,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
   const [allSubmitted, setAllSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [openVoterDropdown, setOpenVoterDropdown] = useState<string | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,6 +54,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
     const handleClick = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpenVoterDropdown(null);
+        setDropdownPos(null);
       }
     };
     document.addEventListener('mousedown', handleClick);
@@ -186,12 +189,22 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
                         </div>
                         <span className="flex-1 text-sm text-surface-800 dark:text-surface-200">{a.answer_text}</span>
                         {showResults && (
-                          <div className="relative flex items-center gap-2" ref={openVoterDropdown === a.id ? dropdownRef : undefined}>
+                          <div className="relative flex items-center gap-2">
                             <span className="text-lg font-bold text-primary-600 dark:text-primary-400">{pct}%</span>
                             {canSeeVoters && (a.users?.length ?? 0) > 0 ? (
                               <button
                                 type="button"
-                                onClick={(e) => { e.stopPropagation(); setOpenVoterDropdown(openVoterDropdown === a.id ? null : a.id); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (openVoterDropdown === a.id) {
+                                    setOpenVoterDropdown(null);
+                                    setDropdownPos(null);
+                                  } else {
+                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                    setDropdownPos({ top: rect.bottom + 4, left: rect.right });
+                                    setOpenVoterDropdown(a.id);
+                                  }
+                                }}
                                 className="flex items-center gap-0.5 rounded-full bg-surface-200 px-2 py-0.5 text-xs font-semibold text-surface-600 transition hover:bg-primary-100 hover:text-primary-700 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-primary-900/30 dark:hover:text-primary-300"
                               >
                                 {a.votes ?? 0} Stimme{(a.votes ?? 0) !== 1 ? 'n' : ''}
@@ -201,18 +214,6 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
                               <span className="rounded-full bg-surface-200 px-2 py-0.5 text-xs font-semibold text-surface-600 dark:bg-surface-700 dark:text-surface-400">
                                 {a.votes ?? 0} Stimme{(a.votes ?? 0) !== 1 ? 'n' : ''}
                               </span>
-                            )}
-                            {openVoterDropdown === a.id && a.users && a.users.length > 0 && (
-                              <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-lg border border-surface-200 bg-white py-1.5 shadow-lg dark:border-surface-600 dark:bg-surface-800">
-                                {a.users.map((u) => (
-                                  <div key={u.id} className="flex items-center gap-2 px-3 py-1.5">
-                                    <Avatar name={`${u.first_name ?? ''} ${u.last_name ?? ''}`.trim()} image={u.image} size="xs" />
-                                    <span className="truncate text-xs text-surface-700 dark:text-surface-300">
-                                      {u.first_name} {u.last_name}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
                             )}
                           </div>
                         )}
@@ -252,6 +253,28 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
           </button>
         </div>
       )}
+      {/* Voter dropdown rendered via portal to escape overflow containers */}
+      {openVoterDropdown && dropdownPos && (() => {
+        const openAnswer = (d.questions ?? []).flatMap((q) => q.answers ?? []).find((a) => a.id === openVoterDropdown);
+        if (!openAnswer?.users?.length) return null;
+        return createPortal(
+          <div
+            ref={dropdownRef}
+            className="fixed z-[9999] w-56 rounded-lg border border-surface-200 bg-white py-1.5 shadow-lg dark:border-surface-600 dark:bg-surface-800"
+            style={{ top: dropdownPos.top, left: dropdownPos.left - 224 }}
+          >
+            {openAnswer.users.map((u) => (
+              <div key={u.id} className="flex items-center gap-2 px-3 py-1.5">
+                <Avatar name={`${u.first_name ?? ''} ${u.last_name ?? ''}`.trim()} image={u.image} size="xs" />
+                <span className="truncate text-xs text-surface-700 dark:text-surface-300">
+                  {u.first_name} {u.last_name}
+                </span>
+              </div>
+            ))}
+          </div>,
+          document.body,
+        );
+      })()}
     </div>
   );
 }
