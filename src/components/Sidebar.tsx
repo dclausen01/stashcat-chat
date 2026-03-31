@@ -4,6 +4,7 @@ import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import { useFaviconBadge } from '../hooks/useFaviconBadge';
+import { useNotifications } from '../hooks/useNotifications';
 import ChatItem from './ChatItem';
 import SidebarHeader from './SidebarHeader';
 import SidebarFooter from './SidebarFooter';
@@ -42,6 +43,7 @@ interface SidebarProps {
 
 export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, onOpenSettings, onOpenProfile, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen, onChannelsLoaded }: SidebarProps) {
   const { user } = useAuth();
+  const { notify, requestPermission } = useNotifications();
   const [channels, setChannels] = useState<ChatTarget[]>([]);
   const [conversations, setConversations] = useState<ChatTarget[]>([]);
   const [search, setSearch] = useState('');
@@ -153,6 +155,9 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       const convId = payload.conversation_id && payload.conversation_id !== 0 ? String(payload.conversation_id) : null;
       const active = activeChatRef.current;
 
+      // Request notification permission on first message (better UX than on app load)
+      requestPermission();
+
       if (channelId) {
         const isActive = active?.type === 'channel' && active.id === channelId;
         setChannels((prev) => sortChats(prev.map((ch) =>
@@ -168,6 +173,22 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
             : conv
         )));
       }
+
+      // OS notification for messages from other users when tab is in background
+      const sender = payload.sender as Record<string, unknown> | undefined;
+      const senderId = sender?.id ? String(sender.id) : '';
+      if (senderId && senderId !== String(user?.id ?? '')) {
+        const senderName = `${sender?.first_name ?? ''} ${sender?.last_name ?? ''}`.trim() || 'Neue Nachricht';
+        const text = payload.text ? String(payload.text) : '';
+        const preview = text
+          ? (text.length > 80 ? text.slice(0, 80) + '…' : text)
+          : 'Datei gesendet';
+        notify(senderName, preview);
+      }
+    },
+    reconnect: () => {
+      // Re-fetch all sidebar data after SSE reconnection to sync missed unread counts
+      loadData();
     },
   }, loggedIn);
 
