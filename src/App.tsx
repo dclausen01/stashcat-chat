@@ -130,6 +130,7 @@ export default function App() {
                 fileBrowserOpen={fileBrowserOpen}
                 onOpenPolls={openPolls}
                 onOpenPoll={openPoll}
+                onOpenCalendar={openCalendar}
               />
             : homeView === 'cards'
               ? <FavoriteCardsView channels={channels} onSelectChat={handleSelectChat} />

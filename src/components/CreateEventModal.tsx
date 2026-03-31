@@ -189,6 +189,7 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
         repeat,
         invite_user_ids: category === 'personal' ? inviteUserIds : [],
         invite_channel_ids: category === 'channel' ? inviteChannelIds.slice(1) : [],
+        ...(preselectedChat && !isEdit ? { notify_chat_id: preselectedChat.id, notify_chat_type: preselectedChat.type } : {}),
       };
 
       if (isEdit && editingEvent) {
