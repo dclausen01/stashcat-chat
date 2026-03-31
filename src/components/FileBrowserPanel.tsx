@@ -53,6 +53,17 @@ function formatDate(ts?: string): string {
   return new Date(n * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
+/** Extensible check: can the file be previewed inline? Add new formats here. */
+function canPreview(f: FileEntry): boolean {
+  if (f.mime?.startsWith('image/')) return true;
+  if (f.mime === 'application/pdf' || f.ext?.toLowerCase() === 'pdf') return true;
+  // Text / code files viewable in iframe
+  if (f.mime?.startsWith('text/')) return true;
+  // Audio / video playable in browser
+  if (f.mime?.startsWith('audio/') || f.mime?.startsWith('video/')) return true;
+  return false;
+}
+
 const SHARED_PROPS = 'onFolderClick onImageClick onPdfClick onRename onDelete renamingId renameValue setRenameValue commitRename';
 void SHARED_PROPS; // suppress unused warning — just for docs
 
@@ -60,6 +71,7 @@ interface ViewProps {
   folders: FolderEntry[];
   files: FileEntry[];
   onFolderClick: (f: FolderEntry) => void;
+  onFileOpen: (f: FileEntry) => void;
   onImageClick: (url: string) => void;
   onPdfClick: (fileId: string, viewUrl: string, name: string) => void;
   onRename: (f: FileEntry) => void;
@@ -84,7 +96,7 @@ interface ViewProps {
 
 // ── Grid view ─────────────────────────────────────────────────────────────────
 
-function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, selectedIds, onToggleSelect }: ViewProps) {
+function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, selectedIds, onToggleSelect }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   return (
     <div className="grid grid-cols-3 gap-2 p-3">
@@ -138,10 +150,10 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
       ))}
       {files.map((f) => {
         const isImage = f.mime?.startsWith('image/');
-        const isPdf = f.mime === 'application/pdf' || f.ext?.toLowerCase() === 'pdf';
         const downloadUrl = api.fileDownloadUrl(f.id, f.name);
         const viewUrl = api.fileViewUrl(f.id, f.name);
         const isRenaming = renamingId === f.id;
+        const previewable = canPreview(f);
 
         return (
           <div
@@ -149,9 +161,13 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
             draggable
             onDragStart={(e) => { e.dataTransfer.setData('text/file-id', f.id); onDragFileStart?.(f.id); }}
             onDragEnd={() => onDragFileEnd?.()}
-            onClick={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); onToggleSelect(f.id); } }}
+            onClick={(e) => {
+              if (e.ctrlKey || e.metaKey) { e.preventDefault(); onToggleSelect(f.id); }
+              else if (previewable) onFileOpen(f);
+            }}
             className={clsx(
-              'group relative flex flex-col items-center gap-1.5 rounded-xl p-2 hover:bg-surface-200 dark:hover:bg-surface-800 cursor-grab active:cursor-grabbing',
+              'group relative flex flex-col items-center gap-1.5 rounded-xl p-2 hover:bg-surface-200 dark:hover:bg-surface-800',
+              previewable ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
               selectedIds.has(f.id) && 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20',
             )}
           >
@@ -169,10 +185,8 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               {selectedIds.has(f.id) ? <Check size={12} /> : <Square size={12} />}
             </button>
             {/* Thumbnail or icon */}
-            <button
+            <div
               className="relative h-14 w-full overflow-hidden rounded-lg"
-              onClick={() => isImage ? onImageClick(viewUrl) : isPdf ? onPdfClick(f.id, viewUrl, f.name) : undefined}
-              title={isImage ? 'Vergrößern' : isPdf ? 'Vorschau' : f.name}
             >
               {isImage ? (
                 <img
@@ -212,7 +226,7 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
                   <Trash2 size={13} />
                 </button>
               </div>
-            </button>
+            </div>
 
             {/* Filename or rename input */}
             {isRenaming ? (
@@ -247,7 +261,7 @@ function GridView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
 
 // ── List view ─────────────────────────────────────────────────────────────────
 
-function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort, selectedIds, onToggleSelect, onSelectAll }: ViewProps) {
+function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort, selectedIds, onToggleSelect, onSelectAll }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   function SortHeader({ field, label, className = '' }: { field: SortField; label: string; className?: string }) {
@@ -359,10 +373,10 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
         ))}
         {files.map((f) => {
           const isImage = f.mime?.startsWith('image/');
-          const isPdf = f.mime === 'application/pdf' || f.ext?.toLowerCase() === 'pdf';
           const downloadUrl = api.fileDownloadUrl(f.id, f.name);
           const viewUrl = api.fileViewUrl(f.id, f.name);
           const isRenaming = renamingId === f.id;
+          const previewable = canPreview(f);
 
           return (
             <div
@@ -370,9 +384,13 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               draggable
               onDragStart={(e) => { e.dataTransfer.setData('text/file-id', f.id); onDragFileStart?.(f.id); }}
               onDragEnd={() => onDragFileEnd?.()}
-              onClick={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); onToggleSelect(f.id); } }}
+              onClick={(e) => {
+                if (e.ctrlKey || e.metaKey) { e.preventDefault(); onToggleSelect(f.id); }
+                else if (previewable) onFileOpen(f);
+              }}
               className={clsx(
-                'group flex items-center px-3 py-2 hover:bg-surface-50 dark:hover:bg-surface-800/50 cursor-grab active:cursor-grabbing',
+                'group flex items-center px-3 py-2 hover:bg-surface-50 dark:hover:bg-surface-800/50',
+                previewable ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
                 selectedIds.has(f.id) && 'bg-primary-50 dark:bg-primary-900/10 ring-2 ring-primary-500',
               )}
             >
@@ -392,16 +410,11 @@ function ListView({ folders, files, onFolderClick, onImageClick, onPdfClick, onR
               </div>
               {/* Icon / thumbnail */}
               <div className="w-10 shrink-0 flex justify-center">
-                <button
-                  onClick={() => isImage ? onImageClick(viewUrl) : isPdf ? onPdfClick(f.id, viewUrl, f.name) : undefined}
-                  title={isImage ? 'Vergrößern' : isPdf ? 'Vorschau' : undefined}
-                >
-                  {isImage ? (
-                    <img src={viewUrl} alt={f.name} className="h-9 w-9 rounded object-cover" loading="lazy" />
-                  ) : (
-                    <span className="text-xl">{fileIcon(f.mime, f.ext)}</span>
-                  )}
-                </button>
+                {isImage ? (
+                  <img src={viewUrl} alt={f.name} className="h-9 w-9 rounded object-cover" loading="lazy" />
+                ) : (
+                  <span className="text-xl">{fileIcon(f.mime, f.ext)}</span>
+                )}
               </div>
 
               {/* Name */}
@@ -903,10 +916,24 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     ? chat.type === 'channel' ? 'Channel-Dateien' : 'Konversation'
     : null;
 
+  /** Open a file preview: images → lightbox, PDF → iframe modal, others → new tab */
+  const handleFileOpen = useCallback((f: FileEntry) => {
+    const viewUrl = api.fileViewUrl(f.id, f.name);
+    if (f.mime?.startsWith('image/')) {
+      setLightboxUrl(viewUrl);
+    } else if (f.mime === 'application/pdf' || f.ext?.toLowerCase() === 'pdf') {
+      setPdfView({ fileId: f.id, viewUrl, name: f.name });
+    } else {
+      // All other previewable types: open in new tab
+      window.open(viewUrl, '_blank', 'noopener');
+    }
+  }, []);
+
   const viewProps: ViewProps = {
     folders: sortedFolders,
     files: sortedFiles,
     onFolderClick: navigateInto,
+    onFileOpen: handleFileOpen,
     onImageClick: setLightboxUrl,
     onPdfClick: (fid, vurl, name) => setPdfView({ fileId: fid, viewUrl: vurl, name }),
     onRename: startRename,
