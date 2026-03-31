@@ -15,6 +15,7 @@ import ChannelDropdownMenu from './ChannelDropdownMenu';
 import LinkPreviewCard from './LinkPreviewCard';
 import ChannelDescriptionEditor from './ChannelDescriptionEditor';
 import CreatePollModal from './CreatePollModal';
+import CreateEventModal from './CreateEventModal';
 import type { ChatTarget, Message } from '../types';
 
 interface ChatViewProps {
@@ -91,6 +92,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const [meetingLoading, setMeetingLoading] = useState(false);
   const [showPollModal, setShowPollModal] = useState(false);
+  const [showEventModal, setShowEventModal] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -788,12 +790,20 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         </div>
       )}
 
-      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} />
+      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} />
       {showPollModal && (
         <CreatePollModal
           preselectedChat={chat}
           onClose={() => setShowPollModal(false)}
           onCreated={() => setShowPollModal(false)}
+        />
+      )}
+      {showEventModal && (
+        <CreateEventModal
+          initialDate={null}
+          preselectedChat={chat}
+          onClose={() => setShowEventModal(false)}
+          onCreated={() => setShowEventModal(false)}
         />
       )}
       </div>{/* end main chat area */}

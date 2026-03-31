@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, type KeyboardEvent } from 'react';
-import { Send, Paperclip, Bold, Italic, Strikethrough, Code, List, Heading2, X, Loader2, Reply, BarChart3 } from 'lucide-react';
+import { Send, Paperclip, Bold, Italic, Strikethrough, Code, List, Heading2, X, Loader2, Reply, BarChart3, CalendarPlus } from 'lucide-react';
 import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react';
 import { clsx } from 'clsx';
 import { useTheme } from '../context/ThemeContext';
@@ -18,6 +18,7 @@ interface MessageInputProps {
   replyTo?: ReplyTarget | null;
   onCancelReply?: () => void;
   onCreatePoll?: () => void;
+  onCreateEvent?: () => void;
 }
 
 interface FormatButton {
@@ -52,7 +53,7 @@ const FORMAT_BUTTONS: FormatButton[] = [
   { icon: <List size={15} />, label: 'Liste', action: linePrefix('- ', 'Listenpunkt') },
 ];
 
-export default function MessageInput({ onSend, onUpload, onTyping, chatName, replyTo, onCancelReply, onCreatePoll }: MessageInputProps) {
+export default function MessageInput({ onSend, onUpload, onTyping, chatName, replyTo, onCancelReply, onCreatePoll, onCreateEvent }: MessageInputProps) {
   const { theme } = useTheme();
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -283,6 +284,16 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
                 >
                   <BarChart3 size={15} className="text-primary-500" />
                   Umfrage erstellen
+                </button>
+              )}
+              {onCreateEvent && (
+                <button
+                  type="button"
+                  onClick={() => { setShowAttachMenu(false); onCreateEvent(); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
+                >
+                  <CalendarPlus size={15} className="text-green-500" />
+                  Neuer Termin
                 </button>
               )}
             </div>
