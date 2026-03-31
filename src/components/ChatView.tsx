@@ -397,7 +397,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     <div className="flex h-full flex-1 overflow-hidden">
       {/* Main chat area */}
       <div
-        className="relative flex min-w-0 flex-1 flex-col bg-white dark:bg-surface-950"
+        className="relative flex min-w-0 flex-1 flex-col bg-stone-50 dark:bg-surface-950"
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={(e) => { if (e.currentTarget.contains(e.relatedTarget as Node)) return; setDragOver(false); }}
         onDrop={async (e) => {
