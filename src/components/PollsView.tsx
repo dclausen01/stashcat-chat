@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
-import { BarChart3, Plus, Trash2, Archive, RefreshCw, Loader2, ChevronRight, ChevronLeft, Check, PieChart } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { BarChart3, Plus, Trash2, Archive, RefreshCw, Loader2, ChevronRight, ChevronLeft, Check, PieChart, ChevronDown } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { Poll, PollQuestion } from '../api';
+import { useAuth } from '../context/AuthContext';
+import Avatar from './Avatar';
 import CreatePollModal from './CreatePollModal';
 
 type Tab = 'mine' | 'invited' | 'archived';
@@ -29,6 +31,7 @@ function isActive(poll: Poll): boolean {
 // ── Detail / Vote view ──────────────────────────────────────────────────────
 
 function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; companyId: string; onBack: () => void; onRefresh: () => void }) {
+  const { user } = useAuth();
   const [detail, setDetail] = useState<Poll | null>(null);
   const [loading, setLoading] = useState(true);
   // questionId → set of chosen answerIds
@@ -36,10 +39,24 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
   const [submitting, setSubmitting] = useState<boolean>(false); // submitting in progress
   const [allSubmitted, setAllSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const [openVoterDropdown, setOpenVoterDropdown] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.getPoll(poll.id, companyId).then((d) => { setDetail(d); setLoading(false); }).catch(() => setLoading(false));
   }, [poll.id, companyId]);
+
+  // Close voter dropdown on click outside
+  useEffect(() => {
+    if (!openVoterDropdown) return;
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpenVoterDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [openVoterDropdown]);
 
   function toggleAnswer(q: PollQuestion, answerId: string) {
     setSelections((prev) => {
@@ -85,6 +102,9 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
   );
 
   const d = detail ?? poll;
+  const userId = user?.id ?? '';
+  const isCreator = String(d.creator?.id ?? '') === userId;
+  const canSeeVoters = d.privacy_type === 'open' || (d.privacy_type === 'hidden' && isCreator);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -119,7 +139,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
           const alreadyVoted = (q.user_answers?.length ?? 0) > 0 || allSubmitted;
           const chosen = selections[q.id] ?? new Set<string>();
           const totalVotes = (q.answers ?? []).reduce((s, a) => s + (a.votes ?? 0), 0);
-          const showResults = alreadyVoted || !active || d.hidden_results === false;
+          const showResults = alreadyVoted || !active || d.hidden_results === false || isCreator;
 
           return (
             <div key={q.id} className="rounded-2xl border border-surface-200 bg-surface-50 p-5 dark:border-surface-700 dark:bg-surface-800">
@@ -166,11 +186,34 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
                         </div>
                         <span className="flex-1 text-sm text-surface-800 dark:text-surface-200">{a.answer_text}</span>
                         {showResults && (
-                          <div className="flex items-center gap-2">
+                          <div className="relative flex items-center gap-2" ref={openVoterDropdown === a.id ? dropdownRef : undefined}>
                             <span className="text-lg font-bold text-primary-600 dark:text-primary-400">{pct}%</span>
-                            <span className="rounded-full bg-surface-200 px-2 py-0.5 text-xs font-semibold text-surface-600 dark:bg-surface-700 dark:text-surface-400">
-                              {a.votes ?? 0} Stimme{(a.votes ?? 0) !== 1 ? 'n' : ''}
-                            </span>
+                            {canSeeVoters && (a.users?.length ?? 0) > 0 ? (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setOpenVoterDropdown(openVoterDropdown === a.id ? null : a.id); }}
+                                className="flex items-center gap-0.5 rounded-full bg-surface-200 px-2 py-0.5 text-xs font-semibold text-surface-600 transition hover:bg-primary-100 hover:text-primary-700 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-primary-900/30 dark:hover:text-primary-300"
+                              >
+                                {a.votes ?? 0} Stimme{(a.votes ?? 0) !== 1 ? 'n' : ''}
+                                <ChevronDown size={11} className={clsx('transition-transform', openVoterDropdown === a.id && 'rotate-180')} />
+                              </button>
+                            ) : (
+                              <span className="rounded-full bg-surface-200 px-2 py-0.5 text-xs font-semibold text-surface-600 dark:bg-surface-700 dark:text-surface-400">
+                                {a.votes ?? 0} Stimme{(a.votes ?? 0) !== 1 ? 'n' : ''}
+                              </span>
+                            )}
+                            {openVoterDropdown === a.id && a.users && a.users.length > 0 && (
+                              <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border border-surface-200 bg-white py-1.5 shadow-lg dark:border-surface-600 dark:bg-surface-800">
+                                {a.users.map((u) => (
+                                  <div key={u.id} className="flex items-center gap-2 px-3 py-1.5">
+                                    <Avatar name={`${u.first_name ?? ''} ${u.last_name ?? ''}`.trim()} image={u.image} size="xs" />
+                                    <span className="truncate text-xs text-surface-700 dark:text-surface-300">
+                                      {u.first_name} {u.last_name}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

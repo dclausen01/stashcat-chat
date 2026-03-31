@@ -519,11 +519,19 @@ export async function deleteNotification(notificationId: string) {
 
 // --- Polls (Umfragen) ---
 
+export interface PollUser {
+  id: string;
+  first_name?: string;
+  last_name?: string;
+  image?: string;
+}
+
 export interface PollAnswer {
   id: string;
   answer_text: string;
   position?: number;
   votes?: number;
+  users?: PollUser[];
 }
 
 export interface PollQuestion {
