@@ -124,10 +124,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
   const userId = user?.id ?? '';
 
-  // Search: IDs of messages matching the query
-  const searchSource = dateSearchMode && dateSearchResults ? dateSearchResults : messages;
+  // Search: IDs of messages matching the query (always search in currently displayed messages)
   const searchMatches: string[] = searchQuery.trim().length >= 2
-    ? searchSource
+    ? messages
         .filter((m) => m.text?.toLowerCase().includes(searchQuery.toLowerCase()))
         .map((m) => String(m.id))
     : [];
@@ -662,19 +661,20 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               onKeyDown={(e) => {
                 if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); setDateSearchMode(false); setDateSearchResults(null); }
                 if (e.key === 'Enter' && !dateSearchMode) setSearchMatchIdx((i) => i + (e.shiftKey ? -1 : 1));
-                if (e.key === 'Enter' && dateSearchMode && dateStart && dateEnd) runDateSearch();
+                if (e.key === 'Enter' && dateSearchMode && !e.shiftKey && dateStart && dateEnd) runDateSearch();
+                if (e.key === 'Enter' && dateSearchMode && searchMatches.length > 0) setSearchMatchIdx((i) => i + (e.shiftKey ? -1 : 1));
               }}
               placeholder={dateSearchMode ? 'Textfilter (optional)…' : 'In Nachrichten suchen…'}
               className="min-w-0 flex-1 bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:text-white"
             />
-            {!dateSearchMode && searchQuery.trim().length >= 2 && (
+            {searchQuery.trim().length >= 2 && (
               <span className="shrink-0 text-xs text-surface-600">
                 {searchMatches.length === 0
-                  ? hasMore ? 'Keine Treffer (in geladenen Nachrichten)' : 'Keine Treffer'
-                  : `${((searchMatchIdx % searchMatches.length) + searchMatches.length) % searchMatches.length + 1} / ${searchMatches.length}${hasMore ? ' (in geladenen Nachrichten)' : ''}`}
+                  ? viewingDateResults ? 'Keine Treffer' : hasMore ? 'Keine Treffer (in geladenen Nachrichten)' : 'Keine Treffer'
+                  : `${((searchMatchIdx % searchMatches.length) + searchMatches.length) % searchMatches.length + 1} / ${searchMatches.length}${!viewingDateResults && hasMore ? ' (in geladenen Nachrichten)' : ''}`}
               </span>
             )}
-            {!dateSearchMode && searchMatches.length > 0 && (
+            {searchMatches.length > 0 && (
               <>
                 <button onClick={() => setSearchMatchIdx((i) => i - 1)} className="rounded p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700" title="Vorheriger Treffer (Shift+Enter)">
                   <ArrowDown size={14} className="rotate-180" />
