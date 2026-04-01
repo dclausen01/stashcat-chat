@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Video } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Video, CalendarDays, ArrowLeft } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -106,6 +106,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [searchMatchIdx, setSearchMatchIdx] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchMatchRefs = useRef<(HTMLDivElement | null)[]>([]);
+  // Date-range search state
+  const [dateSearchMode, setDateSearchMode] = useState(false);
+  const [dateStart, setDateStart] = useState('');
+  const [dateEnd, setDateEnd] = useState('');
+  const [dateSearchResults, setDateSearchResults] = useState<Message[] | null>(null);
+  const [dateSearchLoading, setDateSearchLoading] = useState(false);
+  const [viewingDateResults, setViewingDateResults] = useState(false);
+  const savedMessagesRef = useRef<{ messages: Message[]; hasMore: boolean; offset: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef(chat);
@@ -117,8 +125,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const userId = user?.id ?? '';
 
   // Search: IDs of messages matching the query
+  const searchSource = dateSearchMode && dateSearchResults ? dateSearchResults : messages;
   const searchMatches: string[] = searchQuery.trim().length >= 2
-    ? messages
+    ? searchSource
         .filter((m) => m.text?.toLowerCase().includes(searchQuery.toLowerCase()))
         .map((m) => String(m.id))
     : [];
@@ -132,7 +141,12 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
   // Reset match index when query changes or chat switches
   useEffect(() => { setSearchMatchIdx(0); }, [searchQuery, chat.id]);
-  useEffect(() => { setSearchOpen(false); setSearchQuery(''); }, [chat.id]);
+  useEffect(() => {
+    setSearchOpen(false); setSearchQuery('');
+    setDateSearchMode(false); setDateStart(''); setDateEnd('');
+    setDateSearchResults(null); setViewingDateResults(false);
+    savedMessagesRef.current = null;
+  }, [chat.id]);
 
   // Focus search input when opened
   useEffect(() => {
@@ -216,6 +230,61 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       setLoadingMore(false);
     }
   }, [chat.id, chat.type]);
+
+  // Date-range search: call server endpoint
+  const runDateSearch = useCallback(async () => {
+    if (!dateStart || !dateEnd) return;
+    setDateSearchLoading(true);
+    setDateSearchResults(null);
+    try {
+      const startTs = Math.floor(new Date(dateStart).getTime() / 1000);
+      const endTs = Math.floor(new Date(dateEnd + 'T23:59:59').getTime() / 1000);
+      const res = await api.searchMessages(chat.id, chat.type, startTs, endTs, searchQuery || undefined);
+      setDateSearchResults(res.messages as unknown as Message[]);
+    } catch (err) {
+      console.error('Date search failed:', err);
+      setDateSearchResults([]);
+    } finally {
+      setDateSearchLoading(false);
+    }
+  }, [chat.id, chat.type, dateStart, dateEnd, searchQuery]);
+
+  // Jump to a date-search result: replace messages with search results
+  const jumpToDateResult = useCallback((msgId: string) => {
+    if (!dateSearchResults) return;
+    // Save current state so we can restore later
+    if (!savedMessagesRef.current) {
+      savedMessagesRef.current = {
+        messages: [...messages],
+        hasMore,
+        offset: paginationOffsetRef.current,
+      };
+    }
+    setMessages(dateSearchResults);
+    setHasMore(false);
+    hasMoreRef.current = false;
+    setViewingDateResults(true);
+    // Scroll to the clicked message after render
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`msg-${msgId}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }, [dateSearchResults, messages, hasMore]);
+
+  // Restore normal message view
+  const restoreMessages = useCallback(() => {
+    if (savedMessagesRef.current) {
+      setMessages(savedMessagesRef.current.messages);
+      setHasMore(savedMessagesRef.current.hasMore);
+      hasMoreRef.current = savedMessagesRef.current.hasMore;
+      paginationOffsetRef.current = savedMessagesRef.current.offset;
+      savedMessagesRef.current = null;
+    } else {
+      loadMessages();
+    }
+    setViewingDateResults(false);
+    setDateSearchResults(null);
+  }, [loadMessages]);
 
   // Check manager status when entering a channel
   // The API returns { id, manager: boolean } — not { user_id, role }
@@ -581,39 +650,132 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
       {/* In-chat search bar */}
       {searchOpen && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-surface-200 bg-surface-50 px-4 py-2 dark:border-surface-700 dark:bg-surface-900/50">
-          <Search size={15} className="shrink-0 text-surface-600" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); }
-              if (e.key === 'Enter') setSearchMatchIdx((i) => i + (e.shiftKey ? -1 : 1));
-            }}
-            placeholder="In Nachrichten suchen…"
-            className="min-w-0 flex-1 bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:text-white"
-          />
-          {searchQuery.trim().length >= 2 && (
-            <span className="shrink-0 text-xs text-surface-600">
-              {searchMatches.length === 0
-                ? hasMore ? 'Keine Treffer (in geladenen Nachrichten)' : 'Keine Treffer'
-                : `${((searchMatchIdx % searchMatches.length) + searchMatches.length) % searchMatches.length + 1} / ${searchMatches.length}${hasMore ? ' (in geladenen Nachrichten)' : ''}`}
-            </span>
-          )}
-          {searchMatches.length > 0 && (
-            <>
-              <button onClick={() => setSearchMatchIdx((i) => i - 1)} className="rounded p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700" title="Vorheriger Treffer (Shift+Enter)">
-                <ArrowDown size={14} className="rotate-180" />
+        <div className="shrink-0 border-b border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900/50">
+          {/* Row 1: text search + date toggle */}
+          <div className="flex items-center gap-2 px-4 py-2">
+            <Search size={15} className="shrink-0 text-surface-600" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); setDateSearchMode(false); setDateSearchResults(null); }
+                if (e.key === 'Enter' && !dateSearchMode) setSearchMatchIdx((i) => i + (e.shiftKey ? -1 : 1));
+                if (e.key === 'Enter' && dateSearchMode && dateStart && dateEnd) runDateSearch();
+              }}
+              placeholder={dateSearchMode ? 'Textfilter (optional)…' : 'In Nachrichten suchen…'}
+              className="min-w-0 flex-1 bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:text-white"
+            />
+            {!dateSearchMode && searchQuery.trim().length >= 2 && (
+              <span className="shrink-0 text-xs text-surface-600">
+                {searchMatches.length === 0
+                  ? hasMore ? 'Keine Treffer (in geladenen Nachrichten)' : 'Keine Treffer'
+                  : `${((searchMatchIdx % searchMatches.length) + searchMatches.length) % searchMatches.length + 1} / ${searchMatches.length}${hasMore ? ' (in geladenen Nachrichten)' : ''}`}
+              </span>
+            )}
+            {!dateSearchMode && searchMatches.length > 0 && (
+              <>
+                <button onClick={() => setSearchMatchIdx((i) => i - 1)} className="rounded p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700" title="Vorheriger Treffer (Shift+Enter)">
+                  <ArrowDown size={14} className="rotate-180" />
+                </button>
+                <button onClick={() => setSearchMatchIdx((i) => i + 1)} className="rounded p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700" title="Nächster Treffer (Enter)">
+                  <ArrowDown size={14} />
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => { setDateSearchMode((m) => !m); setDateSearchResults(null); }}
+              className={clsx(
+                'rounded p-1 transition',
+                dateSearchMode
+                  ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+                  : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700',
+              )}
+              title="Datumsbereich-Suche"
+            >
+              <CalendarDays size={15} />
+            </button>
+            <button onClick={() => { setSearchOpen(false); setSearchQuery(''); setDateSearchMode(false); setDateSearchResults(null); }} className="rounded p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700">
+              <X size={15} />
+            </button>
+          </div>
+
+          {/* Row 2: date inputs (only when dateSearchMode) */}
+          {dateSearchMode && (
+            <div className="flex items-center gap-2 border-t border-surface-200 px-4 py-2 dark:border-surface-700">
+              <span className="text-xs text-surface-600">Von</span>
+              <input
+                type="date"
+                value={dateStart}
+                onChange={(e) => setDateStart(e.target.value)}
+                className="rounded border border-surface-300 bg-white px-2 py-1 text-xs text-surface-900 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
+              />
+              <span className="text-xs text-surface-600">Bis</span>
+              <input
+                type="date"
+                value={dateEnd}
+                onChange={(e) => setDateEnd(e.target.value)}
+                className="rounded border border-surface-300 bg-white px-2 py-1 text-xs text-surface-900 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
+              />
+              <button
+                onClick={runDateSearch}
+                disabled={!dateStart || !dateEnd || dateSearchLoading}
+                className="flex items-center gap-1 rounded bg-primary-500 px-3 py-1 text-xs font-medium text-white transition hover:bg-primary-600 disabled:opacity-50"
+              >
+                {dateSearchLoading ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
+                Suchen
               </button>
-              <button onClick={() => setSearchMatchIdx((i) => i + 1)} className="rounded p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700" title="Nächster Treffer (Enter)">
-                <ArrowDown size={14} />
-              </button>
-            </>
+              {dateSearchResults !== null && (
+                <span className="text-xs text-surface-600">
+                  {dateSearchResults.length === 0 ? 'Keine Treffer' : `${dateSearchResults.length} Treffer`}
+                </span>
+              )}
+            </div>
           )}
-          <button onClick={() => { setSearchOpen(false); setSearchQuery(''); }} className="rounded p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700">
-            <X size={15} />
+
+          {/* Row 3: date search results list */}
+          {dateSearchMode && dateSearchResults && dateSearchResults.length > 0 && (
+            <div className="max-h-48 overflow-y-auto border-t border-surface-200 dark:border-surface-700">
+              {dateSearchResults.map((msg) => {
+                const time = new Date((Number(msg.time) || 0) * 1000);
+                const sender = msg.sender
+                  ? `${msg.sender.first_name ?? ''} ${msg.sender.last_name ?? ''}`.trim()
+                  : '';
+                const preview = (msg.text ?? '').slice(0, 80) + ((msg.text ?? '').length > 80 ? '…' : '');
+                return (
+                  <button
+                    key={String(msg.id)}
+                    onClick={() => jumpToDateResult(String(msg.id))}
+                    className="flex w-full items-start gap-2 px-4 py-2 text-left text-xs transition hover:bg-surface-100 dark:hover:bg-surface-800"
+                  >
+                    <span className="shrink-0 font-medium text-surface-500">
+                      {time.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })} {time.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {sender && <span className="shrink-0 font-semibold text-surface-700 dark:text-surface-300">{sender}</span>}
+                    <span className="min-w-0 flex-1 truncate text-surface-600 dark:text-surface-400">{preview}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Date results banner */}
+      {viewingDateResults && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-primary-200 bg-primary-50 px-4 py-2 dark:border-primary-800 dark:bg-primary-950/30">
+          <CalendarDays size={14} className="text-primary-500" />
+          <span className="flex-1 text-xs text-primary-700 dark:text-primary-300">
+            Suchergebnisse{dateStart && dateEnd ? ` vom ${new Date(dateStart).toLocaleDateString('de-DE')} bis ${new Date(dateEnd).toLocaleDateString('de-DE')}` : ''}
+            {dateSearchResults ? ` (${dateSearchResults.length} Nachrichten)` : ''}
+          </span>
+          <button
+            onClick={restoreMessages}
+            className="flex items-center gap-1 rounded bg-primary-500 px-3 py-1 text-xs font-medium text-white transition hover:bg-primary-600"
+          >
+            <ArrowLeft size={12} />
+            Zurück zur aktuellen Ansicht
           </button>
         </div>
       )}
@@ -750,6 +912,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 elements.push(
                   <div
                     key={msg.id}
+                    id={`msg-${msg.id}`}
                     ref={globalMatchIdx >= 0 ? (el) => { searchMatchRefs.current[globalMatchIdx] = el; } : undefined}
                     className={clsx(globalMatchIdx >= 0 && 'ring-inset ring-2', isCurrentMatch ? 'ring-yellow-400 dark:ring-yellow-500' : globalMatchIdx >= 0 ? 'ring-yellow-200 dark:ring-yellow-800' : undefined)}
                   >
@@ -982,6 +1145,7 @@ function MessageGroup({
           return (
             <div
               key={msg.id}
+              id={`msg-${msg.id}`}
               ref={isBubbleMatch ? (el) => onMatchRef?.(String(msg.id), el) : undefined}
               className={clsx(
                 'group/msg relative flex flex-col gap-0.5 before:pointer-events-auto before:absolute before:-top-8 before:left-0 before:right-0 before:h-8',

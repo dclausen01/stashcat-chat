@@ -620,6 +620,67 @@ app.delete('/api/messages/:messageId', async (req, res) => {
         res.status(500).json({ error: errorMessage(err) });
     }
 });
+// ── Date-range message search (must be BEFORE generic :targetId route) ───────
+app.get('/api/messages/:type/:targetId/search', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { type, targetId } = req.params;
+        const chatType = type;
+        const startDate = Number(req.query.startDate) || 0;
+        const endDate = Number(req.query.endDate) || Math.floor(Date.now() / 1000);
+        const query = req.query.query || '';
+        const offset = Number(req.query.offset) || 0;
+        const limit = Number(req.query.limit) || 100;
+        // Direct call to Stashcat /search/messages endpoint
+        const searchParams = {
+            start_time: startDate,
+            end_time: endDate,
+            offset,
+            limit,
+        };
+        if (chatType === 'conversation')
+            searchParams.conversation_id = targetId;
+        else
+            searchParams.channel_id = targetId;
+        const data = client.api.createAuthenticatedRequestData(searchParams);
+        const result = await client.api.post('/search/messages', data);
+        let messages = result.messages || [];
+        // E2E decrypt each message
+        for (const msg of messages) {
+            if (msg.encrypted && msg.text && msg.iv) {
+                try {
+                    let aesKey;
+                    const channelId = msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null;
+                    const msgConvId = msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null;
+                    if (msgConvId) {
+                        aesKey = await client.getConversationAesKey(msgConvId);
+                    }
+                    else if (channelId) {
+                        aesKey = await client.getChannelAesKey(channelId);
+                    }
+                    if (aesKey) {
+                        const iv = stashcat_api_1.CryptoManager.hexToBuffer(String(msg.iv));
+                        msg.text = stashcat_api_1.CryptoManager.decrypt(String(msg.text), aesKey, iv);
+                    }
+                }
+                catch {
+                    // Leave text as-is if decryption fails
+                }
+            }
+        }
+        // Optional server-side text filter
+        if (query) {
+            const q = query.toLowerCase();
+            messages = messages.filter(m => typeof m.text === 'string' && m.text.toLowerCase().includes(q));
+        }
+        const sorted = [...messages].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
+        res.json({ messages: sorted, hasMore: messages.length >= limit });
+    }
+    catch (err) {
+        debugLog(`[searchMessages] ERROR: ${errorMessage(err)}`);
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
 // ── Generic message routes (must be AFTER specific ones) ─────────────────────
 app.get('/api/messages/:type/:targetId', async (req, res) => {
     const client = await getClient(req);
