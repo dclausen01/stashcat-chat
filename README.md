@@ -62,9 +62,29 @@ A React/TypeScript web chat client for Stashcat / schul.cloud, built for BBZ Ren
 - Download files
 - Rename files in place
 - Delete files
+- **Single-click file preview**: images open in lightbox, PDFs in iframe modal, text/audio/video in new tab (Ctrl+Click for multi-select)
 - Inline PDF viewer
 - Image lightbox
 - **Persistent view mode** (grid/list) and tab selection
+- **Persistent panel width** across sessions (stored in localStorage)
+
+### Polls
+- Create polls from the paperclip dropdown in any chat (channel or conversation)
+- Single-choice or multiple-choice questions
+- Privacy types: open (voter names visible to all), hidden (visible to creator only), anonymous
+- Intermediate results visible to poll creator during active polls
+- Voter dropdown with names and avatars (portal-based, escapes overflow containers)
+- Poll notification cards rendered inline in chat messages
+- Three tabs: My polls, Invited, Archived
+
+### Calendar
+- Month and week views with color-coded event sources
+- Create, edit, and delete events
+- RSVP (accept/decline) to event invitations
+- **Create events directly from chat** via the paperclip dropdown menu
+- Pre-selects current channel or conversation members as invitees
+- Event notification card rendered inline in chat after creation
+- Repeat events: daily, weekly, monthly, yearly
 
 ### Link Previews
 - Automatic Open Graph / meta-tag preview cards for URLs detected in messages (title, description, image, site name)
@@ -74,11 +94,19 @@ A React/TypeScript web chat client for Stashcat / schul.cloud, built for BBZ Ren
 - Socket.io connection (via `stashcat-api` `RealtimeManager`) bridges push events to SSE clients
 - Incoming E2E-encrypted real-time messages are decrypted server-side before delivery
 
+### Notifications
+- **OS browser notifications**: Notification API alerts when tab is in background (with settings toggle)
+- **Favicon badge**: Canvas-based red dot with unread count on the favicon
+- **Notification center**: Panel with recent notifications, links to polls and events
+- **SSE reconnect recovery**: Detects SSE disconnections and re-fetches missed messages/unread counts
+
 ### UI / UX
 - Dark and light mode with persistent preference (toggled via sidebar button)
-- Resizable sidebar (drag-to-resize handle)
+- Resizable sidebar with **persistent width** (saved in localStorage)
+- **Toggle panels**: Second click on any panel button closes it (Settings, FileBrowser, Calendar, Polls, etc.)
 - Bubble view (own messages right/blue, others left/gray) or text view (settings toggle)
 - Inline image display toggle (settings panel)
+- Home view: favorite channels as cards or empty state
 - Avatar images throughout (users, channels)
 - BBZ branding (logo, page title)
 - Login page with optional separate security password field
@@ -108,17 +136,17 @@ npm install && npm run build
 
 ```bash
 # 1. Install dependencies
-npm install
+yarn install
 
 # 2. Configure environment
 cp .env.example .env
 # Edit .env with your credentials (see Environment Variables below)
 
 # 3. Start development servers (frontend + backend concurrently)
-npm start
+yarn start
 ```
 
-`npm start` starts:
+`yarn start` starts:
 - Express backend on **port 3001** (`tsx server/index.ts`)
 - Vite dev server on **port 5173** with `/backend/api` proxied to port 3001
 
@@ -187,21 +215,35 @@ The Express backend acts as an authenticated API proxy:
 | `src/components/SidebarHeader.tsx`            | User avatar, name, action buttons (notifications, files, theme, settings)   |
 | `src/components/SidebarFooter.tsx`            | Footer toolbar: broadcasts, calendar, polls buttons                         |
 | `src/components/ChatItem.tsx`                 | Single chat list item (channel/conversation) with favorite star toggle      |
-| `src/components/ChatView.tsx`                 | Message list, message rendering, send bar, channel actions toolbar          |
-| `src/components/MessageInput.tsx`             | Compose bar: text input, emoji picker, file attachment button               |
-| `src/components/FileBrowserPanel.tsx`         | File browser: folder navigation, upload, download, rename, delete, lightbox |
+| `src/components/ChatView.tsx`                 | Message list, message rendering, send bar, channel actions toolbar, inline cards (poll/event/video) |
+| `src/components/MessageInput.tsx`             | Compose bar: text input, emoji picker, file/poll/event creation dropdown    |
+| `src/components/FileBrowserPanel.tsx`         | File browser: folder navigation, upload, download, rename, delete, preview, lightbox |
 | `src/components/ChannelMembersPanel.tsx`      | Member list, invite users, remove, promote/demote moderators                |
 | `src/components/ChannelDescriptionEditor.tsx` | Inline editor for channel description                                       |
 | `src/components/NewChannelModal.tsx`          | Create channel modal with all channel type and policy options               |
 | `src/components/NewChatModal.tsx`             | Start direct message: search company members, open conversation             |
+| `src/components/CreatePollModal.tsx`          | Create poll form with channel/conversation targeting                         |
+| `src/components/CreateEventModal.tsx`         | Create calendar event with preselected chat context                         |
+| `src/components/PollsView.tsx`               | Poll listing (my/invited/archived), detail view, voting, voter dropdown     |
+| `src/components/CalendarView.tsx`            | Calendar (month/week view), event detail, RSVP                              |
+| `src/components/BroadcastsPanel.tsx`         | Broadcast messages panel                                                    |
+| `src/components/NotificationsPanel.tsx`      | Notification center panel                                                   |
+| `src/components/FavoriteCardsView.tsx`       | Home view: favorite channels as cards                                       |
+| `src/components/ProfileModal.tsx`            | User profile modal                                                          |
+| `src/components/ChannelDiscoveryModal.tsx`   | Discover and join public channels                                           |
+| `src/components/ChannelDropdownMenu.tsx`     | Channel toolbar: info modal, markdown export, delete                        |
+| `src/components/FolderUploadProgress.tsx`    | Progress indicator for folder uploads                                       |
 | `src/components/LinkPreviewCard.tsx`          | OG/meta preview card rendered below URLs in messages                        |
 | `src/components/Avatar.tsx`                   | User/channel avatar with fallback initials                                  |
-| `src/components/SettingsPanel.tsx`            | User settings panel (view toggles)                                          |
+| `src/components/SettingsPanel.tsx`            | User settings panel (view toggles, notification settings)                   |
 | `src/components/EmptyState.tsx`               | Placeholder shown when no chat is selected                                  |
 | `src/context/AuthContext.tsx`                 | Authentication state, login/logout, current user                            |
 | `src/context/ThemeContext.tsx`                | Dark/light mode toggle, persists to localStorage                            |
-| `src/context/SettingsContext.tsx`             | User-facing settings state (bubble view, inline images)                     |
-| `src/hooks/useRealtimeEvents.ts`              | SSE EventSource connection, dispatches message_sync and typing events       |
+| `src/context/SettingsContext.tsx`             | User-facing settings state (bubble view, inline images, notifications)      |
+| `src/hooks/useRealtimeEvents.ts`              | SSE EventSource, dispatches events, reconnect detection                     |
+| `src/hooks/useNotifications.ts`               | Browser Notification API (OS notifications)                                 |
+| `src/hooks/useFaviconBadge.ts`                | Canvas-based red badge with unread count on favicon                         |
+| `src/hooks/useFileSorting.ts`                 | File browser sorting logic (name, date, size)                               |
 | `src/api.ts`                                  | All frontend-to-backend HTTP calls (fetch wrapper with Bearer auth)         |
 | `src/types.ts`                                | Shared TypeScript types (`ChatTarget`, etc.)                                |
 | `src/utils/fileIcon.ts`                       | Maps file extensions/MIME types to icon names                               |
