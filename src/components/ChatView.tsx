@@ -456,13 +456,13 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           <h2 className="truncate text-base font-semibold text-surface-900 dark:text-white">{chat.name}</h2>
           {chatDescription ? (
             <div className="flex items-center gap-1">
-              <p className="min-w-0 truncate text-xs text-surface-600 dark:text-surface-600">
+              <p className="min-w-0 truncate text-xs text-surface-600 dark:text-surface-400">
                 <LinkifiedText text={chatDescription} />
               </p>
               {isManager && chat.type === 'channel' && (
                 <button
                   onClick={() => setDescEditorOpen(true)}
-                  className="shrink-0 rounded p-0.5 text-surface-400 transition hover:bg-surface-200 hover:text-surface-600 dark:text-surface-600 dark:hover:bg-surface-800 dark:hover:text-surface-600"
+                  className="shrink-0 rounded p-0.5 text-surface-400 transition hover:bg-surface-200 hover:text-surface-600 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-600"
                   title="Beschreibung bearbeiten"
                 >
                   <Pencil size={11} />
@@ -634,7 +634,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           <div className="flex justify-center pb-3">
             <button
               onClick={loadOlder}
-              className="flex items-center gap-1.5 rounded-full border border-surface-200 bg-white px-4 py-1.5 text-xs font-medium text-surface-600 shadow-sm transition hover:border-primary-300 hover:text-primary-600 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-600 dark:hover:border-primary-600 dark:hover:text-primary-400"
+              className="flex items-center gap-1.5 rounded-full border border-surface-200 bg-white px-4 py-1.5 text-xs font-medium text-surface-600 shadow-sm transition hover:border-primary-300 hover:text-primary-600 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-400 dark:hover:border-primary-600 dark:hover:text-primary-400"
             >
               <ArrowDown size={12} className="rotate-180" />
               Ältere Nachrichten laden
@@ -656,7 +656,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             <p className="text-sm">Schreibe die erste Nachricht!</p>
           </div>
         ) : settings.bubbleView ? (
-          <div className="flex flex-col gap-7">
+          <div className="flex flex-col gap-8">
             {(() => {
               const currentNormalizedIdx = searchMatches.length > 0
                 ? ((searchMatchIdx % searchMatches.length) + searchMatches.length) % searchMatches.length
@@ -957,7 +957,7 @@ function MessageGroup({
 
       <div className={clsx('flex min-w-0 max-w-[75%] flex-col gap-0.5', isOwn ? 'items-end' : 'items-start')}>
         {!isOwn && (
-          <span className="mb-0.5 pl-1 text-xs font-semibold text-surface-600 dark:text-surface-600">
+          <span className="mb-0.5 pl-1 text-xs font-semibold text-surface-600 dark:text-surface-400">
             {senderName}
           </span>
         )}
@@ -1041,7 +1041,7 @@ function MessageGroup({
 
               <div
                 className={clsx(
-                  'relative max-w-full rounded-2xl px-3 py-2 text-sm leading-relaxed',
+                  'relative max-w-full rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
                   isOwn && !isFirst && 'rounded-tr-md',
                   isOwn && !isLast && 'rounded-br-md',
                   !isOwn && !isFirst && 'rounded-tl-md',
@@ -1279,7 +1279,7 @@ function DateSeparator({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3 py-2 px-4">
       <div className="h-px flex-1 bg-surface-200 dark:bg-surface-700" />
-      <span className="rounded-full bg-surface-100 px-3 py-0.5 text-xs font-medium text-surface-600 dark:bg-surface-800 dark:text-surface-600 select-none">
+      <span className="rounded-full bg-surface-100 px-3 py-0.5 text-xs font-medium text-surface-600 dark:bg-surface-800 dark:text-surface-400 select-none">
         {label}
       </span>
       <div className="h-px flex-1 bg-surface-200 dark:bg-surface-700" />
@@ -1453,7 +1453,7 @@ function SystemMessage({ msg }: { msg: Message }) {
 
   return (
     <div className="flex justify-center py-1">
-      <div className="rounded-full bg-surface-100 px-4 py-1.5 text-xs text-surface-600 dark:bg-surface-800 dark:text-surface-600">
+      <div className="rounded-full bg-surface-100 px-4 py-1.5 text-xs text-surface-600 dark:bg-surface-800 dark:text-surface-400">
         <span className="font-medium">{text}</span>
         {time && <span className="ml-2 text-surface-600">{date}, {time}</span>}
       </div>
@@ -1474,7 +1474,7 @@ function ReplyQuote({ msg, isOwn }: { msg: Message; isOwn: boolean }) {
       'mb-1.5 rounded-lg border-l-3 px-2.5 py-1.5 text-xs',
       isOwn
         ? 'border-primary-300 bg-primary-700/50 text-primary-100'
-        : 'border-surface-400 bg-surface-200/60 text-surface-600 dark:bg-surface-700/60 dark:text-surface-600',
+        : 'border-surface-400 bg-surface-200/60 text-surface-600 dark:bg-surface-700/60 dark:text-surface-400',
     )}>
       <div className="font-semibold">{senderName}</div>
       <div className="line-clamp-2 opacity-80">{preview || 'Nachricht'}</div>
@@ -1742,7 +1742,7 @@ function LikeBadge({ count, liked, onToggle, messageId }: { count: number; liked
           'flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold transition cursor-pointer shadow-sm',
           liked
             ? 'bg-amber-400 text-white dark:bg-amber-500 dark:text-white'
-            : 'bg-surface-100 text-surface-600 hover:bg-amber-100 hover:text-amber-600 dark:bg-surface-700 dark:text-surface-600 dark:hover:bg-amber-900/40 dark:hover:text-amber-400',
+            : 'bg-surface-100 text-surface-600 hover:bg-amber-100 hover:text-amber-600 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-amber-900/40 dark:hover:text-amber-400',
         )}
       >
         <ThumbsUp size={13} fill={liked ? 'currentColor' : 'none'} />
@@ -1854,7 +1854,7 @@ function ForwardDialog({ message, onClose }: { message: Message; onClose: () => 
         {/* Message preview */}
         {preview && (
           <div className="border-b border-surface-200 px-5 py-3 dark:border-surface-700">
-            <div className="rounded-lg bg-surface-50 px-3 py-2 text-xs text-surface-600 dark:bg-surface-800 dark:text-surface-600">
+            <div className="rounded-lg bg-surface-50 px-3 py-2 text-xs text-surface-600 dark:bg-surface-800 dark:text-surface-400">
               {preview}
             </div>
           </div>

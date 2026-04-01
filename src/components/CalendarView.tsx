@@ -421,7 +421,7 @@ export default function CalendarView() {
                 'rounded-md px-3 py-1 text-xs font-medium transition',
                 viewMode === 'month'
                   ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-700 dark:text-white'
-                  : 'text-surface-600 hover:text-surface-700 dark:text-surface-600',
+                  : 'text-surface-600 hover:text-surface-700 dark:text-surface-400',
               )}
             >
               Monat
@@ -432,7 +432,7 @@ export default function CalendarView() {
                 'rounded-md px-3 py-1 text-xs font-medium transition',
                 viewMode === 'week'
                   ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-700 dark:text-white'
-                  : 'text-surface-600 hover:text-surface-700 dark:text-surface-600',
+                  : 'text-surface-600 hover:text-surface-700 dark:text-surface-400',
               )}
             >
               Woche
@@ -901,7 +901,7 @@ function AgendaPanel({
             )}>
               <span className={clsx(
                 'text-xs font-semibold',
-                isToday ? 'text-primary-600 dark:text-primary-400' : 'text-surface-600 dark:text-surface-600',
+                isToday ? 'text-primary-600 dark:text-primary-400' : 'text-surface-600 dark:text-surface-400',
               )}>
                 {label}
               </span>

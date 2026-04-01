@@ -101,7 +101,7 @@ export default function LinkPreviewCard({ url, isOwn }: LinkPreviewCardProps) {
       {/* External link icon */}
       <div className={clsx(
         'flex shrink-0 items-center px-2.5',
-        isOwn ? 'text-primary-200' : 'text-surface-400 dark:text-surface-600',
+        isOwn ? 'text-primary-200' : 'text-surface-400 dark:text-surface-400',
       )}>
         <ExternalLink size={14} />
       </div>
