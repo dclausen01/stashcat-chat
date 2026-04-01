@@ -253,6 +253,25 @@ export async function getMessages(targetId: string, type: 'channel' | 'conversat
   return get<Array<Record<string, unknown>>>(`/messages/${type}/${targetId}?limit=${limit}&offset=${offset}`);
 }
 
+export async function searchMessages(
+  targetId: string,
+  type: 'channel' | 'conversation',
+  startDate: number,
+  endDate: number,
+  query?: string,
+  offset = 0,
+  limit = 100
+): Promise<{ messages: Array<Record<string, unknown>>; hasMore: boolean }> {
+  const params = new URLSearchParams({
+    startDate: String(startDate),
+    endDate: String(endDate),
+    offset: String(offset),
+    limit: String(limit),
+  });
+  if (query) params.set('query', query);
+  return get(`/messages/${type}/${targetId}/search?${params}`);
+}
+
 export async function sendMessage(targetId: string, type: 'channel' | 'conversation', text: string, opts?: { is_forwarded?: boolean; reply_to_id?: string; files?: string[] }) {
   return post(`/messages/${type}/${targetId}`, { text, ...opts });
 }
