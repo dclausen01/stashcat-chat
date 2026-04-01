@@ -240,11 +240,11 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
             {/* Dates */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-600">Startdatum</label>
+                <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-400">Startdatum</label>
                 <input type="date" className="w-full rounded-lg border border-surface-200 bg-surface-50 px-3 py-2 text-sm text-surface-900 outline-none focus:border-primary-500 dark:border-surface-700 dark:bg-surface-800 dark:text-white" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-600">Enddatum</label>
+                <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-400">Enddatum</label>
                 <input type="date" className="w-full rounded-lg border border-surface-200 bg-surface-50 px-3 py-2 text-sm text-surface-900 outline-none focus:border-primary-500 dark:border-surface-700 dark:bg-surface-800 dark:text-white" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
               </div>
             </div>
@@ -252,7 +252,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
             {/* Privacy */}
             <div className="flex flex-wrap items-center gap-4">
               <div>
-                <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-600">Datenschutz</label>
+                <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-400">Datenschutz</label>
                 <select
                   className="rounded-lg border border-surface-200 bg-surface-50 px-3 py-2 text-sm text-surface-900 outline-none focus:border-primary-500 dark:border-surface-700 dark:bg-surface-800 dark:text-white"
                   value={privacyType}
@@ -329,7 +329,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
                 Teilen mit
                 <span className="ml-1.5 text-xs font-normal text-surface-600">(Mehrfachauswahl)</span>
               </h3>
-              <p className="mb-2 text-xs text-surface-600 dark:text-surface-600">
+              <p className="mb-2 text-xs text-surface-600 dark:text-surface-400">
                 Du kannst entweder Channels oder einzelne Kontakte zu der Umfrage einladen. Wenn du auch selbst an deiner Umfrage teilnehmen willst, füge dich selbst hinzu.
               </p>
               {loadingChats ? (

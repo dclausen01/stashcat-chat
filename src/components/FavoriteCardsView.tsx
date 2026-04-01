@@ -13,7 +13,7 @@ export default function FavoriteCardsView({ channels, onSelectChat }: FavoriteCa
   if (favorites.length === 0) {
     return (
       <div className="flex h-full flex-1 flex-col items-center justify-center bg-white text-surface-500 dark:bg-surface-950">
-        <Star size={64} className="mb-4 text-surface-300 dark:text-surface-600" />
+        <Star size={64} className="mb-4 text-surface-300 dark:text-surface-400" />
         <h2 className="text-xl font-semibold text-surface-600 dark:text-surface-500">
           Keine Favoriten
         </h2>

@@ -127,7 +127,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
 
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
         {d.description && (
-          <p className="text-sm text-surface-600 dark:text-surface-600">{d.description}</p>
+          <p className="text-sm text-surface-600 dark:text-surface-400">{d.description}</p>
         )}
 
         {!active && (
@@ -148,7 +148,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
             <div key={q.id} className="rounded-2xl border border-surface-200 bg-surface-50 p-5 dark:border-surface-700 dark:bg-surface-800">
               <div className="mb-4 flex items-start justify-between gap-2">
                 <h3 className="font-medium text-surface-900 dark:text-white">{q.name}</h3>
-                <span className="shrink-0 rounded-full bg-surface-200 px-2 py-0.5 text-xs text-surface-600 dark:bg-surface-700 dark:text-surface-600">
+                <span className="shrink-0 rounded-full bg-surface-200 px-2 py-0.5 text-xs text-surface-600 dark:bg-surface-700 dark:text-surface-400">
                   {q.answer_limit === 1 ? 'Einfachauswahl' : 'Mehrfachauswahl'}
                 </span>
               </div>
@@ -225,7 +225,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
 
               {showResults && totalVotes > 0 && (
                 <div className="mt-3 flex items-center justify-between rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-700/50">
-                  <span className="text-sm font-medium text-surface-600 dark:text-surface-600">Gesamt</span>
+                  <span className="text-sm font-medium text-surface-600 dark:text-surface-400">Gesamt</span>
                   <span className="text-base font-bold text-surface-800 dark:text-surface-200">
                     {totalVotes} Stimme{totalVotes !== 1 ? 'n' : ''}
                   </span>
@@ -386,7 +386,7 @@ export default function PollsView({ pollIdToOpen, onPollOpened }: PollsViewProps
               'px-5 py-2.5 text-sm font-medium transition border-b-2',
               tab === key
                 ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                : 'border-transparent text-surface-600 hover:text-surface-700 dark:text-surface-600 dark:hover:text-surface-200',
+                : 'border-transparent text-surface-600 hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-200',
             )}
           >
             {label}
@@ -402,8 +402,8 @@ export default function PollsView({ pollIdToOpen, onPollOpened }: PollsViewProps
           </div>
         ) : polls.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <BarChart3 size={40} className="mb-3 text-surface-400 dark:text-surface-600" />
-            <p className="text-sm text-surface-600 dark:text-surface-600">
+            <BarChart3 size={40} className="mb-3 text-surface-400 dark:text-surface-400" />
+            <p className="text-sm text-surface-600 dark:text-surface-400">
               {tab === 'mine' ? 'Noch keine Umfragen erstellt.' : tab === 'invited' ? 'Keine Einladungen.' : 'Keine archivierten Umfragen.'}
             </p>
           </div>
@@ -419,7 +419,7 @@ export default function PollsView({ pollIdToOpen, onPollOpened }: PollsViewProps
                 >
                   <div className={clsx(
                     'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
-                    active ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400' : 'bg-surface-100 text-surface-600 dark:bg-surface-800 dark:text-surface-600',
+                    active ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400' : 'bg-surface-100 text-surface-600 dark:bg-surface-800 dark:text-surface-400',
                   )}>
                     <BarChart3 size={18} />
                   </div>

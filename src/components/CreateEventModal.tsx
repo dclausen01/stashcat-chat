@@ -238,7 +238,7 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
                   'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition',
                   category === 'personal'
                     ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-700 dark:text-white'
-                    : 'text-surface-600 hover:text-surface-700 dark:text-surface-600',
+                    : 'text-surface-600 hover:text-surface-700 dark:text-surface-400',
                 )}
               >
                 Persönlich
@@ -250,7 +250,7 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
                   'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition',
                   category === 'channel'
                     ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-700 dark:text-white'
-                    : 'text-surface-600 hover:text-surface-700 dark:text-surface-600',
+                    : 'text-surface-600 hover:text-surface-700 dark:text-surface-400',
                 )}
               >
                 Channel
@@ -259,7 +259,7 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
           </div>
 
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-600">
+            <label className="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-400">
               <input type="checkbox" checked={allday} onChange={(e) => setAllday(e.target.checked)} className="rounded" />
               Ganztägig
             </label>
@@ -473,7 +473,7 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
         </div>
 
         <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-surface-600 hover:bg-surface-200 dark:text-surface-600 dark:hover:bg-surface-800">
+          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-surface-600 hover:bg-surface-200 dark:text-surface-400 dark:hover:bg-surface-800">
             Abbrechen
           </button>
           <button

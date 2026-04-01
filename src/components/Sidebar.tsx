@@ -342,7 +342,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           onMouseDown={onMouseDown}
           className="group flex shrink-0 cursor-row-resize items-center justify-center border-y border-surface-200 py-0.5 hover:bg-surface-200 dark:border-surface-700 dark:hover:bg-surface-800"
         >
-          <GripHorizontal size={16} className="text-surface-300 group-hover:text-surface-500 dark:text-surface-600 dark:group-hover:text-surface-500" />
+          <GripHorizontal size={16} className="text-surface-300 group-hover:text-surface-500 dark:text-surface-400 dark:group-hover:text-surface-500" />
         </div>
 
         {/* Conversations panel */}

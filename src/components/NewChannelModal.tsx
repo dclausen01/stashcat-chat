@@ -204,7 +204,7 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
                   onClick={() => setTypeOpen((o) => !o)}
                   className="flex w-full items-center gap-2 rounded-lg border border-surface-300 bg-white px-3 py-2.5 text-left text-sm transition hover:border-surface-400 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
                 >
-                  <span className="text-surface-600 dark:text-surface-600">{selectedType.icon}</span>
+                  <span className="text-surface-600 dark:text-surface-400">{selectedType.icon}</span>
                   <span className="flex-1 font-medium text-surface-900 dark:text-white">{selectedType.label}</span>
                   <ChevronDown size={15} className={clsx('shrink-0 text-surface-600 transition', typeOpen && 'rotate-180')} />
                 </button>
@@ -241,7 +241,7 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
             {channelType === 'password' && (
               <div className="space-y-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-600">Kennwort</label>
+                  <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-400">Kennwort</label>
                   <input
                     type="password"
                     value={password}
@@ -251,7 +251,7 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-600">Kennwort wiederholen</label>
+                  <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-400">Kennwort wiederholen</label>
                   <input
                     type="password"
                     value={password2}
@@ -297,7 +297,7 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-surface-600 transition hover:bg-surface-200 dark:text-surface-600 dark:hover:bg-surface-800"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-surface-600 transition hover:bg-surface-200 dark:text-surface-400 dark:hover:bg-surface-800"
             >
               Abbrechen
             </button>

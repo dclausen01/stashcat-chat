@@ -403,7 +403,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
                         'rounded-md p-1 transition',
                         isModerator
                           ? 'text-amber-500 hover:bg-amber-100 hover:text-amber-700 dark:hover:bg-amber-900/30'
-                          : 'text-surface-300 hover:bg-primary-100 hover:text-primary-600 dark:text-surface-600 dark:hover:bg-primary-900/30 dark:hover:text-primary-400',
+                          : 'text-surface-300 hover:bg-primary-100 hover:text-primary-600 dark:text-surface-400 dark:hover:bg-primary-900/30 dark:hover:text-primary-400',
                         togglingMod === uid && 'opacity-50',
                       )}
                     >
@@ -422,7 +422,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
                         title="Entfernen"
                         className={clsx(
                           'rounded-md p-1 transition',
-                          'text-surface-300 hover:bg-red-100 hover:text-red-600 dark:text-surface-600 dark:hover:bg-red-900/30 dark:hover:text-red-400',
+                          'text-surface-300 hover:bg-red-100 hover:text-red-600 dark:text-surface-400 dark:hover:bg-red-900/30 dark:hover:text-red-400',
                           removing === uid && 'opacity-50',
                         )}
                       >
