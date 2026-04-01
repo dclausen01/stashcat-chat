@@ -77,26 +77,36 @@ src/
 ├── pages/
 │   └── LoginPage.tsx               # Login form
 ├── components/
-│   ├── Sidebar.tsx                 # Channel/conversation list, search, resize (default 360px)
+│   ├── Sidebar.tsx                 # Channel/conversation list, search, resize (persistent width)
 │   ├── SidebarHeader.tsx           # User avatar, name, action buttons (notifications, files, theme, settings, logout)
 │   ├── SidebarFooter.tsx           # Broadcasts, calendar, polls footer buttons
 │   ├── ChatItem.tsx                # Single chat list item (channel/conversation) with favorite toggle
-│   ├── ChatView.tsx                # Message list, send bar, header toolbar
-│   ├── MessageInput.tsx            # Text input, emoji picker, file picker
-│   ├── FileBrowserPanel.tsx        # File browser (folders, upload, download, rename, delete)
+│   ├── ChatView.tsx                # Message list, send bar, header toolbar, inline cards (poll/event/video)
+│   ├── MessageInput.tsx            # Text input, emoji picker, file picker, poll/event creation
+│   ├── FileBrowserPanel.tsx        # File browser (folders, upload, download, rename, delete, preview)
 │   ├── ChannelMembersPanel.tsx     # Channel member management
-|   ├── ChannelDescriptionEditor.tsx# Inline description edit
-|   ├── ChannelDropdownMenu.tsx     # Channel toolbar: info modal, markdown export, delete
+│   ├── ChannelDescriptionEditor.tsx# Inline description edit
+│   ├── ChannelDropdownMenu.tsx     # Channel toolbar: info modal, markdown export, delete
+│   ├── ChannelDiscoveryModal.tsx   # Discover and join public channels
 │   ├── NewChannelModal.tsx         # Create channel form
 │   ├── NewChatModal.tsx            # New direct message: user search
+│   ├── CreatePollModal.tsx         # Create poll form with channel/conversation targeting
+│   ├── CreateEventModal.tsx        # Create calendar event with preselected chat context
+│   ├── PollsView.tsx               # Poll listing, detail view, voting, voter dropdown
+│   ├── CalendarView.tsx            # Calendar (month/week), event detail, RSVP
+│   ├── BroadcastsPanel.tsx         # Broadcast messages panel
+│   ├── NotificationsPanel.tsx      # Notification center
+│   ├── FavoriteCardsView.tsx       # Home view: favorite channels as cards
+│   ├── ProfileModal.tsx            # User profile modal
+│   ├── FolderUploadProgress.tsx    # Progress indicator for folder uploads
 │   ├── LinkPreviewCard.tsx         # OG preview card for URLs in messages
 │   ├── Avatar.tsx                  # Avatar with initials fallback
-│   ├── SettingsPanel.tsx           # View toggle settings
+│   ├── SettingsPanel.tsx           # View toggle settings, notification settings
 │   └── EmptyState.tsx              # No-chat-selected placeholder
 ├── context/
 │   ├── AuthContext.tsx             # Auth state, login/logout, current user
 │   ├── ThemeContext.tsx            # Dark/light toggle (class on <html>)
-│   └── SettingsContext.tsx         # UI settings (bubble view, inline images)
+│   └── SettingsContext.tsx         # UI settings (bubble view, inline images, notifications)
 ├── hooks/
 │   ├── useRealtimeEvents.ts        # SSE EventSource, dispatches events, reconnect detection
 │   ├── useNotifications.ts         # Browser Notification API (OS notifications)
@@ -162,6 +172,7 @@ All routes are under `/api/` prefix on port 3001.
 | GET | `/api/companies/:companyId/members` | Company member list |
 | POST | `/api/conversations` | Create encrypted conversation |
 | GET | `/api/conversations` | List conversations |
+| GET | `/api/conversations/:id` | Get single conversation with members |
 | GET | `/api/messages/:type/:targetId` | Get messages (with auto-decrypt) |
 | POST | `/api/messages/:type/:targetId` | Send message |
 | DELETE | `/api/messages/:messageId` | Delete message |
@@ -180,6 +191,18 @@ All routes are under `/api/` prefix on port 3001.
 | POST | `/api/upload/:type/:targetId` | Upload file as message attachment |
 | GET | `/api/link-preview` | Fetch OG/meta preview for a URL |
 | POST | `/api/video/start-meeting` | Start a Jitsi video meeting via Chat Bot |
+| GET | `/api/calendar/events` | List calendar events by date range |
+| GET | `/api/calendar/events/:id` | Get single calendar event |
+| POST | `/api/calendar/events` | Create event (+ optional chat notification) |
+| PUT | `/api/calendar/events/:id` | Edit event |
+| DELETE | `/api/calendar/events/:id` | Delete event |
+| POST | `/api/calendar/events/:id/respond` | RSVP (accepted/declined/open) |
+| GET | `/api/calendar/channels/:companyId` | Channels with calendar events |
+| GET | `/api/polls` | List polls (created/invited/archived) |
+| GET | `/api/polls/:id` | Get poll detail with questions and answers |
+| POST | `/api/polls` | Create poll (+ chat notifications) |
+| DELETE | `/api/polls/:id` | Delete poll |
+| POST | `/api/polls/:id/vote` | Submit vote |
 | GET | `/api/events` | SSE stream for realtime events |
 
 ---
@@ -280,6 +303,41 @@ Key components:
 - `server/index.ts`: `findChatBot()`, `POST /api/video/start-meeting`, `isBotConversation()`, `isBotMessage()`
 - `src/api.ts`: `startVideoMeeting(targetId, targetType)`
 - `src/components/ChatView.tsx`: Video button in header, `VideoMeetingCard` component, `isVideoMeetingMessage()` detector
+
+### Panel Toggle Behavior
+
+All sidebar panels (Settings, FileBrowser, Broadcasts, Notifications, Profile, Calendar, Polls) follow a toggle pattern: first click opens, second click closes. This is implemented by capturing the current state *before* calling `closeAllPanels()`, then only opening if it wasn't already open. Calendar and Polls toggle `activeView` between `'chat'` and their respective view.
+
+### Persistent Sidebar Widths
+
+Both the left sidebar and right file browser panel widths are persisted in `localStorage`:
+- `schulchat_sidebar_width` (default: 360px, range: 200–480px)
+- `schulchat_filebrowser_width` (default: 384px, range: 280–600px)
+
+Saved on `mouseup` after resize, restored on component mount.
+
+### Polls (Create, Vote, Notify)
+
+Polls are created via `CreatePollModal` (accessible from the paperclip dropdown in `MessageInput`). The server creates the poll, invites channels/conversations, publishes it, and sends notification messages to all targets. These messages embed a `[%poll:ID%]` marker that `ChatView` detects via `isPollInviteMessage()` and renders as a `PollInviteMessage` card. Clicking the card navigates to the poll in `PollsView`.
+
+Voter names are visible based on poll `privacy_type`:
+- `open`: names visible to everyone
+- `hidden`: names visible to poll creator only
+- `anonymous`: no names shown
+
+The voter dropdown uses a React Portal (`createPortal`) to render into `document.body`, avoiding clipping by `overflow` containers.
+
+### Calendar Events (Create from Chat)
+
+`CreateEventModal` is a standalone component used both from `CalendarView` and from the paperclip dropdown in `MessageInput`. When opened from a chat, `preselectedChat` auto-selects:
+- **Channel**: Category set to "Channel", channel pre-selected in `inviteChannelIds`
+- **Conversation**: Category set to "Persönlich", members loaded via `GET /api/conversations/:id` and pre-selected as `inviteUserIds`
+
+After creation, the server sends a notification message to the source chat with a `[%event:ID%]` marker. `ChatView` detects this via `isCalendarEventMessage()` and renders a `CalendarEventCard`.
+
+### File Preview on Click
+
+Files in the FileBrowser can be opened with a single click on the card/row for known previewable formats. The `canPreview()` function checks MIME type (image, PDF, text, audio, video). Images open in the lightbox, PDFs in an iframe modal, others in a new browser tab. Ctrl/Cmd+Click still toggles multi-selection. Action buttons (Download, Rename, Delete) use `e.stopPropagation()` to prevent preview.
 
 ### Session Restore on Server Restart
 
