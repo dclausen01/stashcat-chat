@@ -81,7 +81,7 @@ src/
 │   ├── SidebarHeader.tsx           # User avatar, name, action buttons (notifications, files, theme, settings, logout)
 │   ├── SidebarFooter.tsx           # Broadcasts, calendar, polls footer buttons
 │   ├── ChatItem.tsx                # Single chat list item (channel/conversation) with favorite toggle
-│   ├── ChatView.tsx                # Message list, send bar, header toolbar, inline cards (poll/event/video)
+│   ├── ChatView.tsx                # Message list, send bar, header toolbar, inline cards, date-range search
 │   ├── MessageInput.tsx            # Text input, emoji picker, file picker, poll/event creation
 │   ├── FileBrowserPanel.tsx        # File browser (folders, upload, download, rename, delete, preview)
 │   ├── ChannelMembersPanel.tsx     # Channel member management
@@ -174,6 +174,7 @@ All routes are under `/api/` prefix on port 3001.
 | GET | `/api/conversations` | List conversations |
 | GET | `/api/conversations/:id` | Get single conversation with members |
 | GET | `/api/messages/:type/:targetId` | Get messages (with auto-decrypt) |
+| GET | `/api/messages/:type/:targetId/search` | Date-range message search (with E2E decrypt + optional text filter) |
 | POST | `/api/messages/:type/:targetId` | Send message |
 | DELETE | `/api/messages/:messageId` | Delete message |
 | POST | `/api/messages/:messageId/like` | Like message |
@@ -338,6 +339,16 @@ After creation, the server sends a notification message to the source chat with 
 ### File Preview on Click
 
 Files in the FileBrowser can be opened with a single click on the card/row for known previewable formats. The `canPreview()` function checks MIME type (image, PDF, text, audio, video). Images open in the lightbox, PDFs in an iframe modal, others in a new browser tab. Ctrl/Cmd+Click still toggles multi-selection. Action buttons (Download, Rename, Delete) use `e.stopPropagation()` to prevent preview.
+
+### Date-Range Message Search
+
+ChatView includes a date-range search mode that queries the Stashcat `/search/messages` endpoint directly (not wrapped by `stashcat-api`). The server endpoint `GET /api/messages/:type/:targetId/search` calls `client.api.post('/search/messages', data)` with `createAuthenticatedRequestData()`, then E2E-decrypts results using the same pattern as the regular messages endpoint.
+
+**Query parameters:** `startDate` (Unix ts), `endDate` (Unix ts), `query` (optional text filter), `offset`, `limit`.
+
+**UI flow:** Calendar icon in the search bar toggles `dateSearchMode`. Two `<input type="date">` fields + "Suchen" button trigger the search. Results appear in a compact list below the search bar. Clicking a result replaces the message view with search results and scrolls to the selected message. A banner with "Zurück zur aktuellen Ansicht" restores the normal view.
+
+**State management:** `savedMessagesRef` preserves the current messages/hasMore/offset before replacing with search results. `restoreMessages()` restores them or calls `loadMessages()` as fallback.
 
 ### Session Restore on Server Restart
 

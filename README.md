@@ -33,6 +33,7 @@ A React/TypeScript web chat client for Stashcat / schul.cloud, built for BBZ Ren
 - File download links with MIME/extension-based icons
 - Typing indicators (sent and received in real time)
 - Infinite scroll: loads 50 older messages when scrolling to the top
+- **Date-range search**: search messages by date range with optional text filter; results load from server (Stashcat `/search/messages` API), click to jump to message in context, "Zurück" button restores normal view
 - Mark messages as read when chat is opened
 - Unread badge updates in real time via SSE; clears when chat is opened
 
@@ -215,7 +216,7 @@ The Express backend acts as an authenticated API proxy:
 | `src/components/SidebarHeader.tsx`            | User avatar, name, action buttons (notifications, files, theme, settings)   |
 | `src/components/SidebarFooter.tsx`            | Footer toolbar: broadcasts, calendar, polls buttons                         |
 | `src/components/ChatItem.tsx`                 | Single chat list item (channel/conversation) with favorite star toggle      |
-| `src/components/ChatView.tsx`                 | Message list, message rendering, send bar, channel actions toolbar, inline cards (poll/event/video) |
+| `src/components/ChatView.tsx`                 | Message list, message rendering, send bar, channel actions toolbar, inline cards, date-range search |
 | `src/components/MessageInput.tsx`             | Compose bar: text input, emoji picker, file/poll/event creation dropdown    |
 | `src/components/FileBrowserPanel.tsx`         | File browser: folder navigation, upload, download, rename, delete, preview, lightbox |
 | `src/components/ChannelMembersPanel.tsx`      | Member list, invite users, remove, promote/demote moderators                |
