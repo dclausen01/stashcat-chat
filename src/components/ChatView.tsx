@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Video, CalendarDays, ArrowLeft } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Video, CalendarDays, ArrowLeft, GraduationCap } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -80,6 +80,37 @@ function formatDateLabel(ts: number): string {
   return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+interface ExternalServiceLink {
+  type: 'moodle' | 'bbb' | 'taskcards';
+  url: string;
+  label: string;
+}
+
+/** Extract Moodle/BBB/TaskCards links from description and return cleaned text + link objects. */
+function extractServiceLinks(description: string): { cleanDescription: string; links: ExternalServiceLink[] } {
+  const links: ExternalServiceLink[] = [];
+  // Match lines/segments containing the special URLs, capturing optional preceding text on the same segment
+  const patterns: { regex: RegExp; type: ExternalServiceLink['type']; label: string }[] = [
+    { regex: /(?:[^\n]*?\s)??(https?:\/\/moodle\.bbz[^\s)]*)/gi, type: 'moodle', label: 'Moodle' },
+    { regex: /(?:[^\n]*?\s)??(https?:\/\/portal\.bbz[^\s)]*)/gi, type: 'moodle', label: 'Moodle' },
+    { regex: /(?:[^\n]*?\s)??(https?:\/\/bbb\.bbz[^\s)]*)/gi, type: 'bbb', label: 'BBB' },
+    { regex: /(?:[^\n]*?\s)??(https?:\/\/bbzrdeck\.taskcards[^\s)]*)/gi, type: 'taskcards', label: 'TaskCards' },
+  ];
+
+  let cleaned = description;
+  for (const { regex, type, label } of patterns) {
+    let match;
+    while ((match = regex.exec(description)) !== null) {
+      links.push({ type, url: match[1], label });
+    }
+    // Remove the full match (line with the URL) from description
+    cleaned = cleaned.replace(new RegExp(`[^\\n]*https?:\\/\\/(${type === 'moodle' ? 'moodle\\.bbz|portal\\.bbz' : type === 'bbb' ? 'bbb\\.bbz' : 'bbzrdeck\\.taskcards'})[^\\s)]*`, 'gi'), '');
+  }
+  // Clean up leftover blank lines
+  cleaned = cleaned.replace(/\n{2,}/g, '\n').trim();
+  return { cleanDescription: cleaned, links };
+}
+
 export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
@@ -123,6 +154,11 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const hasMoreRef = useRef(true);
 
   const userId = user?.id ?? '';
+
+  // Extract service links (Moodle, BBB, TaskCards) from channel description
+  const { cleanDescription, links: serviceLinks } = chatDescription
+    ? extractServiceLinks(chatDescription)
+    : { cleanDescription: '', links: [] };
 
   // Search: IDs of messages matching the query (always search in currently displayed messages)
   const searchMatches: string[] = searchQuery.trim().length >= 2
@@ -522,10 +558,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         )}
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-base font-semibold text-surface-900 dark:text-white">{chat.name}</h2>
-          {chatDescription ? (
+          {cleanDescription ? (
             <div className="flex items-center gap-1">
               <p className="min-w-0 truncate text-xs text-surface-600 dark:text-surface-400">
-                <LinkifiedText text={chatDescription} />
+                <LinkifiedText text={cleanDescription} />
               </p>
               {isManager && chat.type === 'channel' && (
                 <button
@@ -537,7 +573,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 </button>
               )}
             </div>
-          ) : isManager && chat.type === 'channel' ? (
+          ) : isManager && chat.type === 'channel' && !chatDescription ? (
             <button
               onClick={() => setDescEditorOpen(true)}
               className="flex items-center gap-1 text-xs text-surface-600 transition hover:text-primary-500"
@@ -592,6 +628,27 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         >
           {meetingLoading ? <Loader2 size={20} className="animate-spin" /> : <Video size={20} />}
         </button>
+        {/* Service link buttons (Moodle, BBB, TaskCards) extracted from channel description */}
+        {serviceLinks.map((link, i) => (
+          <a
+            key={`${link.type}-${i}`}
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`${link.label} öffnen`}
+            className={clsx(
+              'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90',
+              link.type === 'moodle' && 'bg-orange-500 hover:bg-orange-600',
+              link.type === 'bbb' && 'bg-blue-500 hover:bg-blue-600',
+              link.type === 'taskcards' && 'bg-teal-500 hover:bg-teal-600',
+            )}
+          >
+            {link.type === 'moodle' && <GraduationCap size={16} />}
+            {link.type === 'bbb' && <span className="flex h-4 w-4 items-center justify-center text-xs font-bold">B</span>}
+            {link.type === 'taskcards' && <span className="flex h-4 w-4 items-center justify-center text-xs font-bold">T</span>}
+            {link.label}
+          </a>
+        ))}
         {chat.type === 'channel' && isManager && (
           <ChannelDropdownMenu
             chat={chat}
