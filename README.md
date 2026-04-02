@@ -44,6 +44,7 @@ A React/TypeScript web chat client for Stashcat / schul.cloud, built for BBZ Ren
 - Create new channels: public, E2E-encrypted, or password-protected; with options for hidden, invite-only, read-only, and member-activity display settings
 - Edit channel description inline
 - Channel description shown below channel name in header
+- **Service link buttons**: URLs for `moodle.bbz*`, `portal.bbz*`, `bbb.bbz*`, and `bbzrdeck.taskcards*` in channel descriptions are automatically extracted and shown as colored quick-access buttons in the channel header (Moodle: orange 🎓, BigBlueButton: blue B, TaskCards: teal T); the link text is removed from the visible description
 - Channel members panel: view all members with their roles, invite new users from the company member list, remove members, promote/demote moderators
 - Channel dropdown menu (managers only): Channel-Info modal (type, encryption, member count, creation date, description), Markdown export of all messages, delete channel with confirmation
 
