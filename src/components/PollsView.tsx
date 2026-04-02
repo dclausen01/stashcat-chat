@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { BarChart3, Plus, Trash2, Archive, RefreshCw, Loader2, ChevronRight, ChevronLeft, Check, PieChart, ChevronDown } from 'lucide-react';
+import { BarChart3, Plus, Trash2, Archive, RefreshCw, Loader2, ChevronRight, ChevronLeft, Check, PieChart, ChevronDown, StopCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { Poll, PollQuestion } from '../api';
@@ -31,7 +31,7 @@ function isActive(poll: Poll): boolean {
 
 // ── Detail / Vote view ──────────────────────────────────────────────────────
 
-function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; companyId: string; onBack: () => void; onRefresh: () => void }) {
+function PollDetail({ poll, companyId, onBack, onRefresh, onDelete }: { poll: Poll; companyId: string; onBack: () => void; onRefresh: () => void; onDelete: () => void }) {
   const { user } = useAuth();
   const [detail, setDetail] = useState<Poll | null>(null);
   const [loading, setLoading] = useState(true);
@@ -123,6 +123,35 @@ function PollDetail({ poll, companyId, onBack, onRefresh }: { poll: Poll; compan
         <button onClick={onRefresh} className="rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800" title="Ergebnisse aktualisieren">
           <RefreshCw size={16} />
         </button>
+        {isCreator && active && (
+          <button
+            onClick={async () => {
+              if (!confirm('Umfrage jetzt beenden? (Abstimmen wird nicht mehr möglich sein)')) return;
+              try {
+                await api.closePoll(String(d.id), d.name, companyId, d.start_time ?? 0);
+                onRefresh();
+              } catch { /* ignore */ }
+            }}
+            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20"
+            title="Umfrage beenden"
+          >
+            <StopCircle size={14} />
+            Beenden
+          </button>
+        )}
+        {isCreator && (
+          <button
+            onClick={() => {
+              if (!confirm('Umfrage wirklich löschen?')) return;
+              onDelete();
+            }}
+            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+            title="Umfrage löschen"
+          >
+            <Trash2 size={14} />
+            Löschen
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
@@ -356,6 +385,11 @@ export default function PollsView({ pollIdToOpen, onPollOpened }: PollsViewProps
               const fresh = await api.getPoll(id, companyId);
               setSelectedPoll(fresh);
             } catch { /* poll may have been deleted */ }
+          }}
+          onDelete={async () => {
+            await api.deletePoll(String(selectedPoll.id)).catch(() => {});
+            setSelectedPoll(null);
+            loadPolls();
           }}
         />
       </div>
