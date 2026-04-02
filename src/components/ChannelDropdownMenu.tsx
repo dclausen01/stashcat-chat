@@ -56,9 +56,10 @@ async function exportChatAsMarkdown(chat: ChatTarget): Promise<void> {
       lastDay = day;
     }
 
-    const author = (msg as Record<string, unknown>).author_name as string
-      || (msg as Record<string, unknown>).author as string
-      || 'Unbekannt';
+    const sender = (msg as Record<string, unknown>).sender as { first_name?: string; last_name?: string } | undefined;
+    const author = sender
+      ? `${sender.first_name ?? ''} ${sender.last_name ?? ''}`.trim() || 'Unbekannt'
+      : 'Unbekannt';
     const text = (msg as Record<string, unknown>).text as string || '';
     const kind = (msg as Record<string, unknown>).kind as string | undefined;
 
