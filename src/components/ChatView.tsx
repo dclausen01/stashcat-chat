@@ -644,8 +644,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             )}
           >
             {link.type === 'moodle' && <GraduationCap size={16} />}
-            {link.type === 'bbb' && <span className="flex h-4 w-4 items-center justify-center text-xs font-bold">B</span>}
-            {link.type === 'taskcards' && <span className="flex h-4 w-4 items-center justify-center text-xs font-bold">T</span>}
+            {link.type === 'bbb' && <span className="text-sm">📹</span>}
+            {link.type === 'taskcards' && <span className="text-sm">📋</span>}
             {link.label}
           </a>
         ))}
