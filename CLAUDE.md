@@ -81,7 +81,7 @@ src/
 │   ├── SidebarHeader.tsx           # User avatar, name, action buttons (notifications, files, theme, settings, logout)
 │   ├── SidebarFooter.tsx           # Broadcasts, calendar, polls footer buttons
 │   ├── ChatItem.tsx                # Single chat list item (channel/conversation) with favorite toggle
-│   ├── ChatView.tsx                # Message list, send bar, header toolbar, inline cards, date-range search
+│   ├── ChatView.tsx                # Message list, send bar, header toolbar, inline cards, date-range search, service link buttons
 │   ├── MessageInput.tsx            # Text input, emoji picker, file picker, poll/event creation
 │   ├── FileBrowserPanel.tsx        # File browser (folders, upload, download, rename, delete, preview)
 │   ├── ChannelMembersPanel.tsx     # Channel member management
@@ -339,6 +339,19 @@ After creation, the server sends a notification message to the source chat with 
 ### File Preview on Click
 
 Files in the FileBrowser can be opened with a single click on the card/row for known previewable formats. The `canPreview()` function checks MIME type (image, PDF, text, audio, video). Images open in the lightbox, PDFs in an iframe modal, others in a new browser tab. Ctrl/Cmd+Click still toggles multi-selection. Action buttons (Download, Rename, Delete) use `e.stopPropagation()` to prevent preview.
+
+### Service Link Buttons in Channel Header
+
+Channel descriptions can contain links to school services. `extractServiceLinks()` in `ChatView.tsx` parses the description and detects URLs matching these patterns:
+
+| URL prefix | Button label | Color | Icon |
+|---|---|---|---|
+| `https://moodle.bbz…` | Moodle | Orange | GraduationCap (lucide) |
+| `https://portal.bbz…` | Moodle | Orange | GraduationCap (lucide) |
+| `https://bbb.bbz…` | BBB | Blue | "B" text |
+| `https://bbzrdeck.taskcards…` | TaskCards | Teal | "T" text |
+
+Detected links — and any text preceding them on the same segment — are stripped from the visible description. Since channel descriptions are always single-line, the regex `[^\n]*URL` effectively removes all text before the URL up to the line start. Any text appearing *after* a service URL remains in the description. Colored `<a>` buttons appear in the channel header toolbar, opening the link in a new tab.
 
 ### Date-Range Message Search
 
