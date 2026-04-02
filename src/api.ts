@@ -616,6 +616,10 @@ export async function archivePoll(id: string, archive = true): Promise<void> {
   await post(`/polls/${id}/archive`, { archive });
 }
 
+export async function closePoll(id: string, name: string, companyId: string, startTime: number): Promise<void> {
+  await post(`/polls/${id}/close`, { name, company_id: companyId, start_time: startTime });
+}
+
 export async function submitPollAnswer(pollId: string, questionId: string, answerIds: string[]): Promise<void> {
   await post(`/polls/${pollId}/answer`, { question_id: questionId, answer_ids: answerIds });
 }

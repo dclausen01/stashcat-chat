@@ -1777,6 +1777,22 @@ app.post('/api/polls/:id/archive', async (req, res) => {
   } catch (err) { res.status(500).json({ error: String(err) }); }
 });
 
+/** Close a poll early (set end_time to now) */
+app.post('/api/polls/:id/close', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const { name, company_id, start_time } = req.body as { name: string; company_id: string; start_time: number };
+    await client.editPoll({
+      poll_id: req.params.id,
+      company_id,
+      name,
+      start_time,
+      end_time: Math.floor(Date.now() / 1000),
+    });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: errorMessage(err) }); }
+});
+
 /** Submit answers for a question — { question_id, answer_ids: string[] } */
 app.post('/api/polls/:id/answer', async (req, res) => {
   try {
