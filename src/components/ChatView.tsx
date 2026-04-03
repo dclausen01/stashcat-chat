@@ -122,6 +122,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [isManager, setIsManager] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [droppedFiles, setDroppedFiles] = useState<File[]>([]);
   const [membersOpen, setMembersOpen] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [pdfView, setPdfView] = useState<{ fileId: string; viewUrl: string; name: string } | null>(null);
@@ -532,9 +533,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             }
             return;
           }
-          const file = e.dataTransfer.files?.[0];
-          if (file) {
-            await handleUpload(file, '');
+          const files = Array.from(e.dataTransfer.files ?? []);
+          if (files.length > 0) {
+            setDroppedFiles(files);
           }
         }}
       >
@@ -1024,7 +1025,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         </div>
       )}
 
-      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} />
+      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} droppedFiles={droppedFiles} onDroppedFilesConsumed={() => setDroppedFiles([])} />
       {showPollModal && (
         <CreatePollModal
           preselectedChat={chat}
