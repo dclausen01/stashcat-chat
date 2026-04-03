@@ -19,6 +19,33 @@ function debugLog(...args: unknown[]) {
   }
   console.log(...args);
 }
+
+/** Server log to file for debugging - works in both dev and production */
+function serverLog(...args: unknown[]) {
+  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  const line = `[${new Date().toISOString()}] ${msg}\n`;
+  
+  // Try multiple possible log locations (dev vs production)
+  const possiblePaths = [
+    path.join(process.cwd(), 'server.log'),
+    path.join(process.cwd(), '..', 'server.log'),
+    path.join('/tmp', 'stashcat-server.log'),
+  ];
+  
+  let logged = false;
+  for (const logPath of possiblePaths) {
+    try {
+      fsSync.appendFileSync(logPath, line);
+      logged = true;
+      break;
+    } catch {
+      // Try next path
+    }
+  }
+  
+  // Always log to console as fallback
+  console.log(...args);
+}
 import type { RealtimeManager } from 'stashcat-api';
 import type { MessageSyncPayload } from 'stashcat-api';
 import { encryptSession, decryptSession } from './token-crypto';
@@ -125,17 +152,31 @@ async function getClient(req: express.Request): Promise<StashcatClient> {
 // ── Realtime setup ───────────────────────────────────────────────────────────
 
 async function connectRealtime(client: StashcatClient, clientKey: string) {
+  serverLog(`[Realtime] Connecting for clientKey ${clientKey.slice(0, 8)}…`);
   try {
     const rt = await client.createRealtimeManager({ reconnect: true });
     const conn = activeSSE.get(clientKey);
-    if (!conn) { rt.disconnect(); return; }
+    if (!conn) { 
+      serverLog(`[Realtime] No SSE connection found, disconnecting RealtimeManager`);
+      rt.disconnect(); 
+      return; 
+    }
     conn.realtime = rt;
     await rt.connect();
+    serverLog(`[Realtime] RealtimeManager connected for clientKey ${clientKey.slice(0, 8)}`);
 
     rt.on('message_sync', async (data: MessageSyncPayload) => {
+      serverLog(`[Realtime] Received message_sync:`, { 
+        channel_id: data.channel_id, 
+        conversation_id: data.conversation_id,
+        id: data.id,
+        hasText: !!data.text 
+      });
+      
       // Suppress Chat Bot conversation messages from reaching the frontend
       const convId = data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null;
       if (convId && isBotConversation(convId, clientKey)) {
+        serverLog(`[Realtime] Dropping bot message`);
         return; // Silently drop bot messages
       }
 
@@ -159,20 +200,22 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
             payload.text = CryptoManager.decrypt(data.text, aesKey, iv);
           }
         } catch (err) {
-          console.warn('[Realtime] Failed to decrypt message_sync:', errorMessage(err));
+          serverLog('[Realtime] Failed to decrypt message_sync:', errorMessage(err));
         }
       }
 
+      serverLog(`[Realtime] Pushing message_sync to SSE for clientKey ${clientKey.slice(0, 8)}`);
       pushSSE(clientKey, 'message_sync', payload);
     });
 
     rt.on('user-started-typing', (chatType: string, chatId: number, userId: number) => {
+      serverLog(`[Realtime] Received typing event:`, { chatType, chatId, userId });
       pushSSE(clientKey, 'typing', { chatType, chatId, userId });
     });
 
-    console.log(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
+    serverLog(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
   } catch (err) {
-    console.warn('[Realtime] Connection failed:', err);
+    serverLog(`[Realtime] Connection failed:`, errorMessage(err));
   }
 }
 
@@ -226,20 +269,27 @@ app.post('/api/logout', async (req, res) => {
 // ── Server-Sent Events ────────────────────────────────────────────────────────
 
 app.get('/api/events', async (req, res) => {
+  serverLog('[SSE] New connection request');
   let client: StashcatClient;
   let clientKey: string;
   try {
     const token = extractToken(req);
     const payload = decryptSession(token);
     clientKey = payload.clientKey;
+    serverLog(`[SSE] Token valid, clientKey: ${clientKey.slice(0, 8)}...`);
     client = await getClient(req);
-  } catch { res.status(401).end(); return; }
+  } catch (err) { 
+    serverLog('[SSE] Authentication failed:', errorMessage(err));
+    res.status(401).end(); 
+    return; 
+  }
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx response buffering for SSE
   res.flushHeaders();
+  serverLog(`[SSE] Headers sent for clientKey: ${clientKey.slice(0, 8)}...`);
 
   // Heartbeat every 25 s to keep the connection alive
   const hb = setInterval(() => { try { res.write(': heartbeat\n\n'); } catch { clearInterval(hb); } }, 25_000);
@@ -247,20 +297,27 @@ app.get('/api/events', async (req, res) => {
   // Get or create SSE connection for this clientKey
   let conn = activeSSE.get(clientKey);
   if (!conn) {
+    serverLog(`[SSE] Creating new SSE connection for clientKey: ${clientKey.slice(0, 8)}...`);
     conn = { client, sseClients: new Set() };
     activeSSE.set(clientKey, conn);
     // Connect realtime in background
     connectRealtime(client, clientKey);
+  } else {
+    serverLog(`[SSE] Reusing existing SSE connection for clientKey: ${clientKey.slice(0, 8)}..., clients: ${conn.sseClients.size}`);
   }
   conn.sseClients.add(res);
+  serverLog(`[SSE] Client added. Total SSE clients for this clientKey: ${conn.sseClients.size}`);
 
   req.on('close', () => {
+    serverLog(`[SSE] Client disconnected for clientKey: ${clientKey.slice(0, 8)}...`);
     clearInterval(hb);
     const c = activeSSE.get(clientKey);
     if (c) {
       c.sseClients.delete(res);
+      serverLog(`[SSE] Client removed. Remaining clients: ${c.sseClients.size}`);
       // If no more SSE clients, disconnect realtime and clean up
       if (c.sseClients.size === 0) {
+        serverLog(`[SSE] No more clients, disconnecting realtime for clientKey: ${clientKey.slice(0, 8)}...`);
         c.realtime?.disconnect();
         activeSSE.delete(clientKey);
       }
