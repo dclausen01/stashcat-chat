@@ -19,6 +19,8 @@ interface MessageInputProps {
   onCancelReply?: () => void;
   onCreatePoll?: () => void;
   onCreateEvent?: () => void;
+  droppedFiles?: File[];
+  onDroppedFilesConsumed?: () => void;
 }
 
 interface FormatButton {
@@ -53,7 +55,7 @@ const FORMAT_BUTTONS: FormatButton[] = [
   { icon: <List size={15} />, label: 'Liste', action: linePrefix('- ', 'Listenpunkt') },
 ];
 
-export default function MessageInput({ onSend, onUpload, onTyping, chatName, replyTo, onCancelReply, onCreatePoll, onCreateEvent }: MessageInputProps) {
+export default function MessageInput({ onSend, onUpload, onTyping, chatName, replyTo, onCancelReply, onCreatePoll, onCreateEvent, droppedFiles, onDroppedFilesConsumed }: MessageInputProps) {
   const { theme } = useTheme();
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -67,11 +69,20 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
   const emojiRef = useRef<HTMLDivElement>(null);
   const typingThrottle = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Close emoji picker on outside click
   // Focus textarea when reply is activated
   useEffect(() => {
     if (replyTo) textareaRef.current?.focus();
   }, [replyTo]);
+
+  // Consume files dropped from the parent (system file drag & drop)
+  useEffect(() => {
+    if (droppedFiles && droppedFiles.length > 0) {
+      setPendingFiles((prev) => [...prev, ...droppedFiles]);
+      onDroppedFilesConsumed?.();
+      textareaRef.current?.focus();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [droppedFiles]);
 
   useEffect(() => {
     if (!showAttachMenu) return;
@@ -100,16 +111,19 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
     if (pendingFiles.length > 0) {
       setSending(true);
       const total = pendingFiles.length;
-      const results = await Promise.allSettled(
-        pendingFiles.map((file, i) =>
-          onUpload(file, i === 0 ? `${text.trim()} 1/${total}` : `${i + 1}/${total}`)
-        )
-      );
-      const failures = results.filter((r) => r.status === 'rejected');
-      if (failures.length > 0) {
-        const msg = failures.length === 1
+      const filesToSend = [...pendingFiles];
+      let failCount = 0;
+      for (let i = 0; i < filesToSend.length; i++) {
+        try {
+          await onUpload(filesToSend[i], i === 0 ? `${text.trim()} 1/${total}` : `${i + 1}/${total}`);
+        } catch {
+          failCount++;
+        }
+      }
+      if (failCount > 0) {
+        const msg = failCount === 1
           ? '1 Datei konnte nicht hochgeladen werden.'
-          : `${failures.length} Dateien konnten nicht hochgeladen werden.`;
+          : `${failCount} Dateien konnten nicht hochgeladen werden.`;
         alert(msg);
       }
       setPendingFiles([]);
@@ -208,19 +222,27 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
 
       {/* Pending files preview */}
       {pendingFiles.length > 0 && (
-        <div className="mb-2 flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 text-sm dark:bg-surface-800">
-          <Paperclip size={14} className="shrink-0 text-surface-500" />
-          <span className="min-w-0 flex-1 truncate text-surface-700 dark:text-surface-300">
-            {pendingFiles.length === 1 ? pendingFiles[0].name : `${pendingFiles.length} Dateien ausgewählt`}
-          </span>
-          {pendingFiles.length === 1 && (
-            <span className="shrink-0 text-xs text-surface-500">
-              {(pendingFiles[0].size / 1024).toFixed(0)} KB
-            </span>
-          )}
-          <button onClick={() => setPendingFiles([])} className="shrink-0 text-surface-500 hover:text-surface-600">
-            <X size={14} />
-          </button>
+        <div className="mb-2 flex flex-col gap-1">
+          {pendingFiles.map((file, idx) => (
+            <div key={idx} className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 text-sm dark:bg-surface-800">
+              <Paperclip size={14} className="shrink-0 text-surface-500" />
+              <span className="min-w-0 flex-1 truncate text-surface-700 dark:text-surface-300">
+                {file.name}
+              </span>
+              <span className="shrink-0 text-xs text-surface-500">
+                {file.size >= 1024 * 1024
+                  ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
+                  : `${(file.size / 1024).toFixed(0)} KB`}
+              </span>
+              <button
+                onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
+                className="shrink-0 text-surface-500 hover:text-surface-600"
+                title="Entfernen"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
