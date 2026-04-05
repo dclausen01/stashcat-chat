@@ -300,8 +300,14 @@ app.get('/api/events', async (req, res) => {
   res.flushHeaders();
   serverLog(`[SSE] Headers sent for clientKey: ${clientKey.slice(0, 8)}...`);
 
-  // Heartbeat every 25 s to keep the connection alive
-  const hb = setInterval(() => { try { res.write(': heartbeat\n\n'); } catch { clearInterval(hb); } }, 25_000);
+  // Heartbeat every 10 s to keep the connection alive (shorter for faster disconnect detection)
+  const hb = setInterval(() => { 
+    try { 
+      res.write(': heartbeat\n\n'); 
+    } catch { 
+      clearInterval(hb); 
+    } 
+  }, 10_000);
 
   // Get or create SSE connection for this clientKey
   let conn = activeSSE.get(clientKey);
