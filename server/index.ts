@@ -162,8 +162,45 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
       return; 
     }
     conn.realtime = rt;
-    await rt.connect();
-    serverLog(`[Realtime] RealtimeManager connected for clientKey ${clientKey.slice(0, 8)}`);
+    
+    // Wait for both connect AND new_device_connected before considering ready
+    await new Promise<void>((resolve, reject) => {
+      let connected = false;
+      let deviceConnected = false;
+      
+      const checkReady = () => {
+        if (connected && deviceConnected) {
+          serverLog(`[Realtime] Fully ready (connected + authenticated) for clientKey ${clientKey.slice(0, 8)}`);
+          resolve();
+        }
+      };
+      
+      // First wait for basic connection
+      rt.once('connect', () => {
+        connected = true;
+        serverLog(`[Realtime] Socket connected for clientKey ${clientKey.slice(0, 8)}, waiting for auth...`);
+        checkReady();
+      });
+      
+      // Then wait for server confirmation
+      rt.once('new_device_connected', () => {
+        deviceConnected = true;
+        serverLog(`[Realtime] Auth confirmed (new_device_connected) for clientKey ${clientKey.slice(0, 8)}`);
+        checkReady();
+      });
+      
+      // Start connection
+      rt.connect().catch(reject);
+      
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        if (!connected || !deviceConnected) {
+          reject(new Error(`Connection timeout: connected=${connected}, deviceConnected=${deviceConnected}`));
+        }
+      }, 10000);
+    });
+    
+    serverLog(`[Realtime] RealtimeManager fully connected for clientKey ${clientKey.slice(0, 8)}`);
 
     // Handle connection errors
     rt.on('error', (err: Error) => {
