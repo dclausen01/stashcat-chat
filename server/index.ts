@@ -163,41 +163,40 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
     }
     conn.realtime = rt;
     
-    // Wait for both connect AND new_device_connected before considering ready
+    // Wait for new_device_connected (the critical auth event from Stashcat server)
     await new Promise<void>((resolve, reject) => {
-      let connected = false;
-      let deviceConnected = false;
+      let resolved = false;
       
-      const checkReady = () => {
-        if (connected && deviceConnected) {
-          serverLog(`[Realtime] Fully ready (connected + authenticated) for clientKey ${clientKey.slice(0, 8)}`);
+      // The server confirmation is the critical event
+      rt.once('new_device_connected', () => {
+        if (!resolved) {
+          resolved = true;
+          serverLog(`[Realtime] Auth confirmed (new_device_connected) for clientKey ${clientKey.slice(0, 8)}`);
           resolve();
         }
-      };
-      
-      // First wait for basic connection
-      rt.once('connect', () => {
-        connected = true;
-        serverLog(`[Realtime] Socket connected for clientKey ${clientKey.slice(0, 8)}, waiting for auth...`);
-        checkReady();
       });
       
-      // Then wait for server confirmation
-      rt.once('new_device_connected', () => {
-        deviceConnected = true;
-        serverLog(`[Realtime] Auth confirmed (new_device_connected) for clientKey ${clientKey.slice(0, 8)}`);
-        checkReady();
+      // Also listen for connect as fallback
+      rt.once('connect', () => {
+        serverLog(`[Realtime] Socket connected for clientKey ${clientKey.slice(0, 8)}`);
+        // Don't resolve here - wait for new_device_connected
       });
       
       // Start connection
-      rt.connect().catch(reject);
-      
-      // Timeout after 10 seconds
-      setTimeout(() => {
-        if (!connected || !deviceConnected) {
-          reject(new Error(`Connection timeout: connected=${connected}, deviceConnected=${deviceConnected}`));
+      rt.connect().catch((err) => {
+        if (!resolved) {
+          resolved = true;
+          reject(err);
         }
-      }, 10000);
+      });
+      
+      // Timeout after 15 seconds (longer timeout for slow connections)
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          reject(new Error(`Connection timeout: new_device_connected event not received`));
+        }
+      }, 15000);
     });
     
     serverLog(`[Realtime] RealtimeManager fully connected for clientKey ${clientKey.slice(0, 8)}`);
