@@ -166,6 +166,13 @@ async function connectRealtime(client, clientKey) {
         conn.realtime = rt;
         await rt.connect();
         serverLog(`[Realtime] RealtimeManager connected for clientKey ${clientKey.slice(0, 8)}`);
+        // Handle connection errors
+        rt.on('error', (err) => {
+            serverLog(`[Realtime] Error for clientKey ${clientKey.slice(0, 8)}:`, err.message);
+        });
+        rt.on('disconnect', () => {
+            serverLog(`[Realtime] Disconnected for clientKey ${clientKey.slice(0, 8)}`);
+        });
         rt.on('message_sync', async (data) => {
             serverLog(`[Realtime] Received message_sync:`, {
                 channel_id: data.channel_id,
