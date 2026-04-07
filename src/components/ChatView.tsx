@@ -112,7 +112,7 @@ function extractServiceLinks(description: string): { cleanDescription: string; l
   return { cleanDescription: cleaned, links };
 }
 
-export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onMarkRead }: ChatViewProps) {
+export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -387,10 +387,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     const container = containerRef.current;
     if (!container || loading) return;
 
-    // Track highest visible message ID to batch mark-as-read
-    let highestVisibleMsgId: string | null = null;
-    let highestVisibleTime = 0;
-
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -404,13 +400,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           const existingTimer = markReadTimersRef.current.get(msgId);
 
           if (entry.isIntersecting) {
-            // Track highest visible message (by time attribute or DOM order)
-            const msgTime = Number(entry.target.getAttribute('data-msg-time') || 0);
-            if (msgTime > highestVisibleTime) {
-              highestVisibleTime = msgTime;
-              highestVisibleMsgId = msgId;
-            }
-
             // Start 3 second timer only for the latest visible message
             if (!existingTimer) {
               const timer = setTimeout(() => {
