@@ -154,14 +154,7 @@ async function getClient(req: express.Request): Promise<StashcatClient> {
 async function connectRealtime(client: StashcatClient, clientKey: string) {
   serverLog(`[Realtime] Connecting for clientKey ${clientKey.slice(0, 8)}…`);
   try {
-    // @ts-ignore — onAnyEvent added in stashcat-api; older node_modules copies may not have the type yet
-    const rt = await client.createRealtimeManager({
-      reconnect: true,
-      debug: true,
-      onAnyEvent: (event: string, args: unknown[]) => {
-        serverLog(`[Realtime] 📡 socket event "${event}"`, JSON.stringify(args).slice(0, 300));
-      },
-    });
+    const rt = await client.createRealtimeManager({ reconnect: true });
     const conn = activeSSE.get(clientKey);
     if (!conn) { 
       serverLog(`[Realtime] No SSE connection found, disconnecting RealtimeManager`);
@@ -303,16 +296,6 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
     rt.on('user-started-typing', (chatType: string, chatId: number, userId: number) => {
       serverLog(`[Realtime] Received typing event:`, { chatType, chatId, userId });
       pushSSE(clientKey, 'typing', { chatType, chatId, userId });
-    });
-
-    // Log all discovered socket events every 60s (to identify what the push server actually sends)
-    const discoveryInterval = setInterval(() => {
-      const events = rt.getDiscoveredEvents();
-      serverLog(`[Realtime] Discovered events for ${clientKey.slice(0, 8)}:`, events);
-    }, 60_000);
-    // Clean up interval when realtime disconnects
-    rt.on('disconnect', () => {
-      clearInterval(discoveryInterval);
     });
 
     serverLog(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
