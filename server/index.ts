@@ -154,7 +154,13 @@ async function getClient(req: express.Request): Promise<StashcatClient> {
 async function connectRealtime(client: StashcatClient, clientKey: string) {
   serverLog(`[Realtime] Connecting for clientKey ${clientKey.slice(0, 8)}…`);
   try {
-    const rt = await client.createRealtimeManager({ reconnect: true });
+    const rt = await client.createRealtimeManager({
+      reconnect: true,
+      debug: true,
+      onAnyEvent: (event, args) => {
+        serverLog(`[Realtime] 📡 socket event "${event}"`, JSON.stringify(args).slice(0, 300));
+      },
+    });
     const conn = activeSSE.get(clientKey);
     if (!conn) { 
       serverLog(`[Realtime] No SSE connection found, disconnecting RealtimeManager`);
