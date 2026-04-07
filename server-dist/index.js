@@ -284,6 +284,11 @@ async function connectRealtime(client, clientKey) {
             serverLog(`[Realtime] Received typing event:`, { chatType, chatId, userId });
             pushSSE(clientKey, 'typing', { chatType, chatId, userId });
         });
+        // Forward key_sync_request to SSE so the frontend can display/auto-accept it
+        rt.on('key_sync_request', (data) => {
+            serverLog(`[Realtime] Received key_sync_request:`, JSON.stringify(data).slice(0, 300));
+            pushSSE(clientKey, 'key_sync_request', data);
+        });
         serverLog(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
     }
     catch (err) {
@@ -1463,6 +1468,49 @@ app.delete('/api/notifications/:notificationId', async (req, res) => {
     try {
         const client = await getClient(req);
         await client.deleteNotification(req.params.notificationId);
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+// ── Key Sync (E2E key exchange) ───────────────────────────────────────────────
+app.post('/api/key-sync/accept', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { userId, notificationId } = req.body;
+        if (!userId)
+            return void res.status(400).json({ error: 'userId required' });
+        // Attempt to accept key sync via Stashcat REST API.
+        // The exact endpoint is not yet documented — try /security/key_sync_accept.
+        // The server logs the response for discovery if the endpoint name is wrong.
+        const data = client.api.createAuthenticatedRequestData({ user_id: userId });
+        try {
+            await client.api.post('/security/key_sync_accept', data);
+            serverLog(`[KeySync] Accepted key sync for user ${userId}`);
+        }
+        catch (apiErr) {
+            // Log the raw error for endpoint discovery — don't re-throw immediately
+            serverLog(`[KeySync] /security/key_sync_accept failed:`, errorMessage(apiErr));
+            // Try alternative endpoint names
+            try {
+                const data2 = client.api.createAuthenticatedRequestData({ user_id: userId });
+                await client.api.post('/security/accept_key_sync_request', data2);
+                serverLog(`[KeySync] Accepted via /security/accept_key_sync_request for user ${userId}`);
+            }
+            catch (apiErr2) {
+                serverLog(`[KeySync] /security/accept_key_sync_request also failed:`, errorMessage(apiErr2));
+                // Both endpoints unknown — return the original error to the client
+                return void res.status(502).json({ error: `Key sync accept not yet implemented: ${errorMessage(apiErr)}` });
+            }
+        }
+        // Delete the notification after accepting
+        if (notificationId) {
+            try {
+                await client.deleteNotification(notificationId);
+            }
+            catch { /* best-effort */ }
+        }
         res.json({ ok: true });
     }
     catch (err) {

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Bell, X, Loader2, Hash, CalendarDays, Smartphone, Shield, UserPlus, MessageSquare, Trash2, BarChart3 } from 'lucide-react';
+import { Bell, X, Loader2, Hash, CalendarDays, Smartphone, Shield, UserPlus, MessageSquare, Trash2, BarChart3, Key, Check, Ban } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
+import { useSettings } from '../context/SettingsContext';
 
 interface NotificationsPanelProps {
   onClose: () => void;
@@ -11,6 +12,8 @@ interface NotificationsPanelProps {
 
 /** Map API notification types to user-friendly German labels + icons */
 const TYPE_MAP: Record<string, { label: string; icon: React.ReactNode }> = {
+  key_request:             { label: 'Schlüsselanfrage',                icon: <Key size={16} className="text-amber-500" /> },
+  key_sync_request:        { label: 'Schlüsselanfrage',                icon: <Key size={16} className="text-amber-500" /> },
   new_device_connected:    { label: 'Neues Gerät verbunden',           icon: <Smartphone size={16} className="text-green-500" /> },
   device_disconnected:     { label: 'Gerät getrennt',                  icon: <Smartphone size={16} className="text-surface-500" /> },
   new_login:               { label: 'Neue Anmeldung',                  icon: <Shield size={16} className="text-blue-500" /> },
@@ -40,6 +43,7 @@ function getTypeInfo(type: string): { label: string; icon: React.ReactNode } {
   const safeType = type || '';
   if (TYPE_MAP[safeType]) return TYPE_MAP[safeType];
   // Fuzzy match
+  if (safeType.includes('key')) return { label: 'Schlüsselanfrage', icon: <Key size={16} className="text-amber-500" /> };
   if (safeType.includes('survey') || safeType.includes('poll')) return { label: 'Umfrage', icon: <BarChart3 size={16} className="text-primary-500" /> };
   if (safeType.includes('channel')) return { label: 'Channel-Benachrichtigung', icon: <Hash size={16} className="text-primary-500" /> };
   if (safeType.includes('event') || safeType.includes('calendar')) return { label: 'Kalender-Benachrichtigung', icon: <CalendarDays size={16} className="text-amber-500" /> };
@@ -48,6 +52,24 @@ function getTypeInfo(type: string): { label: string; icon: React.ReactNode } {
   // Fallback: humanize the snake_case type
   const humanized = safeType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   return { label: humanized || 'Benachrichtigung', icon: <Bell size={16} className="text-surface-500" /> };
+}
+
+/** Parse key_request/key_sync_request notification content → requester user info */
+function parseKeyRequestUser(content: unknown): { id: string; first_name: string; last_name: string; image?: string } | null {
+  if (!content) return null;
+  let parsed = content;
+  if (typeof content === 'string') {
+    try { parsed = JSON.parse(content); } catch { return null; }
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+  const obj = parsed as Record<string, unknown>;
+  if (!obj.id || !obj.first_name) return null;
+  return {
+    id: String(obj.id),
+    first_name: String(obj.first_name || ''),
+    last_name: String(obj.last_name || ''),
+    image: obj.image ? String(obj.image) : undefined,
+  };
 }
 
 /** Parse poll/survey notification content → creator name + poll title */
@@ -158,6 +180,8 @@ function formatNotificationContent(content: unknown): { text: string; subtext?: 
 export default function NotificationsPanel({ onClose, onOpenPolls }: NotificationsPanelProps) {
   const [notifications, setNotifications] = useState<api.AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [keySyncState, setKeySyncState] = useState<Record<string, 'accepting' | 'accepted' | 'error'>>({});
+  const { autoAcceptKeySync } = useSettings();
 
   useEffect(() => {
     api.getNotifications(50, 0)
@@ -202,6 +226,18 @@ export default function NotificationsPanel({ onClose, onOpenPolls }: Notificatio
     }
   };
 
+  const handleAcceptKeySync = async (notificationId: string, userId: string) => {
+    setKeySyncState((prev) => ({ ...prev, [notificationId]: 'accepting' }));
+    try {
+      await api.acceptKeySync(userId, notificationId);
+      setKeySyncState((prev) => ({ ...prev, [notificationId]: 'accepted' }));
+      setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+    } catch (err) {
+      console.error('Failed to accept key sync:', err);
+      setKeySyncState((prev) => ({ ...prev, [notificationId]: 'error' }));
+    }
+  };
+
   return (
     <div className="flex h-full w-80 shrink-0 flex-col border-l border-surface-200 bg-white dark:border-surface-700 dark:bg-surface-900">
       {/* Header */}
@@ -238,14 +274,21 @@ export default function NotificationsPanel({ onClose, onOpenPolls }: Notificatio
             {notifications.map((n, i) => {
               const typeInfo = getTypeInfo(n.type);
               const isPollNotif = n.type?.includes('survey') || n.type?.includes('poll');
+              const isKeyReq = n.type?.includes('key');
 
               // Content: prefer survey object, then content field, then text
               const rawContent = n.survey ?? n.content ?? n.text;
-              const formatted = formatNotificationContent(rawContent);
+
+              // Key sync request: parse requester user info
+              const keyUser = isKeyReq ? parseKeyRequestUser(rawContent) : null;
+
+              const formatted = keyUser ? null : formatNotificationContent(rawContent);
 
               // Safely extract channel/event names
               const channelName = n.channel && typeof n.channel.name === 'string' ? n.channel.name : undefined;
               const eventName = n.event && typeof n.event.name === 'string' ? n.event.name : undefined;
+
+              const keySyncStatus = keySyncState[n.id];
 
               return (
                 <div
@@ -258,7 +301,9 @@ export default function NotificationsPanel({ onClose, onOpenPolls }: Notificatio
                   )}
                 >
                   <div className="shrink-0 pt-0.5">
-                    {n.sender && (n.sender.first_name || n.sender.last_name) ? (
+                    {keyUser ? (
+                      <Avatar name={`${keyUser.first_name} ${keyUser.last_name}`.trim() || 'Unbekannt'} image={keyUser.image} size="sm" />
+                    ) : n.sender && (n.sender.first_name || n.sender.last_name) ? (
                       <Avatar name={`${n.sender.first_name ?? ''} ${n.sender.last_name ?? ''}`.trim() || 'Unbekannt'} image={n.sender.image} size="sm" />
                     ) : (
                       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-100 dark:bg-surface-800">
@@ -275,16 +320,68 @@ export default function NotificationsPanel({ onClose, onOpenPolls }: Notificatio
                         <span className="h-1.5 w-1.5 rounded-full bg-primary-500" />
                       )}
                     </div>
-                    {formatted.text && (
-                      <p className="mt-0.5 text-sm text-surface-800 dark:text-surface-200">
-                        {formatted.text}
-                      </p>
+
+                    {keyUser ? (
+                      <>
+                        <p className="mt-0.5 text-sm text-surface-800 dark:text-surface-200">
+                          <span className="font-medium">{keyUser.first_name} {keyUser.last_name}</span>{' '}
+                          möchte Zugang zu verschlüsselten Nachrichten.
+                        </p>
+                        {autoAcceptKeySync ? (
+                          <p className="mt-1 text-xs text-green-600 dark:text-green-400">
+                            Wird automatisch bestätigt (Auto-Accept aktiv)
+                          </p>
+                        ) : (
+                          <div className="mt-2 flex gap-2">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleAcceptKeySync(n.id, keyUser.id); }}
+                              disabled={keySyncStatus === 'accepting' || keySyncStatus === 'accepted'}
+                              className={clsx(
+                                'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition',
+                                keySyncStatus === 'accepted'
+                                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                  : keySyncStatus === 'error'
+                                  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                  : 'bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60',
+                              )}
+                            >
+                              {keySyncStatus === 'accepting' ? (
+                                <Loader2 size={11} className="animate-spin" />
+                              ) : keySyncStatus === 'accepted' ? (
+                                <Check size={11} />
+                              ) : (
+                                <Check size={11} />
+                              )}
+                              {keySyncStatus === 'accepted' ? 'Bestätigt' : keySyncStatus === 'error' ? 'Fehler' : 'Zustimmen'}
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDelete(n.id); }}
+                              className="flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium text-surface-600 transition hover:bg-surface-200 dark:hover:bg-surface-700 dark:text-surface-400"
+                            >
+                              <Ban size={11} />
+                              Ablehnen
+                            </button>
+                          </div>
+                        )}
+                        {keySyncStatus === 'error' && (
+                          <p className="mt-1 text-xs text-red-500">Endpoint nicht verfügbar — bitte Administrator informieren.</p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {formatted?.text && (
+                          <p className="mt-0.5 text-sm text-surface-800 dark:text-surface-200">
+                            {formatted.text}
+                          </p>
+                        )}
+                        {formatted?.subtext && (
+                          <p className="mt-0.5 text-xs text-surface-500 dark:text-surface-500">
+                            {formatted.subtext}
+                          </p>
+                        )}
+                      </>
                     )}
-                    {formatted.subtext && (
-                      <p className="mt-0.5 text-xs text-surface-500 dark:text-surface-500">
-                        {formatted.subtext}
-                      </p>
-                    )}
+
                     <div className="mt-0.5 flex items-center gap-2 text-xs text-surface-500">
                       {channelName && (
                         <span className="flex items-center gap-0.5">
@@ -300,7 +397,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls }: Notificatio
                     </div>
                   </div>
                   <button
-                    onClick={() => handleDelete(n.id)}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(n.id); }}
                     className="shrink-0 rounded-md p-1 text-surface-400 opacity-0 transition group-hover/notif:opacity-100 hover:bg-surface-200 hover:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-500"
                     title="Löschen"
                   >

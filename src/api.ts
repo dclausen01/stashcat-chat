@@ -536,6 +536,10 @@ export async function deleteNotification(notificationId: string) {
   return del<Record<string, unknown>>(`/notifications/${notificationId}`);
 }
 
+export async function acceptKeySync(userId: string, notificationId: string) {
+  return post<{ ok: boolean }>('/key-sync/accept', { userId, notificationId });
+}
+
 // --- Polls (Umfragen) ---
 
 export interface PollUser {
