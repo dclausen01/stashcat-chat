@@ -265,6 +265,16 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
       pushSSE(clientKey, 'typing', { chatType, chatId, userId });
     });
 
+    // Log all discovered socket events every 60s (to identify what the push server actually sends)
+    const discoveryInterval = setInterval(() => {
+      const events = rt.getDiscoveredEvents();
+      serverLog(`[Realtime] Discovered events for ${clientKey.slice(0, 8)}:`, events);
+    }, 60_000);
+    // Clean up interval when realtime disconnects
+    rt.on('disconnect', () => {
+      clearInterval(discoveryInterval);
+    });
+
     serverLog(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
   } catch (err) {
     serverLog(`[Realtime] Connection failed:`, errorMessage(err));
