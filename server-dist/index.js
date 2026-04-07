@@ -57,6 +57,30 @@ function debugLog(...args) {
     }
     console.log(...args);
 }
+/** Server log to file for debugging - works in both dev and production */
+function serverLog(...args) {
+    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+    const line = `[${new Date().toISOString()}] ${msg}\n`;
+    // Try multiple possible log locations (dev vs production)
+    const possiblePaths = [
+        path_1.default.join(process.cwd(), 'server.log'),
+        path_1.default.join(process.cwd(), '..', 'server.log'),
+        path_1.default.join('/tmp', 'stashcat-server.log'),
+    ];
+    let logged = false;
+    for (const logPath of possiblePaths) {
+        try {
+            fsSync.appendFileSync(logPath, line);
+            logged = true;
+            break;
+        }
+        catch {
+            // Try next path
+        }
+    }
+    // Always log to console as fallback
+    console.log(...args);
+}
 const token_crypto_1 = require("./token-crypto");
 /** Extract error message safely from unknown catch values. */
 function errorMessage(err, fallback = 'Failed') {
@@ -130,19 +154,66 @@ async function getClient(req) {
 }
 // ── Realtime setup ───────────────────────────────────────────────────────────
 async function connectRealtime(client, clientKey) {
+    serverLog(`[Realtime] Connecting for clientKey ${clientKey.slice(0, 8)}…`);
     try {
         const rt = await client.createRealtimeManager({ reconnect: true });
         const conn = activeSSE.get(clientKey);
         if (!conn) {
+            serverLog(`[Realtime] No SSE connection found, disconnecting RealtimeManager`);
             rt.disconnect();
             return;
         }
         conn.realtime = rt;
-        await rt.connect();
+        // Wait for new_device_connected (the critical auth event from Stashcat server)
+        await new Promise((resolve, reject) => {
+            let resolved = false;
+            // The server confirmation is the critical event
+            rt.once('new_device_connected', () => {
+                if (!resolved) {
+                    resolved = true;
+                    serverLog(`[Realtime] Auth confirmed (new_device_connected) for clientKey ${clientKey.slice(0, 8)}`);
+                    resolve();
+                }
+            });
+            // Also listen for connect as fallback
+            rt.once('connect', () => {
+                serverLog(`[Realtime] Socket connected for clientKey ${clientKey.slice(0, 8)}`);
+                // Don't resolve here - wait for new_device_connected
+            });
+            // Start connection
+            rt.connect().catch((err) => {
+                if (!resolved) {
+                    resolved = true;
+                    reject(err);
+                }
+            });
+            // Timeout after 15 seconds (longer timeout for slow connections)
+            setTimeout(() => {
+                if (!resolved) {
+                    resolved = true;
+                    reject(new Error(`Connection timeout: new_device_connected event not received`));
+                }
+            }, 15000);
+        });
+        serverLog(`[Realtime] RealtimeManager fully connected for clientKey ${clientKey.slice(0, 8)}`);
+        // Handle connection errors
+        rt.on('error', (err) => {
+            serverLog(`[Realtime] Error for clientKey ${clientKey.slice(0, 8)}:`, err.message);
+        });
+        rt.on('disconnect', () => {
+            serverLog(`[Realtime] Disconnected for clientKey ${clientKey.slice(0, 8)}`);
+        });
         rt.on('message_sync', async (data) => {
+            serverLog(`[Realtime] Received message_sync:`, {
+                channel_id: data.channel_id,
+                conversation_id: data.conversation_id,
+                id: data.id,
+                hasText: !!data.text
+            });
             // Suppress Chat Bot conversation messages from reaching the frontend
             const convId = data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null;
             if (convId && isBotConversation(convId, clientKey)) {
+                serverLog(`[Realtime] Dropping bot message`);
                 return; // Silently drop bot messages
             }
             const payload = { ...data };
@@ -164,18 +235,64 @@ async function connectRealtime(client, clientKey) {
                     }
                 }
                 catch (err) {
-                    console.warn('[Realtime] Failed to decrypt message_sync:', errorMessage(err));
+                    serverLog('[Realtime] Failed to decrypt message_sync:', errorMessage(err));
                 }
             }
+            serverLog(`[Realtime] Pushing message_sync to SSE for clientKey ${clientKey.slice(0, 8)}`);
+            pushSSE(clientKey, 'message_sync', payload);
+        });
+        // Incoming messages from others arrive as 'notification', not 'message_sync'.
+        // 'message_sync' is only sent back to the sender as an echo.
+        rt.on('notification', async (data) => {
+            const notif = data;
+            const msg = notif.message;
+            if (!msg)
+                return; // Not a message notification
+            serverLog(`[Realtime] Received notification (new message):`, {
+                channel_id: msg.channel_id,
+                conversation_id: msg.conversation_id,
+                id: msg.id,
+            });
+            // Suppress Chat Bot conversation messages
+            const convId = msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null;
+            if (convId && isBotConversation(convId, clientKey))
+                return;
+            const payload = { ...msg };
+            // Decrypt if E2E-encrypted
+            if (msg.encrypted && msg.text && msg.iv) {
+                try {
+                    let aesKey;
+                    const channelId = msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null;
+                    const msgConvId = msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null;
+                    if (msgConvId)
+                        aesKey = await client.getConversationAesKey(msgConvId);
+                    else if (channelId)
+                        aesKey = await client.getChannelAesKey(channelId);
+                    if (aesKey) {
+                        const iv = stashcat_api_1.CryptoManager.hexToBuffer(msg.iv);
+                        payload.text = stashcat_api_1.CryptoManager.decrypt(msg.text, aesKey, iv);
+                    }
+                }
+                catch (err) {
+                    serverLog('[Realtime] Failed to decrypt notification:', errorMessage(err));
+                }
+            }
+            serverLog(`[Realtime] Pushing notification as message_sync to SSE`);
             pushSSE(clientKey, 'message_sync', payload);
         });
         rt.on('user-started-typing', (chatType, chatId, userId) => {
+            serverLog(`[Realtime] Received typing event:`, { chatType, chatId, userId });
             pushSSE(clientKey, 'typing', { chatType, chatId, userId });
         });
-        console.log(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
+        // Forward key_sync_request to SSE so the frontend can display/auto-accept it
+        rt.on('key_sync_request', (data) => {
+            serverLog(`[Realtime] Received key_sync_request:`, JSON.stringify(data).slice(0, 300));
+            pushSSE(clientKey, 'key_sync_request', data);
+        });
+        serverLog(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
     }
     catch (err) {
-        console.warn('[Realtime] Connection failed:', err);
+        serverLog(`[Realtime] Connection failed:`, errorMessage(err));
     }
 }
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -221,15 +338,18 @@ app.post('/api/logout', async (req, res) => {
 });
 // ── Server-Sent Events ────────────────────────────────────────────────────────
 app.get('/api/events', async (req, res) => {
+    serverLog('[SSE] New connection request');
     let client;
     let clientKey;
     try {
         const token = extractToken(req);
         const payload = (0, token_crypto_1.decryptSession)(token);
         clientKey = payload.clientKey;
+        serverLog(`[SSE] Token valid, clientKey: ${clientKey.slice(0, 8)}...`);
         client = await getClient(req);
     }
-    catch {
+    catch (err) {
+        serverLog('[SSE] Authentication failed:', errorMessage(err));
         res.status(401).end();
         return;
     }
@@ -238,29 +358,40 @@ app.get('/api/events', async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx response buffering for SSE
     res.flushHeaders();
-    // Heartbeat every 25 s to keep the connection alive
-    const hb = setInterval(() => { try {
-        res.write(': heartbeat\n\n');
-    }
-    catch {
-        clearInterval(hb);
-    } }, 25_000);
+    serverLog(`[SSE] Headers sent for clientKey: ${clientKey.slice(0, 8)}...`);
+    // Heartbeat every 10 s to keep the connection alive (shorter for faster disconnect detection)
+    const hb = setInterval(() => {
+        try {
+            res.write(': heartbeat\n\n');
+        }
+        catch {
+            clearInterval(hb);
+        }
+    }, 10_000);
     // Get or create SSE connection for this clientKey
     let conn = activeSSE.get(clientKey);
     if (!conn) {
+        serverLog(`[SSE] Creating new SSE connection for clientKey: ${clientKey.slice(0, 8)}...`);
         conn = { client, sseClients: new Set() };
         activeSSE.set(clientKey, conn);
         // Connect realtime in background
         connectRealtime(client, clientKey);
     }
+    else {
+        serverLog(`[SSE] Reusing existing SSE connection for clientKey: ${clientKey.slice(0, 8)}..., clients: ${conn.sseClients.size}`);
+    }
     conn.sseClients.add(res);
+    serverLog(`[SSE] Client added. Total SSE clients for this clientKey: ${conn.sseClients.size}`);
     req.on('close', () => {
+        serverLog(`[SSE] Client disconnected for clientKey: ${clientKey.slice(0, 8)}...`);
         clearInterval(hb);
         const c = activeSSE.get(clientKey);
         if (c) {
             c.sseClients.delete(res);
+            serverLog(`[SSE] Client removed. Remaining clients: ${c.sseClients.size}`);
             // If no more SSE clients, disconnect realtime and clean up
             if (c.sseClients.size === 0) {
+                serverLog(`[SSE] No more clients, disconnecting realtime for clientKey: ${clientKey.slice(0, 8)}...`);
                 c.realtime?.disconnect();
                 activeSSE.delete(clientKey);
             }
@@ -1337,6 +1468,49 @@ app.delete('/api/notifications/:notificationId', async (req, res) => {
     try {
         const client = await getClient(req);
         await client.deleteNotification(req.params.notificationId);
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+// ── Key Sync (E2E key exchange) ───────────────────────────────────────────────
+app.post('/api/key-sync/accept', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { userId, notificationId } = req.body;
+        if (!userId)
+            return void res.status(400).json({ error: 'userId required' });
+        // Attempt to accept key sync via Stashcat REST API.
+        // The exact endpoint is not yet documented — try /security/key_sync_accept.
+        // The server logs the response for discovery if the endpoint name is wrong.
+        const data = client.api.createAuthenticatedRequestData({ user_id: userId });
+        try {
+            await client.api.post('/security/key_sync_accept', data);
+            serverLog(`[KeySync] Accepted key sync for user ${userId}`);
+        }
+        catch (apiErr) {
+            // Log the raw error for endpoint discovery — don't re-throw immediately
+            serverLog(`[KeySync] /security/key_sync_accept failed:`, errorMessage(apiErr));
+            // Try alternative endpoint names
+            try {
+                const data2 = client.api.createAuthenticatedRequestData({ user_id: userId });
+                await client.api.post('/security/accept_key_sync_request', data2);
+                serverLog(`[KeySync] Accepted via /security/accept_key_sync_request for user ${userId}`);
+            }
+            catch (apiErr2) {
+                serverLog(`[KeySync] /security/accept_key_sync_request also failed:`, errorMessage(apiErr2));
+                // Both endpoints unknown — return the original error to the client
+                return void res.status(502).json({ error: `Key sync accept not yet implemented: ${errorMessage(apiErr)}` });
+            }
+        }
+        // Delete the notification after accepting
+        if (notificationId) {
+            try {
+                await client.deleteNotification(notificationId);
+            }
+            catch { /* best-effort */ }
+        }
         res.json({ ok: true });
     }
     catch (err) {

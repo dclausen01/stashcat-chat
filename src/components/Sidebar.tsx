@@ -158,22 +158,28 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       const channelId = payload.channel_id && payload.channel_id !== 0 ? String(payload.channel_id) : null;
       const convId = payload.conversation_id && payload.conversation_id !== 0 ? String(payload.conversation_id) : null;
       const active = activeChatRef.current;
+      const isInForeground = !document.hidden;
 
       // Request notification permission on first message (better UX than on app load)
       requestPermission();
 
+      // Always update lastActivity for sorting; increment unread_count only if:
+      // - Tab is in background, OR
+      // - Tab is in foreground but the chat is not currently open
       if (channelId) {
         const isActive = active?.type === 'channel' && active.id === channelId;
+        const shouldIncrement = !isInForeground || !isActive;
         setChannels((prev) => sortChats(prev.map((ch) =>
           ch.id === channelId
-            ? { ...ch, lastActivity: time || ch.lastActivity, unread_count: isActive ? 0 : (ch.unread_count ?? 0) + 1 }
+            ? { ...ch, lastActivity: time || ch.lastActivity, unread_count: shouldIncrement ? (ch.unread_count ?? 0) + 1 : ch.unread_count }
             : ch
         )));
       } else if (convId) {
         const isActive = active?.type === 'conversation' && active.id === convId;
+        const shouldIncrement = !isInForeground || !isActive;
         setConversations((prev) => sortChats(prev.map((conv) =>
           conv.id === convId
-            ? { ...conv, lastActivity: time || conv.lastActivity, unread_count: isActive ? 0 : (conv.unread_count ?? 0) + 1 }
+            ? { ...conv, lastActivity: time || conv.lastActivity, unread_count: shouldIncrement ? (conv.unread_count ?? 0) + 1 : conv.unread_count }
             : conv
         )));
       }
@@ -195,6 +201,24 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       loadData();
     },
   }, loggedIn);
+
+  // Mark chat as read (called from ChatView after 3s visibility)
+  const handleMarkRead = useCallback((chatId: string, chatType: 'channel' | 'conversation') => {
+    if (chatType === 'channel') {
+      setChannels((prev) => prev.map((ch) => ch.id === chatId ? { ...ch, unread_count: 0 } : ch));
+    } else {
+      setConversations((prev) => prev.map((c) => c.id === chatId ? { ...c, unread_count: 0 } : c));
+    }
+  }, []);
+
+  // Listen for mark-read events from ChatView
+  useEffect(() => {
+    const handler = (e: CustomEvent<{ chatId: string; chatType: 'channel' | 'conversation' }>) => {
+      handleMarkRead(e.detail.chatId, e.detail.chatType);
+    };
+    window.addEventListener('chat-mark-read', handler as EventListener);
+    return () => window.removeEventListener('chat-mark-read', handler as EventListener);
+  }, [handleMarkRead]);
 
   const handleSelect = useCallback((target: ChatTarget) => {
     // Clear unread for selected chat immediately in sidebar

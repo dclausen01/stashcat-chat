@@ -23,8 +23,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (api.isLoggedIn()) {
       api.getMe().then((user) => {
         setState({ loggedIn: true, user });
-      }).catch(() => {
-        api.clearSession();
+      }).catch((error) => {
+        // Only clear session on explicit authentication errors (401/403)
+        // Don't clear session on temporary network/server errors
+        const isAuthError = error?.message?.includes('401') || 
+                           error?.message?.includes('403') ||
+                           error?.message?.includes('Unauthorized') ||
+                           error?.message?.includes('Forbidden');
+        if (isAuthError) {
+          console.log('[Auth] Authentication failed, clearing session');
+          api.clearSession();
+        } else {
+          // For temporary errors, keep the token but show logged out state
+          // The user can refresh to try again
+          console.log('[Auth] Temporary error, keeping token for retry:', error?.message);
+        }
       });
     }
   }, []);

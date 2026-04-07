@@ -26,6 +26,7 @@ interface ChatViewProps {
   onOpenPolls?: () => void;
   onOpenPoll?: (pollId: string) => void;
   onOpenCalendar?: () => void;
+  onMarkRead?: (chatId: string, chatType: 'channel' | 'conversation') => void;
 }
 
 interface TypingUser {
@@ -364,6 +365,83 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     }, 1000);
     return () => clearInterval(id);
   }, [typingUsers.length]);
+
+  // Mark messages as read after 3 seconds when visible in viewport
+  const markReadTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const chatRefForMarkRead = useRef(chat);
+  chatRefForMarkRead.current = chat;
+
+  // Clear all pending mark-read timers
+  useEffect(() => {
+    return () => {
+      markReadTimersRef.current.forEach((timer) => clearTimeout(timer));
+      markReadTimersRef.current.clear();
+    };
+  }, []);
+
+  // Track the latest visible message ID to avoid redundant markAsRead calls
+  const lastMarkedMsgIdRef = useRef<string | null>(null);
+
+  // IntersectionObserver for marking messages as read after 3 seconds visibility
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || loading) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const msgId = entry.target.getAttribute('data-msg-id');
+          if (!msgId) return;
+
+          // Skip own messages — they don't need to be marked as read
+          const senderId = entry.target.getAttribute('data-sender-id');
+          if (senderId && senderId === userId) return;
+
+          const existingTimer = markReadTimersRef.current.get(msgId);
+
+          if (entry.isIntersecting) {
+            // Start 3 second timer only for the latest visible message
+            if (!existingTimer) {
+              const timer = setTimeout(() => {
+                // Only call API if this message hasn't been marked yet
+                if (lastMarkedMsgIdRef.current !== msgId) {
+                  lastMarkedMsgIdRef.current = msgId;
+                  // Mark the latest visible message as read (server marks all prior as read too)
+                  api.markAsRead(chatRefForMarkRead.current.id, chatRefForMarkRead.current.type, msgId).catch(() => {});
+                  // Notify sidebar to clear unread count via custom event
+                  window.dispatchEvent(new CustomEvent('chat-mark-read', {
+                    detail: { chatId: chatRefForMarkRead.current.id, chatType: chatRefForMarkRead.current.type }
+                  }));
+                }
+                markReadTimersRef.current.delete(msgId);
+              }, 3000);
+              markReadTimersRef.current.set(msgId, timer);
+            }
+          } else {
+            // Message not visible - cancel timer
+            if (existingTimer) {
+              clearTimeout(existingTimer);
+              markReadTimersRef.current.delete(msgId);
+            }
+          }
+        });
+      },
+      { threshold: 0.5, root: container }
+    );
+
+    // Observe all message elements
+    const msgElements = container.querySelectorAll('[data-msg-id]');
+    msgElements.forEach((el) => observer.observe(el));
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [chat.id, chat.type, loading, messages.length, userId]);
+
+  // Reset last marked message when switching chats
+  useEffect(() => {
+    lastMarkedMsgIdRef.current = null;
+  }, [chat.id]);
 
   // Realtime: new messages + typing indicators
   useRealtimeEvents({
@@ -971,6 +1049,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                   <div
                     key={msg.id}
                     id={`msg-${msg.id}`}
+                    data-msg-id={String(msg.id)}
+                    data-sender-id={String(msg.sender?.id ?? '')}
+                    data-msg-time={String(msg.time ?? 0)}
                     ref={globalMatchIdx >= 0 ? (el) => { searchMatchRefs.current[globalMatchIdx] = el; } : undefined}
                     className={clsx(globalMatchIdx >= 0 && 'ring-inset ring-2', isCurrentMatch ? 'ring-yellow-400 dark:ring-yellow-500' : globalMatchIdx >= 0 ? 'ring-yellow-200 dark:ring-yellow-800' : undefined)}
                   >
@@ -1204,6 +1285,9 @@ function MessageGroup({
             <div
               key={msg.id}
               id={`msg-${msg.id}`}
+              data-msg-id={String(msg.id)}
+              data-sender-id={String(msg.sender?.id ?? '')}
+              data-msg-time={String(msg.time ?? 0)}
               ref={isBubbleMatch ? (el) => onMatchRef?.(String(msg.id), el) : undefined}
               className={clsx(
                 'group/msg relative flex flex-col gap-0.5 before:pointer-events-auto before:absolute before:-top-8 before:left-0 before:right-0 before:h-8',
