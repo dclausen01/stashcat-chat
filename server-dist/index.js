@@ -156,6 +156,7 @@ async function getClient(req) {
 async function connectRealtime(client, clientKey) {
     serverLog(`[Realtime] Connecting for clientKey ${clientKey.slice(0, 8)}…`);
     try {
+        // @ts-ignore — onAnyEvent added in stashcat-api; older node_modules copies may not have the type yet
         const rt = await client.createRealtimeManager({
             reconnect: true,
             debug: true,

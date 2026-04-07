@@ -154,10 +154,11 @@ async function getClient(req: express.Request): Promise<StashcatClient> {
 async function connectRealtime(client: StashcatClient, clientKey: string) {
   serverLog(`[Realtime] Connecting for clientKey ${clientKey.slice(0, 8)}…`);
   try {
+    // @ts-ignore — onAnyEvent added in stashcat-api; older node_modules copies may not have the type yet
     const rt = await client.createRealtimeManager({
       reconnect: true,
       debug: true,
-      onAnyEvent: (event, args) => {
+      onAnyEvent: (event: string, args: unknown[]) => {
         serverLog(`[Realtime] 📡 socket event "${event}"`, JSON.stringify(args).slice(0, 300));
       },
     });
