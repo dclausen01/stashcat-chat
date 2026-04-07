@@ -260,6 +260,46 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
       pushSSE(clientKey, 'message_sync', payload);
     });
 
+    // Incoming messages from others arrive as 'notification', not 'message_sync'.
+    // 'message_sync' is only sent back to the sender as an echo.
+    rt.on('notification', async (data: unknown) => {
+      const notif = data as Record<string, unknown>;
+      const msg = notif.message as MessageSyncPayload | undefined;
+      if (!msg) return; // Not a message notification
+
+      serverLog(`[Realtime] Received notification (new message):`, {
+        channel_id: msg.channel_id,
+        conversation_id: msg.conversation_id,
+        id: msg.id,
+      });
+
+      // Suppress Chat Bot conversation messages
+      const convId = msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null;
+      if (convId && isBotConversation(convId, clientKey)) return;
+
+      const payload: Record<string, unknown> = { ...msg };
+
+      // Decrypt if E2E-encrypted
+      if (msg.encrypted && msg.text && msg.iv) {
+        try {
+          let aesKey: Buffer | undefined;
+          const channelId = msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null;
+          const msgConvId = msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null;
+          if (msgConvId) aesKey = await client.getConversationAesKey(msgConvId);
+          else if (channelId) aesKey = await client.getChannelAesKey(channelId);
+          if (aesKey) {
+            const iv = CryptoManager.hexToBuffer(msg.iv);
+            payload.text = CryptoManager.decrypt(msg.text, aesKey, iv);
+          }
+        } catch (err) {
+          serverLog('[Realtime] Failed to decrypt notification:', errorMessage(err));
+        }
+      }
+
+      serverLog(`[Realtime] Pushing notification as message_sync to SSE`);
+      pushSSE(clientKey, 'message_sync', payload);
+    });
+
     rt.on('user-started-typing', (chatType: string, chatId: number, userId: number) => {
       serverLog(`[Realtime] Received typing event:`, { chatType, chatId, userId });
       pushSSE(clientKey, 'typing', { chatType, chatId, userId });

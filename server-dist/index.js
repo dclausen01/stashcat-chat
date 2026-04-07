@@ -248,6 +248,45 @@ async function connectRealtime(client, clientKey) {
             serverLog(`[Realtime] Pushing message_sync to SSE for clientKey ${clientKey.slice(0, 8)}`);
             pushSSE(clientKey, 'message_sync', payload);
         });
+        // Incoming messages from others arrive as 'notification', not 'message_sync'.
+        // 'message_sync' is only sent back to the sender as an echo.
+        rt.on('notification', async (data) => {
+            const notif = data;
+            const msg = notif.message;
+            if (!msg)
+                return; // Not a message notification
+            serverLog(`[Realtime] Received notification (new message):`, {
+                channel_id: msg.channel_id,
+                conversation_id: msg.conversation_id,
+                id: msg.id,
+            });
+            // Suppress Chat Bot conversation messages
+            const convId = msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null;
+            if (convId && isBotConversation(convId, clientKey))
+                return;
+            const payload = { ...msg };
+            // Decrypt if E2E-encrypted
+            if (msg.encrypted && msg.text && msg.iv) {
+                try {
+                    let aesKey;
+                    const channelId = msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null;
+                    const msgConvId = msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null;
+                    if (msgConvId)
+                        aesKey = await client.getConversationAesKey(msgConvId);
+                    else if (channelId)
+                        aesKey = await client.getChannelAesKey(channelId);
+                    if (aesKey) {
+                        const iv = stashcat_api_1.CryptoManager.hexToBuffer(msg.iv);
+                        payload.text = stashcat_api_1.CryptoManager.decrypt(msg.text, aesKey, iv);
+                    }
+                }
+                catch (err) {
+                    serverLog('[Realtime] Failed to decrypt notification:', errorMessage(err));
+                }
+            }
+            serverLog(`[Realtime] Pushing notification as message_sync to SSE`);
+            pushSSE(clientKey, 'message_sync', payload);
+        });
         rt.on('user-started-typing', (chatType, chatId, userId) => {
             serverLog(`[Realtime] Received typing event:`, { chatType, chatId, userId });
             pushSSE(clientKey, 'typing', { chatType, chatId, userId });
