@@ -59,16 +59,17 @@ function errorMessage(err: unknown, fallback = 'Failed'): string {
 const upload = multer({ dest: os.tmpdir() });
 
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy (e.g. nginx) to get correct client IP for rate limiting
 app.use(cors());
 app.use(express.json());
 
-// Rate limiting — exempt SSE endpoint (long-lived connections)
+// Rate limiting — exempt SSE endpoint and file/image endpoints
 const apiLimiter = rateLimit({
   windowMs: 60_000,
-  max: 120,
+  max: 1000, // Increased to 1000 to allow fast channel switching and background requests
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.path === '/api/events',
+  skip: (req) => req.path === '/api/events' || req.path.startsWith('/api/file'),
 });
 app.use('/api/', apiLimiter);
 
@@ -79,6 +80,7 @@ interface CachedClient {
   expiresAt: number;
 }
 const clientCache = new Map<string, CachedClient>();
+const pendingClients = new Map<string, Promise<StashcatClient>>();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 // ── Chat Bot cache (for video meetings) ──────────────────────────────────────
@@ -128,28 +130,45 @@ function extractToken(req: express.Request): string {
 async function getClient(req: express.Request): Promise<StashcatClient> {
   const token = extractToken(req);
   const payload = decryptSession(token);
+  const { clientKey, deviceId, baseUrl, securityPassword } = payload;
 
   // Check cache
-  const cached = clientCache.get(payload.clientKey);
-  console.log(`[getClient] clientKey=${payload.clientKey?.slice(0,8)} cached=${!!cached}`);
+  const cached = clientCache.get(clientKey);
   if (cached && Date.now() < cached.expiresAt) {
     cached.expiresAt = Date.now() + CACHE_TTL; // Refresh TTL
     return cached.client;
   }
 
-  // Create new client
-  const client = StashcatClient.fromSession(
-    { deviceId: payload.deviceId, clientKey: payload.clientKey },
-    { baseUrl: payload.baseUrl }
-  );
-
-  // Unlock E2E
-  if (payload.securityPassword) {
-    await client.unlockE2E(payload.securityPassword);
+  // Check if initialization is already in progress
+  const pending = pendingClients.get(clientKey);
+  if (pending) {
+    console.log(`[getClient] clientKey=${clientKey?.slice(0,8)} waiting for pending initialization...`);
+    return pending;
   }
 
-  clientCache.set(payload.clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
-  return client;
+  const initPromise = (async () => {
+    try {
+      console.log(`[getClient] clientKey=${clientKey?.slice(0,8)} initializing new client...`);
+      // Create new client
+      const client = StashcatClient.fromSession(
+        { deviceId, clientKey },
+        { baseUrl }
+      );
+
+      // Unlock E2E
+      if (securityPassword) {
+        await client.unlockE2E(securityPassword);
+      }
+
+      clientCache.set(clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
+      return client;
+    } finally {
+      pendingClients.delete(clientKey);
+    }
+  })();
+
+  pendingClients.set(clientKey, initPromise);
+  return initPromise;
 }
 
 // ── Realtime setup ───────────────────────────────────────────────────────────
