@@ -215,14 +215,25 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       const msgs = res as unknown as Message[];
       
       // Determine first unread message BEFORE we mark them as read
-      const unreadCount = Number(chat.unread_count || (chat as any).unread_messages || 0);
-      if (unreadCount > 0 && msgs.length > 0) {
-        // Find the index: the last 'unreadCount' messages are new
-        const firstUnreadIdx = Math.max(0, msgs.length - unreadCount);
-        setFirstUnreadMsgId(String(msgs[firstUnreadIdx].id));
+      let firstUnreadId = null;
+      const firstUnreadMsg = msgs.find(m => m.unread === true && String(m.sender?.id) !== userId);
+      if (firstUnreadMsg) {
+        firstUnreadId = String(firstUnreadMsg.id);
       } else {
-        setFirstUnreadMsgId(null);
+        const unreadCount = Number(chat.unread_count || (chat as any).unread_messages || 0);
+        if (unreadCount > 0 && msgs.length > 0) {
+          let foundUnread = 0;
+          for (let i = msgs.length - 1; i >= 0; i--) {
+            const m = msgs[i];
+            if (String(m.sender?.id) !== userId) {
+              foundUnread++;
+              firstUnreadId = String(m.id);
+              if (foundUnread === unreadCount) break;
+            }
+          }
+        }
       }
+      setFirstUnreadMsgId(firstUnreadId);
 
       setMessages(msgs);
       if (msgs.length < PAGE_SIZE) {
