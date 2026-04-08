@@ -81,7 +81,10 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   }, []);
 
   // Split ratio: percentage for channels panel (top), rest goes to conversations
-  const [splitPct, setSplitPct] = useState(50);
+  const [splitPct, setSplitPct] = useState(() => {
+    const saved = localStorage.getItem('schulchat_sidebar_split');
+    return saved ? Number(saved) : 50;
+  });
   const dragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const activeChatRef = useRef(activeChat);
@@ -278,7 +281,9 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       if (!dragging.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const pct = ((ev.clientY - rect.top) / rect.height) * 100;
-      setSplitPct(Math.min(80, Math.max(20, pct)));
+      const newPct = Math.min(80, Math.max(20, pct));
+      setSplitPct(newPct);
+      localStorage.setItem('schulchat_sidebar_split', String(newPct));
     };
 
     const onUp = () => {
