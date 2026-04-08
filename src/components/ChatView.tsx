@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
+import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Video, CalendarDays, ArrowLeft, GraduationCap } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
@@ -148,6 +148,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [viewingDateResults, setViewingDateResults] = useState(false);
   const savedMessagesRef = useRef<{ messages: Message[]; hasMore: boolean; offset: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Store the first unread message ID when opening the chat
+  const [firstUnreadMsgId, setFirstUnreadMsgId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef(chat);
   chatRef.current = chat;
@@ -210,6 +213,17 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
       const msgs = res as unknown as Message[];
+      
+      // Determine first unread message BEFORE we mark them as read
+      const unreadCount = Number(chat.unread_count || (chat as any).unread_messages || 0);
+      if (unreadCount > 0 && msgs.length > 0) {
+        // Find the index: the last 'unreadCount' messages are new
+        const firstUnreadIdx = Math.max(0, msgs.length - unreadCount);
+        setFirstUnreadMsgId(String(msgs[firstUnreadIdx].id));
+      } else {
+        setFirstUnreadMsgId(null);
+      }
+
       setMessages(msgs);
       if (msgs.length < PAGE_SIZE) {
         setHasMore(false);
@@ -1008,6 +1022,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                         const idx = searchMatches.indexOf(msgId);
                         if (idx >= 0) searchMatchRefs.current[idx] = el;
                       }}
+                      firstUnreadMsgId={firstUnreadMsgId}
                     />,
                   );
                 }
@@ -1023,6 +1038,15 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 const ts = Number(msg.time);
                 const dayKey = ts ? msgDayKey(ts) : '';
                 const elements: ReactNode[] = [];
+                if (String(msg.id) === firstUnreadMsgId) {
+                  elements.push(
+                    <div key={`unread-${msg.id}`} className="my-2 flex items-center justify-center gap-4 w-full px-4">
+                      <div className="h-px flex-1 bg-red-400/50 dark:bg-red-500/50" />
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-red-500 dark:text-red-400">Neu</span>
+                      <div className="h-px flex-1 bg-red-400/50 dark:bg-red-500/50" />
+                    </div>
+                  );
+                }
                 if (dayKey && dayKey !== lastDayKey) {
                   lastDayKey = dayKey;
                   elements.push(<DateSeparator key={`sep-${msg.id}`} label={formatDateLabel(ts)} />);
@@ -1228,6 +1252,7 @@ function MessageGroup({
   searchMatchSet = new Set(),
   currentMatchMsgId = null,
   onMatchRef,
+  firstUnreadMsgId,
 }: {
   group: { sender: Message['sender']; isOwn: boolean; messages: Message[] };
   canDeleteAll: boolean;
@@ -1245,6 +1270,7 @@ function MessageGroup({
   searchMatchSet?: Set<string>;
   currentMatchMsgId?: string | null;
   onMatchRef?: (msgId: string, el: HTMLDivElement | null) => void;
+  firstUnreadMsgId?: string | null;
 }) {
   const { sender, isOwn, messages } = group;
   const senderName = sender ? `${sender.first_name} ${sender.last_name}` : 'Unbekannt';
@@ -1265,6 +1291,7 @@ function MessageGroup({
         )}
 
         {messages.map((msg, i) => {
+          const isFirstUnread = String(msg.id) === firstUnreadMsgId;
           const timeDate = msg.time ? new Date(msg.time * 1000) : null;
           const time = timeDate ? timeDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
           const isToday = timeDate ? msgDayKey(msg.time!) === msgDayKey(Date.now() / 1000) : true;
@@ -1282,8 +1309,15 @@ function MessageGroup({
           const isBubbleMatch = searchMatchSet.has(String(msg.id));
           const isBubbleCurrent = currentMatchMsgId === String(msg.id);
           return (
+            <React.Fragment key={msg.id}>
+              {isFirstUnread && (
+                <div className="my-2 flex items-center justify-center gap-4 w-full self-center px-4">
+                  <div className="h-px flex-1 bg-red-400/50 dark:bg-red-500/50" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-red-500 dark:text-red-400">Neu</span>
+                  <div className="h-px flex-1 bg-red-400/50 dark:bg-red-500/50" />
+                </div>
+              )}
             <div
-              key={msg.id}
               id={`msg-${msg.id}`}
               data-msg-id={String(msg.id)}
               data-sender-id={String(msg.sender?.id ?? '')}
@@ -1393,6 +1427,7 @@ function MessageGroup({
                 </div>
               )}
             </div>
+            </React.Fragment>
           );
         })}
       </div>
