@@ -485,7 +485,11 @@ app.post('/api/channels/:channelId/favorite', async (req, res) => {
 app.get('/api/channels/:companyId', async (req, res) => {
   try {
     const client = await getClient(req);
-    res.json(await client.getChannels(req.params.companyId));
+    const channels = await client.getChannels(req.params.companyId);
+    if (channels.length > 0) {
+      serverLog(`[channels] first channel unread keys: unread_count=${channels[0].unread_count}, unread_messages=${(channels[0] as any).unread_messages}, raw=${JSON.stringify(channels[0]).slice(0, 200)}`);
+    }
+    res.json(channels);
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }

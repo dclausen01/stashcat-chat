@@ -111,7 +111,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
             description: ch.description,
             image: ch.image,
             encrypted: Boolean(ch.encrypted),
-            unread_count: Number(ch.unread_count || 0),
+            unread_count: Number(ch.unread_count || (ch as any).unread_messages || 0),
             favorite: Boolean(ch.favorite),
             lastActivity: ch.last_message ? Number(ch.last_message.time || 0) : 0,
             company_id: cid,
@@ -139,7 +139,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           name,
           image,
           encrypted: Boolean(c.encrypted),
-          unread_count: Number(c.unread_count || 0),
+          unread_count: Number(c.unread_count || (c as any).unread_messages || 0),
           favorite: Boolean(c.favorite || c.is_favorite),
           lastActivity,
         };
@@ -474,7 +474,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
                   name: o.length > 0 ? o.map((mb) => `${mb.first_name ?? ''} ${mb.last_name ?? ''}`.trim()).join(', ') : 'Eigene Notizen',
                   image: o.length === 1 && o[0].image ? String(o[0].image) : undefined,
                   encrypted: Boolean(c.encrypted),
-                  unread_count: Number(c.unread_count || 0),
+                  unread_count: Number(c.unread_count || (c as any).unread_messages || 0),
                   favorite: Boolean(c.favorite),
                   lastActivity: Number(c.last_action || c.last_activity || 0),
                 };
