@@ -15,23 +15,27 @@ import type { ChatTarget } from '../types';
 
 // ── Quota helpers ──────────────────────────────────────────────────────────────
 
-function QuotaBar({ label, quota, isPersonal = false }: { label: string; quota: api.FileQuota; isPersonal?: boolean }) {
-  // Determine which values to show
-  // For personal storage: use personal_used for used, absolute for total
-  // For channel/conversation: use used for used, absolute for total
-  const usedKb = isPersonal && quota.personal_used
-    ? quota.personal_used.kb
-    : quota.used.kb;
+function QuotaBar({ label, quota }: { label: string; quota: api.FileQuota }) {
   const totalKb = quota.absolute.kb;
-  const usedDisplay = isPersonal && quota.personal_used
-    ? `${quota.personal_used.value} ${quota.personal_used.unit}`
-    : `${quota.used.value} ${quota.used.unit}`;
-  const totalDisplay = `${quota.absolute.value} ${quota.absolute.unit}`;
-  const freeDisplay = `${quota.free.value} ${quota.free.unit}`;
+  const personalKb = quota.personal_used?.kb || 0;
+  const sharedKb = Math.max(0, quota.used.kb - personalKb); // Channel/Shared = total used - personal
   
-  const pct = totalKb > 0 ? Math.min(100, (usedKb / totalKb) * 100) : 0;
-  const isHigh = pct > 80;
-  const isCritical = pct > 95;
+  // Calculate percentages
+  const personalPct = totalKb > 0 ? (personalKb / totalKb) * 100 : 0;
+  const sharedPct = totalKb > 0 ? (sharedKb / totalKb) * 100 : 0;
+  const usedPct = personalPct + sharedPct;
+  
+  const isHigh = usedPct > 80;
+  const isCritical = usedPct > 95;
+  
+  // Format displays
+  const personalDisplay = quota.personal_used 
+    ? `${quota.personal_used.value} ${quota.personal_used.unit}`
+    : '0 B';
+  const sharedDisplay = sharedKb > 0
+    ? `${(sharedKb / 1024 / 1024).toFixed(2)} GB` // Convert KB to GB for display
+    : '0 B';
+  const freeDisplay = `${quota.free.value} ${quota.free.unit}`;
   
   return (
     <div className="space-y-1">
@@ -41,20 +45,38 @@ function QuotaBar({ label, quota, isPersonal = false }: { label: string; quota: 
           'tabular-nums',
           isCritical ? 'text-red-500 dark:text-red-400' : isHigh ? 'text-amber-500 dark:text-amber-400' : 'text-surface-500 dark:text-surface-400',
         )}>
-          {usedDisplay} / {totalDisplay}
+          {personalDisplay} persönlich + {sharedDisplay} geteilte Dateien
         </span>
       </div>
+      
+      {/* Stacked bar chart */}
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-200 dark:bg-surface-700">
-        <div
-          className={clsx(
-            'h-full rounded-full transition-all',
-            isCritical ? 'bg-red-500' : isHigh ? 'bg-amber-500' : 'bg-ci-blue-500 dark:bg-primary-400',
+        <div className="flex h-full w-full">
+          {/* Personal - dark blue */}
+          {personalPct > 0 && (
+            <div
+              className="h-full bg-ci-blue-700 dark:bg-ci-blue-600"
+              style={{ width: `${personalPct}%` }}
+              title={`Persönlich: ${personalDisplay}`}
+            />
           )}
-          style={{ width: `${pct}%` }}
-        />
+          {/* Shared - light blue */}
+          {sharedPct > 0 && (
+            <div
+              className={clsx(
+                'h-full',
+                isCritical ? 'bg-red-400' : isHigh ? 'bg-amber-400' : 'bg-ci-blue-400 dark:bg-ci-blue-300'
+              )}
+              style={{ width: `${sharedPct}%` }}
+              title={`Channel/Shared: ${sharedDisplay}`}
+            />
+          )}
+        </div>
       </div>
-      <div className="text-right text-[10px] text-surface-500 dark:text-surface-500">
-        {pct.toFixed(0)}% belegt · {freeDisplay} frei
+      
+      <div className="flex items-center justify-between text-[10px] text-surface-500 dark:text-surface-500">
+        <span>{usedPct.toFixed(0)}% belegt</span>
+        <span>{freeDisplay} frei</span>
       </div>
     </div>
   );
@@ -617,7 +639,6 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
 
   // Quota state
   const [personalQuota, setPersonalQuota] = useState<api.FileQuota | null>(null);
-  const [chatQuota, setChatQuota] = useState<api.FileQuota | null>(null);
 
   const currentFolderId = crumbs[crumbs.length - 1].id ?? undefined;
 
@@ -648,14 +669,6 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
       api.getFileQuota('personal', String(user.id))
         .then(setPersonalQuota)
         .catch(() => setPersonalQuota(null));
-    }
-    // Chat context quota
-    if (chat && tab === 'context') {
-      api.getFileQuota(chat.type, chat.id)
-        .then(setChatQuota)
-        .catch(() => setChatQuota(null));
-    } else {
-      setChatQuota(null);
     }
   }, [tab, chat?.id, chat?.type, user?.id]);
 
@@ -1353,25 +1366,16 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
       )}
 
       {/* Quota footer */}
-      {(personalQuota || chatQuota) && (
+      {personalQuota && (
         <div className="shrink-0 border-t border-surface-200 px-4 py-3 space-y-2.5 dark:border-surface-700">
           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
             <HardDrive size={12} />
             Speicherplatz
           </div>
-          {chatQuota && tab === 'context' && (
-            <QuotaBar
-              label={chat?.type === 'channel' ? 'Channel' : 'Konversation'}
-              quota={chatQuota}
-            />
-          )}
-          {personalQuota && (
-            <QuotaBar
-              label="Persönlich"
-              quota={personalQuota}
-              isPersonal
-            />
-          )}
+          <QuotaBar
+            label="Persönlich"
+            quota={personalQuota}
+          />
         </div>
       )}
 
