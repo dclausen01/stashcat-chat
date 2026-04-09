@@ -928,10 +928,13 @@ app.get('/api/files/quota', async (req, res) => {
             res.status(400).json({ error: 'type and typeId are required' });
             return;
         }
+        serverLog(`[quota] Fetching quota for type=${type}, typeId=${typeId}`);
         const quota = await client.getQuota(type, typeId);
+        serverLog(`[quota] Raw API response:`, JSON.stringify(quota));
         res.json(quota);
     }
     catch (err) {
+        serverLog(`[quota] Error:`, errorMessage(err));
         res.status(500).json({ error: errorMessage(err, 'Failed to get quota') });
     }
 });

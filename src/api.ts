@@ -326,8 +326,8 @@ export async function listPersonalFiles(folderId?: string, offset = 0, limit = 2
 }
 
 export interface FileQuota {
-  used: number;
-  total: number;
+  used: number | string;
+  total: number | string;
 }
 
 export async function getFileQuota(type: string, typeId: string): Promise<FileQuota> {
