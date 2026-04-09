@@ -89,18 +89,20 @@ function errorMessage(err, fallback = 'Failed') {
 // Multer: store uploads in OS temp dir
 const upload = (0, multer_1.default)({ dest: os_1.default.tmpdir() });
 const app = (0, express_1.default)();
+app.set('trust proxy', 1); // Trust first proxy (e.g. nginx) to get correct client IP for rate limiting
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
-// Rate limiting — exempt SSE endpoint (long-lived connections)
+// Rate limiting — exempt SSE endpoint and file/image endpoints
 const apiLimiter = (0, express_rate_limit_1.default)({
     windowMs: 60_000,
-    max: 120,
+    max: 1000, // Increased to 1000 to allow fast channel switching and background requests
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req) => req.path === '/api/events',
+    skip: (req) => req.path === '/api/events' || req.path.startsWith('/api/file'),
 });
 app.use('/api/', apiLimiter);
 const clientCache = new Map();
+const pendingClients = new Map();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const botCache = new Map(); // keyed by clientKey
 // Cleanup expired entries periodically
@@ -138,21 +140,37 @@ function extractToken(req) {
 async function getClient(req) {
     const token = extractToken(req);
     const payload = (0, token_crypto_1.decryptSession)(token);
+    const { clientKey, deviceId, baseUrl, securityPassword } = payload;
     // Check cache
-    const cached = clientCache.get(payload.clientKey);
-    console.log(`[getClient] clientKey=${payload.clientKey?.slice(0, 8)} cached=${!!cached}`);
+    const cached = clientCache.get(clientKey);
     if (cached && Date.now() < cached.expiresAt) {
         cached.expiresAt = Date.now() + CACHE_TTL; // Refresh TTL
         return cached.client;
     }
-    // Create new client
-    const client = stashcat_api_1.StashcatClient.fromSession({ deviceId: payload.deviceId, clientKey: payload.clientKey }, { baseUrl: payload.baseUrl });
-    // Unlock E2E
-    if (payload.securityPassword) {
-        await client.unlockE2E(payload.securityPassword);
+    // Check if initialization is already in progress
+    const pending = pendingClients.get(clientKey);
+    if (pending) {
+        console.log(`[getClient] clientKey=${clientKey?.slice(0, 8)} waiting for pending initialization...`);
+        return pending;
     }
-    clientCache.set(payload.clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
-    return client;
+    const initPromise = (async () => {
+        try {
+            console.log(`[getClient] clientKey=${clientKey?.slice(0, 8)} initializing new client...`);
+            // Create new client
+            const client = stashcat_api_1.StashcatClient.fromSession({ deviceId, clientKey }, { baseUrl });
+            // Unlock E2E
+            if (securityPassword) {
+                await client.unlockE2E(securityPassword);
+            }
+            clientCache.set(clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
+            return client;
+        }
+        finally {
+            pendingClients.delete(clientKey);
+        }
+    })();
+    pendingClients.set(clientKey, initPromise);
+    return initPromise;
 }
 // ── Realtime setup ───────────────────────────────────────────────────────────
 async function connectRealtime(client, clientKey) {
@@ -464,7 +482,11 @@ app.post('/api/channels/:channelId/favorite', async (req, res) => {
 app.get('/api/channels/:companyId', async (req, res) => {
     try {
         const client = await getClient(req);
-        res.json(await client.getChannels(req.params.companyId));
+        const channels = await client.getChannels(req.params.companyId);
+        if (channels.length > 0) {
+            serverLog(`[channels] first channel unread keys: unread_count=${channels[0].unread_count}, unread_messages=${channels[0].unread_messages}, raw=${JSON.stringify(channels[0]).slice(0, 200)}`);
+        }
+        res.json(channels);
     }
     catch (err) {
         res.status(500).json({ error: errorMessage(err) });

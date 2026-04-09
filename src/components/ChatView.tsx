@@ -619,7 +619,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     <div className="flex h-full flex-1 overflow-hidden">
       {/* Main chat area */}
       <div
-        className="relative flex min-w-0 flex-1 flex-col bg-stone-50 dark:bg-surface-950"
+        className="relative flex min-w-0 flex-1 flex-col bg-ci-blue-50 dark:bg-surface-950"
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={(e) => { if (e.currentTarget.contains(e.relatedTarget as Node)) return; setDragOver(false); }}
         onDrop={async (e) => {
@@ -1116,7 +1116,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         {showScrollBtn && (
           <button
             onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
-            className="absolute bottom-4 right-6 rounded-full bg-primary-600 p-2 text-white shadow-lg transition hover:bg-primary-700"
+            className="absolute bottom-4 right-6 rounded-full bg-ci-red-500 p-2 text-white shadow-lg transition hover:bg-ci-red-600"
           >
             <ArrowDown size={20} />
           </button>
@@ -1141,7 +1141,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         </div>
       )}
 
-      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} droppedFiles={droppedFiles} onDroppedFilesConsumed={() => setDroppedFiles([])} />
+      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatId={chat.id} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} droppedFiles={droppedFiles} onDroppedFilesConsumed={() => setDroppedFiles([])} />
       {showPollModal && (
         <CreatePollModal
           preselectedChat={chat}

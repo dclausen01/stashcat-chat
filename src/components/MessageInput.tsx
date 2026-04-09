@@ -14,6 +14,7 @@ interface MessageInputProps {
   onSend: (text: string) => Promise<void>;
   onUpload: (file: File, text: string) => Promise<void>;
   onTyping?: () => void;
+  chatId: string;
   chatName: string;
   replyTo?: ReplyTarget | null;
   onCancelReply?: () => void;
@@ -55,7 +56,7 @@ const FORMAT_BUTTONS: FormatButton[] = [
   { icon: <List size={15} />, label: 'Liste', action: linePrefix('- ', 'Listenpunkt') },
 ];
 
-export default function MessageInput({ onSend, onUpload, onTyping, chatName, replyTo, onCancelReply, onCreatePoll, onCreateEvent, droppedFiles, onDroppedFilesConsumed }: MessageInputProps) {
+export default function MessageInput({ onSend, onUpload, onTyping, chatId, chatName, replyTo, onCancelReply, onCreatePoll, onCreateEvent, droppedFiles, onDroppedFilesConsumed }: MessageInputProps) {
   const { theme } = useTheme();
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -68,6 +69,23 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
   const attachMenuRef = useRef<HTMLDivElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
   const typingThrottle = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Per-chat draft storage: preserve text when switching chats
+  const draftsRef = useRef<Map<string, string>>(new Map());
+  const prevChatIdRef = useRef(chatId);
+
+  useEffect(() => {
+    if (prevChatIdRef.current !== chatId) {
+      // Save current text for the previous chat
+      draftsRef.current.set(prevChatIdRef.current, text);
+      // Restore saved text for the new chat (or empty)
+      const saved = draftsRef.current.get(chatId) || '';
+      setText(saved);
+      // Reset textarea height
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      prevChatIdRef.current = chatId;
+    }
+  }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Focus textarea when reply is activated
   useEffect(() => {
@@ -128,6 +146,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
       }
       setPendingFiles([]);
       setText('');
+      draftsRef.current.delete(chatId);
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
       setSending(false);
     } else {
@@ -137,6 +156,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
       try {
         await onSend(trimmed);
         setText('');
+        draftsRef.current.delete(chatId);
       } finally {
         setSending(false);
         if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -259,9 +279,9 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
             {btn.icon}
           </button>
         ))}
-        <div className="ml-auto text-xs text-surface-500">
-          <kbd className="rounded bg-surface-100 px-1 py-0.5 font-mono text-[10px] dark:bg-surface-800">Enter</kbd> Senden{' · '}
-          <kbd className="rounded bg-surface-100 px-1 py-0.5 font-mono text-[10px] dark:bg-surface-800">⇧Enter</kbd> Neue Zeile
+        <div className="ml-auto shrink-0 whitespace-nowrap text-xs text-surface-600 dark:text-surface-400">
+          <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Enter</kbd> Senden{' · '}
+          <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Shift+Enter</kbd> Neue Zeile
         </div>
       </div>
 
@@ -377,7 +397,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
           onClick={handleSend}
           disabled={!canSend}
           title="Senden"
-          className="shrink-0 rounded-lg bg-primary-600 p-1.5 text-white transition hover:bg-primary-700 disabled:opacity-40"
+          className="shrink-0 rounded-lg bg-ci-red-500 p-1.5 text-white transition hover:bg-ci-red-600 disabled:opacity-40"
         >
           {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
         </button>

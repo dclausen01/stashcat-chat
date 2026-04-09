@@ -298,7 +298,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
   return (
     <div
-      className="relative flex h-full shrink-0 flex-col bg-surface-50 dark:bg-surface-900"
+      className="relative flex h-full shrink-0 flex-col bg-ci-blue-50 dark:bg-surface-900"
       style={{ width: sidebarWidth }}
     >
       {/* Horizontal resize handle */}
@@ -318,7 +318,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
       {/* Search */}
       <div className="shrink-0 p-3">
-        <div className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
+        <div className="flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2 dark:bg-surface-800">
           <Search size={16} className="text-surface-500" />
           <input
             type="text"
