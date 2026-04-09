@@ -124,6 +124,9 @@ function pushSSE(clientKey, event, data) {
     for (const res of conn.sseClients) {
         try {
             res.write(payload);
+            if (typeof res.flush === 'function') {
+                res.flush();
+            }
         }
         catch {
             conn.sseClients.delete(res);
@@ -378,30 +381,42 @@ app.get('/api/events', async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx response buffering for SSE
     res.flushHeaders();
-    serverLog(`[SSE] Headers sent for clientKey: ${clientKey.slice(0, 8)}...`);
-    // Heartbeat every 10 s to keep the connection alive (shorter for faster disconnect detection)
+    // Heartbeat every 25 s to keep the connection alive
     const hb = setInterval(() => {
         try {
             res.write(': heartbeat\n\n');
+            if (typeof res.flush === 'function') {
+                res.flush();
+            }
         }
         catch {
             clearInterval(hb);
         }
-    }, 10_000);
+    }, 25_000);
     // Get or create SSE connection for this clientKey
     let conn = activeSSE.get(clientKey);
+    const isNewConnection = !conn;
     if (!conn) {
         serverLog(`[SSE] Creating new SSE connection for clientKey: ${clientKey.slice(0, 8)}...`);
         conn = { client, sseClients: new Set() };
         activeSSE.set(clientKey, conn);
-        // Connect realtime in background
-        connectRealtime(client, clientKey);
     }
     else {
         serverLog(`[SSE] Reusing existing SSE connection for clientKey: ${clientKey.slice(0, 8)}..., clients: ${conn.sseClients.size}`);
     }
     conn.sseClients.add(res);
-    serverLog(`[SSE] Client added. Total SSE clients for this clientKey: ${conn.sseClients.size}`);
+    // Send initial connected event so client knows stream is ready
+    try {
+        res.write(`event: connected\ndata: {}\n\n`);
+        if (typeof res.flush === 'function') {
+            res.flush();
+        }
+    }
+    catch { /* ignore */ }
+    // Connect realtime AFTER client is added so no events are missed
+    if (isNewConnection) {
+        connectRealtime(client, clientKey);
+    }
     req.on('close', () => {
         serverLog(`[SSE] Client disconnected for clientKey: ${clientKey.slice(0, 8)}...`);
         clearInterval(hb);
