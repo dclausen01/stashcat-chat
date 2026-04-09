@@ -96,6 +96,9 @@ function pushSSE(clientKey, event, data) {
     for (const res of conn.sseClients) {
         try {
             res.write(payload);
+            if (typeof res.flush === 'function') {
+                res.flush();
+            }
         }
         catch {
             conn.sseClients.delete(res);
@@ -239,21 +242,37 @@ app.get('/api/events', async (req, res) => {
     res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx response buffering for SSE
     res.flushHeaders();
     // Heartbeat every 25 s to keep the connection alive
-    const hb = setInterval(() => { try {
-        res.write(': heartbeat\n\n');
-    }
-    catch {
-        clearInterval(hb);
-    } }, 25_000);
+    const hb = setInterval(() => {
+        try {
+            res.write(': heartbeat\n\n');
+            if (typeof res.flush === 'function') {
+                res.flush();
+            }
+        }
+        catch {
+            clearInterval(hb);
+        }
+    }, 25_000);
     // Get or create SSE connection for this clientKey
     let conn = activeSSE.get(clientKey);
+    const isNewConnection = !conn;
     if (!conn) {
         conn = { client, sseClients: new Set() };
         activeSSE.set(clientKey, conn);
-        // Connect realtime in background
-        connectRealtime(client, clientKey);
     }
     conn.sseClients.add(res);
+    // Send initial connected event so client knows stream is ready
+    try {
+        res.write(`event: connected\ndata: {}\n\n`);
+        if (typeof res.flush === 'function') {
+            res.flush();
+        }
+    }
+    catch { /* ignore */ }
+    // Connect realtime AFTER client is added so no events are missed
+    if (isNewConnection) {
+        connectRealtime(client, clientKey);
+    }
     req.on('close', () => {
         clearInterval(hb);
         const c = activeSSE.get(clientKey);
