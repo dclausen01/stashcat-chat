@@ -15,22 +15,24 @@ import type { ChatTarget } from '../types';
 
 // ── Quota helpers ──────────────────────────────────────────────────────────────
 
-function formatBytes(bytes: number | string | undefined | null): string {
-  if (bytes === undefined || bytes === null) return '0 B';
-  const num = typeof bytes === 'string' ? parseInt(bytes, 10) : bytes;
-  if (isNaN(num) || num === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.min(Math.floor(Math.log(num) / Math.log(1024)), units.length - 1);
-  const val = num / Math.pow(1024, i);
-  return `${val.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
-}
-
-function QuotaBar({ label, quota }: { label: string; quota: api.FileQuota }) {
-  const used = typeof quota.used === 'string' ? parseInt(quota.used, 10) : (quota.used || 0);
-  const total = typeof quota.total === 'string' ? parseInt(quota.total, 10) : (quota.total || 0);
-  const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
+function QuotaBar({ label, quota, isPersonal = false }: { label: string; quota: api.FileQuota; isPersonal?: boolean }) {
+  // Determine which values to show
+  // For personal storage: use personal_used for used, absolute for total
+  // For channel/conversation: use used for used, absolute for total
+  const usedKb = isPersonal && quota.personal_used
+    ? quota.personal_used.kb
+    : quota.used.kb;
+  const totalKb = quota.absolute.kb;
+  const usedDisplay = isPersonal && quota.personal_used
+    ? `${quota.personal_used.value} ${quota.personal_used.unit}`
+    : `${quota.used.value} ${quota.used.unit}`;
+  const totalDisplay = `${quota.absolute.value} ${quota.absolute.unit}`;
+  const freeDisplay = `${quota.free.value} ${quota.free.unit}`;
+  
+  const pct = totalKb > 0 ? Math.min(100, (usedKb / totalKb) * 100) : 0;
   const isHigh = pct > 80;
   const isCritical = pct > 95;
+  
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-[11px]">
@@ -39,7 +41,7 @@ function QuotaBar({ label, quota }: { label: string; quota: api.FileQuota }) {
           'tabular-nums',
           isCritical ? 'text-red-500 dark:text-red-400' : isHigh ? 'text-amber-500 dark:text-amber-400' : 'text-surface-500 dark:text-surface-400',
         )}>
-          {formatBytes(used)} / {formatBytes(total)}
+          {usedDisplay} / {totalDisplay}
         </span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-200 dark:bg-surface-700">
@@ -52,7 +54,7 @@ function QuotaBar({ label, quota }: { label: string; quota: api.FileQuota }) {
         />
       </div>
       <div className="text-right text-[10px] text-surface-500 dark:text-surface-500">
-        {pct.toFixed(0)}% belegt · {formatBytes(total - used)} frei
+        {pct.toFixed(0)}% belegt · {freeDisplay} frei
       </div>
     </div>
   );
@@ -1367,6 +1369,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
             <QuotaBar
               label="Persönlich"
               quota={personalQuota}
+              isPersonal
             />
           )}
         </div>
