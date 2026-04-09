@@ -15,16 +15,20 @@ import type { ChatTarget } from '../types';
 
 // ── Quota helpers ──────────────────────────────────────────────────────────────
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
+function formatBytes(bytes: number | string | undefined | null): string {
+  if (bytes === undefined || bytes === null) return '0 B';
+  const num = typeof bytes === 'string' ? parseInt(bytes, 10) : bytes;
+  if (isNaN(num) || num === 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  const val = bytes / Math.pow(1024, i);
+  const i = Math.min(Math.floor(Math.log(num) / Math.log(1024)), units.length - 1);
+  const val = num / Math.pow(1024, i);
   return `${val.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
 function QuotaBar({ label, quota }: { label: string; quota: api.FileQuota }) {
-  const pct = quota.total > 0 ? Math.min(100, (quota.used / quota.total) * 100) : 0;
+  const used = typeof quota.used === 'string' ? parseInt(quota.used, 10) : (quota.used || 0);
+  const total = typeof quota.total === 'string' ? parseInt(quota.total, 10) : (quota.total || 0);
+  const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
   const isHigh = pct > 80;
   const isCritical = pct > 95;
   return (
@@ -35,7 +39,7 @@ function QuotaBar({ label, quota }: { label: string; quota: api.FileQuota }) {
           'tabular-nums',
           isCritical ? 'text-red-500 dark:text-red-400' : isHigh ? 'text-amber-500 dark:text-amber-400' : 'text-surface-500 dark:text-surface-400',
         )}>
-          {formatBytes(quota.used)} / {formatBytes(quota.total)}
+          {formatBytes(used)} / {formatBytes(total)}
         </span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-200 dark:bg-surface-700">
@@ -48,7 +52,7 @@ function QuotaBar({ label, quota }: { label: string; quota: api.FileQuota }) {
         />
       </div>
       <div className="text-right text-[10px] text-surface-500 dark:text-surface-500">
-        {pct.toFixed(0)}% belegt · {formatBytes(quota.total - quota.used)} frei
+        {pct.toFixed(0)}% belegt · {formatBytes(total - used)} frei
       </div>
     </div>
   );
