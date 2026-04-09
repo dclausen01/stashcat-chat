@@ -977,6 +977,22 @@ app.get('/api/files/folder', async (req, res) => {
   }
 });
 
+/** Get storage quota for a channel, conversation, or personal storage */
+app.get('/api/files/quota', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const { type, typeId } = req.query;
+    if (!type || !typeId) {
+      res.status(400).json({ error: 'type and typeId are required' });
+      return;
+    }
+    const quota = await client.getQuota(type as string, typeId as string);
+    res.json(quota);
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err, 'Failed to get quota') });
+  }
+});
+
 app.get('/api/files/personal', async (req, res) => {
   try {
     const client = await getClient(req);

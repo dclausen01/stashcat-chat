@@ -325,6 +325,15 @@ export async function listPersonalFiles(folderId?: string, offset = 0, limit = 2
   return get<FolderContent>(url);
 }
 
+export interface FileQuota {
+  used: number;
+  total: number;
+}
+
+export async function getFileQuota(type: string, typeId: string): Promise<FileQuota> {
+  return get<FileQuota>(`/files/quota?type=${encodeURIComponent(type)}&typeId=${encodeURIComponent(typeId)}`);
+}
+
 export async function deleteFile(fileId: string): Promise<void> {
   return post('/files/delete', { fileIds: [fileId] });
 }

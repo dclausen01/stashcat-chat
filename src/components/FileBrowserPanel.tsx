@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Grid3x3, List, Upload, Folder, ChevronRight, Home,
   Trash2, Pencil, Check, Loader2, ExternalLink, ArrowUp, ArrowDown, Plus,
-  Square,
+  Square, HardDrive,
 } from 'lucide-react';
 import { useFileSorting, type SortField, type SortDirection } from '../hooks/useFileSorting';
 import { FolderUploadProgress, type FolderUploadProgressData } from './FolderUploadProgress';
@@ -12,6 +12,47 @@ import { fileIcon } from '../utils/fileIcon';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import type { ChatTarget } from '../types';
+
+// ── Quota helpers ──────────────────────────────────────────────────────────────
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const val = bytes / Math.pow(1024, i);
+  return `${val.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+function QuotaBar({ label, quota }: { label: string; quota: api.FileQuota }) {
+  const pct = quota.total > 0 ? Math.min(100, (quota.used / quota.total) * 100) : 0;
+  const isHigh = pct > 80;
+  const isCritical = pct > 95;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-[11px]">
+        <span className="font-medium text-surface-600 dark:text-surface-400">{label}</span>
+        <span className={clsx(
+          'tabular-nums',
+          isCritical ? 'text-red-500 dark:text-red-400' : isHigh ? 'text-amber-500 dark:text-amber-400' : 'text-surface-500 dark:text-surface-400',
+        )}>
+          {formatBytes(quota.used)} / {formatBytes(quota.total)}
+        </span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-200 dark:bg-surface-700">
+        <div
+          className={clsx(
+            'h-full rounded-full transition-all',
+            isCritical ? 'bg-red-500' : isHigh ? 'bg-amber-500' : 'bg-ci-blue-500 dark:bg-primary-400',
+          )}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="text-right text-[10px] text-surface-500 dark:text-surface-500">
+        {pct.toFixed(0)}% belegt · {formatBytes(quota.total - quota.used)} frei
+      </div>
+    </div>
+  );
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -568,6 +609,10 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Quota state
+  const [personalQuota, setPersonalQuota] = useState<api.FileQuota | null>(null);
+  const [chatQuota, setChatQuota] = useState<api.FileQuota | null>(null);
+
   const currentFolderId = crumbs[crumbs.length - 1].id ?? undefined;
 
   const loadFolder = useCallback(async () => {
@@ -589,6 +634,24 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   }, [tab, chat, currentFolderId]);
 
   useEffect(() => { loadFolder(); }, [loadFolder]);
+
+  // Load quotas when tab or chat changes
+  useEffect(() => {
+    // Personal quota (always load)
+    if (user?.id) {
+      api.getFileQuota('personal', String(user.id))
+        .then(setPersonalQuota)
+        .catch(() => setPersonalQuota(null));
+    }
+    // Chat context quota
+    if (chat && tab === 'context') {
+      api.getFileQuota(chat.type, chat.id)
+        .then(setChatQuota)
+        .catch(() => setChatQuota(null));
+    } else {
+      setChatQuota(null);
+    }
+  }, [tab, chat?.id, chat?.type, user?.id]);
 
   // Escape key to clear selection
   useEffect(() => {
@@ -1281,6 +1344,28 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
           progress={uploadProgress}
           onClose={() => setUploadProgress(null)}
         />
+      )}
+
+      {/* Quota footer */}
+      {(personalQuota || chatQuota) && (
+        <div className="shrink-0 border-t border-surface-200 px-4 py-3 space-y-2.5 dark:border-surface-700">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
+            <HardDrive size={12} />
+            Speicherplatz
+          </div>
+          {chatQuota && tab === 'context' && (
+            <QuotaBar
+              label={chat?.type === 'channel' ? 'Channel' : 'Konversation'}
+              quota={chatQuota}
+            />
+          )}
+          {personalQuota && (
+            <QuotaBar
+              label="Persönlich"
+              quota={personalQuota}
+            />
+          )}
+        </div>
       )}
 
       {/* Move modal */}
