@@ -36,13 +36,17 @@ export function useRealtimeEvents(
 
     es.addEventListener('message_sync', (e) => dispatch(e, 'message_sync'));
     es.addEventListener('typing', (e) => dispatch(e, 'typing'));
-
-    es.onopen = () => {
+    es.addEventListener('connected', () => {
+      // Server confirmed stream is ready — if this is a reconnection, re-fetch data
       if (wasDisconnected) {
         wasDisconnected = false;
-        // Notify consumers so they can re-fetch missed data
         handlersRef.current['reconnect']?.({});
       }
+    });
+
+    es.onopen = () => {
+      // onopen fires when HTTP headers received, but stream may not be fully ready.
+      // Actual reconnect handling is done via the 'connected' event above.
     };
 
     es.onerror = () => {
