@@ -81,7 +81,10 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   }, []);
 
   // Split ratio: percentage for channels panel (top), rest goes to conversations
-  const [splitPct, setSplitPct] = useState(50);
+  const [splitPct, setSplitPct] = useState(() => {
+    const saved = localStorage.getItem('schulchat_sidebar_split');
+    return saved ? Number(saved) : 50;
+  });
   const dragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const activeChatRef = useRef(activeChat);
@@ -111,7 +114,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
             description: ch.description,
             image: ch.image,
             encrypted: Boolean(ch.encrypted),
-            unread_count: Number(ch.unread_count || 0),
+            unread_count: Number(ch.unread_count || (ch as any).unread_messages || 0),
             favorite: Boolean(ch.favorite),
             lastActivity: ch.last_message ? Number(ch.last_message.time || 0) : 0,
             company_id: cid,
@@ -139,7 +142,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           name,
           image,
           encrypted: Boolean(c.encrypted),
-          unread_count: Number(c.unread_count || 0),
+          unread_count: Number(c.unread_count || (c as any).unread_messages || 0),
           favorite: Boolean(c.favorite || c.is_favorite),
           lastActivity,
         };
@@ -158,22 +161,28 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       const channelId = payload.channel_id && payload.channel_id !== 0 ? String(payload.channel_id) : null;
       const convId = payload.conversation_id && payload.conversation_id !== 0 ? String(payload.conversation_id) : null;
       const active = activeChatRef.current;
+      const isInForeground = !document.hidden;
 
       // Request notification permission on first message (better UX than on app load)
       requestPermission();
 
+      // Always update lastActivity for sorting; increment unread_count only if:
+      // - Tab is in background, OR
+      // - Tab is in foreground but the chat is not currently open
       if (channelId) {
         const isActive = active?.type === 'channel' && active.id === channelId;
+        const shouldIncrement = !isInForeground || !isActive;
         setChannels((prev) => sortChats(prev.map((ch) =>
           ch.id === channelId
-            ? { ...ch, lastActivity: time || ch.lastActivity, unread_count: isActive ? 0 : (ch.unread_count ?? 0) + 1 }
+            ? { ...ch, lastActivity: time || ch.lastActivity, unread_count: shouldIncrement ? (ch.unread_count ?? 0) + 1 : ch.unread_count }
             : ch
         )));
       } else if (convId) {
         const isActive = active?.type === 'conversation' && active.id === convId;
+        const shouldIncrement = !isInForeground || !isActive;
         setConversations((prev) => sortChats(prev.map((conv) =>
           conv.id === convId
-            ? { ...conv, lastActivity: time || conv.lastActivity, unread_count: isActive ? 0 : (conv.unread_count ?? 0) + 1 }
+            ? { ...conv, lastActivity: time || conv.lastActivity, unread_count: shouldIncrement ? (conv.unread_count ?? 0) + 1 : conv.unread_count }
             : conv
         )));
       }
@@ -195,6 +204,24 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       loadData();
     },
   }, loggedIn);
+
+  // Mark chat as read (called from ChatView after 3s visibility)
+  const handleMarkRead = useCallback((chatId: string, chatType: 'channel' | 'conversation') => {
+    if (chatType === 'channel') {
+      setChannels((prev) => prev.map((ch) => ch.id === chatId ? { ...ch, unread_count: 0 } : ch));
+    } else {
+      setConversations((prev) => prev.map((c) => c.id === chatId ? { ...c, unread_count: 0 } : c));
+    }
+  }, []);
+
+  // Listen for mark-read events from ChatView
+  useEffect(() => {
+    const handler = (e: CustomEvent<{ chatId: string; chatType: 'channel' | 'conversation' }>) => {
+      handleMarkRead(e.detail.chatId, e.detail.chatType);
+    };
+    window.addEventListener('chat-mark-read', handler as EventListener);
+    return () => window.removeEventListener('chat-mark-read', handler as EventListener);
+  }, [handleMarkRead]);
 
   const handleSelect = useCallback((target: ChatTarget) => {
     // Clear unread for selected chat immediately in sidebar
@@ -254,7 +281,9 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       if (!dragging.current || !containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const pct = ((ev.clientY - rect.top) / rect.height) * 100;
-      setSplitPct(Math.min(80, Math.max(20, pct)));
+      const newPct = Math.min(80, Math.max(20, pct));
+      setSplitPct(newPct);
+      localStorage.setItem('schulchat_sidebar_split', String(newPct));
     };
 
     const onUp = () => {
@@ -269,7 +298,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
   return (
     <div
-      className="relative flex h-full shrink-0 flex-col bg-surface-50 dark:bg-surface-900"
+      className="relative flex h-full shrink-0 flex-col bg-ci-blue-50 dark:bg-surface-900"
       style={{ width: sidebarWidth }}
     >
       {/* Horizontal resize handle */}
@@ -289,7 +318,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
       {/* Search */}
       <div className="shrink-0 p-3">
-        <div className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
+        <div className="flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2 dark:bg-surface-800">
           <Search size={16} className="text-surface-500" />
           <input
             type="text"
@@ -450,7 +479,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
                   name: o.length > 0 ? o.map((mb) => `${mb.first_name ?? ''} ${mb.last_name ?? ''}`.trim()).join(', ') : 'Eigene Notizen',
                   image: o.length === 1 && o[0].image ? String(o[0].image) : undefined,
                   encrypted: Boolean(c.encrypted),
-                  unread_count: Number(c.unread_count || 0),
+                  unread_count: Number(c.unread_count || (c as any).unread_messages || 0),
                   favorite: Boolean(c.favorite),
                   lastActivity: Number(c.last_action || c.last_activity || 0),
                 };

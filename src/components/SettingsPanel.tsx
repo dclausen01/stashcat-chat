@@ -78,6 +78,8 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     setHomeView,
     notificationsEnabled,
     setNotificationsEnabled,
+    autoAcceptKeySync,
+    setAutoAcceptKeySync,
   } = useSettings();
 
   const notificationPermission = typeof Notification !== 'undefined' ? Notification.permission : 'denied';
@@ -127,6 +129,15 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
                 setNotificationsEnabled(v);
               }
             }}
+          />
+        </div>
+
+        <div className="mt-1 rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
+          <ToggleRow
+            label="Schlüsselanfragen auto. bestätigen"
+            description="Neue Geräte-Schlüsselanfragen automatisch annehmen"
+            value={autoAcceptKeySync}
+            onChange={setAutoAcceptKeySync}
           />
         </div>
 

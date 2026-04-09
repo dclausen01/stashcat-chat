@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
+import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Video, CalendarDays, ArrowLeft, GraduationCap } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
@@ -26,6 +26,7 @@ interface ChatViewProps {
   onOpenPolls?: () => void;
   onOpenPoll?: (pollId: string) => void;
   onOpenCalendar?: () => void;
+  onMarkRead?: (chatId: string, chatType: 'channel' | 'conversation') => void;
 }
 
 interface TypingUser {
@@ -122,6 +123,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [isManager, setIsManager] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [droppedFiles, setDroppedFiles] = useState<File[]>([]);
   const [membersOpen, setMembersOpen] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [pdfView, setPdfView] = useState<{ fileId: string; viewUrl: string; name: string } | null>(null);
@@ -146,6 +148,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [viewingDateResults, setViewingDateResults] = useState(false);
   const savedMessagesRef = useRef<{ messages: Message[]; hasMore: boolean; offset: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Store the first unread message ID when opening the chat
+  const [firstUnreadMsgId, setFirstUnreadMsgId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef(chat);
   chatRef.current = chat;
@@ -208,6 +213,28 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
       const msgs = res as unknown as Message[];
+      
+      // Determine first unread message BEFORE we mark them as read
+      let firstUnreadId = null;
+      const firstUnreadMsg = msgs.find(m => m.unread === true && String(m.sender?.id) !== userId);
+      if (firstUnreadMsg) {
+        firstUnreadId = String(firstUnreadMsg.id);
+      } else {
+        const unreadCount = Number(chat.unread_count || (chat as any).unread_messages || 0);
+        if (unreadCount > 0 && msgs.length > 0) {
+          let foundUnread = 0;
+          for (let i = msgs.length - 1; i >= 0; i--) {
+            const m = msgs[i];
+            if (String(m.sender?.id) !== userId) {
+              foundUnread++;
+              firstUnreadId = String(m.id);
+              if (foundUnread === unreadCount) break;
+            }
+          }
+        }
+      }
+      setFirstUnreadMsgId(firstUnreadId);
+
       setMessages(msgs);
       if (msgs.length < PAGE_SIZE) {
         setHasMore(false);
@@ -364,6 +391,83 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     return () => clearInterval(id);
   }, [typingUsers.length]);
 
+  // Mark messages as read after 3 seconds when visible in viewport
+  const markReadTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const chatRefForMarkRead = useRef(chat);
+  chatRefForMarkRead.current = chat;
+
+  // Clear all pending mark-read timers
+  useEffect(() => {
+    return () => {
+      markReadTimersRef.current.forEach((timer) => clearTimeout(timer));
+      markReadTimersRef.current.clear();
+    };
+  }, []);
+
+  // Track the latest visible message ID to avoid redundant markAsRead calls
+  const lastMarkedMsgIdRef = useRef<string | null>(null);
+
+  // IntersectionObserver for marking messages as read after 3 seconds visibility
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || loading) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const msgId = entry.target.getAttribute('data-msg-id');
+          if (!msgId) return;
+
+          // Skip own messages — they don't need to be marked as read
+          const senderId = entry.target.getAttribute('data-sender-id');
+          if (senderId && senderId === userId) return;
+
+          const existingTimer = markReadTimersRef.current.get(msgId);
+
+          if (entry.isIntersecting) {
+            // Start 3 second timer only for the latest visible message
+            if (!existingTimer) {
+              const timer = setTimeout(() => {
+                // Only call API if this message hasn't been marked yet
+                if (lastMarkedMsgIdRef.current !== msgId) {
+                  lastMarkedMsgIdRef.current = msgId;
+                  // Mark the latest visible message as read (server marks all prior as read too)
+                  api.markAsRead(chatRefForMarkRead.current.id, chatRefForMarkRead.current.type, msgId).catch(() => {});
+                  // Notify sidebar to clear unread count via custom event
+                  window.dispatchEvent(new CustomEvent('chat-mark-read', {
+                    detail: { chatId: chatRefForMarkRead.current.id, chatType: chatRefForMarkRead.current.type }
+                  }));
+                }
+                markReadTimersRef.current.delete(msgId);
+              }, 3000);
+              markReadTimersRef.current.set(msgId, timer);
+            }
+          } else {
+            // Message not visible - cancel timer
+            if (existingTimer) {
+              clearTimeout(existingTimer);
+              markReadTimersRef.current.delete(msgId);
+            }
+          }
+        });
+      },
+      { threshold: 0.5, root: container }
+    );
+
+    // Observe all message elements
+    const msgElements = container.querySelectorAll('[data-msg-id]');
+    msgElements.forEach((el) => observer.observe(el));
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [chat.id, chat.type, loading, messages.length, userId]);
+
+  // Reset last marked message when switching chats
+  useEffect(() => {
+    lastMarkedMsgIdRef.current = null;
+  }, [chat.id]);
+
   // Realtime: new messages + typing indicators
   useRealtimeEvents({
     message_sync: (data) => {
@@ -515,7 +619,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     <div className="flex h-full flex-1 overflow-hidden">
       {/* Main chat area */}
       <div
-        className="relative flex min-w-0 flex-1 flex-col bg-stone-50 dark:bg-surface-950"
+        className="relative flex min-w-0 flex-1 flex-col bg-ci-blue-50 dark:bg-surface-950"
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={(e) => { if (e.currentTarget.contains(e.relatedTarget as Node)) return; setDragOver(false); }}
         onDrop={async (e) => {
@@ -532,9 +636,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             }
             return;
           }
-          const file = e.dataTransfer.files?.[0];
-          if (file) {
-            await handleUpload(file, '');
+          const files = Array.from(e.dataTransfer.files ?? []);
+          if (files.length > 0) {
+            setDroppedFiles(files);
           }
         }}
       >
@@ -929,6 +1033,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                         const idx = searchMatches.indexOf(msgId);
                         if (idx >= 0) searchMatchRefs.current[idx] = el;
                       }}
+                      firstUnreadMsgId={firstUnreadMsgId}
                     />,
                   );
                 }
@@ -944,6 +1049,15 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 const ts = Number(msg.time);
                 const dayKey = ts ? msgDayKey(ts) : '';
                 const elements: ReactNode[] = [];
+                if (String(msg.id) === firstUnreadMsgId) {
+                  elements.push(
+                    <div key={`unread-${msg.id}`} className="my-2 flex items-center justify-center gap-4 w-full px-4">
+                      <div className="h-px flex-1 bg-red-400/50 dark:bg-red-500/50" />
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-red-500 dark:text-red-400">Neu</span>
+                      <div className="h-px flex-1 bg-red-400/50 dark:bg-red-500/50" />
+                    </div>
+                  );
+                }
                 if (dayKey && dayKey !== lastDayKey) {
                   lastDayKey = dayKey;
                   elements.push(<DateSeparator key={`sep-${msg.id}`} label={formatDateLabel(ts)} />);
@@ -970,6 +1084,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                   <div
                     key={msg.id}
                     id={`msg-${msg.id}`}
+                    data-msg-id={String(msg.id)}
+                    data-sender-id={String(msg.sender?.id ?? '')}
+                    data-msg-time={String(msg.time ?? 0)}
                     ref={globalMatchIdx >= 0 ? (el) => { searchMatchRefs.current[globalMatchIdx] = el; } : undefined}
                     className={clsx(globalMatchIdx >= 0 && 'ring-inset ring-2', isCurrentMatch ? 'ring-yellow-400 dark:ring-yellow-500' : globalMatchIdx >= 0 ? 'ring-yellow-200 dark:ring-yellow-800' : undefined)}
                   >
@@ -999,7 +1116,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         {showScrollBtn && (
           <button
             onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
-            className="absolute bottom-4 right-6 rounded-full bg-primary-600 p-2 text-white shadow-lg transition hover:bg-primary-700"
+            className="absolute bottom-4 right-6 rounded-full bg-ci-red-500 p-2 text-white shadow-lg transition hover:bg-ci-red-600"
           >
             <ArrowDown size={20} />
           </button>
@@ -1024,7 +1141,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         </div>
       )}
 
-      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} />
+      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatId={chat.id} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} droppedFiles={droppedFiles} onDroppedFilesConsumed={() => setDroppedFiles([])} />
       {showPollModal && (
         <CreatePollModal
           preselectedChat={chat}
@@ -1146,6 +1263,7 @@ function MessageGroup({
   searchMatchSet = new Set(),
   currentMatchMsgId = null,
   onMatchRef,
+  firstUnreadMsgId,
 }: {
   group: { sender: Message['sender']; isOwn: boolean; messages: Message[] };
   canDeleteAll: boolean;
@@ -1163,6 +1281,7 @@ function MessageGroup({
   searchMatchSet?: Set<string>;
   currentMatchMsgId?: string | null;
   onMatchRef?: (msgId: string, el: HTMLDivElement | null) => void;
+  firstUnreadMsgId?: string | null;
 }) {
   const { sender, isOwn, messages } = group;
   const senderName = sender ? `${sender.first_name} ${sender.last_name}` : 'Unbekannt';
@@ -1183,6 +1302,7 @@ function MessageGroup({
         )}
 
         {messages.map((msg, i) => {
+          const isFirstUnread = String(msg.id) === firstUnreadMsgId;
           const timeDate = msg.time ? new Date(msg.time * 1000) : null;
           const time = timeDate ? timeDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
           const isToday = timeDate ? msgDayKey(msg.time!) === msgDayKey(Date.now() / 1000) : true;
@@ -1200,9 +1320,19 @@ function MessageGroup({
           const isBubbleMatch = searchMatchSet.has(String(msg.id));
           const isBubbleCurrent = currentMatchMsgId === String(msg.id);
           return (
+            <React.Fragment key={msg.id}>
+              {isFirstUnread && (
+                <div className="my-2 flex items-center justify-center gap-4 w-full self-center px-4">
+                  <div className="h-px flex-1 bg-red-400/50 dark:bg-red-500/50" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-red-500 dark:text-red-400">Neu</span>
+                  <div className="h-px flex-1 bg-red-400/50 dark:bg-red-500/50" />
+                </div>
+              )}
             <div
-              key={msg.id}
               id={`msg-${msg.id}`}
+              data-msg-id={String(msg.id)}
+              data-sender-id={String(msg.sender?.id ?? '')}
+              data-msg-time={String(msg.time ?? 0)}
               ref={isBubbleMatch ? (el) => onMatchRef?.(String(msg.id), el) : undefined}
               className={clsx(
                 'group/msg relative flex flex-col gap-0.5 before:pointer-events-auto before:absolute before:-top-8 before:left-0 before:right-0 before:h-8',
@@ -1308,6 +1438,7 @@ function MessageGroup({
                 </div>
               )}
             </div>
+            </React.Fragment>
           );
         })}
       </div>

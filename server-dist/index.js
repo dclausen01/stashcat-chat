@@ -57,6 +57,30 @@ function debugLog(...args) {
     }
     console.log(...args);
 }
+/** Server log to file for debugging - works in both dev and production */
+function serverLog(...args) {
+    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+    const line = `[${new Date().toISOString()}] ${msg}\n`;
+    // Try multiple possible log locations (dev vs production)
+    const possiblePaths = [
+        path_1.default.join(process.cwd(), 'server.log'),
+        path_1.default.join(process.cwd(), '..', 'server.log'),
+        path_1.default.join('/tmp', 'stashcat-server.log'),
+    ];
+    let logged = false;
+    for (const logPath of possiblePaths) {
+        try {
+            fsSync.appendFileSync(logPath, line);
+            logged = true;
+            break;
+        }
+        catch {
+            // Try next path
+        }
+    }
+    // Always log to console as fallback
+    console.log(...args);
+}
 const token_crypto_1 = require("./token-crypto");
 /** Extract error message safely from unknown catch values. */
 function errorMessage(err, fallback = 'Failed') {
@@ -65,18 +89,20 @@ function errorMessage(err, fallback = 'Failed') {
 // Multer: store uploads in OS temp dir
 const upload = (0, multer_1.default)({ dest: os_1.default.tmpdir() });
 const app = (0, express_1.default)();
+app.set('trust proxy', 1); // Trust first proxy (e.g. nginx) to get correct client IP for rate limiting
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
-// Rate limiting — exempt SSE endpoint (long-lived connections)
+// Rate limiting — exempt SSE endpoint and file/image endpoints
 const apiLimiter = (0, express_rate_limit_1.default)({
     windowMs: 60_000,
-    max: 120,
+    max: 1000, // Increased to 1000 to allow fast channel switching and background requests
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req) => req.path === '/api/events',
+    skip: (req) => req.path === '/api/events' || req.path.startsWith('/api/file'),
 });
 app.use('/api/', apiLimiter);
 const clientCache = new Map();
+const pendingClients = new Map();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 const botCache = new Map(); // keyed by clientKey
 // Cleanup expired entries periodically
@@ -88,6 +114,8 @@ setInterval(() => {
     }
 }, 60_000);
 const activeSSE = new Map(); // keyed by clientKey
+/** Pending key_sync_request events received via Socket.io, keyed by clientKey → userId → event payload */
+const pendingKeyRequests = new Map();
 function pushSSE(clientKey, event, data) {
     const conn = activeSSE.get(clientKey);
     if (!conn)
@@ -115,37 +143,100 @@ function extractToken(req) {
 async function getClient(req) {
     const token = extractToken(req);
     const payload = (0, token_crypto_1.decryptSession)(token);
+    const { clientKey, deviceId, baseUrl, securityPassword } = payload;
     // Check cache
-    const cached = clientCache.get(payload.clientKey);
-    console.log(`[getClient] clientKey=${payload.clientKey?.slice(0, 8)} cached=${!!cached}`);
+    const cached = clientCache.get(clientKey);
     if (cached && Date.now() < cached.expiresAt) {
         cached.expiresAt = Date.now() + CACHE_TTL; // Refresh TTL
         return cached.client;
     }
-    // Create new client
-    const client = stashcat_api_1.StashcatClient.fromSession({ deviceId: payload.deviceId, clientKey: payload.clientKey }, { baseUrl: payload.baseUrl });
-    // Unlock E2E
-    if (payload.securityPassword) {
-        await client.unlockE2E(payload.securityPassword);
+    // Check if initialization is already in progress
+    const pending = pendingClients.get(clientKey);
+    if (pending) {
+        console.log(`[getClient] clientKey=${clientKey?.slice(0, 8)} waiting for pending initialization...`);
+        return pending;
     }
-    clientCache.set(payload.clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
-    return client;
+    const initPromise = (async () => {
+        try {
+            console.log(`[getClient] clientKey=${clientKey?.slice(0, 8)} initializing new client...`);
+            // Create new client
+            const client = stashcat_api_1.StashcatClient.fromSession({ deviceId, clientKey }, { baseUrl });
+            // Unlock E2E
+            if (securityPassword) {
+                await client.unlockE2E(securityPassword);
+            }
+            clientCache.set(clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
+            return client;
+        }
+        finally {
+            pendingClients.delete(clientKey);
+        }
+    })();
+    pendingClients.set(clientKey, initPromise);
+    return initPromise;
 }
 // ── Realtime setup ───────────────────────────────────────────────────────────
 async function connectRealtime(client, clientKey) {
+    serverLog(`[Realtime] Connecting for clientKey ${clientKey.slice(0, 8)}…`);
     try {
         const rt = await client.createRealtimeManager({ reconnect: true });
         const conn = activeSSE.get(clientKey);
         if (!conn) {
+            serverLog(`[Realtime] No SSE connection found, disconnecting RealtimeManager`);
             rt.disconnect();
             return;
         }
         conn.realtime = rt;
-        await rt.connect();
+        // Wait for new_device_connected (the critical auth event from Stashcat server)
+        await new Promise((resolve, reject) => {
+            let resolved = false;
+            // The server confirmation is the critical event
+            rt.once('new_device_connected', () => {
+                if (!resolved) {
+                    resolved = true;
+                    serverLog(`[Realtime] Auth confirmed (new_device_connected) for clientKey ${clientKey.slice(0, 8)}`);
+                    resolve();
+                }
+            });
+            // Also listen for connect as fallback
+            rt.once('connect', () => {
+                serverLog(`[Realtime] Socket connected for clientKey ${clientKey.slice(0, 8)}`);
+                // Don't resolve here - wait for new_device_connected
+            });
+            // Start connection
+            rt.connect().catch((err) => {
+                if (!resolved) {
+                    resolved = true;
+                    reject(err);
+                }
+            });
+            // Timeout after 15 seconds (longer timeout for slow connections)
+            setTimeout(() => {
+                if (!resolved) {
+                    resolved = true;
+                    reject(new Error(`Connection timeout: new_device_connected event not received`));
+                }
+            }, 15000);
+        });
+        serverLog(`[Realtime] RealtimeManager fully connected for clientKey ${clientKey.slice(0, 8)}`);
+        // Handle connection errors
+        rt.on('error', (err) => {
+            serverLog(`[Realtime] Error for clientKey ${clientKey.slice(0, 8)}:`, err.message);
+        });
+        rt.on('disconnect', () => {
+            serverLog(`[Realtime] Disconnected for clientKey ${clientKey.slice(0, 8)}`);
+        });
         rt.on('message_sync', async (data) => {
+            serverLog(`[Realtime] Received message_sync:`, {
+                channel_id: data.channel_id,
+                conversation_id: data.conversation_id,
+                id: data.id,
+                hasText: !!data.text
+            });
             // Suppress Chat Bot conversation messages from reaching the frontend
             const convId = data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null;
             if (convId && isBotConversation(convId, clientKey)) {
+                serverLog(`[Realtime] Dropping bot message`);
                 return; // Silently drop bot messages
             }
             const payload = { ...data };
@@ -167,18 +258,64 @@ async function connectRealtime(client, clientKey) {
                     }
                 }
                 catch (err) {
-                    console.warn('[Realtime] Failed to decrypt message_sync:', errorMessage(err));
+                    serverLog('[Realtime] Failed to decrypt message_sync:', errorMessage(err));
                 }
             }
+            serverLog(`[Realtime] Pushing message_sync to SSE for clientKey ${clientKey.slice(0, 8)}`);
+            pushSSE(clientKey, 'message_sync', payload);
+        });
+        // Incoming messages from others arrive as 'notification', not 'message_sync'.
+        // 'message_sync' is only sent back to the sender as an echo.
+        rt.on('notification', async (data) => {
+            const notif = data;
+            const msg = notif.message;
+            if (!msg)
+                return; // Not a message notification
+            serverLog(`[Realtime] Received notification (new message):`, {
+                channel_id: msg.channel_id,
+                conversation_id: msg.conversation_id,
+                id: msg.id,
+            });
+            // Suppress Chat Bot conversation messages
+            const convId = msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null;
+            if (convId && isBotConversation(convId, clientKey))
+                return;
+            const payload = { ...msg };
+            // Decrypt if E2E-encrypted
+            if (msg.encrypted && msg.text && msg.iv) {
+                try {
+                    let aesKey;
+                    const channelId = msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null;
+                    const msgConvId = msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null;
+                    if (msgConvId)
+                        aesKey = await client.getConversationAesKey(msgConvId);
+                    else if (channelId)
+                        aesKey = await client.getChannelAesKey(channelId);
+                    if (aesKey) {
+                        const iv = stashcat_api_1.CryptoManager.hexToBuffer(msg.iv);
+                        payload.text = stashcat_api_1.CryptoManager.decrypt(msg.text, aesKey, iv);
+                    }
+                }
+                catch (err) {
+                    serverLog('[Realtime] Failed to decrypt notification:', errorMessage(err));
+                }
+            }
+            serverLog(`[Realtime] Pushing notification as message_sync to SSE`);
             pushSSE(clientKey, 'message_sync', payload);
         });
         rt.on('user-started-typing', (chatType, chatId, userId) => {
+            serverLog(`[Realtime] Received typing event:`, { chatType, chatId, userId });
             pushSSE(clientKey, 'typing', { chatType, chatId, userId });
         });
-        console.log(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
+        // Forward key_sync_request to SSE so the frontend can display/auto-accept it
+        rt.on('key_sync_request', (data) => {
+            serverLog(`[Realtime] Received key_sync_request:`, JSON.stringify(data).slice(0, 300));
+            pushSSE(clientKey, 'key_sync_request', data);
+        });
+        serverLog(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
     }
     catch (err) {
-        console.warn('[Realtime] Connection failed:', err);
+        serverLog(`[Realtime] Connection failed:`, errorMessage(err));
     }
 }
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -224,15 +361,18 @@ app.post('/api/logout', async (req, res) => {
 });
 // ── Server-Sent Events ────────────────────────────────────────────────────────
 app.get('/api/events', async (req, res) => {
+    serverLog('[SSE] New connection request');
     let client;
     let clientKey;
     try {
         const token = extractToken(req);
         const payload = (0, token_crypto_1.decryptSession)(token);
         clientKey = payload.clientKey;
+        serverLog(`[SSE] Token valid, clientKey: ${clientKey.slice(0, 8)}...`);
         client = await getClient(req);
     }
-    catch {
+    catch (err) {
+        serverLog('[SSE] Authentication failed:', errorMessage(err));
         res.status(401).end();
         return;
     }
@@ -257,8 +397,12 @@ app.get('/api/events', async (req, res) => {
     let conn = activeSSE.get(clientKey);
     const isNewConnection = !conn;
     if (!conn) {
+        serverLog(`[SSE] Creating new SSE connection for clientKey: ${clientKey.slice(0, 8)}...`);
         conn = { client, sseClients: new Set() };
         activeSSE.set(clientKey, conn);
+    }
+    else {
+        serverLog(`[SSE] Reusing existing SSE connection for clientKey: ${clientKey.slice(0, 8)}..., clients: ${conn.sseClients.size}`);
     }
     conn.sseClients.add(res);
     // Send initial connected event so client knows stream is ready
@@ -274,12 +418,15 @@ app.get('/api/events', async (req, res) => {
         connectRealtime(client, clientKey);
     }
     req.on('close', () => {
+        serverLog(`[SSE] Client disconnected for clientKey: ${clientKey.slice(0, 8)}...`);
         clearInterval(hb);
         const c = activeSSE.get(clientKey);
         if (c) {
             c.sseClients.delete(res);
+            serverLog(`[SSE] Client removed. Remaining clients: ${c.sseClients.size}`);
             // If no more SSE clients, disconnect realtime and clean up
             if (c.sseClients.size === 0) {
+                serverLog(`[SSE] No more clients, disconnecting realtime for clientKey: ${clientKey.slice(0, 8)}...`);
                 c.realtime?.disconnect();
                 activeSSE.delete(clientKey);
             }
@@ -350,7 +497,11 @@ app.post('/api/channels/:channelId/favorite', async (req, res) => {
 app.get('/api/channels/:companyId', async (req, res) => {
     try {
         const client = await getClient(req);
-        res.json(await client.getChannels(req.params.companyId));
+        const channels = await client.getChannels(req.params.companyId);
+        if (channels.length > 0) {
+            serverLog(`[channels] first channel unread keys: unread_count=${channels[0].unread_count}, unread_messages=${channels[0].unread_messages}, raw=${JSON.stringify(channels[0]).slice(0, 200)}`);
+        }
+        res.json(channels);
     }
     catch (err) {
         res.status(500).json({ error: errorMessage(err) });
@@ -781,6 +932,25 @@ app.get('/api/files/folder', async (req, res) => {
     }
     catch (err) {
         res.status(500).json({ error: errorMessage(err) });
+    }
+});
+/** Get storage quota for a channel, conversation, or personal storage */
+app.get('/api/files/quota', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { type, typeId } = req.query;
+        if (!type || !typeId) {
+            res.status(400).json({ error: 'type and typeId are required' });
+            return;
+        }
+        serverLog(`[quota] Fetching quota for type=${type}, typeId=${typeId}`);
+        const quota = await client.getQuota(type, typeId);
+        serverLog(`[quota] Raw API response:`, JSON.stringify(quota));
+        res.json(quota);
+    }
+    catch (err) {
+        serverLog(`[quota] Error:`, errorMessage(err));
+        res.status(500).json({ error: errorMessage(err, 'Failed to get quota') });
     }
 });
 app.get('/api/files/personal', async (req, res) => {
@@ -1359,6 +1529,105 @@ app.delete('/api/notifications/:notificationId', async (req, res) => {
         res.json({ ok: true });
     }
     catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+// ── Key Sync (E2E key exchange) ───────────────────────────────────────────────
+app.post('/api/key-sync/accept', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { userId, notificationId } = req.body;
+        if (!userId)
+            return void res.status(400).json({ error: 'userId required' });
+        if (!client.isE2EUnlocked())
+            return void res.status(400).json({ error: 'E2E not unlocked' });
+        // Step 1: Get the list of conversations/channels missing keys for this user
+        serverLog(`[KeySync] Fetching missing keys for user ${userId}`);
+        const missingData = client.api.createAuthenticatedRequestData({ user_id: userId });
+        const missing = await client.api.post('/security/get_missing_keys', missingData);
+        const conversations = missing.content.conversations ?? [];
+        const channels = missing.content.channels ?? [];
+        serverLog(`[KeySync] Found ${conversations.length} conversations, ${channels.length} channels missing keys`);
+        const expiry = Math.floor(Date.now() / 1000) + 365 * 24 * 3600; // 1 year from now
+        let processed = 0;
+        let errors = 0;
+        // Use foreign_public_key from the first item (same user = same key for all items)
+        const foreignPublicKey = conversations[0]?.foreign_public_key ?? channels[0]?.foreign_public_key;
+        for (const conv of conversations) {
+            try {
+                const publicKey = conv.foreign_public_key ?? foreignPublicKey;
+                if (!publicKey) {
+                    errors++;
+                    continue;
+                }
+                // Step 2a: Get our AES key for this conversation
+                const aesKey = await client.getConversationAesKey(conv.id);
+                // Step 2b: Re-encrypt AES key with the foreign user's RSA public key (OAEP)
+                const encryptedKey = stashcat_api_1.StashcatClient.encryptWithPublicKey(publicKey, aesKey);
+                const keyBase64 = encryptedKey.toString('base64');
+                // Step 2c: Sign the encrypted key with our RSA private key
+                const signature = client.signData(Buffer.from(keyBase64)).toString('hex');
+                // Step 3: Submit the encrypted key
+                const setData = client.api.createAuthenticatedRequestData({
+                    user_id: userId,
+                    type: 'conversation',
+                    type_id: conv.id,
+                    key: keyBase64,
+                    signature,
+                    expiry: String(expiry),
+                });
+                await client.api.post('/security/set_missing_key', setData);
+                processed++;
+                serverLog(`[KeySync] Set key for conversation ${conv.id}`);
+            }
+            catch (itemErr) {
+                errors++;
+                serverLog(`[KeySync] Failed to set key for conversation ${conv.id}:`, errorMessage(itemErr));
+            }
+        }
+        for (const ch of channels) {
+            try {
+                const publicKey = ch.foreign_public_key ?? foreignPublicKey;
+                if (!publicKey) {
+                    errors++;
+                    continue;
+                }
+                const aesKey = await client.getChannelAesKey(ch.id);
+                const encryptedKey = stashcat_api_1.StashcatClient.encryptWithPublicKey(publicKey, aesKey);
+                const keyBase64 = encryptedKey.toString('base64');
+                const signature = client.signData(Buffer.from(keyBase64)).toString('hex');
+                const setData = client.api.createAuthenticatedRequestData({
+                    user_id: userId,
+                    type: 'channel',
+                    type_id: ch.id,
+                    key: keyBase64,
+                    signature,
+                    expiry: String(expiry),
+                });
+                await client.api.post('/security/set_missing_key', setData);
+                processed++;
+                serverLog(`[KeySync] Set key for channel ${ch.id}`);
+            }
+            catch (itemErr) {
+                errors++;
+                serverLog(`[KeySync] Failed to set key for channel ${ch.id}:`, errorMessage(itemErr));
+            }
+        }
+        serverLog(`[KeySync] Done: ${processed} keys set, ${errors} errors`);
+        // Step 4: Delete the notification
+        if (notificationId) {
+            try {
+                await client.deleteNotification(notificationId);
+            }
+            catch { /* best-effort */ }
+        }
+        if (processed === 0 && errors > 0) {
+            return void res.status(500).json({ error: 'Failed to set any keys — check server log' });
+        }
+        res.json({ ok: true, processed, errors });
+    }
+    catch (err) {
+        serverLog(`[KeySync] accept failed:`, errorMessage(err));
         res.status(500).json({ error: errorMessage(err) });
     }
 });

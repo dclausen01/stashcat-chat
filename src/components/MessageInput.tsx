@@ -14,11 +14,14 @@ interface MessageInputProps {
   onSend: (text: string) => Promise<void>;
   onUpload: (file: File, text: string) => Promise<void>;
   onTyping?: () => void;
+  chatId: string;
   chatName: string;
   replyTo?: ReplyTarget | null;
   onCancelReply?: () => void;
   onCreatePoll?: () => void;
   onCreateEvent?: () => void;
+  droppedFiles?: File[];
+  onDroppedFilesConsumed?: () => void;
 }
 
 interface FormatButton {
@@ -53,7 +56,7 @@ const FORMAT_BUTTONS: FormatButton[] = [
   { icon: <List size={15} />, label: 'Liste', action: linePrefix('- ', 'Listenpunkt') },
 ];
 
-export default function MessageInput({ onSend, onUpload, onTyping, chatName, replyTo, onCancelReply, onCreatePoll, onCreateEvent }: MessageInputProps) {
+export default function MessageInput({ onSend, onUpload, onTyping, chatId, chatName, replyTo, onCancelReply, onCreatePoll, onCreateEvent, droppedFiles, onDroppedFilesConsumed }: MessageInputProps) {
   const { theme } = useTheme();
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -67,11 +70,37 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
   const emojiRef = useRef<HTMLDivElement>(null);
   const typingThrottle = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Close emoji picker on outside click
+  // Per-chat draft storage: preserve text when switching chats
+  const draftsRef = useRef<Map<string, string>>(new Map());
+  const prevChatIdRef = useRef(chatId);
+
+  useEffect(() => {
+    if (prevChatIdRef.current !== chatId) {
+      // Save current text for the previous chat
+      draftsRef.current.set(prevChatIdRef.current, text);
+      // Restore saved text for the new chat (or empty)
+      const saved = draftsRef.current.get(chatId) || '';
+      setText(saved);
+      // Reset textarea height
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      prevChatIdRef.current = chatId;
+    }
+  }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Focus textarea when reply is activated
   useEffect(() => {
     if (replyTo) textareaRef.current?.focus();
   }, [replyTo]);
+
+  // Consume files dropped from the parent (system file drag & drop)
+  useEffect(() => {
+    if (droppedFiles && droppedFiles.length > 0) {
+      setPendingFiles((prev) => [...prev, ...droppedFiles]);
+      onDroppedFilesConsumed?.();
+      textareaRef.current?.focus();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [droppedFiles]);
 
   useEffect(() => {
     if (!showAttachMenu) return;
@@ -100,20 +129,24 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
     if (pendingFiles.length > 0) {
       setSending(true);
       const total = pendingFiles.length;
-      const results = await Promise.allSettled(
-        pendingFiles.map((file, i) =>
-          onUpload(file, i === 0 ? `${text.trim()} 1/${total}` : `${i + 1}/${total}`)
-        )
-      );
-      const failures = results.filter((r) => r.status === 'rejected');
-      if (failures.length > 0) {
-        const msg = failures.length === 1
+      const filesToSend = [...pendingFiles];
+      let failCount = 0;
+      for (let i = 0; i < filesToSend.length; i++) {
+        try {
+          await onUpload(filesToSend[i], i === 0 ? `${text.trim()} 1/${total}` : `${i + 1}/${total}`);
+        } catch {
+          failCount++;
+        }
+      }
+      if (failCount > 0) {
+        const msg = failCount === 1
           ? '1 Datei konnte nicht hochgeladen werden.'
-          : `${failures.length} Dateien konnten nicht hochgeladen werden.`;
+          : `${failCount} Dateien konnten nicht hochgeladen werden.`;
         alert(msg);
       }
       setPendingFiles([]);
       setText('');
+      draftsRef.current.delete(chatId);
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
       setSending(false);
     } else {
@@ -123,6 +156,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
       try {
         await onSend(trimmed);
         setText('');
+        draftsRef.current.delete(chatId);
       } finally {
         setSending(false);
         if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -208,19 +242,27 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
 
       {/* Pending files preview */}
       {pendingFiles.length > 0 && (
-        <div className="mb-2 flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 text-sm dark:bg-surface-800">
-          <Paperclip size={14} className="shrink-0 text-surface-500" />
-          <span className="min-w-0 flex-1 truncate text-surface-700 dark:text-surface-300">
-            {pendingFiles.length === 1 ? pendingFiles[0].name : `${pendingFiles.length} Dateien ausgewählt`}
-          </span>
-          {pendingFiles.length === 1 && (
-            <span className="shrink-0 text-xs text-surface-500">
-              {(pendingFiles[0].size / 1024).toFixed(0)} KB
-            </span>
-          )}
-          <button onClick={() => setPendingFiles([])} className="shrink-0 text-surface-500 hover:text-surface-600">
-            <X size={14} />
-          </button>
+        <div className="mb-2 flex flex-col gap-1">
+          {pendingFiles.map((file, idx) => (
+            <div key={idx} className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 text-sm dark:bg-surface-800">
+              <Paperclip size={14} className="shrink-0 text-surface-500" />
+              <span className="min-w-0 flex-1 truncate text-surface-700 dark:text-surface-300">
+                {file.name}
+              </span>
+              <span className="shrink-0 text-xs text-surface-500">
+                {file.size >= 1024 * 1024
+                  ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
+                  : `${(file.size / 1024).toFixed(0)} KB`}
+              </span>
+              <button
+                onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
+                className="shrink-0 text-surface-500 hover:text-surface-600"
+                title="Entfernen"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -237,9 +279,9 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
             {btn.icon}
           </button>
         ))}
-        <div className="ml-auto text-xs text-surface-500">
-          <kbd className="rounded bg-surface-100 px-1 py-0.5 font-mono text-[10px] dark:bg-surface-800">Enter</kbd> Senden{' · '}
-          <kbd className="rounded bg-surface-100 px-1 py-0.5 font-mono text-[10px] dark:bg-surface-800">⇧Enter</kbd> Neue Zeile
+        <div className="ml-auto shrink-0 whitespace-nowrap text-xs text-surface-600 dark:text-surface-400">
+          <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Enter</kbd> Senden{' · '}
+          <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Shift+Enter</kbd> Neue Zeile
         </div>
       </div>
 
@@ -355,7 +397,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatName, rep
           onClick={handleSend}
           disabled={!canSend}
           title="Senden"
-          className="shrink-0 rounded-lg bg-primary-600 p-1.5 text-white transition hover:bg-primary-700 disabled:opacity-40"
+          className="shrink-0 rounded-lg bg-ci-red-500 p-1.5 text-white transition hover:bg-ci-red-600 disabled:opacity-40"
         >
           {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
         </button>

@@ -325,6 +325,24 @@ export async function listPersonalFiles(folderId?: string, offset = 0, limit = 2
   return get<FolderContent>(url);
 }
 
+export interface FileQuotaEntry {
+  kb: number;
+  value: string;
+  unit: string;
+  percent: string;
+}
+
+export interface FileQuota {
+  absolute: FileQuotaEntry;
+  used: FileQuotaEntry;
+  free: FileQuotaEntry;
+  personal_used?: FileQuotaEntry;
+}
+
+export async function getFileQuota(type: string, typeId: string): Promise<FileQuota> {
+  return get<FileQuota>(`/files/quota?type=${encodeURIComponent(type)}&typeId=${encodeURIComponent(typeId)}`);
+}
+
 export async function deleteFile(fileId: string): Promise<void> {
   return post('/files/delete', { fileIds: [fileId] });
 }
@@ -534,6 +552,10 @@ export async function getNotificationCount() {
 
 export async function deleteNotification(notificationId: string) {
   return del<Record<string, unknown>>(`/notifications/${notificationId}`);
+}
+
+export async function acceptKeySync(userId: string, notificationId: string) {
+  return post<{ ok: boolean }>('/key-sync/accept', { userId, notificationId });
 }
 
 // --- Polls (Umfragen) ---

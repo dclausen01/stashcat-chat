@@ -4,17 +4,17 @@
 @variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-800: #1e40af;
-  --color-primary-900: #1e3a8a;
-  --color-primary-950: #172554;
+  --color-primary-50: #f0f5fc;
+  --color-primary-100: #dce8f7;
+  --color-primary-200: #bdd4ee;
+  --color-primary-300: #94bce3;
+  --color-primary-400: #6a9ed5;
+  --color-primary-500: #4a7cc9;
+  --color-primary-600: #3a6ab5;
+  --color-primary-700: #2e5a9e;
+  --color-primary-800: #284d87;
+  --color-primary-900: #24426f;
+  --color-primary-950: #172b4d;
   --color-surface-50: #f9fafb;
   --color-surface-100: #f3f4f6;
   --color-surface-200: #e5e7eb;
@@ -26,6 +26,18 @@
   --color-surface-800: #1f2937;
   --color-surface-900: #111827;
   --color-surface-950: #030712;
+  /* CI accent colors — soft, pleasant versions of corporate red & blue */
+  --color-ci-blue-50: #eff6ff;
+  --color-ci-blue-100: #dbeafe;
+  --color-ci-blue-200: #bfdbfe;
+  --color-ci-blue-500: #4a7cc9;
+  --color-ci-blue-600: #3a6ab5;
+  --color-ci-blue-700: #2e5a9e;
+  --color-ci-red-50: #fef2f2;
+  --color-ci-red-100: #fee2e2;
+  --color-ci-red-500: #dc5a5a;
+  --color-ci-red-600: #c94848;
+  --color-ci-red-700: #b53a3a;
 }
 
 html, body, #root {
@@ -34,7 +46,15 @@ html, body, #root {
 }
 
 html {
-  font-size: 15px;
+  font-size: 16px;
+}
+
+/* Dark mode: improve contrast for muted text (dates, times, metadata) */
+.dark .text-surface-400 {
+  color: var(--color-surface-300) !important;
+}
+.dark .text-surface-500 {
+  color: var(--color-surface-400) !important;
 }
 
 body {

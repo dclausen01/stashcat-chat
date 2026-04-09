@@ -9,6 +9,7 @@ interface Settings {
   fileBrowserViewMode: 'grid' | 'list';
   fileBrowserTab: 'context' | 'personal';
   notificationsEnabled: boolean;
+  autoAcceptKeySync: boolean;
 }
 
 interface SettingsContextValue extends Settings {
@@ -20,6 +21,7 @@ interface SettingsContextValue extends Settings {
   setFileBrowserViewMode: (v: 'grid' | 'list') => void;
   setFileBrowserTab: (v: 'context' | 'personal') => void;
   setNotificationsEnabled: (v: boolean) => void;
+  setAutoAcceptKeySync: (v: boolean) => void;
 }
 
 const STORAGE_KEY = 'schulchat_settings';
@@ -36,6 +38,7 @@ function loadSettings(): Settings {
       fileBrowserViewMode: 'grid',
       fileBrowserTab: 'context',
       notificationsEnabled: true,
+      autoAcceptKeySync: false,
       ...JSON.parse(raw) as Partial<Settings>
     };
   } catch { /* ignore */ }
@@ -48,6 +51,7 @@ function loadSettings(): Settings {
     fileBrowserViewMode: 'grid',
     fileBrowserTab: 'context',
     notificationsEnabled: true,
+    autoAcceptKeySync: false,
   };
 }
 
@@ -60,6 +64,7 @@ const SettingsContext = createContext<SettingsContextValue>({
   fileBrowserViewMode: 'grid',
   fileBrowserTab: 'context',
   notificationsEnabled: true,
+  autoAcceptKeySync: false,
   setShowImagesInline: () => {},
   setBubbleView: () => {},
   setOwnBubbleColor: () => {},
@@ -68,6 +73,7 @@ const SettingsContext = createContext<SettingsContextValue>({
   setFileBrowserViewMode: () => {},
   setFileBrowserTab: () => {},
   setNotificationsEnabled: () => {},
+  setAutoAcceptKeySync: () => {},
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
@@ -92,6 +98,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setFileBrowserViewMode: (v) => update({ fileBrowserViewMode: v }),
       setFileBrowserTab: (v) => update({ fileBrowserTab: v }),
       setNotificationsEnabled: (v) => update({ notificationsEnabled: v }),
+      setAutoAcceptKeySync: (v) => update({ autoAcceptKeySync: v }),
     }}>
       {children}
     </SettingsContext.Provider>

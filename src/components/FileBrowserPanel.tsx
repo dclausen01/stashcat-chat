@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Grid3x3, List, Upload, Folder, ChevronRight, Home,
   Trash2, Pencil, Check, Loader2, ExternalLink, ArrowUp, ArrowDown, Plus,
-  Square,
+  Square, HardDrive,
 } from 'lucide-react';
 import { useFileSorting, type SortField, type SortDirection } from '../hooks/useFileSorting';
 import { FolderUploadProgress, type FolderUploadProgressData } from './FolderUploadProgress';
@@ -12,6 +12,75 @@ import { fileIcon } from '../utils/fileIcon';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import type { ChatTarget } from '../types';
+
+// ── Quota helpers ──────────────────────────────────────────────────────────────
+
+function QuotaBar({ label, quota }: { label: string; quota: api.FileQuota }) {
+  const totalKb = quota.absolute.kb;
+  const personalKb = quota.personal_used?.kb || 0;
+  const sharedKb = Math.max(0, quota.used.kb - personalKb); // Channel/Shared = total used - personal
+  
+  // Calculate percentages
+  const personalPct = totalKb > 0 ? (personalKb / totalKb) * 100 : 0;
+  const sharedPct = totalKb > 0 ? (sharedKb / totalKb) * 100 : 0;
+  const usedPct = personalPct + sharedPct;
+  
+  const isHigh = usedPct > 80;
+  const isCritical = usedPct > 95;
+  
+  // Format displays
+  const personalDisplay = quota.personal_used 
+    ? `${quota.personal_used.value} ${quota.personal_used.unit}`
+    : '0 B';
+  const sharedDisplay = sharedKb > 0
+    ? `${(sharedKb / 1024 / 1024).toFixed(2)} GB` // Convert KB to GB for display
+    : '0 B';
+  const freeDisplay = `${quota.free.value} ${quota.free.unit}`;
+  
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-[11px]">
+        <span className="font-medium text-surface-600 dark:text-surface-400">{label}</span>
+        <span className={clsx(
+          'tabular-nums',
+          isCritical ? 'text-red-500 dark:text-red-400' : isHigh ? 'text-amber-500 dark:text-amber-400' : 'text-surface-500 dark:text-surface-400',
+        )}>
+          {personalDisplay} persönlich + {sharedDisplay} geteilte Dateien
+        </span>
+      </div>
+      
+      {/* Stacked bar chart */}
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-200 dark:bg-surface-700">
+        <div className="flex h-full w-full">
+          {/* Personal - dark blue */}
+          {personalPct > 0 && (
+            <div
+              className="h-full bg-ci-blue-700 dark:bg-ci-blue-600"
+              style={{ width: `${personalPct}%` }}
+              title={`Persönlich: ${personalDisplay}`}
+            />
+          )}
+          {/* Shared - light blue */}
+          {sharedPct > 0 && (
+            <div
+              className={clsx(
+                'h-full',
+                isCritical ? 'bg-red-400' : isHigh ? 'bg-amber-400' : 'bg-ci-blue-400 dark:bg-ci-blue-300'
+              )}
+              style={{ width: `${sharedPct}%` }}
+              title={`Channel/Shared: ${sharedDisplay}`}
+            />
+          )}
+        </div>
+      </div>
+      
+      <div className="flex items-center justify-between text-[10px] text-surface-500 dark:text-surface-500">
+        <span>{usedPct.toFixed(0)}% belegt</span>
+        <span>{freeDisplay} frei</span>
+      </div>
+    </div>
+  );
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -568,6 +637,9 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Quota state
+  const [personalQuota, setPersonalQuota] = useState<api.FileQuota | null>(null);
+
   const currentFolderId = crumbs[crumbs.length - 1].id ?? undefined;
 
   const loadFolder = useCallback(async () => {
@@ -589,6 +661,16 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   }, [tab, chat, currentFolderId]);
 
   useEffect(() => { loadFolder(); }, [loadFolder]);
+
+  // Load quotas when tab or chat changes
+  useEffect(() => {
+    // Personal quota (always load)
+    if (user?.id) {
+      api.getFileQuota('personal', String(user.id))
+        .then(setPersonalQuota)
+        .catch(() => setPersonalQuota(null));
+    }
+  }, [tab, chat?.id, chat?.type, user?.id]);
 
   // Escape key to clear selection
   useEffect(() => {
@@ -1281,6 +1363,20 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
           progress={uploadProgress}
           onClose={() => setUploadProgress(null)}
         />
+      )}
+
+      {/* Quota footer */}
+      {personalQuota && (
+        <div className="shrink-0 border-t border-surface-200 px-4 py-3 space-y-2.5 dark:border-surface-700">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
+            <HardDrive size={12} />
+            Speicherplatz
+          </div>
+          <QuotaBar
+            label="Persönlich"
+            quota={personalQuota}
+          />
+        </div>
       )}
 
       {/* Move modal */}
