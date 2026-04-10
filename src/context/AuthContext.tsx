@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import * as api from '../api';
+import { closeRealtimeConnection } from '../hooks/useRealtimeEvents';
 import type { User } from '../types';
 
 interface AuthState {
@@ -49,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await api.logout();
+    closeRealtimeConnection(); // Close SSE connection on logout
     setState({ loggedIn: false, user: null });
   }, []);
 

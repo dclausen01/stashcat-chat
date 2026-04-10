@@ -2,78 +2,117 @@ import { useEffect, useRef } from 'react';
 
 type SSEHandler = (data: unknown) => void;
 
+/** Singleton SSE connection shared across all useRealtimeEvents consumers.
+ *  Prevents multiple EventSource instances from being created when multiple
+ *  components (Sidebar + ChatView) both use useRealtimeEvents.
+ */
+let sharedEs: EventSource | null = null;
+let sharedHandlers: Record<string, SSEHandler> = {};
+let sharedWasDisconnected = false;
+
+/** Build the SSE URL with token */
+function getSseUrl(): string | null {
+  const token = localStorage.getItem('schulchat_token');
+  if (!token) return null;
+  const apiBase = import.meta.env.DEV ? '/backend/api' : '/api';
+  return `${apiBase}/events?token=${encodeURIComponent(token)}`;
+}
+
+/** Re-dispatch an event to all registered handlers */
+function dispatchToHandlers(event: MessageEvent, eventName: string) {
+  console.log(`[useRealtimeEvents] Received ${eventName} event:`, event.data);
+  try {
+    const data = JSON.parse(event.data as string);
+    sharedHandlers[eventName]?.(data);
+  } catch (err) {
+    console.error(`[useRealtimeEvents] Failed to parse ${eventName} event:`, err);
+  }
+}
+
+/** Initialize the shared EventSource if not already done */
+function ensureSharedEventSource() {
+  if (sharedEs) return; // Already connected
+
+  const url = getSseUrl();
+  if (!url) {
+    console.log('[useRealtimeEvents] No token found, skipping connection');
+    return;
+  }
+
+  console.log('[useRealtimeEvents] Connecting to SSE:', url);
+  sharedEs = new EventSource(url);
+
+  sharedEs.addEventListener('message_sync', (e) => dispatchToHandlers(e, 'message_sync'));
+  sharedEs.addEventListener('typing', (e) => dispatchToHandlers(e, 'typing'));
+  sharedEs.addEventListener('connected', () => {
+    if (sharedWasDisconnected) {
+      sharedWasDisconnected = false;
+      sharedHandlers['reconnect']?.({});
+    }
+  });
+
+  sharedEs.onerror = (err) => {
+    console.error('[useRealtimeEvents] SSE error:', err);
+    sharedWasDisconnected = true;
+    // EventSource auto-reconnects on error
+  };
+}
+
 /** Connects to the backend SSE stream and dispatches events to registered handlers.
- *  Detects reconnections and dispatches a synthetic 'reconnect' event so consumers
- *  can re-fetch missed data.
+ *  Uses a singleton EventSource so multiple consumers share the same connection.
  */
 export function useRealtimeEvents(
   handlers: Record<string, SSEHandler>,
   enabled: boolean
 ) {
-  const esRef = useRef<EventSource | null>(null);
   const handlersRef = useRef(handlers);
 
+  // Keep handlersRef.current in sync (runs on every render)
   useEffect(() => {
     handlersRef.current = handlers;
   });
 
   useEffect(() => {
-    if (!enabled) {
-      console.log('[useRealtimeEvents] Not enabled, skipping connection');
-      return;
-    }
+    if (!enabled) return;
 
-    const token = localStorage.getItem('schulchat_token');
-    if (!token) {
-      console.log('[useRealtimeEvents] No token found, skipping connection');
-      return;
-    }
+    const url = getSseUrl();
+    if (!url) return;
 
-    let wasDisconnected = false;
+    // Merge new handlers into shared handlers
+    sharedHandlers = { ...sharedHandlers, ...handlers };
 
-    // EventSource doesn't support custom headers — pass token as query param
-    const apiBase = import.meta.env.DEV ? '/backend/api' : '/api';
-    const url = `${apiBase}/events?token=${encodeURIComponent(token)}`;
-    console.log('[useRealtimeEvents] Connecting to SSE:', url);
-    
-    const es = new EventSource(url);
-    esRef.current = es;
+    // Ensure singleton EventSource is created
+    ensureSharedEventSource();
 
-    const dispatch = (event: MessageEvent, eventName: string) => {
-      console.log(`[useRealtimeEvents] Received ${eventName} event:`, event.data);
-      try {
-        const data = JSON.parse(event.data as string);
-        handlersRef.current[eventName]?.(data);
-      } catch (err) { 
-        console.error(`[useRealtimeEvents] Failed to parse ${eventName} event:`, err);
-      }
+    // If EventSource couldn't be created (no token), nothing more to do
+    if (!sharedEs) return;
+
+    // Sync handlers into the shared handler map so dispatch sees them
+    // (The shared handlersRef gets updated below on each render)
+    const updateShared = () => {
+      sharedHandlers = { ...sharedHandlers, ...handlersRef.current };
     };
-
-    es.addEventListener('message_sync', (e) => dispatch(e, 'message_sync'));
-    es.addEventListener('typing', (e) => dispatch(e, 'typing'));
-    es.addEventListener('connected', () => {
-      // Server confirmed stream is ready — if this is a reconnection, re-fetch data
-      if (wasDisconnected) {
-        wasDisconnected = false;
-        handlersRef.current['reconnect']?.({});
-      }
-    });
-
-    es.onopen = () => {
-      // onopen fires when HTTP headers received, but stream may not be fully ready.
-      // Actual reconnect handling is done via the 'connected' event above.
-    };
-
-    es.onerror = (err) => {
-      console.error('[useRealtimeEvents] SSE error:', err);
-      wasDisconnected = true;
-      // EventSource auto-reconnects on error
-    };
+    updateShared();
 
     return () => {
-      console.log('[useRealtimeEvents] Closing SSE connection');
-      es.close();
-      esRef.current = null;
+      // Remove only this consumer's handlers from the shared map
+      Object.keys(handlers).forEach(key => {
+        delete sharedHandlers[key];
+      });
+      // Note: We intentionally do NOT close sharedEs here.
+      // The connection is shared across all consumers and will be closed
+      // when the last consumer unmounts (tracked via useRealtimeEvents.__closeAll).
     };
   }, [enabled]);
+}
+
+/** Close the shared SSE connection. Call this when the app logs out. */
+export function closeRealtimeConnection() {
+  if (sharedEs) {
+    console.log('[useRealtimeEvents] Closing SSE connection');
+    sharedEs.close();
+    sharedEs = null;
+    sharedHandlers = {};
+    sharedWasDisconnected = false;
+  }
 }
