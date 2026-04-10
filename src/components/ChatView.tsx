@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Video, CalendarDays, ArrowLeft, GraduationCap } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -27,6 +27,8 @@ interface ChatViewProps {
   onOpenPoll?: (pollId: string) => void;
   onOpenCalendar?: () => void;
   onMarkRead?: (chatId: string, chatType: 'channel' | 'conversation') => void;
+  onToggleFlagged?: () => void;
+  flaggedOpen?: boolean;
 }
 
 interface TypingUser {
@@ -112,7 +114,7 @@ function extractServiceLinks(description: string): { cleanDescription: string; l
   return { cleanDescription: cleaned, links };
 }
 
-export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar }: ChatViewProps) {
+export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onToggleFlagged, flaggedOpen }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -553,6 +555,23 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     }
   }, []);
 
+  const handleFlag = useCallback(async (messageId: string, currentlyFlagged: boolean) => {
+    setMessages((prev) => prev.map((m) =>
+      String(m.id) === messageId ? { ...m, flagged: !currentlyFlagged } : m
+    ));
+    try {
+      if (currentlyFlagged) {
+        await api.unflagMessage(messageId);
+      } else {
+        await api.flagMessage(messageId);
+      }
+    } catch {
+      setMessages((prev) => prev.map((m) =>
+        String(m.id) === messageId ? { ...m, flagged: currentlyFlagged } : m
+      ));
+    }
+  }, []);
+
   const handleSend = async (text: string) => {
     const opts = replyTo ? { reply_to_id: String(replyTo.id) } : undefined;
     // Optimistic: add message immediately
@@ -787,6 +806,20 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         >
           <FolderOpen size={20} />
         </button>
+        {onToggleFlagged && (
+          <button
+            onClick={onToggleFlagged}
+            className={clsx(
+              'rounded-lg p-2 transition',
+              flaggedOpen
+                ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+                : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
+            )}
+            title="Markierte Nachrichten"
+          >
+            <Bookmark size={20} />
+          </button>
+        )}
         <button
           onClick={() => setSearchOpen((o) => !o)}
           className={clsx(
@@ -1022,6 +1055,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                       messageMap={messageMap}
                       onDelete={handleDelete}
                       onLike={handleLike}
+                      onFlag={handleFlag}
                       onReply={setReplyTo}
                       onForward={setForwardMsg}
                       onImageClick={setLightboxUrl}
@@ -1098,6 +1132,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                       messageMap={messageMap}
                       onDelete={handleDelete}
                       onLike={handleLike}
+                      onFlag={handleFlag}
                       onReply={setReplyTo}
                       onForward={setForwardMsg}
                       onImageClick={setLightboxUrl}
@@ -1255,6 +1290,7 @@ function MessageGroup({
   messageMap,
   onDelete,
   onLike,
+  onFlag,
   onReply,
   onForward,
   onImageClick,
@@ -1273,6 +1309,7 @@ function MessageGroup({
   messageMap: Map<number, Message>;
   onDelete: (messageId: string) => void;
   onLike: (messageId: string, liked: boolean) => void;
+  onFlag: (messageId: string, flagged: boolean) => void;
   onReply: (msg: Message) => void;
   onForward: (msg: Message) => void;
   onImageClick: (url: string) => void;
@@ -1379,6 +1416,18 @@ function MessageGroup({
                 >
                   <Forward size={13} />
                 </button>
+                <button
+                  onClick={() => onFlag(String(msg.id), Boolean(msg.flagged))}
+                  title={msg.flagged ? 'Markierung entfernen' : 'Markieren'}
+                  className={clsx(
+                    'flex items-center justify-center rounded-md p-1 transition',
+                    msg.flagged
+                      ? 'text-amber-500 dark:text-amber-400'
+                      : 'text-surface-600 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700 dark:hover:text-amber-400',
+                  )}
+                >
+                  <Bookmark size={13} fill={msg.flagged ? 'currentColor' : 'none'} />
+                </button>
                 {canDelete && (
                   <button
                     onClick={() => onDelete(String(msg.id))}
@@ -1389,6 +1438,13 @@ function MessageGroup({
                   </button>
                 )}
               </div>
+
+              {/* Bookmark indicator for flagged messages */}
+              {msg.flagged && (
+                <div className={clsx('absolute -top-1.5 z-10', isOwn ? '-left-1' : '-right-1')}>
+                  <Bookmark size={14} className="text-amber-500 dark:text-amber-400" fill="currentColor" />
+                </div>
+              )}
 
               <div
                 className={clsx(
@@ -1456,6 +1512,7 @@ function PlainTextMessage({
   messageMap,
   onDelete,
   onLike,
+  onFlag,
   onReply,
   onForward,
   onImageClick,
@@ -1469,6 +1526,7 @@ function PlainTextMessage({
   messageMap: Map<number, Message>;
   onDelete: (messageId: string) => void;
   onLike: (messageId: string, liked: boolean) => void;
+  onFlag: (messageId: string, flagged: boolean) => void;
   onReply: (msg: Message) => void;
   onForward: (msg: Message) => void;
   onImageClick: (url: string) => void;
@@ -1503,6 +1561,9 @@ function PlainTextMessage({
                 : <Check size={13} />
             )}
           </span>
+          {msg.flagged && (
+            <Bookmark size={12} className="text-amber-500 dark:text-amber-400" fill="currentColor" />
+          )}
           {(msg.likes ?? 0) > 0 && (
             <LikeBadge
               count={msg.likes ?? 0}
@@ -1556,6 +1617,18 @@ function PlainTextMessage({
           className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 transition"
         >
           <Forward size={13} />
+        </button>
+        <button
+          onClick={() => onFlag(String(msg.id), Boolean(msg.flagged))}
+          title={msg.flagged ? 'Markierung entfernen' : 'Markieren'}
+          className={clsx(
+            'flex items-center justify-center rounded-md p-1 transition',
+            msg.flagged
+              ? 'text-amber-500 dark:text-amber-400'
+              : 'text-surface-600 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700 dark:hover:text-amber-400',
+          )}
+        >
+          <Bookmark size={13} fill={msg.flagged ? 'currentColor' : 'none'} />
         </button>
         {canDelete && (
           <button
