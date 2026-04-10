@@ -29,6 +29,8 @@ interface ChatViewProps {
   onMarkRead?: (chatId: string, chatType: 'channel' | 'conversation') => void;
   onToggleFlagged?: () => void;
   flaggedOpen?: boolean;
+  jumpToMessageId?: string | null;
+  onJumpComplete?: () => void;
 }
 
 interface TypingUser {
@@ -114,7 +116,7 @@ function extractServiceLinks(description: string): { cleanDescription: string; l
   return { cleanDescription: cleaned, links };
 }
 
-export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onToggleFlagged, flaggedOpen }: ChatViewProps) {
+export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onToggleFlagged, flaggedOpen, jumpToMessageId, onJumpComplete }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -382,6 +384,58 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
     }
   }, [loading]);
+
+  // Jump to specific message (from flagged messages panel)
+  const isJumpingRef = useRef(false);
+  useEffect(() => {
+    if (!jumpToMessageId || isJumpingRef.current) return;
+    
+    const tryScrollToMessage = async () => {
+      isJumpingRef.current = true;
+      const maxAttempts = 20; // Prevent infinite loops
+      let attempts = 0;
+      
+      while (attempts < maxAttempts) {
+        // Check if message is already loaded
+        const msgElement = document.getElementById(`msg-${jumpToMessageId}`);
+        
+        if (msgElement) {
+          // Message found, scroll to it and highlight
+          msgElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          msgElement.classList.add('ring-2', 'ring-primary-400', 'rounded-xl');
+          setTimeout(() => {
+            msgElement.classList.remove('ring-2', 'ring-primary-400', 'rounded-xl');
+          }, 3000);
+          onJumpComplete?.();
+          isJumpingRef.current = false;
+          return;
+        }
+        
+        // Message not found, check if we can load more
+        if (!hasMoreRef.current || loadingMoreRef.current) {
+          // No more messages to load
+          console.warn(`Message ${jumpToMessageId} not found in chat history`);
+          onJumpComplete?.();
+          isJumpingRef.current = false;
+          return;
+        }
+        
+        // Load more messages and try again
+        await loadOlder();
+        attempts++;
+        
+        // Small delay to allow React to render the new messages
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      // Max attempts reached
+      console.warn(`Could not find message ${jumpToMessageId} after ${maxAttempts} attempts`);
+      onJumpComplete?.();
+      isJumpingRef.current = false;
+    };
+    
+    tryScrollToMessage();
+  }, [jumpToMessageId, loadOlder, onJumpComplete]);
 
   // Clear stale typing indicators after 4 s
   useEffect(() => {

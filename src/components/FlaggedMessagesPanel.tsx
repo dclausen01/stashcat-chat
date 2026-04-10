@@ -8,6 +8,7 @@ import type { ChatTarget, Message } from '../types';
 interface FlaggedMessagesPanelProps {
   chat: ChatTarget | null;
   onClose: () => void;
+  onMessageClick?: (messageId: string, chat: ChatTarget) => void;
 }
 
 const PAGE_SIZE = 30;
@@ -18,7 +19,7 @@ const formatTime = (ts?: number) => {
   return d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 };
 
-export default function FlaggedMessagesPanel({ chat, onClose }: FlaggedMessagesPanelProps) {
+export default function FlaggedMessagesPanel({ chat, onClose, onMessageClick }: FlaggedMessagesPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -163,7 +164,11 @@ export default function FlaggedMessagesPanel({ chat, onClose }: FlaggedMessagesP
                     image={msg.sender?.image}
                     size="sm"
                   />
-                  <div className="min-w-0 flex-1">
+                  <button
+                    onClick={() => onMessageClick?.(String(msg.id), chat)}
+                    className="min-w-0 flex-1 text-left"
+                    title="Zur Nachricht springen"
+                  >
                     <div className="flex items-center gap-2">
                       <span className="truncate text-xs font-medium text-surface-900 dark:text-surface-100">
                         {msg.sender ? `${msg.sender.first_name} ${msg.sender.last_name}` : 'Unbekannt'}
@@ -175,7 +180,7 @@ export default function FlaggedMessagesPanel({ chat, onClose }: FlaggedMessagesP
                     <p className="mt-0.5 line-clamp-3 text-xs text-surface-700 dark:text-surface-300">
                       {msg.text || (msg.files?.length ? `${msg.files.length} Datei(en)` : '')}
                     </p>
-                  </div>
+                  </button>
                   <button
                     onClick={() => handleUnflag(String(msg.id))}
                     title="Markierung entfernen"

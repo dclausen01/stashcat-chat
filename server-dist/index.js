@@ -147,7 +147,6 @@ async function getClient(req) {
     // Check cache
     const cached = clientCache.get(clientKey);
     if (cached && Date.now() < cached.expiresAt) {
-        cached.expiresAt = Date.now() + CACHE_TTL; // Refresh TTL
         return cached.client;
     }
     // Check if initialization is already in progress
@@ -259,6 +258,7 @@ async function connectRealtime(client, clientKey) {
                 }
                 catch (err) {
                     serverLog('[Realtime] Failed to decrypt message_sync:', errorMessage(err));
+                    payload.text = '[Nachricht konnte nicht entschlüsselt werden]';
                 }
             }
             serverLog(`[Realtime] Pushing message_sync to SSE for clientKey ${clientKey.slice(0, 8)}`);
@@ -298,6 +298,7 @@ async function connectRealtime(client, clientKey) {
                 }
                 catch (err) {
                     serverLog('[Realtime] Failed to decrypt notification:', errorMessage(err));
+                    payload.text = '[Nachricht konnte nicht entschlüsselt werden]';
                 }
             }
             serverLog(`[Realtime] Pushing notification as message_sync to SSE`);
@@ -351,7 +352,7 @@ app.post('/api/logout', async (req, res) => {
             clientCache.delete(payload.clientKey);
             const sse = activeSSE.get(payload.clientKey);
             if (sse) {
-                sse.realtime?.disconnect();
+                sse.realtime?.disconnect?.();
                 activeSSE.delete(payload.clientKey);
             }
         }
@@ -381,6 +382,7 @@ app.get('/api/events', async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx response buffering for SSE
     res.flushHeaders();
+    serverLog(`[SSE] Headers sent for clientKey: ${clientKey.slice(0, 8)}...`);
     // Heartbeat every 25 s to keep the connection alive
     const hb = setInterval(() => {
         try {
@@ -391,6 +393,10 @@ app.get('/api/events', async (req, res) => {
         }
         catch {
             clearInterval(hb);
+            try {
+                res.end();
+            }
+            catch { }
         }
     }, 25_000);
     // Get or create SSE connection for this clientKey
@@ -401,10 +407,8 @@ app.get('/api/events', async (req, res) => {
         conn = { client, sseClients: new Set() };
         activeSSE.set(clientKey, conn);
     }
-    else {
-        serverLog(`[SSE] Reusing existing SSE connection for clientKey: ${clientKey.slice(0, 8)}..., clients: ${conn.sseClients.size}`);
-    }
     conn.sseClients.add(res);
+    serverLog(`[SSE] Client added. Total SSE clients for this clientKey: ${conn.sseClients.size}`);
     // Send initial connected event so client knows stream is ready
     try {
         res.write(`event: connected\ndata: {}\n\n`);
@@ -415,7 +419,9 @@ app.get('/api/events', async (req, res) => {
     catch { /* ignore */ }
     // Connect realtime AFTER client is added so no events are missed
     if (isNewConnection) {
-        connectRealtime(client, clientKey);
+        connectRealtime(client, clientKey).catch((err) => {
+            serverLog(`[SSE] Failed to connect realtime for ${clientKey.slice(0, 8)}: ${errorMessage(err)}`);
+        });
     }
     req.on('close', () => {
         serverLog(`[SSE] Client disconnected for clientKey: ${clientKey.slice(0, 8)}...`);
@@ -728,8 +734,8 @@ app.get('/api/conversations', async (req, res) => {
         const limit = Number(req.query.limit) || 50;
         const offset = Number(req.query.offset) || 0;
         const conversations = await client.getConversations({ limit, offset });
-        // Discover bot in background (non-blocking) so we can filter it
-        findChatBot(client, payload.clientKey).catch(() => { });
+        // Discover bot before filtering so the first request also filters correctly
+        await findChatBot(client, payload.clientKey).catch(() => { });
         // Filter out the Chat Bot conversation
         const filtered = conversations.filter((c) => !isBotConversation(String(c.id), payload.clientKey));
         res.json(filtered);
@@ -785,6 +791,65 @@ app.delete('/api/messages/:messageId', async (req, res) => {
         const client = await getClient(req);
         await client.deleteMessage(req.params.messageId);
         res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+// ── Message flagging (bookmarks) ─────────────────────────────────────────────
+app.post('/api/messages/:messageId/flag', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        await client.flagMessage(req.params.messageId);
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+app.post('/api/messages/:messageId/unflag', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        await client.unflagMessage(req.params.messageId);
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+app.get('/api/messages/:type/:targetId/flagged', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { type, targetId } = req.params;
+        const chatType = type;
+        const limit = Number(req.query.limit) || 50;
+        const offset = Number(req.query.offset) || 0;
+        const messages = await client.getFlaggedMessages(chatType, targetId, { limit, offset });
+        // E2E decrypt each message (same pattern as search endpoint)
+        for (const msg of messages) {
+            if (msg.encrypted && msg.text && msg.iv) {
+                try {
+                    let aesKey;
+                    const channelId = msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null;
+                    const msgConvId = msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null;
+                    if (msgConvId) {
+                        aesKey = await client.getConversationAesKey(msgConvId);
+                    }
+                    else if (channelId) {
+                        aesKey = await client.getChannelAesKey(channelId);
+                    }
+                    if (aesKey) {
+                        const iv = stashcat_api_1.CryptoManager.hexToBuffer(String(msg.iv));
+                        msg.text = stashcat_api_1.CryptoManager.decrypt(String(msg.text), aesKey, iv);
+                    }
+                }
+                catch (err) {
+                    serverLog('[flaggedMessages] Failed to decrypt:', errorMessage(err));
+                    msg.text = '[Nachricht konnte nicht entschlüsselt werden]';
+                }
+            }
+        }
+        res.json(messages);
     }
     catch (err) {
         res.status(500).json({ error: errorMessage(err) });

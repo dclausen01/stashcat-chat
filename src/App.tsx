@@ -31,6 +31,7 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [flaggedOpen, setFlaggedOpen] = useState(false);
   const [pollIdToOpen, setPollIdToOpen] = useState<string | null>(null);
+  const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
 
   // Close all side panels
   const closeAllPanels = () => {
@@ -101,6 +102,19 @@ export default function App() {
     setChannels(loadedChannels);
   }, []);
 
+  const handleFlaggedMessageClick = useCallback((messageId: string, chat: ChatTarget) => {
+    // If clicking a message from a different chat, switch to that chat first
+    if (activeChat?.id !== chat.id || activeChat?.type !== chat.type) {
+      setActiveChat(chat);
+    }
+    // Set the message ID to jump to (ChatView will handle the scrolling)
+    setJumpToMessageId(messageId);
+  }, [activeChat]);
+
+  const handleJumpComplete = useCallback(() => {
+    setJumpToMessageId(null);
+  }, []);
+
   if (!loggedIn) {
     return <LoginPage />;
   }
@@ -142,6 +156,8 @@ export default function App() {
                 onOpenCalendar={openCalendar}
                 onToggleFlagged={toggleFlagged}
                 flaggedOpen={flaggedOpen}
+                jumpToMessageId={jumpToMessageId}
+                onJumpComplete={handleJumpComplete}
               />
             : homeView === 'cards'
               ? <FavoriteCardsView channels={channels} onSelectChat={handleSelectChat} />
@@ -153,7 +169,11 @@ export default function App() {
             <BroadcastsPanel onClose={() => setBroadcastsOpen(false)} />
           )}
           {flaggedOpen && (
-            <FlaggedMessagesPanel chat={activeChat} onClose={() => setFlaggedOpen(false)} />
+            <FlaggedMessagesPanel
+              chat={activeChat}
+              onClose={() => setFlaggedOpen(false)}
+              onMessageClick={handleFlaggedMessageClick}
+            />
           )}
           {notificationsOpen && (
             <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} />
