@@ -389,6 +389,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const isJumpingRef = useRef(false);
   useEffect(() => {
     if (!jumpToMessageId || isJumpingRef.current) return;
+    // Wait for initial load to complete before attempting to jump
+    if (loading) return;
     
     const tryScrollToMessage = async () => {
       isJumpingRef.current = true;
@@ -435,7 +437,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     };
     
     tryScrollToMessage();
-  }, [jumpToMessageId, loadOlder, onJumpComplete]);
+  }, [jumpToMessageId, loadOlder, onJumpComplete, loading]);
 
   // Clear stale typing indicators after 4 s
   useEffect(() => {
