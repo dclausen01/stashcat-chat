@@ -377,7 +377,7 @@ app.post('/api/logout', async (req, res) => {
       clientCache.delete(payload.clientKey);
       const sse = activeSSE.get(payload.clientKey);
       if (sse) {
-        sse.realtime?.disconnect?.().catch?.(() => {});
+        sse.realtime?.disconnect?.();
         activeSSE.delete(payload.clientKey);
       }
     }
