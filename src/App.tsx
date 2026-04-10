@@ -13,6 +13,7 @@ import PollsView from './components/PollsView';
 import NotificationsPanel from './components/NotificationsPanel';
 import FavoriteCardsView from './components/FavoriteCardsView';
 import ProfileModal from './components/ProfileModal';
+import FlaggedMessagesPanel from './components/FlaggedMessagesPanel';
 import type { ChatTarget } from './types';
 
 type ActiveView = 'chat' | 'calendar' | 'polls';
@@ -28,6 +29,7 @@ export default function App() {
   const [activeView, setActiveView] = useState<ActiveView>('chat');
   const [channels, setChannels] = useState<ChatTarget[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [flaggedOpen, setFlaggedOpen] = useState(false);
   const [pollIdToOpen, setPollIdToOpen] = useState<string | null>(null);
 
   // Close all side panels
@@ -37,6 +39,7 @@ export default function App() {
     setBroadcastsOpen(false);
     setNotificationsOpen(false);
     setProfileOpen(false);
+    setFlaggedOpen(false);
   };
 
   const toggleSettings = () => {
@@ -49,6 +52,12 @@ export default function App() {
     const wasOpen = fileBrowserOpen;
     closeAllPanels();
     if (!wasOpen) setFileBrowserOpen(true);
+  };
+
+  const toggleFlagged = () => {
+    const wasOpen = flaggedOpen;
+    closeAllPanels();
+    if (!wasOpen) setFlaggedOpen(true);
   };
 
   const toggleBroadcasts = () => {
@@ -131,6 +140,8 @@ export default function App() {
                 onOpenPolls={openPolls}
                 onOpenPoll={openPoll}
                 onOpenCalendar={openCalendar}
+                onToggleFlagged={toggleFlagged}
+                flaggedOpen={flaggedOpen}
               />
             : homeView === 'cards'
               ? <FavoriteCardsView channels={channels} onSelectChat={handleSelectChat} />
@@ -140,6 +151,9 @@ export default function App() {
           )}
           {broadcastsOpen && (
             <BroadcastsPanel onClose={() => setBroadcastsOpen(false)} />
+          )}
+          {flaggedOpen && (
+            <FlaggedMessagesPanel chat={activeChat} onClose={() => setFlaggedOpen(false)} />
           )}
           {notificationsOpen && (
             <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} />

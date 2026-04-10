@@ -140,7 +140,6 @@ async function getClient(req: express.Request): Promise<StashcatClient> {
   // Check cache
   const cached = clientCache.get(clientKey);
   if (cached && Date.now() < cached.expiresAt) {
-    cached.expiresAt = Date.now() + CACHE_TTL; // Refresh TTL
     return cached.client;
   }
 
@@ -273,6 +272,7 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
           }
         } catch (err) {
           serverLog('[Realtime] Failed to decrypt message_sync:', errorMessage(err));
+          payload.text = '[Nachricht konnte nicht entschlüsselt werden]';
         }
       }
 
@@ -313,6 +313,7 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
           }
         } catch (err) {
           serverLog('[Realtime] Failed to decrypt notification:', errorMessage(err));
+          payload.text = '[Nachricht konnte nicht entschlüsselt werden]';
         }
       }
 
@@ -376,7 +377,7 @@ app.post('/api/logout', async (req, res) => {
       clientCache.delete(payload.clientKey);
       const sse = activeSSE.get(payload.clientKey);
       if (sse) {
-        sse.realtime?.disconnect();
+        sse.realtime?.disconnect?.().catch?.(() => {});
         activeSSE.delete(payload.clientKey);
       }
     }
@@ -416,7 +417,7 @@ app.get('/api/events', async (req, res) => {
       if (typeof (res as unknown as Record<string, unknown>).flush === 'function') {
         (res as unknown as { flush: () => void }).flush();
       }
-    } catch { clearInterval(hb); }
+    } catch { clearInterval(hb); try { res.end(); } catch {} }
   }, 25_000);
 
   // Get or create SSE connection for this clientKey
@@ -440,7 +441,9 @@ app.get('/api/events', async (req, res) => {
 
   // Connect realtime AFTER client is added so no events are missed
   if (isNewConnection) {
-    connectRealtime(client, clientKey);
+    connectRealtime(client, clientKey).catch((err) => {
+      serverLog(`[SSE] Failed to connect realtime for ${clientKey.slice(0, 8)}: ${errorMessage(err)}`);
+    });
   }
 
   req.on('close', () => {
@@ -777,8 +780,8 @@ app.get('/api/conversations', async (req, res) => {
     const offset = Number(req.query.offset) || 0;
     const conversations = await client.getConversations({ limit, offset }) as unknown as Array<Record<string, unknown>>;
 
-    // Discover bot in background (non-blocking) so we can filter it
-    findChatBot(client, payload.clientKey).catch(() => {});
+    // Discover bot before filtering so the first request also filters correctly
+    await findChatBot(client, payload.clientKey).catch(() => {});
 
     // Filter out the Chat Bot conversation
     const filtered = conversations.filter((c) => !isBotConversation(String(c.id), payload.clientKey));
@@ -837,6 +840,67 @@ app.delete('/api/messages/:messageId', async (req, res) => {
     const client = await getClient(req);
     await client.deleteMessage(req.params.messageId);
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+// ── Message flagging (bookmarks) ─────────────────────────────────────────────
+
+app.post('/api/messages/:messageId/flag', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    await client.flagMessage(req.params.messageId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+app.post('/api/messages/:messageId/unflag', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    await client.unflagMessage(req.params.messageId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+app.get('/api/messages/:type/:targetId/flagged', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const { type, targetId } = req.params;
+    const chatType = type as 'channel' | 'conversation';
+    const limit = Number(req.query.limit) || 50;
+    const offset = Number(req.query.offset) || 0;
+
+    const messages = await client.getFlaggedMessages(chatType, targetId, { limit, offset });
+
+    // E2E decrypt each message (same pattern as search endpoint)
+    for (const msg of messages as unknown as Array<Record<string, unknown>>) {
+      if (msg.encrypted && msg.text && msg.iv) {
+        try {
+          let aesKey: Buffer | undefined;
+          const channelId = msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null;
+          const msgConvId = msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null;
+          if (msgConvId) {
+            aesKey = await client.getConversationAesKey(msgConvId);
+          } else if (channelId) {
+            aesKey = await client.getChannelAesKey(channelId);
+          }
+          if (aesKey) {
+            const iv = CryptoManager.hexToBuffer(String(msg.iv));
+            msg.text = CryptoManager.decrypt(String(msg.text), aesKey, iv);
+          }
+        } catch (err) {
+          serverLog('[flaggedMessages] Failed to decrypt:', errorMessage(err));
+          msg.text = '[Nachricht konnte nicht entschlüsselt werden]';
+        }
+      }
+    }
+
+    res.json(messages);
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }

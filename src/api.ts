@@ -306,6 +306,25 @@ export async function sendTyping(type: 'channel' | 'conversation', targetId: str
   return post('/typing', { type, targetId });
 }
 
+// --- Message Flagging (Bookmarks) ---
+
+export async function flagMessage(messageId: string): Promise<void> {
+  return post(`/messages/${messageId}/flag`);
+}
+
+export async function unflagMessage(messageId: string): Promise<void> {
+  return post(`/messages/${messageId}/unflag`);
+}
+
+export async function getFlaggedMessages(
+  type: 'channel' | 'conversation',
+  targetId: string,
+  limit = 50,
+  offset = 0,
+): Promise<Array<Record<string, unknown>>> {
+  return get<Array<Record<string, unknown>>>(`/messages/${type}/${targetId}/flagged?limit=${limit}&offset=${offset}`);
+}
+
 // --- File Browser ---
 
 export interface FolderContent {
