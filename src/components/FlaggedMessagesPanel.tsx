@@ -161,7 +161,7 @@ export default function FlaggedMessagesPanel({ chat, onClose }: FlaggedMessagesP
                   <Avatar
                     name={msg.sender ? `${msg.sender.first_name} ${msg.sender.last_name}` : '?'}
                     image={msg.sender?.image}
-                    size={32}
+                    size="sm"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
