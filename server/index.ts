@@ -395,7 +395,8 @@ app.post('/api/login', async (req, res) => {
  */
 async function triggerAuthCheck(client: StashcatClient, baseUrl: string): Promise<void> {
   const serialized = client.serialize();
-  const appName = 'stashcat-chat-browser';
+  // Use official app_name pattern — server may only push notifications for known clients
+  const appName = 'schul.cloud-browser-Firefox:149.0-6.43.0';
   const params = new URLSearchParams();
   params.set('client_key', serialized.clientKey);
   params.set('device_id', serialized.deviceId);
