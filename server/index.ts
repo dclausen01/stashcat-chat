@@ -402,7 +402,7 @@ app.post('/api/logout', async (req, res) => {
       clientCache.delete(payload.clientKey);
       const sse = activeSSE.get(payload.clientKey);
       if (sse) {
-        sse.realtime?.disconnect?.().catch?.(() => {});
+        void Promise.resolve(sse.realtime?.disconnect?.()).catch(() => {});
         activeSSE.delete(payload.clientKey);
       }
     }
