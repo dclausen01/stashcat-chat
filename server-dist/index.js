@@ -365,21 +365,21 @@ app.post('/api/login', async (req, res) => {
  * no need to keep the connection alive.
  */
 /**
- * Helper: connect to push.stashcat.com via Socket.io and listen for events.
- * The official client connects to push.stashcat.com, sends 'userid',
- * and the server emits 'new_device_connected' back.
- * This triggers the server to push notifications to ALL existing devices.
+ * Helper: connect to push.stashcat.com via Socket.io, wait for new_device_connected,
+ * then emit key_sync_request to trigger the code prompt on existing devices.
+ *
+ * Reverse-engineered from official web client:
+ *   1. Connect → send 'userid' (auto by RealtimeManager)
+ *   2. Server emits 'new_device_connected' to all existing devices
+ *   3. Client emits 'key_sync_request'(own_device_id, target_device_id)
+ *   4. Push server forwards this to the target device
+ *   5. Target device shows the 6-digit code prompt
  */
 async function triggerDeviceNotification(client) {
     serverLog('[DeviceNotify] Creating RealtimeManager...');
     const rt = await client.createRealtimeManager({ reconnect: false, debug: true });
-    // Access the raw socket to log ALL events
+    const ownDeviceId = client.serialize().deviceId;
     const socket = rt.socket;
-    if (socket && typeof socket.onAny === 'function') {
-        socket.onAny((event, ...args) => {
-            serverLog(`[DeviceNotify] 📡 "${event}"`, JSON.stringify(args).slice(0, 300));
-        });
-    }
     await new Promise((resolve) => {
         const timeout = setTimeout(() => {
             serverLog('[DeviceNotify] Timeout after 10s');
@@ -389,9 +389,15 @@ async function triggerDeviceNotification(client) {
             catch { }
             resolve();
         }, 10000);
-        // Listen for new_device_connected — this means the server has registered the new device
+        // When new_device_connected arrives, emit key_sync_request
         rt.once('new_device_connected', () => {
-            serverLog('[DeviceNotify] new_device_connected received — server has registered the device!');
+            serverLog('[DeviceNotify] new_device_connected received!');
+            // Emit key_sync_request with our device_id for both params
+            // The push server will forward to all existing devices of this user
+            if (socket) {
+                socket.emit('key_sync_request', ownDeviceId, ownDeviceId);
+                serverLog('[DeviceNotify] key_sync_request emitted for device:', ownDeviceId.slice(0, 8) + '...');
+            }
             clearTimeout(timeout);
             setTimeout(() => {
                 try {
@@ -407,6 +413,12 @@ async function triggerDeviceNotification(client) {
         rt.on('disconnect', () => {
             serverLog('[DeviceNotify] Disconnect event');
         });
+        // Log ALL socket events
+        if (socket && typeof socket.onAny === 'function') {
+            socket.onAny((event, ...args) => {
+                serverLog(`[DeviceNotify] 📡 "${event}"`, JSON.stringify(args).slice(0, 300));
+            });
+        }
         rt.connect().then(() => {
             serverLog('[DeviceNotify] Socket.io connect OK');
         }).catch((err) => {
