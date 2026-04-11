@@ -478,11 +478,16 @@ async function triggerDeviceNotification(client: StashcatClient): Promise<{ encr
 
     rt.connect().then(() => {
       serverLog('[DeviceNotify] Socket.io connect OK, emitting key_sync_request(s)...');
-      if (socket) {
+      // Re-fetch socket after connect — it may have been assigned during connection
+      const sock = (rt as unknown as { socket: { emit: (event: string, ...args: unknown[]) => void } | null }).socket;
+      serverLog('[DeviceNotify] Socket object:', sock ? 'present' : 'null');
+      if (sock) {
         for (const target of targetDevices) {
-          socket.emit('key_sync_request', ownDeviceId, target.device_id);
+          sock.emit('key_sync_request', ownDeviceId, target.device_id);
           serverLog('[DeviceNotify] key_sync_request emitted:', ownDeviceId.slice(0, 8) + '... →', target.device_id.slice(0, 8) + '...');
         }
+      } else {
+        serverLog('[DeviceNotify] ERROR: socket is null after connect!');
       }
     }).catch((err) => {
       serverLog('[DeviceNotify] connect() rejected:', err.message);
