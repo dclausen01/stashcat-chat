@@ -412,36 +412,51 @@ async function triggerDeviceNotification(client: StashcatClient): Promise<{ encr
   const ownDeviceId = client.serialize().deviceId;
   const socket = (rt as unknown as { socket: { emit: (event: string, ...args: unknown[]) => void } }).socket;
 
-  // Get all existing devices to notify
-  const allDevices = await client.listActiveDevices();
-  const targetDevices = allDevices.filter((d: ActiveDevice) =>
-    d.key_transfer_support === true &&
-    d.encryption === true &&
-    d.is_fully_authed === true &&
-    d.device_id !== ownDeviceId,
-  );
-
-  if (targetDevices.length === 0) {
-    serverLog('[DeviceNotify] No target devices found');
-    try { rt.disconnect(); } catch {}
-    return null;
-  }
-
-  serverLog('[DeviceNotify] Found', targetDevices.length, 'target device(s) to notify');
-
   let result: { encryptedKeyData: string } | null = null;
+  const targetDeviceIds = new Set<string>();
 
   await new Promise<void>((resolve) => {
     const timeout = setTimeout(() => {
-      serverLog('[DeviceNotify] Timeout after 120s');
+      // After 3s, emit key_sync_request to all collected devices
+      serverLog('[DeviceNotify] Collection phase done, found', targetDeviceIds.size, 'device(s)');
+      if (targetDeviceIds.size === 0) {
+        serverLog('[DeviceNotify] No target devices found, disconnecting');
+        try { rt.disconnect(); } catch {}
+        resolve();
+        return;
+      }
+
+      if (socket) {
+        for (const targetId of targetDeviceIds) {
+          socket.emit('key_sync_request', ownDeviceId, targetId);
+          serverLog('[DeviceNotify] key_sync_request emitted:', ownDeviceId.slice(0, 8) + '... →', targetId.slice(0, 8) + '...');
+        }
+      }
+    }, 3000);
+
+    const overallTimeout = setTimeout(() => {
+      serverLog('[DeviceNotify] Overall timeout after 120s');
       try { rt.disconnect(); } catch {}
       resolve();
     }, 120000);
+
+    // Collect new_device_connected events
+    rt.on('new_device_connected', (data: unknown) => {
+      const parsed = data as Record<string, unknown> | undefined;
+      if (parsed && typeof parsed.device_id === 'string') {
+        const devId = parsed.device_id;
+        if (devId !== ownDeviceId) {
+          targetDeviceIds.add(devId);
+          serverLog('[DeviceNotify] new_device_connected:', devId.slice(0, 8) + '... (IP:', parsed.ip_address, ')');
+        }
+      }
+    });
 
     // When key_sync_payload arrives, we have the encrypted key
     rt.once('key_sync_payload', (data: unknown) => {
       serverLog('[DeviceNotify] key_sync_payload received!');
       clearTimeout(timeout);
+      clearTimeout(overallTimeout);
       try { rt.disconnect(); } catch {}
       const parsed = data as Record<string, unknown> | undefined;
       if (parsed && typeof parsed.payload === 'object' && parsed.payload !== null) {
@@ -452,17 +467,6 @@ async function triggerDeviceNotification(client: StashcatClient): Promise<{ encr
         }
       }
       resolve();
-    });
-
-    // When new_device_connected arrives, emit key_sync_request to EACH target device
-    rt.once('new_device_connected', () => {
-      serverLog('[DeviceNotify] new_device_connected received!');
-      if (!socket) return;
-
-      for (const target of targetDevices) {
-        socket.emit('key_sync_request', ownDeviceId, target.device_id);
-        serverLog('[DeviceNotify] key_sync_request emitted:', ownDeviceId.slice(0, 8) + '... →', target.device_id.slice(0, 8) + '...');
-      }
     });
 
     rt.on('error', (err: Error) => {
@@ -488,6 +492,7 @@ async function triggerDeviceNotification(client: StashcatClient): Promise<{ encr
     }).catch((err) => {
       serverLog('[DeviceNotify] connect() rejected:', err.message);
       clearTimeout(timeout);
+      clearTimeout(overallTimeout);
       resolve();
     });
   });
