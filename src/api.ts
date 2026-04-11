@@ -125,8 +125,12 @@ export async function loginFinalizeWithPassword(preAuthToken: string, securityPa
   return res;
 }
 
-export async function listLoginDevices(preAuthToken: string): Promise<{ devices: LoginDevice[]; preAuthToken: string }> {
-  return post<{ devices: LoginDevice[]; preAuthToken: string }>('/login/devices', { preAuthToken });
+export async function listLoginDevices(preAuthToken: string): Promise<{ devices: LoginDevice[] }> {
+  return post<{ devices: LoginDevice[] }>('/login/devices', { preAuthToken });
+}
+
+export async function initiateDeviceKeyTransfer(preAuthToken: string, deviceId: string): Promise<void> {
+  await post<{ ok: boolean }>('/login/device/initiate', { preAuthToken, deviceId });
 }
 
 export async function loginFinalizeWithDeviceCode(preAuthToken: string, code: string): Promise<{ token: string; user: User }> {
