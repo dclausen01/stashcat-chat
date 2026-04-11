@@ -578,7 +578,15 @@ app.post('/api/login/device/complete', async (req, res) => {
             return res.status(400).json({ error: 'Invalid or expired preAuthToken' });
         }
         const client = entry.client;
-        const encryptedKeyData = entry.encryptedKeyData;
+        // Wait up to 30s for the encrypted key data to arrive (it's stored asynchronously)
+        let encryptedKeyData;
+        for (let attempts = 0; attempts < 30; attempts++) {
+            encryptedKeyData = entry.encryptedKeyData;
+            if (encryptedKeyData)
+                break;
+            await new Promise(r => setTimeout(r, 1000));
+        }
+        serverLog('[DeviceComplete] encryptedKeyData after wait:', encryptedKeyData ? `present (${encryptedKeyData.length} chars)` : 'still MISSING');
         if (!encryptedKeyData) {
             return res.status(400).json({
                 error: 'Kein Gerät zur Authentifizierung verfügbar. Bitte schul.cloud auf einem eingeloggten Gerät öffnen!',

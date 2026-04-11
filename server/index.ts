@@ -636,7 +636,17 @@ app.post('/api/login/device/complete', async (req, res) => {
     }
 
     const client = entry.client;
-    const encryptedKeyData = (entry as unknown as Record<string, unknown>).encryptedKeyData as string | undefined;
+
+    // Wait up to 30s for the encrypted key data to arrive (it's stored asynchronously)
+    let encryptedKeyData: string | undefined;
+    for (let attempts = 0; attempts < 30; attempts++) {
+      encryptedKeyData = (entry as unknown as Record<string, unknown>).encryptedKeyData as string | undefined;
+      if (encryptedKeyData) break;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+
+    serverLog('[DeviceComplete] encryptedKeyData after wait:', encryptedKeyData ? `present (${encryptedKeyData.length} chars)` : 'still MISSING');
+
     if (!encryptedKeyData) {
       return res.status(400).json({
         error: 'Kein Gerät zur Authentifizierung verfügbar. Bitte schul.cloud auf einem eingeloggten Gerät öffnen!',
