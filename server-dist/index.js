@@ -376,31 +376,27 @@ app.post('/api/login', async (req, res) => {
  */
 async function triggerDeviceNotification(client) {
     serverLog('[DeviceNotify] Creating RealtimeManager...');
-    const rt = await client.createRealtimeManager({ reconnect: false, debug: true });
+    // Get all existing devices from the API
+    const allDevices = await client.listActiveDevices();
     const ownDeviceId = client.serialize().deviceId;
+    const targetDevices = allDevices.filter((d) => d.key_transfer_support === true &&
+        d.encryption === true &&
+        d.is_fully_authed === true &&
+        d.device_id !== ownDeviceId);
+    if (targetDevices.length === 0) {
+        serverLog('[DeviceNotify] No target devices found');
+        try {
+            const rt = await client.createRealtimeManager({ reconnect: false, debug: false });
+            rt.disconnect();
+        }
+        catch { }
+        return null;
+    }
+    serverLog('[DeviceNotify] Found', targetDevices.length, 'target device(s), connecting to push...');
+    const rt = await client.createRealtimeManager({ reconnect: false, debug: true });
     const socket = rt.socket;
     let result = null;
-    const targetDeviceIds = new Set();
     await new Promise((resolve) => {
-        const timeout = setTimeout(() => {
-            // After 3s, emit key_sync_request to all collected devices
-            serverLog('[DeviceNotify] Collection phase done, found', targetDeviceIds.size, 'device(s)');
-            if (targetDeviceIds.size === 0) {
-                serverLog('[DeviceNotify] No target devices found, disconnecting');
-                try {
-                    rt.disconnect();
-                }
-                catch { }
-                resolve();
-                return;
-            }
-            if (socket) {
-                for (const targetId of targetDeviceIds) {
-                    socket.emit('key_sync_request', ownDeviceId, targetId);
-                    serverLog('[DeviceNotify] key_sync_request emitted:', ownDeviceId.slice(0, 8) + '... →', targetId.slice(0, 8) + '...');
-                }
-            }
-        }, 3000);
         const overallTimeout = setTimeout(() => {
             serverLog('[DeviceNotify] Overall timeout after 120s');
             try {
@@ -409,21 +405,9 @@ async function triggerDeviceNotification(client) {
             catch { }
             resolve();
         }, 120000);
-        // Collect new_device_connected events
-        rt.on('new_device_connected', (data) => {
-            const parsed = data;
-            if (parsed && typeof parsed.device_id === 'string') {
-                const devId = parsed.device_id;
-                if (devId !== ownDeviceId) {
-                    targetDeviceIds.add(devId);
-                    serverLog('[DeviceNotify] new_device_connected:', devId.slice(0, 8) + '... (IP:', parsed.ip_address, ')');
-                }
-            }
-        });
         // When key_sync_payload arrives, we have the encrypted key
         rt.once('key_sync_payload', (data) => {
             serverLog('[DeviceNotify] key_sync_payload received!');
-            clearTimeout(timeout);
             clearTimeout(overallTimeout);
             try {
                 rt.disconnect();
@@ -455,10 +439,15 @@ async function triggerDeviceNotification(client) {
             }
         }
         rt.connect().then(() => {
-            serverLog('[DeviceNotify] Socket.io connect OK');
+            serverLog('[DeviceNotify] Socket.io connect OK, emitting key_sync_request(s)...');
+            if (socket) {
+                for (const target of targetDevices) {
+                    socket.emit('key_sync_request', ownDeviceId, target.device_id);
+                    serverLog('[DeviceNotify] key_sync_request emitted:', ownDeviceId.slice(0, 8) + '... →', target.device_id.slice(0, 8) + '...');
+                }
+            }
         }).catch((err) => {
             serverLog('[DeviceNotify] connect() rejected:', err.message);
-            clearTimeout(timeout);
             clearTimeout(overallTimeout);
             resolve();
         });
