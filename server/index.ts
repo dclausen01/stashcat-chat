@@ -395,48 +395,58 @@ app.post('/api/login', async (req, res) => {
  * We only need to connect and wait briefly for the server to register the device —
  * no need to keep the connection alive.
  */
+/**
+ * Helper: connect to push.stashcat.com via Socket.io and listen for events.
+ * The official client connects to push.stashcat.com, sends 'userid',
+ * and the server emits 'new_device_connected' back.
+ * This triggers the server to push notifications to ALL existing devices.
+ */
 async function triggerDeviceNotification(client: StashcatClient): Promise<void> {
-  // Try Socket.io connection first — this is how the official client works
   serverLog('[DeviceNotify] Creating RealtimeManager...');
 
-  // Debug: Check what getMe returns (hidden_id = socket_id)
-  try {
-    const me = await client.getMe();
-    serverLog('[DeviceNotify] getMe() result:', JSON.stringify({ id: me.id, socket_id: me.socket_id }).slice(0, 200));
-  } catch (err) {
-    serverLog('[DeviceNotify] getMe() failed:', errorMessage(err));
-  }
-
   const rt = await client.createRealtimeManager({ reconnect: false, debug: true });
-  serverLog('[DeviceNotify] RealtimeManager created, connecting...');
 
   await new Promise<void>((resolve) => {
     const timeout = setTimeout(() => {
-      serverLog('[DeviceNotify] Timeout after 5s, disconnecting...');
+      serverLog('[DeviceNotify] Timeout after 10s');
       try { rt.disconnect(); } catch {}
       resolve();
-    }, 5000);
+    }, 10000);
 
-    rt.once('connect', () => {
+    // Listen for new_device_connected — this means the server has registered the new device
+    rt.once('new_device_connected', () => {
+      serverLog('[DeviceNotify] new_device_connected received — server has registered the device!');
       clearTimeout(timeout);
-      serverLog('[DeviceNotify] Socket.io connected successfully!');
-      // Give server a moment to notify other devices
       setTimeout(() => {
         try { rt.disconnect(); } catch {}
         resolve();
-      }, 2000);
+      }, 3000);
     });
 
     rt.on('error', (err: Error) => {
-      serverLog('[DeviceNotify] Error event:', err.message);
+      serverLog('[DeviceNotify] Error:', err.message);
     });
 
     rt.on('disconnect', () => {
       serverLog('[DeviceNotify] Disconnect event');
     });
 
+    // Log ALL events in debug mode
+    const origOnAny = rt.onAny;
+    rt.onAny = (handler: (event: string, args: unknown[]) => void) => {
+      if (rt.socket) {
+        rt.socket.onAny((event: string, ...args: unknown[]) => {
+          serverLog(`[DeviceNotify] 📡 "${event}"`, JSON.stringify(args).slice(0, 300));
+          handler(event, args);
+        });
+      }
+    };
+    rt.onAny((event: string, args: unknown[]) => {
+      // extra handler
+    });
+
     rt.connect().then(() => {
-      serverLog('[DeviceNotify] connect() resolved');
+      serverLog('[DeviceNotify] Socket.io connect OK');
     }).catch((err) => {
       serverLog('[DeviceNotify] connect() rejected:', err.message);
       clearTimeout(timeout);
