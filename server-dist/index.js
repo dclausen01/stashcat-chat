@@ -366,24 +366,49 @@ app.post('/api/login', async (req, res) => {
  */
 async function triggerDeviceNotification(client) {
     // Try Socket.io connection first — this is how the official client works
+    serverLog('[DeviceNotify] Creating RealtimeManager...');
+    // Debug: Check what getMe returns (hidden_id = socket_id)
+    try {
+        const me = await client.getMe();
+        serverLog('[DeviceNotify] getMe() result:', JSON.stringify({ id: me.id, socket_id: me.socket_id }).slice(0, 200));
+    }
+    catch (err) {
+        serverLog('[DeviceNotify] getMe() failed:', errorMessage(err));
+    }
     const rt = await client.createRealtimeManager({ reconnect: false, debug: true });
+    serverLog('[DeviceNotify] RealtimeManager created, connecting...');
     await new Promise((resolve) => {
         const timeout = setTimeout(() => {
-            serverLog('[DeviceNotify] Timeout, disconnecting...');
-            rt.disconnect();
+            serverLog('[DeviceNotify] Timeout after 5s, disconnecting...');
+            try {
+                rt.disconnect();
+            }
+            catch { }
             resolve();
         }, 5000);
         rt.once('connect', () => {
-            serverLog('[DeviceNotify] Socket.io connected successfully');
+            clearTimeout(timeout);
+            serverLog('[DeviceNotify] Socket.io connected successfully!');
+            // Give server a moment to notify other devices
+            setTimeout(() => {
+                try {
+                    rt.disconnect();
+                }
+                catch { }
+                resolve();
+            }, 2000);
         });
         rt.on('error', (err) => {
-            serverLog('[DeviceNotify] Socket.io error:', err.message);
+            serverLog('[DeviceNotify] Error event:', err.message);
         });
         rt.on('disconnect', () => {
-            serverLog('[DeviceNotify] Socket.io disconnected');
+            serverLog('[DeviceNotify] Disconnect event');
         });
-        rt.connect().catch((err) => {
-            serverLog('[DeviceNotify] Connect failed:', err.message);
+        rt.connect().then(() => {
+            serverLog('[DeviceNotify] connect() resolved');
+        }).catch((err) => {
+            serverLog('[DeviceNotify] connect() rejected:', err.message);
+            clearTimeout(timeout);
             resolve();
         });
     });
