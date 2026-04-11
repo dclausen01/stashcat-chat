@@ -1,10 +1,17 @@
-import type { User, Company, Channel, Conversation } from './types';
+import type { User, Company, Channel, Conversation, LoginDevice } from './types';
 
 const BACKEND = import.meta.env.DEV ? '/backend/api' : '/api';
 
 let token = '';
 
 const SESSION_KEY = 'schulchat_token';
+
+// --- Token persistence helpers ---
+
+export function persistToken(t: string) {
+  token = t;
+  localStorage.setItem(SESSION_KEY, t);
+}
 
 function headers(): HeadersInit {
   return {
@@ -102,7 +109,29 @@ export async function login(email: string, password: string, securityPassword: s
     securityPassword,
   });
   token = res.token;
-  localStorage.setItem(SESSION_KEY, token);
+  localStorage.setItem(SESSION_KEY, res.token);
+  return res;
+}
+
+// --- Phased Login (multi-step wizard) ---
+
+export async function loginCredentials(email: string, password: string): Promise<{ preAuthToken: string }> {
+  return post<{ preAuthToken: string }>('/login/credentials', { email, password });
+}
+
+export async function loginFinalizeWithPassword(preAuthToken: string, securityPassword: string): Promise<{ token: string; user: User }> {
+  const res = await post<{ token: string; user: User }>('/login/password', { preAuthToken, securityPassword });
+  persistToken(res.token);
+  return res;
+}
+
+export async function listLoginDevices(preAuthToken: string): Promise<{ devices: LoginDevice[]; preAuthToken: string }> {
+  return post<{ devices: LoginDevice[]; preAuthToken: string }>('/login/devices', { preAuthToken });
+}
+
+export async function loginFinalizeWithDeviceCode(preAuthToken: string, code: string): Promise<{ token: string; user: User }> {
+  const res = await post<{ token: string; user: User }>('/login/device/complete', { preAuthToken, code });
+  persistToken(res.token);
   return res;
 }
 

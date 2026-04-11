@@ -99,6 +99,14 @@ export interface Company {
   name: string;
 }
 
+export interface LoginDevice {
+  device_id: string;
+  app_name: string;
+  name?: string;
+  last_login?: number;
+  last_request?: number;
+}
+
 export interface ChannelMember {
   id: string;
   user_id: string;

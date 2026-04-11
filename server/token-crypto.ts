@@ -8,6 +8,7 @@
  * generated at startup (sessions won't survive restart — that's OK and more secure).
  */
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import type { RsaPrivateKeyJwk } from 'stashcat-api';
 
 const SESSION_KEY = process.env.SESSION_SECRET
   ? Buffer.from(process.env.SESSION_SECRET, 'hex')
@@ -20,8 +21,9 @@ if (!process.env.SESSION_SECRET) {
 export interface SessionPayload {
   deviceId: string;
   clientKey: string;
-  securityPassword: string;
   baseUrl: string;
+  securityPassword?: string;     // Legacy-Flow (Passwort-Login)
+  privateKeyJwk?: RsaPrivateKeyJwk;    // Device-Flow (Geräte-Login)
 }
 
 export function encryptSession(payload: SessionPayload): string {

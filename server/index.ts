@@ -6,7 +6,8 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs/promises';
 import * as fsSync from 'fs';
-import { StashcatClient, CryptoManager } from 'stashcat-api';
+import { randomBytes } from 'crypto';
+import { StashcatClient, CryptoManager, type RsaPrivateKeyJwk, type ActiveDevice } from 'stashcat-api';
 
 function debugLog(...args: unknown[]) {
   const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
@@ -90,11 +91,25 @@ interface BotInfo {
 }
 const botCache = new Map<string, BotInfo>(); // keyed by clientKey
 
+// ── Pre-Auth cache (short-lived, for multi-step login) ───────────────────────
+
+interface PreAuthEntry {
+  client: StashcatClient;
+  createdAt: number;
+  expiresAt: number;
+}
+const preAuthCache = new Map<string, PreAuthEntry>();
+const PREAUTH_TTL = 5 * 60 * 1000; // 5 minutes
+const PREAUTH_MAX_ENTRIES = 100;
+
 // Cleanup expired entries periodically
 setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of clientCache) {
     if (now > entry.expiresAt) clientCache.delete(key);
+  }
+  for (const [key, entry] of preAuthCache) {
+    if (now > entry.expiresAt) preAuthCache.delete(key);
   }
 }, 60_000);
 
@@ -135,7 +150,7 @@ function extractToken(req: express.Request): string {
 async function getClient(req: express.Request): Promise<StashcatClient> {
   const token = extractToken(req);
   const payload = decryptSession(token);
-  const { clientKey, deviceId, baseUrl, securityPassword } = payload;
+  const { clientKey, deviceId, baseUrl, securityPassword, privateKeyJwk } = payload;
 
   // Check cache
   const cached = clientCache.get(clientKey);
@@ -159,9 +174,13 @@ async function getClient(req: express.Request): Promise<StashcatClient> {
         { baseUrl }
       );
 
-      // Unlock E2E
+      // Unlock E2E — either via securityPassword (legacy) or privateKeyJwk (device flow)
       if (securityPassword) {
         await client.unlockE2E(securityPassword);
+      } else if (privateKeyJwk) {
+        await client.unlockE2EWithPrivateKey(privateKeyJwk);
+      } else {
+        throw new Error('Session has no E2E unlock material');
       }
 
       clientCache.set(clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
@@ -364,6 +383,170 @@ app.post('/api/login', async (req, res) => {
 
   } catch (err) {
     res.status(401).json({ error: errorMessage(err, 'Login failed') });
+  }
+});
+
+// ── Phased Login (multi-step wizard) ─────────────────────────────────────────
+
+/**
+ * Step 1: Credentials — authenticate without E2E, return short-lived preAuthToken.
+ */
+app.post('/api/login/credentials', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+    const baseUrl = process.env.STASHCAT_BASE_URL || 'https://api.stashcat.com/';
+
+    const client = new StashcatClient({ baseUrl });
+    await client.loginWithoutE2E({ email, password });
+
+    // Generate short-lived preAuthToken
+    const preAuthToken = randomBytes(32).toString('hex');
+    const createdAt = Date.now();
+
+    // LRU eviction: drop oldest entry if at capacity
+    if (preAuthCache.size >= PREAUTH_MAX_ENTRIES) {
+      const oldestKey = [...preAuthCache.keys()][0];
+      preAuthCache.delete(oldestKey);
+    }
+
+    preAuthCache.set(preAuthToken, {
+      client,
+      createdAt,
+      expiresAt: createdAt + PREAUTH_TTL,
+    });
+
+    res.json({ preAuthToken });
+  } catch (err) {
+    res.status(401).json({ error: errorMessage(err, 'Login failed') });
+  }
+});
+
+/**
+ * Helper: consume a preAuthToken, validating TTL.
+ */
+function consumePreAuthToken(preAuthToken: string): StashcatClient | null {
+  const entry = preAuthCache.get(preAuthToken);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    preAuthCache.delete(preAuthToken);
+    return null;
+  }
+  preAuthCache.delete(preAuthToken);
+  return entry.client;
+}
+
+/**
+ * Step 2a: Password login — unlock E2E with securityPassword.
+ */
+app.post('/api/login/password', async (req, res) => {
+  try {
+    const { preAuthToken, securityPassword } = req.body;
+    if (!preAuthToken || !securityPassword) {
+      return res.status(400).json({ error: 'preAuthToken and securityPassword required' });
+    }
+
+    const client = consumePreAuthToken(preAuthToken);
+    if (!client) {
+      return res.status(400).json({ error: 'Invalid or expired preAuthToken' });
+    }
+
+    await client.unlockE2E(securityPassword);
+
+    const serialized = client.serialize();
+    const token = encryptSession({
+      deviceId: serialized.deviceId,
+      clientKey: serialized.clientKey,
+      securityPassword,
+      baseUrl: process.env.STASHCAT_BASE_URL || 'https://api.stashcat.com/',
+    });
+
+    clientCache.set(serialized.clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
+    const me = await client.getMe();
+    res.json({ token, user: me });
+  } catch (err) {
+    res.status(401).json({ error: errorMessage(err, 'Failed to unlock E2E') });
+  }
+});
+
+/**
+ * Step 2: List eligible devices for key transfer.
+ */
+app.post('/api/login/devices', async (req, res) => {
+  try {
+    const { preAuthToken } = req.body;
+    if (!preAuthToken) {
+      return res.status(400).json({ error: 'preAuthToken required' });
+    }
+
+    const client = consumePreAuthToken(preAuthToken);
+    if (!client) {
+      return res.status(400).json({ error: 'Invalid or expired preAuthToken' });
+    }
+
+    const allDevices = await client.listActiveDevices();
+    const ownDeviceId = client.serialize().deviceId;
+
+    // Filter: key_transfer_support, encryption, is_fully_authed, exclude own device
+    const devices = allDevices.filter((d: ActiveDevice) =>
+      d.key_transfer_support === true &&
+      d.encryption === true &&
+      d.is_fully_authed === true &&
+      d.device_id !== ownDeviceId,
+    );
+
+    // Put client back into preAuth cache (it wasn't consumed permanently)
+    // Actually, consumePreAuthToken already removes it. We need to re-add it.
+    // Let's fix this: don't consume permanently for this endpoint.
+    // For now, re-add with fresh TTL:
+    const preAuthTokenNew = randomBytes(32).toString('hex');
+    preAuthCache.set(preAuthTokenNew, {
+      client,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + PREAUTH_TTL,
+    });
+
+    res.json({ devices, preAuthToken: preAuthTokenNew });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err, 'Failed to list devices') });
+  }
+});
+
+/**
+ * Step 3b: Complete key transfer with code from target device.
+ * Note: No "initiate" call needed — the server automatically pushes
+ * a notification to all existing devices when a new loginWithoutE2E happens.
+ */
+app.post('/api/login/device/complete', async (req, res) => {
+  try {
+    const { preAuthToken, code } = req.body;
+    if (!preAuthToken || !code) {
+      return res.status(400).json({ error: 'preAuthToken and code required' });
+    }
+
+    const client = consumePreAuthToken(preAuthToken);
+    if (!client) {
+      return res.status(400).json({ error: 'Invalid or expired preAuthToken' });
+    }
+
+    const jwk = await client.completeKeyTransferWithCode(code);
+    client.unlockE2EWithPrivateKey(jwk);
+
+    const serialized = client.serialize();
+    const token = encryptSession({
+      deviceId: serialized.deviceId,
+      clientKey: serialized.clientKey,
+      privateKeyJwk: jwk,
+      baseUrl: process.env.STASHCAT_BASE_URL || 'https://api.stashcat.com/',
+    });
+
+    clientCache.set(serialized.clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
+    const me = await client.getMe();
+    res.json({ token, user: me });
+  } catch (err) {
+    res.status(401).json({ error: errorMessage(err, 'Failed to complete key transfer') });
   }
 });
 
