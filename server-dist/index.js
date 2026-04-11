@@ -414,10 +414,13 @@ async function triggerDeviceNotification(client) {
             serverLog('[DeviceNotify] Disconnect event');
         });
         // Log ALL socket events
-        if (socket && typeof socket.onAny === 'function') {
-            socket.onAny((event, ...args) => {
-                serverLog(`[DeviceNotify] 📡 "${event}"`, JSON.stringify(args).slice(0, 300));
-            });
+        if (socket) {
+            const sock = socket;
+            if (typeof sock.onAny === 'function') {
+                sock.onAny((event, ...args) => {
+                    serverLog(`[DeviceNotify] 📡 "${event}"`, JSON.stringify(args).slice(0, 300));
+                });
+            }
         }
         rt.connect().then(() => {
             serverLog('[DeviceNotify] Socket.io connect OK');

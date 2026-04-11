@@ -447,10 +447,13 @@ async function triggerDeviceNotification(client: StashcatClient): Promise<void> 
     });
 
     // Log ALL socket events
-    if (socket && typeof socket.onAny === 'function') {
-      socket.onAny((event: string, ...args: unknown[]) => {
-        serverLog(`[DeviceNotify] 📡 "${event}"`, JSON.stringify(args).slice(0, 300));
-      });
+    if (socket) {
+      const sock = socket as unknown as Record<string, unknown>;
+      if (typeof sock.onAny === 'function') {
+        (sock.onAny as (handler: (event: string, ...args: unknown[]) => void) => void)((event: string, ...args: unknown[]) => {
+          serverLog(`[DeviceNotify] 📡 "${event}"`, JSON.stringify(args).slice(0, 300));
+        });
+      }
     }
 
     rt.connect().then(() => {
