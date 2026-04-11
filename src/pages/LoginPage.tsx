@@ -192,7 +192,7 @@ export default function LoginPage() {
                 Bestätigung auf deinem Gerät
               </h2>
               <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">
-                Gib den 6-stelligen Code ein, der auf deinem Gerät angezeigt wird
+                Bestätige die Anfrage auf deinem Gerät und gib dann den Code ein
               </p>
             </div>
 

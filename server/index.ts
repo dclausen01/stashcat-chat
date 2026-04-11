@@ -405,97 +405,72 @@ app.post('/api/login', async (req, res) => {
  * Since we don't know which device the user will use, we send to ALL devices
  * sequentially until one responds with key_sync_payload.
  */
-async function triggerDeviceNotification(client: StashcatClient): Promise<{ encryptedKeyData: string } | null> {
+/**
+ * Helper: connect to push.stashcat.com, emit key_sync_request,
+ * and listen for key_sync_payload in the background.
+ * Does NOT wait for payload — returns immediately.
+ * The payload is stored in the preAuth entry when it arrives.
+ */
+async function triggerDeviceNotification(client: StashcatClient, entry: unknown): Promise<void> {
   serverLog('[DeviceNotify] Creating RealtimeManager...');
 
-  // Get all existing devices from the API
   const allDevices = await client.listActiveDevices();
   const ownDeviceId = client.serialize().deviceId;
 
-  const targetDevices = allDevices.filter((d: ActiveDevice) =>
-    d.key_transfer_support === true &&
-    d.encryption === true &&
-    d.is_fully_authed === true &&
-    d.device_id !== ownDeviceId,
-  );
-
-  if (targetDevices.length === 0) {
-    serverLog('[DeviceNotify] No target devices found');
-    try {
-      const rt = await client.createRealtimeManager({ reconnect: false, debug: false });
-      rt.disconnect();
-    } catch {}
-    return null;
-  }
-
-  serverLog('[DeviceNotify] Found', targetDevices.length, 'target device(s), connecting to push...');
+  serverLog('[DeviceNotify] Found', allDevices.length, 'total device(s), connecting to push...');
 
   const rt = await client.createRealtimeManager({ reconnect: false, debug: true });
-  const socket = (rt as unknown as { socket: { emit: (event: string, ...args: unknown[]) => void } }).socket;
+  const socket = (rt as unknown as { socket: { emit: (event: string, ...args: unknown[]) => void } | null }).socket;
 
-  let result: { encryptedKeyData: string } | null = null;
-
-  await new Promise<void>((resolve) => {
-    const overallTimeout = setTimeout(() => {
-      serverLog('[DeviceNotify] Overall timeout after 120s');
-      try { rt.disconnect(); } catch {}
-      resolve();
-    }, 120000);
-
-    // When key_sync_payload arrives, we have the encrypted key
-    rt.once('key_sync_payload', (data: unknown) => {
-      serverLog('[DeviceNotify] key_sync_payload received!');
-      clearTimeout(overallTimeout);
-      try { rt.disconnect(); } catch {}
-      const parsed = data as Record<string, unknown> | undefined;
-      if (parsed && typeof parsed.payload === 'object' && parsed.payload !== null) {
-        const payload = parsed.payload as Record<string, unknown>;
-        if (typeof payload.encrypted_private_key_jwk === 'string') {
-          result = { encryptedKeyData: payload.encrypted_private_key_jwk };
-          serverLog('[DeviceNotify] Extracted encrypted key data');
-        }
+  // When key_sync_payload arrives, store it in the preAuth entry
+  rt.once('key_sync_payload', (data: unknown) => {
+    serverLog('[DeviceNotify] key_sync_payload received!');
+    const parsed = data as Record<string, unknown> | undefined;
+    if (parsed && typeof parsed.payload === 'object' && parsed.payload !== null) {
+      const payload = parsed.payload as Record<string, unknown>;
+      if (typeof payload.encrypted_private_key_jwk === 'string') {
+        (entry as Record<string, unknown>).encryptedKeyData = payload.encrypted_private_key_jwk;
+        serverLog('[DeviceNotify] Stored encrypted key data in cache');
       }
-      resolve();
-    });
-
-    rt.on('error', (err: Error) => {
-      serverLog('[DeviceNotify] Error:', err.message);
-    });
-
-    rt.on('disconnect', () => {
-      serverLog('[DeviceNotify] Disconnect event');
-    });
-
-    // Wait for new_device_connected — this confirms our userid was processed
-    rt.once('new_device_connected', () => {
-      serverLog('[DeviceNotify] new_device_connected received (auth confirmed)');
-      const sock = (rt as unknown as { socket: { emit: (event: string, ...args: unknown[]) => void } | null }).socket;
-      if (sock) {
-        const clientKey = client.serialize().clientKey;
-        sock.emit('key_sync_request', ownDeviceId, clientKey);
-        serverLog('[DeviceNotify] key_sync_request emitted:', ownDeviceId.slice(0, 8) + '...', 'client_key:', clientKey.slice(0, 8) + '...');
-      } else {
-        serverLog('[DeviceNotify] ERROR: socket is null!');
-      }
-    });
-
-    rt.connect().then(() => {
-      serverLog('[DeviceNotify] Socket.io connect OK, waiting for new_device_connected...');
-      // Now socket exists — register onAny for logging ALL events
-      const sock = (rt as unknown as { socket: Record<string, unknown> }).socket;
-      if (sock && typeof sock.onAny === 'function') {
-        (sock.onAny as (handler: (event: string, ...args: unknown[]) => void) => void)((event: string, ...args: unknown[]) => {
-          serverLog(`[DeviceNotify] 📡 "${event}"`, JSON.stringify(args).slice(0, 500));
-        });
-      }
-    }).catch((err) => {
-      serverLog('[DeviceNotify] connect() rejected:', err.message);
-      clearTimeout(overallTimeout);
-      resolve();
-    });
+    }
+    // Disconnect after receiving payload
+    setTimeout(() => { try { rt.disconnect(); } catch {} }, 1000);
   });
 
-  return result;
+  rt.on('error', (err: Error) => {
+    serverLog('[DeviceNotify] Error:', err.message);
+  });
+
+  rt.on('disconnect', () => {
+    serverLog('[DeviceNotify] Disconnect event');
+  });
+
+  // Wait for new_device_connected, then emit key_sync_request
+  rt.once('new_device_connected', () => {
+    serverLog('[DeviceNotify] new_device_connected received (auth confirmed)');
+    const sock = (rt as unknown as { socket: { emit: (event: string, ...args: unknown[]) => void } | null }).socket;
+    if (sock) {
+      const clientKey = client.serialize().clientKey;
+      sock.emit('key_sync_request', ownDeviceId, clientKey);
+      serverLog('[DeviceNotify] key_sync_request emitted:', ownDeviceId.slice(0, 8) + '...', 'client_key:', clientKey.slice(0, 8) + '...');
+    } else {
+      serverLog('[DeviceNotify] ERROR: socket is null!');
+    }
+  });
+
+  rt.connect().then(() => {
+    serverLog('[DeviceNotify] Socket.io connect OK, waiting for new_device_connected...');
+    const sock = (rt as unknown as { socket: Record<string, unknown> }).socket;
+    if (sock && typeof sock.onAny === 'function') {
+      (sock.onAny as (handler: (event: string, ...args: unknown[]) => void) => void)((event: string, ...args: unknown[]) => {
+        serverLog(`[DeviceNotify] 📡 "${event}"`, JSON.stringify(args).slice(0, 500));
+      });
+    }
+  }).catch((err) => {
+    serverLog('[DeviceNotify] connect() rejected:', err.message);
+  });
+
+  // Don't wait for payload — return immediately
 }
 
 /**
@@ -585,8 +560,8 @@ app.post('/api/login/password', async (req, res) => {
 
 /**
  * Step 2: Initiate key transfer — connects to push.stashcat.com,
- * emits key_sync_request to notify all existing devices,
- * and waits for key_sync_payload with the encrypted key.
+ * emits key_sync_request to notify all existing devices.
+ * Returns immediately — key_sync_payload is stored in preAuth entry when it arrives.
  */
 app.post('/api/login/device/initiate', async (req, res) => {
   try {
@@ -601,15 +576,10 @@ app.post('/api/login/device/initiate', async (req, res) => {
       return res.status(400).json({ error: 'Invalid or expired preAuthToken' });
     }
 
-    serverLog('[DeviceInitiate] Triggering key transfer to all devices...');
-    const result = await triggerDeviceNotification(entry.client);
-
-    if (!result) {
-      return res.status(504).json({ error: 'Timed out waiting for key_sync_payload. Target device may not have responded.' });
-    }
-
-    // Store encrypted key data in the preAuth entry for the complete step
-    (entry as unknown as Record<string, unknown>).encryptedKeyData = result.encryptedKeyData;
+    // Fire-and-forget: trigger notification, payload will be stored in entry
+    triggerDeviceNotification(entry.client, entry).catch((err) => {
+      serverLog('[DeviceInitiate] Background error:', errorMessage(err));
+    });
 
     res.json({ ok: true });
   } catch (err) {
@@ -668,7 +638,9 @@ app.post('/api/login/device/complete', async (req, res) => {
     const client = entry.client;
     const encryptedKeyData = (entry as unknown as Record<string, unknown>).encryptedKeyData as string | undefined;
     if (!encryptedKeyData) {
-      return res.status(400).json({ error: 'No encrypted key data. Call /login/device/initiate first.' });
+      return res.status(400).json({
+        error: 'Kein Gerät zur Authentifizierung verfügbar. Bitte schul.cloud auf einem eingeloggten Gerät öffnen!',
+      });
     }
 
     serverLog('[DeviceComplete] Decrypting key with code...');
