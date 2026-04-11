@@ -43,6 +43,7 @@ export default function LoginPage() {
 
   // Step 1b: Switch to device flow — submit credentials first, then code entry
   const startDeviceFlow = async () => {
+    console.log('[LoginPage] startDeviceFlow called, email:', email ? 'set' : 'empty', 'password:', password ? 'set' : 'empty');
     if (!email || !password) {
       setError('Bitte E-Mail und Passwort ausfüllen');
       return;
@@ -50,12 +51,15 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
+      console.log('[LoginPage] Calling api.loginCredentials...');
       const res = await api.loginCredentials(email, password);
+      console.log('[LoginPage] loginCredentials response:', res);
       setPreAuthToken(res.preAuthToken);
       setDeviceFlow(true);
       setStep('code-entry');
       setDeviceCode('');
     } catch (err) {
+      console.error('[LoginPage] loginCredentials error:', err);
       setError(err instanceof Error ? err.message : 'Anmeldung fehlgeschlagen');
     } finally {
       setLoading(false);

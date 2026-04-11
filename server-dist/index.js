@@ -365,26 +365,26 @@ app.post('/api/login', async (req, res) => {
  * no need to keep the connection alive.
  */
 async function triggerDeviceNotification(client) {
-    const rt = await client.createRealtimeManager({ reconnect: false, debug: false });
-    await new Promise((resolve, reject) => {
+    // Try Socket.io connection first — this is how the official client works
+    const rt = await client.createRealtimeManager({ reconnect: false, debug: true });
+    await new Promise((resolve) => {
         const timeout = setTimeout(() => {
+            serverLog('[DeviceNotify] Timeout, disconnecting...');
             rt.disconnect();
             resolve();
-        }, 2000); // Wait 2s for the server to register and notify other devices
+        }, 5000);
         rt.once('connect', () => {
-            serverLog('[DeviceNotify] Socket.io connected, waiting for server to notify other devices...');
+            serverLog('[DeviceNotify] Socket.io connected successfully');
         });
         rt.on('error', (err) => {
-            clearTimeout(timeout);
-            rt.disconnect();
             serverLog('[DeviceNotify] Socket.io error:', err.message);
-            // Don't reject — the notification may still have been sent
-            resolve();
+        });
+        rt.on('disconnect', () => {
+            serverLog('[DeviceNotify] Socket.io disconnected');
         });
         rt.connect().catch((err) => {
-            clearTimeout(timeout);
             serverLog('[DeviceNotify] Connect failed:', err.message);
-            resolve(); // Don't fail the whole login
+            resolve();
         });
     });
 }
@@ -398,11 +398,15 @@ app.post('/api/login/credentials', async (req, res) => {
             return res.status(400).json({ error: 'Email and password required' });
         }
         const baseUrl = process.env.STASHCAT_BASE_URL || 'https://api.stashcat.com/';
+        serverLog('[LoginCredentials] Attempting loginWithoutE2E for', email);
         const client = new stashcat_api_1.StashcatClient({ baseUrl });
         await client.loginWithoutE2E({ email, password });
+        serverLog('[LoginCredentials] loginWithoutE2E successful');
         // Connect to push.stashcat.com via Socket.io — this triggers the server
         // to notify all existing devices about the new login
+        serverLog('[LoginCredentials] Triggering device notification via Socket.io...');
         await triggerDeviceNotification(client);
+        serverLog('[LoginCredentials] Device notification done');
         // Generate short-lived preAuthToken
         const preAuthToken = (0, crypto_1.randomBytes)(32).toString('hex');
         const createdAt = Date.now();
