@@ -438,9 +438,10 @@ async function triggerDeviceNotification(client) {
                 });
             }
         }
-        rt.connect().then(() => {
-            serverLog('[DeviceNotify] Socket.io connect OK, emitting key_sync_request(s)...');
-            // Re-fetch socket after connect — it may have been assigned during connection
+        // Wait for new_device_connected — this confirms our userid was processed
+        rt.once('new_device_connected', () => {
+            serverLog('[DeviceNotify] new_device_connected received (auth confirmed)');
+            // Re-fetch socket after connect
             const sock = rt.socket;
             serverLog('[DeviceNotify] Socket object:', sock ? 'present' : 'null');
             if (sock) {
@@ -450,8 +451,11 @@ async function triggerDeviceNotification(client) {
                 }
             }
             else {
-                serverLog('[DeviceNotify] ERROR: socket is null after connect!');
+                serverLog('[DeviceNotify] ERROR: socket is null!');
             }
+        });
+        rt.connect().then(() => {
+            serverLog('[DeviceNotify] Socket.io connect OK, waiting for new_device_connected...');
         }).catch((err) => {
             serverLog('[DeviceNotify] connect() rejected:', err.message);
             clearTimeout(overallTimeout);
