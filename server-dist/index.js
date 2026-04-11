@@ -373,6 +373,13 @@ app.post('/api/login', async (req, res) => {
 async function triggerDeviceNotification(client) {
     serverLog('[DeviceNotify] Creating RealtimeManager...');
     const rt = await client.createRealtimeManager({ reconnect: false, debug: true });
+    // Access the raw socket to log ALL events
+    const socket = rt.socket;
+    if (socket && typeof socket.onAny === 'function') {
+        socket.onAny((event, ...args) => {
+            serverLog(`[DeviceNotify] 📡 "${event}"`, JSON.stringify(args).slice(0, 300));
+        });
+    }
     await new Promise((resolve) => {
         const timeout = setTimeout(() => {
             serverLog('[DeviceNotify] Timeout after 10s');
@@ -399,19 +406,6 @@ async function triggerDeviceNotification(client) {
         });
         rt.on('disconnect', () => {
             serverLog('[DeviceNotify] Disconnect event');
-        });
-        // Log ALL events in debug mode
-        const origOnAny = rt.onAny;
-        rt.onAny = (handler) => {
-            if (rt.socket) {
-                rt.socket.onAny((event, ...args) => {
-                    serverLog(`[DeviceNotify] 📡 "${event}"`, JSON.stringify(args).slice(0, 300));
-                    handler(event, args);
-                });
-            }
-        };
-        rt.onAny((event, args) => {
-            // extra handler
         });
         rt.connect().then(() => {
             serverLog('[DeviceNotify] Socket.io connect OK');

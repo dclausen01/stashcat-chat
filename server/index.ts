@@ -406,6 +406,14 @@ async function triggerDeviceNotification(client: StashcatClient): Promise<void> 
 
   const rt = await client.createRealtimeManager({ reconnect: false, debug: true });
 
+  // Access the raw socket to log ALL events
+  const socket = (rt as unknown as { socket: unknown }).socket;
+  if (socket && typeof (socket as Record<string, unknown>).onAny === 'function') {
+    (socket as { onAny: (handler: (event: string, ...args: unknown[]) => void) => void }).onAny((event: string, ...args: unknown[]) => {
+      serverLog(`[DeviceNotify] 📡 "${event}"`, JSON.stringify(args).slice(0, 300));
+    });
+  }
+
   await new Promise<void>((resolve) => {
     const timeout = setTimeout(() => {
       serverLog('[DeviceNotify] Timeout after 10s');
@@ -429,20 +437,6 @@ async function triggerDeviceNotification(client: StashcatClient): Promise<void> 
 
     rt.on('disconnect', () => {
       serverLog('[DeviceNotify] Disconnect event');
-    });
-
-    // Log ALL events in debug mode
-    const origOnAny = rt.onAny;
-    rt.onAny = (handler: (event: string, args: unknown[]) => void) => {
-      if (rt.socket) {
-        rt.socket.onAny((event: string, ...args: unknown[]) => {
-          serverLog(`[DeviceNotify] 📡 "${event}"`, JSON.stringify(args).slice(0, 300));
-          handler(event, args);
-        });
-      }
-    };
-    rt.onAny((event: string, args: unknown[]) => {
-      // extra handler
     });
 
     rt.connect().then(() => {
