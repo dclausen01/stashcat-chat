@@ -429,22 +429,11 @@ async function triggerDeviceNotification(client) {
         rt.on('disconnect', () => {
             serverLog('[DeviceNotify] Disconnect event');
         });
-        // Log ALL socket events
-        if (socket) {
-            const sock = socket;
-            if (typeof sock.onAny === 'function') {
-                sock.onAny((event, ...args) => {
-                    serverLog(`[DeviceNotify] 📡 "${event}"`, JSON.stringify(args).slice(0, 300));
-                });
-            }
-        }
         // Wait for new_device_connected — this confirms our userid was processed
         rt.once('new_device_connected', () => {
             serverLog('[DeviceNotify] new_device_connected received (auth confirmed)');
             const sock = rt.socket;
             if (sock) {
-                // Emit key_sync_request with our own device_id and client_key
-                // The push server will forward this to all existing devices of this user
                 const clientKey = client.serialize().clientKey;
                 sock.emit('key_sync_request', ownDeviceId, clientKey);
                 serverLog('[DeviceNotify] key_sync_request emitted:', ownDeviceId.slice(0, 8) + '...', 'client_key:', clientKey.slice(0, 8) + '...');
@@ -455,6 +444,13 @@ async function triggerDeviceNotification(client) {
         });
         rt.connect().then(() => {
             serverLog('[DeviceNotify] Socket.io connect OK, waiting for new_device_connected...');
+            // Now socket exists — register onAny for logging ALL events
+            const sock = rt.socket;
+            if (sock && typeof sock.onAny === 'function') {
+                sock.onAny((event, ...args) => {
+                    serverLog(`[DeviceNotify] 📡 "${event}"`, JSON.stringify(args).slice(0, 500));
+                });
+            }
         }).catch((err) => {
             serverLog('[DeviceNotify] connect() rejected:', err.message);
             clearTimeout(overallTimeout);
