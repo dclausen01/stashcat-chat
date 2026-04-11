@@ -389,6 +389,33 @@ app.post('/api/login', async (req, res) => {
 // ── Phased Login (multi-step wizard) ─────────────────────────────────────────
 
 /**
+ * Helper: call /auth/check to trigger device notification.
+ * The official web client calls this after login — it signals the server
+ * to notify all existing devices about the new login.
+ */
+async function triggerAuthCheck(client: StashcatClient, baseUrl: string): Promise<void> {
+  const serialized = client.serialize();
+  const appName = 'stashcat-chat-browser';
+  const params = new URLSearchParams();
+  params.set('client_key', serialized.clientKey);
+  params.set('device_id', serialized.deviceId);
+  params.set('app_name', appName);
+  params.set('encrypted', 'true');
+  params.set('callable', 'true');
+  params.set('key_transfer_support', 'false');
+
+  const url = baseUrl.replace(/\/+$/, '') + '/auth/check';
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+  if (!res.ok) {
+    throw new Error(`auth/check failed: HTTP ${res.status}`);
+  }
+}
+
+/**
  * Step 1: Credentials — authenticate without E2E, return short-lived preAuthToken.
  */
 app.post('/api/login/credentials', async (req, res) => {
@@ -401,6 +428,9 @@ app.post('/api/login/credentials', async (req, res) => {
 
     const client = new StashcatClient({ baseUrl });
     await client.loginWithoutE2E({ email, password });
+
+    // Trigger auth check — this notifies all existing devices about the new login
+    await triggerAuthCheck(client, baseUrl);
 
     // Generate short-lived preAuthToken
     const preAuthToken = randomBytes(32).toString('hex');
