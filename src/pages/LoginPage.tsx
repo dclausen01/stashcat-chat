@@ -1,52 +1,22 @@
 import { useState, type FormEvent, useEffect } from 'react';
-import { LogIn, Loader2, Smartphone, ArrowLeft, ChevronRight } from 'lucide-react';
+import { LogIn, Loader2, Smartphone, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import * as api from '../api';
-import type { LoginDevice } from '../types';
 
-type Step = 'credentials' | 'device-list' | 'code-entry';
+type Step = 'credentials' | 'code-entry';
 
 export default function LoginPage() {
   const { finishLogin } = useAuth();
 
-  // Credentials step
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [securityPassword, setSecurityPassword] = useState('');
-
-  // Device-list step
-  const [devices, setDevices] = useState<LoginDevice[]>([]);
-  const [selectedDevice, setSelectedDevice] = useState<LoginDevice | null>(null);
-  const [loadingDevices, setLoadingDevices] = useState(false);
-  const [initiatingTransfer, setInitiatingTransfer] = useState(false);
-
-  // Code-entry step
   const [deviceCode, setDeviceCode] = useState('');
-
-  // Shared state
   const [step, setStep] = useState<Step>('credentials');
   const [preAuthToken, setPreAuthToken] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Load devices when entering device-list step
-  useEffect(() => {
-    if (step === 'device-list' && preAuthToken) {
-      setLoadingDevices(true);
-      setError('');
-      api.listLoginDevices(preAuthToken)
-        .then((res) => {
-          setDevices(res.devices);
-          setLoadingDevices(false);
-        })
-        .catch((err) => {
-          setError(err instanceof Error ? err.message : 'Geräte konnten nicht geladen werden');
-          setLoadingDevices(false);
-        });
-    }
-  }, [step, preAuthToken]);
-
-  // Step 1: Submit with security password (legacy flow)
   const handlePasswordLogin = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
@@ -63,7 +33,6 @@ export default function LoginPage() {
     }
   };
 
-  // Step 2: Start device flow — submit credentials first, then device list
   const startDeviceFlow = async () => {
     if (!email || !password) {
       setError('Bitte E-Mail und Passwort ausfüllen');
@@ -74,33 +43,15 @@ export default function LoginPage() {
     try {
       const res = await api.loginCredentials(email, password);
       setPreAuthToken(res.preAuthToken);
-      setStep('device-list');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Anmeldung fehlgeschlagen');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Step 3: Select device and initiate key transfer
-  const handleDeviceSelect = async (device: LoginDevice) => {
-    setError('');
-    setLoading(true);
-    setInitiatingTransfer(true);
-    setSelectedDevice(device);
-    try {
-      await api.initiateDeviceKeyTransfer(preAuthToken, device.device_id);
-      setDeviceCode('');
+      await api.initiateDeviceKeyTransfer(res.preAuthToken);
       setStep('code-entry');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Schlüsselübertragung fehlgeschlagen');
+      setError(err instanceof Error ? err.message : 'Geräte-Benachrichtigung fehlgeschlagen');
     } finally {
       setLoading(false);
-      setInitiatingTransfer(false);
     }
   };
 
-  // Step 4: Submit device code
   const handleCodeSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
@@ -115,7 +66,6 @@ export default function LoginPage() {
     }
   };
 
-  // Auto-submit when code has 6 digits
   useEffect(() => {
     if (deviceCode.length === 6 && step === 'code-entry') {
       const timer = setTimeout(() => {
@@ -125,21 +75,12 @@ export default function LoginPage() {
     }
   }, [deviceCode, step]);
 
-  // Navigate back
   const goBack = () => {
     setError('');
-    if (step === 'device-list') setStep('credentials');
-    else if (step === 'code-entry') setStep('device-list');
+    setStep('credentials');
+    setDeviceCode('');
+    setPreAuthToken('');
   };
-
-  function relativeTime(ts?: number): string {
-    if (!ts) return 'Unbekannt';
-    const diff = Date.now() / 1000 - ts;
-    if (diff < 60) return 'Gerade eben';
-    if (diff < 3600) return `vor ${Math.floor(diff / 60)} Min.`;
-    if (diff < 86400) return `vor ${Math.floor(diff / 3600)} Std.`;
-    return `vor ${Math.floor(diff / 86400)} Tagen`;
-  }
 
   return (
     <div className="flex h-full items-center justify-center bg-surface-50 dark:bg-surface-950">
@@ -150,7 +91,7 @@ export default function LoginPage() {
           <p className="mt-1 text-surface-500 dark:text-surface-400">Anmelden bei schul.cloud</p>
         </div>
 
-        {/* ── Step: Credentials (Main) ── */}
+        {/* ── Step: Credentials ── */}
         {step === 'credentials' && (
           <div className="space-y-4">
             {error && (
@@ -161,9 +102,7 @@ export default function LoginPage() {
 
             <form onSubmit={handlePasswordLogin} className="space-y-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-surface-700 dark:text-surface-300">
-                  E-Mail
-                </label>
+                <label className="mb-1 block text-sm font-medium text-surface-700 dark:text-surface-300">E-Mail</label>
                 <input
                   type="email"
                   value={email}
@@ -176,9 +115,7 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-surface-700 dark:text-surface-300">
-                  Passwort
-                </label>
+                <label className="mb-1 block text-sm font-medium text-surface-700 dark:text-surface-300">Passwort</label>
                 <input
                   type="password"
                   value={password}
@@ -190,9 +127,7 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-surface-700 dark:text-surface-300">
-                  Verschlüsselungspasswort
-                </label>
+                <label className="mb-1 block text-sm font-medium text-surface-700 dark:text-surface-300">Verschlüsselungspasswort</label>
                 <input
                   type="password"
                   value={securityPassword}
@@ -238,71 +173,7 @@ export default function LoginPage() {
                   Nutze ein Gerät, auf dem du bereits eingeloggt bist
                 </div>
               </div>
-              <ChevronRight size={18} className="shrink-0 text-surface-400" />
-            </button>
-          </div>
-        )}
-
-        {/* ── Step: Device List ── */}
-        {step === 'device-list' && (
-          <div className="space-y-4">
-            {error && (
-              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
-                {error}
-              </div>
-            )}
-
-            <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Gerät auswählen</h2>
-            <p className="text-sm text-surface-500 dark:text-surface-400">
-              Wähle ein Gerät, auf dem du bereits angemeldet bist.
-            </p>
-
-            {loadingDevices ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 size={24} className="animate-spin text-primary-500" />
-              </div>
-            ) : devices.length === 0 ? (
-              <div className="rounded-lg border border-surface-200 bg-surface-50 p-6 text-center dark:border-surface-700 dark:bg-surface-800">
-                <p className="text-sm text-surface-500 dark:text-surface-400">
-                  Keine geeigneten Geräte gefunden.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {devices.map((device) => (
-                  <button
-                    key={device.device_id}
-                    onClick={() => handleDeviceSelect(device)}
-                    disabled={loading || initiatingTransfer}
-                    className="flex w-full items-center gap-4 rounded-lg border border-surface-200 bg-white p-4 text-left transition hover:border-primary-300 hover:bg-primary-50 disabled:opacity-50 dark:border-surface-700 dark:bg-surface-800 dark:hover:border-primary-600 dark:hover:bg-surface-750"
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-100 dark:bg-surface-700">
-                      <Smartphone size={18} className="text-surface-600 dark:text-surface-300" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-medium text-surface-900 dark:text-white">
-                        {device.name || device.app_name}
-                      </div>
-                      <div className="text-xs text-surface-500 dark:text-surface-400">
-                        {device.app_name}{device.name && device.name !== device.app_name ? ` · ${device.name}` : ''}
-                        {device.last_login ? ` · ${relativeTime(device.last_login)}` : ''}
-                      </div>
-                    </div>
-                    {(loading || initiatingTransfer) && selectedDevice?.device_id === device.device_id ? (
-                      <Loader2 size={18} className="animate-spin text-primary-500" />
-                    ) : (
-                      <ChevronRight size={18} className="text-surface-400" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <button
-              onClick={goBack}
-              className="flex items-center gap-1 text-sm text-surface-500 hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-200"
-            >
-              <ArrowLeft size={14} /> Zurück
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-surface-400"><path d="m9 18 6-6-6-6" /></svg>
             </button>
           </div>
         )}
@@ -318,7 +189,7 @@ export default function LoginPage() {
 
             <div className="text-center">
               <h2 className="text-lg font-semibold text-surface-900 dark:text-white">
-                Code von {selectedDevice?.name || selectedDevice?.app_name || 'Gerät'}
+                Bestätigung auf deinem Gerät
               </h2>
               <p className="mt-1 text-sm text-surface-500 dark:text-surface-400">
                 Gib den 6-stelligen Code ein, der auf deinem Gerät angezeigt wird

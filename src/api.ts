@@ -1,4 +1,4 @@
-import type { User, Company, Channel, Conversation, LoginDevice } from './types';
+import type { User, Company, Channel, Conversation } from './types';
 
 const BACKEND = import.meta.env.DEV ? '/backend/api' : '/api';
 
@@ -125,12 +125,8 @@ export async function loginFinalizeWithPassword(preAuthToken: string, securityPa
   return res;
 }
 
-export async function listLoginDevices(preAuthToken: string): Promise<{ devices: LoginDevice[] }> {
-  return post<{ devices: LoginDevice[] }>('/login/devices', { preAuthToken });
-}
-
-export async function initiateDeviceKeyTransfer(preAuthToken: string, deviceId: string): Promise<void> {
-  await post<{ ok: boolean }>('/login/device/initiate', { preAuthToken, deviceId });
+export async function initiateDeviceKeyTransfer(preAuthToken: string): Promise<void> {
+  await post<{ ok: boolean }>('/login/device/initiate', { preAuthToken });
 }
 
 export async function loginFinalizeWithDeviceCode(preAuthToken: string, code: string): Promise<{ token: string; user: User }> {
