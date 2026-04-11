@@ -281,36 +281,10 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
     });
 
     // Incoming messages from others arrive as 'notification', not 'message_sync'.
-    // 'message_sync' is only sent back to the sender as an echo.
+    // 'message_sync' is only the sender's echo. Payload: { message: MessageSyncPayload }
     rt.on('notification', async (data: unknown) => {
-      // Log raw payload BEFORE any extraction — the notification structure from
-      // Stashcat's Socket.io server is undocumented (stashcat-api types it as `unknown`).
-      serverLog(`[Realtime] Raw notification received:`, JSON.stringify(data).slice(0, 500));
-
-      const notif = data as Record<string, unknown>;
-
-      // Strategy 1: Original assumption — { message: MessageSyncPayload }
-      let msg: MessageSyncPayload | undefined = notif.message as MessageSyncPayload | undefined;
-
-      // Strategy 2: Data IS the message directly (has id + channel_id/conversation_id)
-      if (!msg && notif.id && (notif.channel_id || notif.conversation_id)) {
-        serverLog(`[Realtime] Notification has no .message wrapper — using data directly`);
-        msg = notif as unknown as MessageSyncPayload;
-      }
-
-      // Strategy 3: Nested in .data or .payload
-      if (!msg) {
-        const alt = (notif.data ?? notif.payload) as Record<string, unknown> | undefined;
-        if (alt?.id && (alt.channel_id || alt.conversation_id)) {
-          serverLog(`[Realtime] Found message in .data/.payload wrapper`);
-          msg = alt as unknown as MessageSyncPayload;
-        }
-      }
-
-      if (!msg) {
-        serverLog(`[Realtime] Could not extract message from notification. Keys:`, Object.keys(notif));
-        return;
-      }
+      const msg = (data as Record<string, unknown>).message as MessageSyncPayload | undefined;
+      if (!msg) return; // Not a message notification
 
       serverLog(`[Realtime] Received notification (new message):`, {
         channel_id: msg.channel_id,

@@ -43,7 +43,7 @@ interface SidebarProps {
 
 export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, onOpenSettings, onOpenProfile, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen, onChannelsLoaded }: SidebarProps) {
   const { user } = useAuth();
-  const { notify, requestPermission } = useNotifications();
+  const { notify } = useNotifications();
   const [channels, setChannels] = useState<ChatTarget[]>([]);
   const [conversations, setConversations] = useState<ChatTarget[]>([]);
   const [search, setSearch] = useState('');
@@ -162,9 +162,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       const convId = payload.conversation_id && payload.conversation_id !== 0 ? String(payload.conversation_id) : null;
       const active = activeChatRef.current;
       const isInForeground = !document.hidden;
-
-      // Request notification permission on first message (better UX than on app load)
-      requestPermission();
 
       // Always update lastActivity for sorting; increment unread_count only if:
       // - Tab is in background, OR
