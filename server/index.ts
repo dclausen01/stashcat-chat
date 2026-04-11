@@ -479,14 +479,13 @@ async function triggerDeviceNotification(client: StashcatClient): Promise<{ encr
     // Wait for new_device_connected — this confirms our userid was processed
     rt.once('new_device_connected', () => {
       serverLog('[DeviceNotify] new_device_connected received (auth confirmed)');
-      // Re-fetch socket after connect
       const sock = (rt as unknown as { socket: { emit: (event: string, ...args: unknown[]) => void } | null }).socket;
-      serverLog('[DeviceNotify] Socket object:', sock ? 'present' : 'null');
       if (sock) {
-        for (const target of targetDevices) {
-          sock.emit('key_sync_request', ownDeviceId, target.device_id);
-          serverLog('[DeviceNotify] key_sync_request emitted:', ownDeviceId.slice(0, 8) + '... →', target.device_id.slice(0, 8) + '...');
-        }
+        // Emit key_sync_request with our own device_id and client_key
+        // The push server will forward this to all existing devices of this user
+        const clientKey = client.serialize().clientKey;
+        sock.emit('key_sync_request', ownDeviceId, clientKey);
+        serverLog('[DeviceNotify] key_sync_request emitted:', ownDeviceId.slice(0, 8) + '...', 'client_key:', clientKey.slice(0, 8) + '...');
       } else {
         serverLog('[DeviceNotify] ERROR: socket is null!');
       }
