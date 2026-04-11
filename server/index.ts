@@ -180,7 +180,7 @@ async function getClient(req: express.Request): Promise<StashcatClient> {
 async function connectRealtime(client: StashcatClient, clientKey: string) {
   serverLog(`[Realtime] Connecting for clientKey ${clientKey.slice(0, 8)}…`);
   try {
-    const rt = await client.createRealtimeManager({ reconnect: true });
+    const rt = await client.createRealtimeManager({ reconnect: true, debug: true });
     const conn = activeSSE.get(clientKey);
     if (!conn) { 
       serverLog(`[Realtime] No SSE connection found, disconnecting RealtimeManager`);
@@ -281,10 +281,9 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
     });
 
     // Incoming messages from others arrive as 'notification', not 'message_sync'.
-    // 'message_sync' is only sent back to the sender as an echo.
+    // 'message_sync' is only the sender's echo. Payload: { message: MessageSyncPayload }
     rt.on('notification', async (data: unknown) => {
-      const notif = data as Record<string, unknown>;
-      const msg = notif.message as MessageSyncPayload | undefined;
+      const msg = (data as Record<string, unknown>).message as MessageSyncPayload | undefined;
       if (!msg) return; // Not a message notification
 
       serverLog(`[Realtime] Received notification (new message):`, {
@@ -377,7 +376,7 @@ app.post('/api/logout', async (req, res) => {
       clientCache.delete(payload.clientKey);
       const sse = activeSSE.get(payload.clientKey);
       if (sse) {
-        sse.realtime?.disconnect?.();
+        void Promise.resolve(sse.realtime?.disconnect?.()).catch(() => {});
         activeSSE.delete(payload.clientKey);
       }
     }
