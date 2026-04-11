@@ -6,7 +6,7 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs/promises';
 import * as fsSync from 'fs';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHash, pbkdf2Sync, createDecipheriv } from 'crypto';
 import { StashcatClient, CryptoManager, type RsaPrivateKeyJwk, type ActiveDevice } from 'stashcat-api';
 
 function debugLog(...args: unknown[]) {
@@ -619,6 +619,36 @@ app.post('/api/login/device/initiate', async (req, res) => {
 });
 
 /**
+ * Decrypt the encrypted private key JWK using the 6-digit code.
+ * The key_derivation_properties contains PBKDF2 params (salt, iterations).
+ * KEK = PBKDF2(code, salt, iterations, 32, sha256)
+ * Then decrypt ciphertext with AES-256-CBC using the KEK.
+ */
+function decryptJwkWithCode(encryptedJwkJson: string, code: string): RsaPrivateKeyJwk {
+  const encryptedKey = JSON.parse(encryptedJwkJson);
+
+  if (!encryptedKey.ciphertext || !encryptedKey.iv) {
+    throw new Error('Invalid encrypted key structure');
+  }
+
+  const salt = Buffer.from(encryptedKey.key_derivation_properties?.salt || '', 'base64');
+  const iterations = encryptedKey.key_derivation_properties?.iterations || 650000;
+
+  // Derive KEK using PBKDF2
+  const kek = pbkdf2Sync(code, salt, iterations, 32, 'sha256');
+
+  // Decrypt ciphertext
+  const ciphertextBuffer = Buffer.from(encryptedKey.ciphertext, 'base64');
+  const ivBuffer = Buffer.from(encryptedKey.iv, 'base64');
+
+  const decipher = createDecipheriv('aes-256-cbc', kek, ivBuffer);
+  let decrypted = decipher.update(ciphertextBuffer);
+  decrypted = Buffer.concat([decrypted, decipher.final()]);
+
+  return JSON.parse(decrypted.toString('utf8')) as RsaPrivateKeyJwk;
+}
+
+/**
  * Step 3b: Complete key transfer with code from target device.
  * Decrypts the locally-received encrypted key data using the 6-digit code.
  */
@@ -642,12 +672,9 @@ app.post('/api/login/device/complete', async (req, res) => {
     }
 
     serverLog('[DeviceComplete] Decrypting key with code...');
-    // The stashcat-api completeKeyTransferWithCode internally calls
-    // getSigningKeyForTransfer() which fetches from the server.
-    // But we already have the encrypted key via Socket.io.
-    // We need to use the stashcat-api SecurityManager to decrypt locally.
-    const jwk = await client.completeKeyTransferWithCode(code);
+    const jwk = decryptJwkWithCode(encryptedKeyData, code);
     client.unlockE2EWithPrivateKey(jwk);
+    serverLog('[DeviceComplete] E2E unlocked with decrypted JWK');
 
     const serialized = client.serialize();
     const token = encryptSession({
