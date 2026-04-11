@@ -389,31 +389,38 @@ app.post('/api/login', async (req, res) => {
 // ── Phased Login (multi-step wizard) ─────────────────────────────────────────
 
 /**
- * Helper: call /auth/check to trigger device notification.
- * The official web client calls this after login — it signals the server
- * to notify all existing devices about the new login.
+ * Helper: connect to push.stashcat.com via Socket.io to trigger device notification.
+ * The official web client connects to push.stashcat.com immediately after login.
+ * The Stashcat server detects this new connection and notifies all existing devices.
+ * We only need to connect and wait briefly for the server to register the device —
+ * no need to keep the connection alive.
  */
-async function triggerAuthCheck(client: StashcatClient, baseUrl: string): Promise<void> {
-  const serialized = client.serialize();
-  // Use official app_name pattern — server may only push notifications for known clients
-  const appName = 'schul.cloud-browser-Firefox:149.0-6.43.0';
-  const params = new URLSearchParams();
-  params.set('client_key', serialized.clientKey);
-  params.set('device_id', serialized.deviceId);
-  params.set('app_name', appName);
-  params.set('encrypted', 'true');
-  params.set('callable', 'true');
-  params.set('key_transfer_support', 'false');
+async function triggerDeviceNotification(client: StashcatClient): Promise<void> {
+  const rt = await client.createRealtimeManager({ reconnect: false, debug: false });
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      rt.disconnect();
+      resolve();
+    }, 2000); // Wait 2s for the server to register and notify other devices
 
-  const url = baseUrl.replace(/\/+$/, '') + '/auth/check';
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
+    rt.once('connect', () => {
+      serverLog('[DeviceNotify] Socket.io connected, waiting for server to notify other devices...');
+    });
+
+    rt.on('error', (err: Error) => {
+      clearTimeout(timeout);
+      rt.disconnect();
+      serverLog('[DeviceNotify] Socket.io error:', err.message);
+      // Don't reject — the notification may still have been sent
+      resolve();
+    });
+
+    rt.connect().catch((err) => {
+      clearTimeout(timeout);
+      serverLog('[DeviceNotify] Connect failed:', err.message);
+      resolve(); // Don't fail the whole login
+    });
   });
-  if (!res.ok) {
-    throw new Error(`auth/check failed: HTTP ${res.status}`);
-  }
 }
 
 /**
@@ -430,8 +437,9 @@ app.post('/api/login/credentials', async (req, res) => {
     const client = new StashcatClient({ baseUrl });
     await client.loginWithoutE2E({ email, password });
 
-    // Trigger auth check — this notifies all existing devices about the new login
-    await triggerAuthCheck(client, baseUrl);
+    // Connect to push.stashcat.com via Socket.io — this triggers the server
+    // to notify all existing devices about the new login
+    await triggerDeviceNotification(client);
 
     // Generate short-lived preAuthToken
     const preAuthToken = randomBytes(32).toString('hex');
