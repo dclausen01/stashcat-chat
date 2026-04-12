@@ -166,9 +166,13 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       // Always update lastActivity for sorting; increment unread_count only if:
       // - Tab is in background, OR
       // - Tab is in foreground but the chat is not currently open
+      // - AND the message is from someone else (not own messages)
+      const senderId = payload.sender ? String((payload.sender as Record<string, unknown>)?.id ?? '') : '';
+      const isOwnMessage = senderId === String(user?.id ?? '');
+
       if (channelId) {
         const isActive = active?.type === 'channel' && active.id === channelId;
-        const shouldIncrement = !isInForeground || !isActive;
+        const shouldIncrement = (!isInForeground || !isActive) && !isOwnMessage;
         setChannels((prev) => sortChats(prev.map((ch) =>
           ch.id === channelId
             ? { ...ch, lastActivity: time || ch.lastActivity, unread_count: shouldIncrement ? (ch.unread_count ?? 0) + 1 : ch.unread_count }
@@ -176,7 +180,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         )));
       } else if (convId) {
         const isActive = active?.type === 'conversation' && active.id === convId;
-        const shouldIncrement = !isInForeground || !isActive;
+        const shouldIncrement = (!isInForeground || !isActive) && !isOwnMessage;
         setConversations((prev) => sortChats(prev.map((conv) =>
           conv.id === convId
             ? { ...conv, lastActivity: time || conv.lastActivity, unread_count: shouldIncrement ? (conv.unread_count ?? 0) + 1 : conv.unread_count }
