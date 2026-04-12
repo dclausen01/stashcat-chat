@@ -136,6 +136,13 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         const image = otherMembers.length === 1 && otherMembers[0].image
           ? String(otherMembers[0].image)
           : undefined;
+        // Extract other user's ID and derive availability from status
+        const otherUserId = otherMembers.length === 1 ? String(otherMembers[0].id) : undefined;
+        const otherStatus = otherMembers.length === 1 ? String(otherMembers[0].status || '') : undefined;
+        const userAvailability: 'available' | 'do_not_disturb' | undefined =
+          otherStatus === 'Bitte nicht stören!' ? 'do_not_disturb'
+          : otherStatus === 'verfügbar' ? 'available'
+          : undefined;
         return {
           type: 'conversation' as const,
           id: String(c.id),
@@ -145,6 +152,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           unread_count: Number(c.unread_count || (c as any).unread_messages || 0),
           favorite: Boolean(c.favorite || c.is_favorite),
           lastActivity,
+          userId: otherUserId,
+          userAvailability,
         };
       });
       setConversations(sortChats(convTargets));
@@ -202,6 +211,25 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     reconnect: () => {
       // Re-fetch all sidebar data after SSE reconnection to sync missed unread counts
       loadData();
+    },
+    online_status_change: (data) => {
+      // Payload: { user_id, status } or similar
+      const payload = data as Record<string, unknown>;
+      const userId = payload.user_id ? String(payload.user_id) : (payload.userId ? String(payload.userId) : null);
+      const statusText = payload.status ? String(payload.status) : null;
+      if (userId && statusText) {
+        // Derive availability from status text
+        let availability: 'available' | 'do_not_disturb' | undefined;
+        if (statusText === 'Bitte nicht stören!') availability = 'do_not_disturb';
+        else if (statusText === 'verfügbar') availability = 'available';
+
+        if (availability) {
+          // Update the userAvailability on existing conversations
+          setConversations((prev) => prev.map((conv) =>
+            conv.userId === userId ? { ...conv, userAvailability: availability } : conv
+          ));
+        }
+      }
     },
   }, loggedIn);
 

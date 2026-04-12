@@ -132,4 +132,8 @@ export interface ChatTarget {
   lastActivity?: number;
   /** Company this channel belongs to (channels only) */
   company_id?: string;
+  /** For conversations: the other user's ID */
+  userId?: string;
+  /** For conversations: the other user's availability */
+  userAvailability?: 'available' | 'do_not_disturb';
 }

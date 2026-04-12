@@ -26,7 +26,7 @@ export default function ChatItem({ target, active, onSelect, onToggleFavorite }:
           ? <Avatar name={target.name} image={target.image} size="sm" />
           : <Hash size={17} className={clsx('shrink-0', active ? 'text-primary-600 dark:text-primary-400' : 'text-surface-500')} />
       ) : (
-        <Avatar name={target.name} image={target.image} size="sm" />
+        <Avatar name={target.name} image={target.image} size="sm" availability={target.userAvailability} />
       )}
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{target.name}</span>
       {onToggleFavorite && (
