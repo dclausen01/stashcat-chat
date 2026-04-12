@@ -638,6 +638,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       sender: user as unknown as Message['sender'],
       time: Math.floor(Date.now() / 1000),
       reply_to_id: replyTo ? String(replyTo.id) : undefined,
+      reply_to: replyTo ? {
+        message_id: Number(replyTo.id),
+        message_hash: replyTo.id?.toString() || '',
+      } : undefined,
     };
     setMessages((prev) => [...prev, optimisticMsg]);
     setReplyTo(null);
