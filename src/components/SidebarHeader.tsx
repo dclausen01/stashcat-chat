@@ -29,7 +29,7 @@ export default function SidebarHeader({ totalUnread, notificationsOpen, onOpenNo
           className="rounded-full transition hover:opacity-80"
           title="Profil bearbeiten"
         >
-          <Avatar name={userName} image={userImage} size="sm" />
+          <Avatar name={userName} image={userImage} size="sm" availability={user?.availability} />
         </button>
         <button
           onClick={onOpenProfile}
