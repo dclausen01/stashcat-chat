@@ -252,6 +252,16 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         console.log('[loadMessages] No reply messages found in server response');
       }
 
+      // DEBUG: Log ALL fields of first message to see what server returns
+      if (msgs.length > 0) {
+        const firstMsg = msgs[0] as unknown as Record<string, unknown>;
+        const allKeys = Object.keys(firstMsg);
+        console.log('[loadMessages] ALL message fields:', allKeys);
+        // Log specific reply-related fields
+        console.log('[loadMessages] reply_to:', firstMsg.reply_to);
+        console.log('[loadMessages] reply_to_id:', firstMsg.reply_to_id);
+      }
+
       setMessages(msgs);
       if (msgs.length < PAGE_SIZE) {
         setHasMore(false);
