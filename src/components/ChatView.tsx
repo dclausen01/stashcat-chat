@@ -239,35 +239,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       }
       setFirstUnreadMsgId(firstUnreadId);
 
-      // DEBUG: Log reply info from server
-      const replyMsgs = (msgs as unknown as Array<Record<string, unknown>>).filter(m => m.reply_to || m.reply_to_id);
-      if (replyMsgs.length > 0) {
-        console.log('[loadMessages] Reply messages from server:', replyMsgs.map(m => ({
-          id: m.id,
-          text: (m.text as string)?.slice(0, 50),
-          reply_to: m.reply_to,
-          reply_to_id: m.reply_to_id,
-        })));
-      } else {
-        console.log('[loadMessages] No reply messages found in server response');
-      }
-
-      // DEBUG: Log ALL fields of first message to see what server returns
-      if (msgs.length > 0) {
-        const firstMsg = msgs[0] as unknown as Record<string, unknown>;
-        const allKeys = Object.keys(firstMsg);
-        console.log('[loadMessages] ALL message fields:', allKeys);
-        // Log specific reply-related fields
-        console.log('[loadMessages] reply_to:', firstMsg.reply_to);
-        console.log('[loadMessages] reply_to_id:', firstMsg.reply_to_id);
-        // Check if ANY message has reply info
-        const allReplyFields = msgs.map((m: unknown) => {
-          const r = m as Record<string, unknown>;
-          return { id: r.id, reply_to: r.reply_to, reply_to_id: r.reply_to_id };
-        });
-        console.log('[loadMessages] Reply info for all messages:', allReplyFields.filter((x: Record<string, unknown>) => x.reply_to || x.reply_to_id));
-      }
-
       setMessages(msgs);
       if (msgs.length < PAGE_SIZE) {
         setHasMore(false);
@@ -565,13 +536,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         (currentChat.type === 'conversation' && String(payload.conversation_id) === currentChat.id);
       if (!belongsHere) return;
 
-      console.log('[SSE message_sync]', {
-        id: payload.id,
-        text: (payload.text as string)?.slice(0, 50),
-        reply_to: payload.reply_to,
-        reply_to_id: payload.reply_to_id,
-      });
-
       const newMsg = payload as unknown as Message;
       setMessages((prev) => {
         const existingIdx = prev.findIndex((m) => String(m.id) === String(newMsg.id));
@@ -579,25 +543,13 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           // Update existing message (e.g. when deleted)
           // Preserve reply_to and reply_to_id if server returns null/undefined (happens for own messages)
           const existingMsg = prev[existingIdx];
-          console.log('[SSE merge] Found existing message:', {
-            id: existingMsg.id,
-            reply_to: existingMsg.reply_to,
-            reply_to_id: existingMsg.reply_to_id,
-          });
           const merged = { ...existingMsg, ...newMsg };
           if (!merged.reply_to && existingMsg.reply_to) {
             merged.reply_to = existingMsg.reply_to;
-            console.log('[SSE merge] Preserved reply_to from existing message');
           }
           if (!merged.reply_to_id && existingMsg.reply_to_id) {
             merged.reply_to_id = existingMsg.reply_to_id;
-            console.log('[SSE merge] Preserved reply_to_id from existing message');
           }
-          console.log('[SSE merge] Final merged message:', {
-            id: merged.id,
-            reply_to: merged.reply_to,
-            reply_to_id: merged.reply_to_id,
-          });
           const updated = [...prev];
           updated[existingIdx] = merged;
           return updated;
@@ -704,8 +656,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     setReplyTo(null);
     requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
     try {
-      const sendResult = await api.sendMessage(chat.id, chat.type, text, opts);
-      console.log('[sendMessage] Server response:', JSON.stringify(sendResult));
+      await api.sendMessage(chat.id, chat.type, text, opts);
       // Refresh to get real message with server ID
       await loadMessages();
     } catch {
@@ -1479,22 +1430,6 @@ function MessageGroup({
             replyTo = messageMap.get(Number(msg.reply_to_id));
           }
 
-          // DEBUG: Log EVERY reply resolution
-          if (msg.reply_to || msg.reply_to_id) {
-            console.log('[Reply Debug]', {
-              msgId: msg.id,
-              msgText: msg.text?.slice(0, 50),
-              isOwn: isOwn,
-              reply_to_id: msg.reply_to_id,
-              reply_to: msg.reply_to,
-              reply_to_message_id_type: msg.reply_to ? typeof msg.reply_to.message_id : 'N/A',
-              foundInMap: !!replyTo,
-              willRenderQuote: !!replyTo,
-              mapSize: messageMap.size,
-              mapKeysSample: Array.from(messageMap.keys()).slice(-10),
-            });
-          }
-
           const isBubbleMatch = searchMatchSet.has(String(msg.id));
           const isBubbleCurrent = currentMatchMsgId === String(msg.id);
           return (
@@ -1600,12 +1535,7 @@ function MessageGroup({
                   color: isOwn ? '#fff' : undefined,
                 }}
               >
-                {replyTo && (
-                  (() => {
-                    console.log('[ReplyQuote RENDERING]', { msgId: msg.id, replyToMsgId: replyTo.id, replyToText: replyTo.text?.slice(0, 50) });
-                    return <ReplyQuote msg={replyTo} isOwn={isOwn} />;
-                  })()
-                )}
+                {replyTo && <ReplyQuote msg={replyTo} isOwn={isOwn} />}
                 {msg.is_forwarded && (
                   <div className={clsx('mb-1 flex items-center gap-1 text-[11px] italic', isOwn ? 'text-primary-200' : 'text-surface-600')}>
                     <Forward size={10} /> Weitergeleitet
@@ -1725,12 +1655,7 @@ function PlainTextMessage({
             />
           )}
         </div>
-        {replyTo && (
-          (() => {
-            console.log('[PlainTextMessage ReplyQuote RENDERING]', { msgId: msg.id, replyToMsgId: replyTo.id, replyToText: replyTo.text?.slice(0, 50) });
-            return <ReplyQuote msg={replyTo} isOwn={false} />;
-          })()
-        )}
+        {replyTo && <ReplyQuote msg={replyTo} isOwn={false} />}
         {msg.is_forwarded && (
           <div className="mb-1 flex items-center gap-1 text-[11px] italic text-surface-600">
             <Forward size={10} /> Weitergeleitet
