@@ -1477,9 +1477,9 @@ function MessageGroup({
             // Server may only return reply_to_id without the full reply_to object
             replyTo = messageMap.get(Number(msg.reply_to_id));
           }
-          
-          // DEBUG: Log reply resolution for own messages
-          if (msg.reply_to_id || msg.reply_to) {
+
+          // DEBUG: Log EVERY reply resolution
+          if (msg.reply_to || msg.reply_to_id) {
             console.log('[Reply Debug]', {
               msgId: msg.id,
               msgText: msg.text?.slice(0, 50),
@@ -1488,6 +1488,7 @@ function MessageGroup({
               reply_to: msg.reply_to,
               reply_to_message_id_type: msg.reply_to ? typeof msg.reply_to.message_id : 'N/A',
               foundInMap: !!replyTo,
+              willRenderQuote: !!replyTo,
               mapSize: messageMap.size,
               mapKeysSample: Array.from(messageMap.keys()).slice(-10),
             });
@@ -1598,7 +1599,12 @@ function MessageGroup({
                   color: isOwn ? '#fff' : undefined,
                 }}
               >
-                {replyTo && <ReplyQuote msg={replyTo} isOwn={isOwn} />}
+                {replyTo && (
+                  (() => {
+                    console.log('[ReplyQuote RENDERING]', { msgId: msg.id, replyToMsgId: replyTo.id, replyToText: replyTo.text?.slice(0, 50) });
+                    return <ReplyQuote msg={replyTo} isOwn={isOwn} />;
+                  })()
+                )}
                 {msg.is_forwarded && (
                   <div className={clsx('mb-1 flex items-center gap-1 text-[11px] italic', isOwn ? 'text-primary-200' : 'text-surface-600')}>
                     <Forward size={10} /> Weitergeleitet
@@ -1718,7 +1724,12 @@ function PlainTextMessage({
             />
           )}
         </div>
-        {replyTo && <ReplyQuote msg={replyTo} isOwn={false} />}
+        {replyTo && (
+          (() => {
+            console.log('[PlainTextMessage ReplyQuote RENDERING]', { msgId: msg.id, replyToMsgId: replyTo.id, replyToText: replyTo.text?.slice(0, 50) });
+            return <ReplyQuote msg={replyTo} isOwn={false} />;
+          })()
+        )}
         {msg.is_forwarded && (
           <div className="mb-1 flex items-center gap-1 text-[11px] italic text-surface-600">
             <Forward size={10} /> Weitergeleitet
