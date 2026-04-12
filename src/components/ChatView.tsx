@@ -541,8 +541,17 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         const existingIdx = prev.findIndex((m) => String(m.id) === String(newMsg.id));
         if (existingIdx >= 0) {
           // Update existing message (e.g. when deleted)
+          // Preserve reply_to and reply_to_id if server returns null/undefined (happens for own messages)
+          const existingMsg = prev[existingIdx];
+          const merged = { ...existingMsg, ...newMsg };
+          if (!merged.reply_to && existingMsg.reply_to) {
+            merged.reply_to = existingMsg.reply_to;
+          }
+          if (!merged.reply_to_id && existingMsg.reply_to_id) {
+            merged.reply_to_id = existingMsg.reply_to_id;
+          }
           const updated = [...prev];
-          updated[existingIdx] = { ...updated[existingIdx], ...newMsg };
+          updated[existingIdx] = merged;
           return updated;
         }
         return [...prev, newMsg].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
@@ -1412,7 +1421,29 @@ function MessageGroup({
             ? '*`Nachricht wurde gelöscht`*'
             : msg.text || (msg.encrypted ? '🔒 *Verschlüsselte Nachricht*' : (msg.files?.length ? '' : '*`Nachricht wurde gelöscht`*'));
           const canDelete = isOwn || canDeleteAll;
-          const replyTo = msg.reply_to ? messageMap.get(msg.reply_to.message_id) : undefined;
+          // Try msg.reply_to first, fall back to reply_to_id if available
+          let replyTo: Message | undefined;
+          if (msg.reply_to && msg.reply_to.message_id) {
+            replyTo = messageMap.get(msg.reply_to.message_id);
+          } else if (msg.reply_to_id) {
+            // Server may only return reply_to_id without the full reply_to object
+            replyTo = messageMap.get(Number(msg.reply_to_id));
+          }
+          
+          // DEBUG: Log reply resolution for own messages
+          if (msg.reply_to_id || msg.reply_to) {
+            console.log('[Reply Debug]', {
+              msgId: msg.id,
+              msgText: msg.text?.slice(0, 50),
+              isOwn: isOwn,
+              reply_to_id: msg.reply_to_id,
+              reply_to: msg.reply_to,
+              reply_to_message_id_type: msg.reply_to ? typeof msg.reply_to.message_id : 'N/A',
+              foundInMap: !!replyTo,
+              mapSize: messageMap.size,
+              mapKeysSample: Array.from(messageMap.keys()).slice(-10),
+            });
+          }
 
           const isBubbleMatch = searchMatchSet.has(String(msg.id));
           const isBubbleCurrent = currentMatchMsgId === String(msg.id);
@@ -1603,7 +1634,13 @@ function PlainTextMessage({
   const content = msg.deleted || msg.is_deleted_by_manager
     ? 'Nachricht wurde gelöscht'
     : msg.text || (msg.encrypted ? '🔒 Verschlüsselte Nachricht' : (msg.files?.length ? '' : 'Nachricht wurde gelöscht'));
-  const replyTo = msg.reply_to ? messageMap.get(msg.reply_to.message_id) : undefined;
+  // Try msg.reply_to first, fall back to reply_to_id if available
+  let replyTo: Message | undefined;
+  if (msg.reply_to && msg.reply_to.message_id) {
+    replyTo = messageMap.get(msg.reply_to.message_id);
+  } else if (msg.reply_to_id) {
+    replyTo = messageMap.get(Number(msg.reply_to_id));
+  }
 
   return (
     <div className="group/msg flex gap-3 px-2 py-2 hover:bg-surface-50 dark:hover:bg-surface-900/50">
