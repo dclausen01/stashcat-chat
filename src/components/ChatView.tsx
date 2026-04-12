@@ -704,7 +704,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     setReplyTo(null);
     requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
     try {
-      await api.sendMessage(chat.id, chat.type, text, opts);
+      const sendResult = await api.sendMessage(chat.id, chat.type, text, opts);
+      console.log('[sendMessage] Server response:', JSON.stringify(sendResult));
       // Refresh to get real message with server ID
       await loadMessages();
     } catch {

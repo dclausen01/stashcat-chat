@@ -14,7 +14,12 @@
       "Bash(git push *)",
       "Bash(git pull *)",
       "Bash(tsc *)",
-      "Bash(npx *)"
+      "Bash(npx *)",
+      "Bash(npm ls *)",
+      "Bash(pnpm ls *)",
+      "Bash(true)",
+      "Bash(pnpm install)",
+      "Bash(npm install)"
     ]
   },
   "$version": 3

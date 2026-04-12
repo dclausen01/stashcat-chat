@@ -1322,10 +1322,16 @@ app.post('/api/messages/:type/:targetId', async (req, res) => {
   try {
     const client = await getClient(req);
     const { type, targetId } = req.params;
-    const { text, is_forwarded, reply_to_id, files } = req.body as { text: string; is_forwarded?: boolean; reply_to_id?: string; files?: string[] };
+    const body = req.body as { text: string; is_forwarded?: boolean; reply_to_id?: string; files?: string[] };
     const chatType = type as 'channel' | 'conversation';
-    await client.sendMessage({ target: targetId, target_type: chatType, text, is_forwarded, reply_to_id, files });
-    res.json({ ok: true });
+    const debugInfo = {
+      received_reply_to_id: body.reply_to_id,
+      received_reply_to_type: typeof body.reply_to_id,
+      received_reply_to_number: body.reply_to_id ? Number(body.reply_to_id) : null,
+    };
+    serverLog(`[sendMessage] reply_to_id=${body.reply_to_id} type=${typeof body.reply_to_id}`);
+    await client.sendMessage({ target: targetId, target_type: chatType, text: body.text, is_forwarded: body.is_forwarded, reply_to_id: body.reply_to_id, files: body.files });
+    res.json({ ok: true, debug: debugInfo });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }
