@@ -37,12 +37,15 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
     if (savingAvailability) return;
     setSavingAvailability(true);
     setAvailability(newVal);
+    const statusText = newVal === 'available' ? 'verfügbar' : 'Bitte nicht stören!';
+    setStatus(statusText);
     try {
       await api.setOnlineStatus(newVal);
-      setUser(user ? { ...user, availability: newVal } : null);
+      setUser(user ? { ...user, availability: newVal, status: statusText } : null);
     } catch (err) {
       console.error('Failed to set online status:', err);
       setAvailability(availability); // revert on error
+      setStatus(status);
     } finally {
       setSavingAvailability(false);
     }
