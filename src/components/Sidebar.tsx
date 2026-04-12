@@ -167,7 +167,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       // - Tab is in background, OR
       // - Tab is in foreground but the chat is not currently open
       // - AND the message is from someone else (not own messages)
-      const senderId = payload.sender ? String((payload.sender as Record<string, unknown>)?.id ?? '') : '';
+      const sender = payload.sender as Record<string, unknown> | undefined;
+      const senderId = sender?.id ? String(sender.id) : '';
       const isOwnMessage = senderId === String(user?.id ?? '');
 
       if (channelId) {
@@ -189,8 +190,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       }
 
       // OS notification for messages from other users when tab is in background
-      const sender = payload.sender as Record<string, unknown> | undefined;
-      const senderId = sender?.id ? String(sender.id) : '';
       if (senderId && senderId !== String(user?.id ?? '')) {
         const senderName = `${sender?.first_name ?? ''} ${sender?.last_name ?? ''}`.trim() || 'Neue Nachricht';
         const text = payload.text ? String(payload.text) : '';
