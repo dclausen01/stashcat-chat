@@ -6,6 +6,8 @@ export interface User {
   image?: string;
   status?: string;
   online?: boolean;
+  /** Derived from status text: 'available' | 'do_not_disturb' | undefined */
+  availability?: 'available' | 'do_not_disturb';
   socket_id?: string;
 }
 

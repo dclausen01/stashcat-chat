@@ -711,6 +711,18 @@ export async function changeStatus(status: string): Promise<void> {
   await post('/account/status', { status });
 }
 
+export async function setOnlineStatus(status: 'available' | 'do_not_disturb'): Promise<void> {
+  const statusText = status === 'available' ? 'verfügbar' : 'Bitte nicht stören!';
+  await post('/account/status', { status: statusText });
+}
+
+/** Derive availability from status text */
+export function deriveAvailability(status?: string): 'available' | 'do_not_disturb' | undefined {
+  if (status === 'Bitte nicht stören!') return 'do_not_disturb';
+  if (status === 'verfügbar') return 'available';
+  return undefined;
+}
+
 export async function uploadProfileImage(imgBase64: string): Promise<void> {
   await post('/account/profile-image', { imgBase64 });
 }

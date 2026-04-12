@@ -5,6 +5,8 @@ interface AvatarProps {
   image?: string | null;
   size?: 'xs' | 'sm' | 'md' | 'lg';
   online?: boolean;
+  /** Availability status — overrides the `online` prop for color */
+  availability?: 'available' | 'do_not_disturb';
 }
 
 const sizeClasses = {
@@ -12,6 +14,13 @@ const sizeClasses = {
   sm: 'h-8 w-8 text-xs',
   md: 'h-10 w-10 text-sm',
   lg: 'h-12 w-12 text-base',
+};
+
+const dotSizeClasses = {
+  xs: 'h-2 w-2',
+  sm: 'h-3 w-3',
+  md: 'h-3 w-3',
+  lg: 'h-3.5 w-3.5',
 };
 
 function getInitials(name: string): string {
@@ -34,7 +43,21 @@ function getColor(name: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-export default function Avatar({ name, image, size = 'md', online }: AvatarProps) {
+export default function Avatar({ name, image, size = 'md', online, availability }: AvatarProps) {
+  // Determine dot color: availability takes precedence over online
+  let dotColor: string | undefined;
+  let isPulsing = false;
+  if (availability === 'available') {
+    dotColor = 'bg-green-500';
+    isPulsing = true;
+  } else if (availability === 'do_not_disturb') {
+    dotColor = 'bg-red-500';
+  } else if (online !== undefined) {
+    dotColor = online ? 'bg-green-500' : 'bg-surface-400';
+  }
+
+  const dotSize = dotSizeClasses[size] || dotSizeClasses.md;
+
   return (
     <div className="relative inline-flex shrink-0">
       {image ? (
@@ -54,13 +77,13 @@ export default function Avatar({ name, image, size = 'md', online }: AvatarProps
           {getInitials(name)}
         </div>
       )}
-      {online !== undefined && (
-        <span
-          className={clsx(
-            'absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-surface-800',
-            online ? 'bg-green-500' : 'bg-surface-400',
+      {dotColor && (
+        <span className={clsx('absolute bottom-0 right-0 rounded-full border-2 border-white dark:border-surface-800', dotSize)}>
+          {isPulsing && (
+            <span className={clsx('absolute inset-0 -z-10 animate-ping rounded-full bg-green-400 opacity-75', dotSize)} />
           )}
-        />
+          <span className={clsx('block rounded-full', dotColor, dotSize)} />
+        </span>
       )}
     </div>
   );

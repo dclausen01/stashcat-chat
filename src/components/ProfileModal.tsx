@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { X, Camera, Loader2 } from 'lucide-react';
+import { clsx } from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import * as api from '../api';
 import Avatar from './Avatar';
@@ -11,8 +12,12 @@ interface ProfileModalProps {
 export default function ProfileModal({ onClose }: ProfileModalProps) {
   const { user, setUser } = useAuth();
   const [status, setStatus] = useState(user?.status || '');
+  const [availability, setAvailability] = useState<'available' | 'do_not_disturb'>(
+    user?.availability === 'do_not_disturb' ? 'do_not_disturb' : 'available'
+  );
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [savingAvailability, setSavingAvailability] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSaveStatus = async () => {
@@ -25,6 +30,21 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
       console.error('Failed to save status:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAvailabilityChange = async (newVal: 'available' | 'do_not_disturb') => {
+    if (savingAvailability) return;
+    setSavingAvailability(true);
+    setAvailability(newVal);
+    try {
+      await api.setOnlineStatus(newVal);
+      setUser(user ? { ...user, availability: newVal } : null);
+    } catch (err) {
+      console.error('Failed to set online status:', err);
+      setAvailability(availability); // revert on error
+    } finally {
+      setSavingAvailability(false);
     }
   };
 
@@ -141,7 +161,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
 
           {/* Status (editable) */}
           <div className="mb-6">
-            <label className="block text-xs font-medium text-surface-600">Status</label>
+            <label className="block text-xs font-medium text-surface-600">Status-Nachricht</label>
             <div className="mt-1 flex gap-2">
               <input
                 type="text"
@@ -157,6 +177,42 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
                 className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
               >
                 {loading ? <Loader2 size={16} className="animate-spin" /> : 'Speichern'}
+              </button>
+            </div>
+          </div>
+
+          {/* Availability (Erreichbar / Nicht stören) */}
+          <div className="mb-6">
+            <label className="block text-xs font-medium text-surface-600 mb-2">Erreichbarkeit</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => handleAvailabilityChange('available')}
+                disabled={savingAvailability}
+                className={clsx(
+                  'flex items-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition',
+                  availability === 'available' || availability === undefined
+                    ? 'border-green-500 bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400 dark:border-green-600'
+                    : 'border-surface-200 text-surface-600 hover:border-surface-300 dark:border-surface-600 dark:text-surface-400 dark:hover:border-surface-500',
+                )}
+              >
+                <span className="relative flex h-3 w-3">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                  <span className="relative inline-flex h-3 w-3 rounded-full bg-green-500" />
+                </span>
+                Erreichbar
+              </button>
+              <button
+                onClick={() => handleAvailabilityChange('do_not_disturb')}
+                disabled={savingAvailability}
+                className={clsx(
+                  'flex items-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition',
+                  availability === 'do_not_disturb'
+                    ? 'border-red-500 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400 dark:border-red-600'
+                    : 'border-surface-200 text-surface-600 hover:border-surface-300 dark:border-surface-600 dark:text-surface-400 dark:hover:border-surface-500',
+                )}
+              >
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
+                Nicht stören
               </button>
             </div>
           </div>

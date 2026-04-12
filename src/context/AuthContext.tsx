@@ -29,7 +29,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     api.restoreToken();
     if (api.isLoggedIn()) {
       api.getMe().then((user) => {
-        setState({ loggedIn: true, user });
+        // Derive availability from status text
+        const availability = api.deriveAvailability(user.status);
+        setState({ loggedIn: true, user: { ...user, availability } });
       }).catch((error) => {
         // Only clear session on explicit authentication errors (401/403)
         // Don't clear session on temporary network/server errors
@@ -65,7 +67,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setUser = useCallback((user: User | null) => {
-    setState((prev) => ({ ...prev, user }));
+    if (user) {
+      const availability = api.deriveAvailability(user.status);
+      setState((prev) => ({ ...prev, user: { ...user, availability } }));
+    } else {
+      setState((prev) => ({ ...prev, user: null }));
+    }
   }, []);
 
   const value = useMemo(
