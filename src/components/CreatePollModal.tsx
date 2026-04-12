@@ -170,9 +170,15 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
       else if (opt?.type === 'conversation') conversationIds.push(id);
     }
 
-    // Notify in source chat if triggered from chat
+    // When created from a chat context, also include the source chat in invites
+    // so the creator can vote on their own poll
     const notifyId = preselectedChat?.id;
     const notifyType = preselectedChat?.type;
+    if (notifyType === 'channel' && notifyId && !channelIds.includes(notifyId)) {
+      channelIds.push(notifyId);
+    } else if (notifyType === 'conversation' && notifyId && !conversationIds.includes(notifyId)) {
+      conversationIds.push(notifyId);
+    }
 
     setSubmitting(true);
     try {
