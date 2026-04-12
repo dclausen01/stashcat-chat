@@ -239,6 +239,19 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       }
       setFirstUnreadMsgId(firstUnreadId);
 
+      // DEBUG: Log reply info from server
+      const replyMsgs = (msgs as unknown as Array<Record<string, unknown>>).filter(m => m.reply_to || m.reply_to_id);
+      if (replyMsgs.length > 0) {
+        console.log('[loadMessages] Reply messages from server:', replyMsgs.map(m => ({
+          id: m.id,
+          text: (m.text as string)?.slice(0, 50),
+          reply_to: m.reply_to,
+          reply_to_id: m.reply_to_id,
+        })));
+      } else {
+        console.log('[loadMessages] No reply messages found in server response');
+      }
+
       setMessages(msgs);
       if (msgs.length < PAGE_SIZE) {
         setHasMore(false);
@@ -536,6 +549,13 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         (currentChat.type === 'conversation' && String(payload.conversation_id) === currentChat.id);
       if (!belongsHere) return;
 
+      console.log('[SSE message_sync]', {
+        id: payload.id,
+        text: (payload.text as string)?.slice(0, 50),
+        reply_to: payload.reply_to,
+        reply_to_id: payload.reply_to_id,
+      });
+
       const newMsg = payload as unknown as Message;
       setMessages((prev) => {
         const existingIdx = prev.findIndex((m) => String(m.id) === String(newMsg.id));
@@ -543,13 +563,25 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           // Update existing message (e.g. when deleted)
           // Preserve reply_to and reply_to_id if server returns null/undefined (happens for own messages)
           const existingMsg = prev[existingIdx];
+          console.log('[SSE merge] Found existing message:', {
+            id: existingMsg.id,
+            reply_to: existingMsg.reply_to,
+            reply_to_id: existingMsg.reply_to_id,
+          });
           const merged = { ...existingMsg, ...newMsg };
           if (!merged.reply_to && existingMsg.reply_to) {
             merged.reply_to = existingMsg.reply_to;
+            console.log('[SSE merge] Preserved reply_to from existing message');
           }
           if (!merged.reply_to_id && existingMsg.reply_to_id) {
             merged.reply_to_id = existingMsg.reply_to_id;
+            console.log('[SSE merge] Preserved reply_to_id from existing message');
           }
+          console.log('[SSE merge] Final merged message:', {
+            id: merged.id,
+            reply_to: merged.reply_to,
+            reply_to_id: merged.reply_to_id,
+          });
           const updated = [...prev];
           updated[existingIdx] = merged;
           return updated;
