@@ -260,6 +260,12 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         // Log specific reply-related fields
         console.log('[loadMessages] reply_to:', firstMsg.reply_to);
         console.log('[loadMessages] reply_to_id:', firstMsg.reply_to_id);
+        // Check if ANY message has reply info
+        const allReplyFields = msgs.map((m: unknown) => {
+          const r = m as Record<string, unknown>;
+          return { id: r.id, reply_to: r.reply_to, reply_to_id: r.reply_to_id };
+        });
+        console.log('[loadMessages] Reply info for all messages:', allReplyFields.filter((x: Record<string, unknown>) => x.reply_to || x.reply_to_id));
       }
 
       setMessages(msgs);
