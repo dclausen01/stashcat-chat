@@ -63,6 +63,8 @@ Browser
 - Stored in `localStorage` under key `schulchat_token`.
 - Sent as `Authorization: Bearer <token>` on all API requests.
 - Also accepted as `?token=<token>` query parameter for `EventSource` and file download URLs (which cannot set headers).
+- Token payload contains either `securityPassword` (legacy login) or `privateKeyJwk` (device-to-device login).
+- Sessions survive server restarts only if `SESSION_SECRET` env var is set; otherwise they are ephemeral.
 
 ---
 
@@ -70,12 +72,12 @@ Browser
 
 ```
 src/
-├── api.ts                          # All frontend → backend HTTP calls
-├── types.ts                        # ChatTarget and other shared types
+├── api.ts                          # All frontend → backend HTTP calls (incl. phased login)
+├── types.ts                        # ChatTarget, LoginDevice, and other shared types
 ├── App.tsx                         # Root layout and panel orchestration
 ├── main.tsx                        # React entry point, context providers
 ├── pages/
-│   └── LoginPage.tsx               # Login form
+│   └── LoginPage.tsx               # Multi-step login wizard (credentials → method choice → password or device code)
 ├── components/
 │   ├── Sidebar.tsx                 # Channel/conversation list, search, resize (persistent width)
 │   ├── SidebarHeader.tsx           # User avatar, name, action buttons (notifications, files, theme, settings, logout)
@@ -116,8 +118,9 @@ src/
     └── fileIcon.ts                 # Extension/MIME → icon name
 
 server/
-├── index.ts                        # All Express routes + SSE + realtime bridge
-└── session-store.ts                # AES-256-GCM encrypted .sessions.json
+├── index.ts                        # All Express routes + SSE + realtime bridge + phased login endpoints
+├── session-store.ts                # AES-256-GCM encrypted .sessions.json
+└── token-crypto.ts                 # AES-256-GCM session token encryption/decryption (stateless)
 ```
 
 ---
@@ -140,6 +143,13 @@ Do not add a `tailwind.config.*` file — v4 is config-file-free by default.
 
 `src/api.ts` is the sole frontend HTTP client. It talks to the Express backend at `/backend/api` using `fetch` with a Bearer token. It provides typed wrappers for every backend endpoint.
 
+**Phased login functions** (for device-to-device key transfer):
+- `loginCredentials(email, password)` — logs in without E2E, returns `preAuthToken`
+- `loginFinalizeWithPassword(preAuthToken, securityPassword)` — unlocks E2E with password, returns session token
+- `initiateDeviceKeyTransfer(preAuthToken)` — triggers Socket.io key transfer to existing devices
+- `loginFinalizeWithDeviceCode(preAuthToken, code)` — decrypts received key with code, returns session token
+- `persistToken(token)` — stores token in localStorage and module state
+
 Key patterns in `api.ts`:
 - `get<T>(path)` and `post<T>(path, body)` are internal helpers.
 - File operations that need `DELETE` or `PATCH` use raw `fetch` calls (not the helpers) because the helpers only support GET and POST.
@@ -155,7 +165,11 @@ All routes are under `/api/` prefix on port 3001.
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
-| POST | `/api/login` | Login, create StashcatClient, start realtime, return token |
+| POST | `/api/login` | Login with security password (legacy), create StashcatClient, start realtime, return token |
+| POST | `/api/login/credentials` | Login without E2E (email+password only), returns `preAuthToken` |
+| POST | `/api/login/password` | Finalize login with security password using `preAuthToken` |
+| POST | `/api/login/device/initiate` | Trigger device-to-device key transfer via Socket.io, returns immediately |
+| POST | `/api/login/device/complete` | Finalize device login with 6-digit code, decrypts key locally, returns token |
 | POST | `/api/logout` | Logout, destroy session |
 | GET | `/api/me` | Current user info |
 | GET | `/api/companies` | List companies |
@@ -365,7 +379,7 @@ ChatView includes a date-range search mode that queries the Stashcat `/search/me
 
 ### Session Restore on Server Restart
 
-At startup, `server/index.ts` loads `.sessions.json` via `session-store.ts` and restores each serialized `StashcatClient` via `StashcatClient.fromSession()`. It then calls `unlockE2E()` using the stored security password and reconnects the `RealtimeManager`. Clients whose sessions are no longer valid on the Stashcat server will silently fail and be dropped.
+At startup, `server/index.ts` loads `.sessions.json` via `session-store.ts` and restores each serialized `StashcatClient` via `StashcatClient.fromSession()`. It then calls `unlockE2E()` using the stored security password (or `unlockE2EWithPrivateKey()` if the session was created via device-to-device transfer) and reconnects the `RealtimeManager`. Clients whose sessions are no longer valid on the Stashcat server will silently fail and be dropped.
 
 ### File Upload (Resumable Chunked Upload)
 
@@ -397,3 +411,92 @@ some_command > /tmp/output.txt 2>&1
 # Then read the output
 # Read /tmp/output.txt
 ```
+
+---
+
+## Device-to-Device E2E Key Transfer (Reverse-Engineered)
+
+### Overview
+
+Users can log in on a new device without entering their security password by having an already logged-in device (e.g., mobile app) confirm the login via a 6-digit code.
+
+### Protocol Discovery (2026-04-11)
+
+The flow was reverse-engineered by observing the official `schul.cloud` web client's Socket.io traffic:
+
+1. **`loginWithoutE2E`** — New device logs in with email/password only (no `securityPassword`)
+2. **Socket.io connect** to `push.stashcat.com` — sends `userid` (auto by RealtimeManager)
+3. **`new_device_connected`** — Server sends this event back, confirming auth. Contains `device_id` and `ip_address`
+4. **`key_sync_request`** — Client emits: `socket.emit('key_sync_request', own_device_id, own_client_key)`
+   - First param: the new device's `device_id`
+   - Second param: the new device's `client_key` (NOT the target device's ID)
+   - The push server forwards this to all existing devices of this user
+5. **Target device shows 6-digit code** — After user confirms on mobile, the mobile wraps the KEK and uploads the encrypted key
+6. **`key_sync_payload`** — Server sends back to the new device:
+   ```json
+   {
+     "device_id": "<target_device_id>",
+     "payload": {
+       "encrypted_private_key_jwk": {
+         "ciphertext": "<base64>",
+         "iv": "<base64>",
+         "key_derivation_properties": {
+           "salt": "<base64>",
+           "iterations": 650000,
+           "prf": "sha-256"
+         }
+       }
+     }
+   }
+   ```
+7. **Decrypt** — KEK = PBKDF2(code, salt, iterations, 32, sha256), then AES-256-CBC decrypt ciphertext with KEK → RSA private key JWK
+
+### Critical Findings
+
+| Finding | Detail |
+|---------|--------|
+| `key_sync_request` params | `(own_device_id, own_client_key)` — NOT target device IDs |
+| `new_device_connected` | Signals that existing devices came online, NOT our new device |
+| `encrypted_private_key_jwk` | Is a JSON **object** (with ciphertext, iv, etc.), not a string |
+| Socket auth order | Must wait for `new_device_connected` before emitting `key_sync_request` |
+| Push server routing | Forwards `key_sync_request` to ALL existing devices automatically |
+| 6-digit code | Never sent to server — used locally for PBKDF2 KEK derivation |
+
+### Implementation in stashcat-chat
+
+**Server-side flow** (`server/index.ts`):
+1. `POST /api/login/credentials` → `loginWithoutE2E` → creates preAuth cache entry
+2. `POST /api/login/device/initiate` → fire-and-forget Socket.io connection to push.stashcat.com, emits `key_sync_request`, payload stored asynchronously in preAuth cache
+3. `POST /api/login/device/complete` → polls cache (up to 30s) for `encryptedKeyData`, decrypts with code via PBKDF2, creates session with `privateKeyJwk`
+4. `POST /api/login/password` → legacy password flow (alternative to device flow)
+
+**Session token** (`server/token-crypto.ts`):
+```typescript
+interface SessionPayload {
+  deviceId: string;
+  clientKey: string;
+  baseUrl: string;
+  securityPassword?: string;     // Legacy password flow
+  privateKeyJwk?: RsaPrivateKeyJwk; // Device-to-device flow
+}
+```
+
+**`getClient()` branching**: On session restore, checks `securityPassword` first, then `privateKeyJwk`, calling `unlockE2E()` or `unlockE2EWithPrivateKey()` accordingly.
+
+### Dependencies
+
+- `stashcat-api` must have the following methods:
+  - `loginWithoutE2E({email, password})` — login without E2E unlock
+  - `unlockE2EWithPrivateKey(jwk: RsaPrivateKeyJwk)` — unlock E2E with pre-decrypted JWK
+  - `exportPrivateKey(): RsaPrivateKeyJwk | undefined` — export decrypted JWK
+- `RsaPrivateKeyJwk` type imported from `stashcat-api`
+
+### Frontend Flow (`src/pages/LoginPage.tsx`)
+
+Multi-step wizard state machine:
+1. **credentials** → E-Mail + Passwort → "Weiter" → `loginCredentials()` → method-choice
+2. **method-choice** → Two buttons: "Mit Verschlüsselungspasswort" or "Durch ein anderes Gerät"
+3. **password-entry** → Verschlüsselungspasswort → `loginFinalizeWithPassword()` → done
+4. **code-entry** → 6-digit code → `loginFinalizeWithDeviceCode()` → done
+
+The device flow button immediately triggers `initiateDeviceKeyTransfer()` (server connects to push.stashcat.com, emits `key_sync_request`) and switches to code entry. The user confirms on their mobile device, enters the code, and the server decrypts the key locally.
