@@ -1600,10 +1600,13 @@ function MessageGroup({
                     <Forward size={10} /> Weitergeleitet
                   </div>
                 )}
-                {searchQuery && content.toLowerCase().includes(searchQuery.toLowerCase())
-                  ? <p className="whitespace-pre-wrap break-words"><HighlightedText text={content} query={searchQuery} /></p>
-                  : <MarkdownContent content={content} isOwn={isOwn} />}
-                <FileList files={msg.files} isOwn={isOwn} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
+                {/* Scrollable content area for long text without spaces */}
+                <div className="overflow-x-auto">
+                  {searchQuery && content.toLowerCase().includes(searchQuery.toLowerCase())
+                    ? <p className="whitespace-pre"><HighlightedText text={content} query={searchQuery} /></p>
+                    : <MarkdownContent content={content} isOwn={isOwn} />}
+                  <FileList files={msg.files} isOwn={isOwn} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
+                </div>
               </div>
 
               {(isLast || (msg.likes ?? 0) > 0) && (
@@ -1720,12 +1723,15 @@ function PlainTextMessage({
             <Forward size={10} /> Weitergeleitet
           </div>
         )}
-        <div className="text-sm text-surface-800 dark:text-surface-200">
-          {searchQuery && content.toLowerCase().includes(searchQuery.toLowerCase())
-            ? <p className="whitespace-pre-wrap break-words"><HighlightedText text={content} query={searchQuery} /></p>
-            : <MarkdownContent content={content} isOwn={false} />}
+        {/* Scrollable content area for long text without spaces */}
+        <div className="overflow-x-auto">
+          <div className="text-sm text-surface-800 dark:text-surface-200">
+            {searchQuery && content.toLowerCase().includes(searchQuery.toLowerCase())
+              ? <p className="whitespace-pre"><HighlightedText text={content} query={searchQuery} /></p>
+              : <MarkdownContent content={content} isOwn={false} />}
+          </div>
+          <FileList files={msg.files} isOwn={false} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
         </div>
-        <FileList files={msg.files} isOwn={false} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
       </div>
       <div className="hidden shrink-0 group-hover/msg:flex items-center gap-0.5">
         <button
