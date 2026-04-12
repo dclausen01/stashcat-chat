@@ -161,6 +161,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const paginationOffsetRef = useRef(0);
   const loadingMoreRef = useRef(false);
   const hasMoreRef = useRef(true);
+  // Track pending sends for SSE matching: tempId → { text, sendTime, fallbackTimer }
+  interface PendingSendInfo { text: string; sendTime: number; fallbackTimer: ReturnType<typeof setTimeout> }
+  const pendingSendRef = useRef<Map<string, PendingSendInfo>>(new Map());
 
   const userId = user?.id ?? '';
 
@@ -524,6 +527,11 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   // Reset last marked message when switching chats
   useEffect(() => {
     lastMarkedMsgIdRef.current = null;
+    // Clear any pending send timers when switching chats
+    for (const [, info] of pendingSendRef.current) {
+      clearTimeout(info.fallbackTimer);
+    }
+    pendingSendRef.current.clear();
   }, [chat.id]);
 
   // Realtime: new messages + typing indicators
@@ -538,11 +546,11 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
       const newMsg = payload as unknown as Message;
       setMessages((prev) => {
-        const existingIdx = prev.findIndex((m) => String(m.id) === String(newMsg.id));
-        if (existingIdx >= 0) {
+        const existingById = prev.findIndex((m) => String(m.id) === String(newMsg.id));
+        if (existingById >= 0) {
           // Update existing message (e.g. when deleted)
           // Preserve reply_to and reply_to_id if server returns null/undefined (happens for own messages)
-          const existingMsg = prev[existingIdx];
+          const existingMsg = prev[existingById];
           const merged = { ...existingMsg, ...newMsg };
           if (!merged.reply_to && existingMsg.reply_to) {
             merged.reply_to = existingMsg.reply_to;
@@ -551,9 +559,50 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             merged.reply_to_id = existingMsg.reply_to_id;
           }
           const updated = [...prev];
-          updated[existingIdx] = merged;
+          updated[existingById] = merged;
           return updated;
         }
+
+        // Try to match an optimistic message by text + sender + time
+        const newTime = Number(newMsg.time) || 0;
+        const newSenderId = String((newMsg.sender as any)?.id ?? '');
+        const newText = String(newMsg.text ?? '');
+
+        const optimisticIdx = prev.findIndex((m) => {
+          // Must be a temp-ID message from the same sender
+          if (!String(m.id).startsWith('temp-')) return false;
+          if (String(m.sender?.id) !== newSenderId) return false;
+          // Text must match exactly
+          if (m.text !== newText) return false;
+          // Time must be within ±3 seconds
+          const msgTime = Number(m.time) || 0;
+          return Math.abs(msgTime - newTime) <= 3;
+        });
+
+        if (optimisticIdx >= 0) {
+          // Found matching optimistic message — replace with server version
+          const optimisticMsg = prev[optimisticIdx];
+          const tempId = optimisticMsg.id;
+
+          // Clear the fallback timer
+          const pendingInfo = pendingSendRef.current.get(String(tempId));
+          if (pendingInfo) {
+            clearTimeout(pendingInfo.fallbackTimer);
+            pendingSendRef.current.delete(String(tempId));
+          }
+
+          // Replace: use server message but preserve optimistic reply_to if server didn't send it
+          const merged = { ...newMsg };
+          if (!merged.reply_to && optimisticMsg.reply_to) {
+            merged.reply_to = optimisticMsg.reply_to;
+          }
+
+          const updated = [...prev];
+          updated[optimisticIdx] = merged;
+          return updated;
+        }
+
+        // No match — new message from someone else, just add it
         return [...prev, newMsg].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
       });
       // Auto-scroll if already at bottom
@@ -641,11 +690,12 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     const opts = replyTo ? { reply_to_id: String(replyTo.id) } : undefined;
     // Optimistic: add message immediately
     const tempId = `temp-${Date.now()}`;
+    const sendTime = Math.floor(Date.now() / 1000);
     const optimisticMsg: Message = {
       id: tempId,
       text,
       sender: user as unknown as Message['sender'],
-      time: Math.floor(Date.now() / 1000),
+      time: sendTime,
       reply_to_id: replyTo ? String(replyTo.id) : undefined,
       reply_to: replyTo ? {
         message_id: Number(replyTo.id),
@@ -655,11 +705,20 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     setMessages((prev) => [...prev, optimisticMsg]);
     setReplyTo(null);
     requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
+
+    // Set up timeout fallback: if SSE doesn't arrive within 5s, reload messages
+    const fallbackTimer = setTimeout(() => {
+      loadMessages();
+    }, 5000);
+
     try {
       await api.sendMessage(chat.id, chat.type, text, opts);
-      // Refresh to get real message with server ID
-      await loadMessages();
+      // Don't call loadMessages() — SSE will deliver the real message
+      // Store pending info for the SSE handler to match against
+      pendingSendRef.current.set(tempId, { text, sendTime, fallbackTimer });
     } catch {
+      clearTimeout(fallbackTimer);
+      pendingSendRef.current.delete(tempId);
       // Remove optimistic message on failure
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
     }

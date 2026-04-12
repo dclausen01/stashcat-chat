@@ -19,7 +19,8 @@
       "Bash(pnpm ls *)",
       "Bash(true)",
       "Bash(pnpm install)",
-      "Bash(npm install)"
+      "Bash(npm install)",
+      "Bash(git checkout *)"
     ]
   },
   "$version": 3
