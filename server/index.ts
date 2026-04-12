@@ -424,41 +424,22 @@ async function triggerDeviceNotification(client: StashcatClient, entry: unknown)
 
   // When key_sync_payload arrives, store it in the preAuth entry
   rt.on('key_sync_payload', (data: unknown) => {
-    serverLog('[DeviceNotify] key_sync_payload event received! Data type:', typeof data);
     try {
       const parsed = data as Record<string, unknown> | undefined;
-      if (parsed) {
-        serverLog('[DeviceNotify] Parsed keys:', Object.keys(parsed).join(', '));
-      }
       if (parsed && typeof parsed.payload === 'object' && parsed.payload !== null) {
         const payload = parsed.payload as Record<string, unknown>;
-        serverLog('[DeviceNotify] payload keys:', Object.keys(payload).join(', '));
-
-        // encrypted_private_key_jwk is an OBJECT, not a string
         const jwkData = payload.encrypted_private_key_jwk;
         if (jwkData && typeof jwkData === 'object') {
-          // Store as JSON string for decryptJwkWithCode
-          const jwkJson = JSON.stringify(jwkData);
-          (entry as Record<string, unknown>).encryptedKeyData = jwkJson;
-          serverLog('[DeviceNotify] ✅ Stored encrypted key data:', jwkJson.length, 'chars');
+          (entry as Record<string, unknown>).encryptedKeyData = JSON.stringify(jwkData);
+          serverLog('[DeviceNotify] Stored encrypted key data:', JSON.stringify(jwkData).length, 'chars');
         } else if (typeof payload.encrypted_private_key_jwk === 'string') {
-          // Fallback: already a string
           (entry as Record<string, unknown>).encryptedKeyData = payload.encrypted_private_key_jwk;
-          serverLog('[DeviceNotify] ✅ Stored encrypted key data (string):', (payload.encrypted_private_key_jwk as string).length, 'chars');
-        } else {
-          serverLog('[DeviceNotify] ❌ encrypted_private_key_jwk missing or wrong type');
-          // Also try encrypted_private_key (PEM format)
-          if (typeof payload.encrypted_private_key === 'string') {
-            serverLog('[DeviceNotify] Found encrypted_private_key (PEM), but we need JWK format');
-          }
+          serverLog('[DeviceNotify] Stored encrypted key data (string)');
         }
-      } else {
-        serverLog('[DeviceNotify] ❌ Invalid payload structure:', JSON.stringify(data).slice(0, 200));
       }
     } catch (e) {
-      serverLog('[DeviceNotify] ❌ Error processing key_sync_payload:', e instanceof Error ? e.message : String(e));
+      serverLog('[DeviceNotify] Error processing key_sync_payload:', e instanceof Error ? e.message : String(e));
     }
-    // Disconnect after receiving payload
     setTimeout(() => { try { rt.disconnect(); } catch {} }, 1000);
   });
 
@@ -666,17 +647,9 @@ app.post('/api/login/device/complete', async (req, res) => {
     let encryptedKeyData: string | undefined;
     for (let attempt = 0; attempt < 30; attempt++) {
       encryptedKeyData = (entry as unknown as Record<string, unknown>).encryptedKeyData as string | undefined;
-      if (encryptedKeyData) {
-        serverLog('[DeviceComplete] ✅ Found encryptedKeyData after', attempt, 's');
-        break;
-      }
-      if (attempt % 5 === 0) {
-        serverLog('[DeviceComplete] Waiting for encryptedKeyData... attempt', attempt + 1, '/ 30');
-      }
+      if (encryptedKeyData) break;
       await new Promise(r => setTimeout(r, 1000));
     }
-
-    serverLog('[DeviceComplete] encryptedKeyData after wait:', encryptedKeyData ? `present (${encryptedKeyData.length} chars)` : 'still MISSING');
 
     if (!encryptedKeyData) {
       return res.status(400).json({
