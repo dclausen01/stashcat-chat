@@ -65,6 +65,26 @@ Browser
 - The SSE handler preserves `reply_to` from the optimistic update when the server returns null.
 - The rendering code uses `messageMap` to resolve `reply_to.message_id` to the actual message for display in `ReplyQuote`.
 
+### Message Sending Flow (Optimistic + SSE Matching)
+
+- Messages are added optimistically with a `temp-${Date.now()}` ID.
+- After `sendMessage()` resolves, **no `loadMessages()` is called** — instead we wait for the SSE `message_sync` event.
+- The SSE handler matches the server message against the optimistic one by: **same sender ID + exact text match + time within ±3 seconds**.
+- On match: the optimistic message is replaced with the server version (preserving `reply_to` if server returned null).
+- A 5-second fallback timer triggers `loadMessages()` if the SSE event never arrives.
+- This eliminates the visible "flash" that occurred when reloading all messages after each send.
+
+### Availability / Online Status
+
+- Users have an **availability status** derived from their `status` text:
+  - `"verfügbar"` → `availability: 'available'` (green pulsing dot)
+  - `"Bitte nicht stören!"` → `availability: 'do_not_disturb'` (red dot)
+  - Any other text → no dot (or gray fallback via `online` prop)
+- The `ProfileModal` has two toggle buttons for availability. Clicking one calls `api.setOnlineStatus()` which sends the German status text to `/account/change_status`. The server parses the text to determine notification behavior.
+- The **Avatar component** shows colored dots: green (pulsing) for available, red for DND. `availability` prop takes precedence over the legacy `online` boolean.
+- The **Sidebar** shows availability dots on conversation avatars. The `online_status_change` SSE event updates availability in real-time for other users.
+- OS notifications are shown via `useNotifications` hook only when the tab is hidden (`document.hidden`) and the setting is enabled.
+
 ### Session Token
 
 - Generated at login (`crypto.getRandomValues`), returned as `{ token }` to the frontend.
