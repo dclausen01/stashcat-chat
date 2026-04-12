@@ -57,6 +57,14 @@ Browser
 - E2E decryption is performed server-side (Node.js `crypto`); the browser always receives plaintext.
 - Real-time push: `RealtimeManager` (Socket.io) → Express SSE → browser `EventSource`.
 
+### Reply Messages
+
+- When sending a reply, the frontend sets `reply_to_id` on the optimistic message.
+- The `stashcat-api` converts this to `reply_to` (Number) in the API request — **the stashcat backend expects `reply_to`, not `reply_to_id`**.
+- The SSE echo returns `reply_to: null` for own messages, but `loadMessages()` returns the full `reply_to` object from the server.
+- The SSE handler preserves `reply_to` from the optimistic update when the server returns null.
+- The rendering code uses `messageMap` to resolve `reply_to.message_id` to the actual message for display in `ReplyQuote`.
+
 ### Session Token
 
 - Generated at login (`crypto.getRandomValues`), returned as `{ token }` to the frontend.
