@@ -156,6 +156,34 @@ Der Server sendete Heartbeats als SSE-Kommentare (`: heartbeat\n\n`). Diese sind
 | **Socket.io disconnect → reconnect** | Wenn der RealtimeManager die Verbindung zum Stashcat-Push-Server verliert, wird nach 3s automatisch ein neuer aufgebaut — solange noch SSE-Clients vorhanden sind |
 | **Verhindert verwaiste Verbindungen** | Ohne aktive SSE-Clients wird kein Reconnect versucht |
 
+### `src/hooks/useRealtimeEvents.ts` — Kritischer Fix v2: Multi-Consumer Handler-Registry
+
+**Datum:** 13.04.2026 (Nachtrag)
+
+| Feature | Beschreibung |
+|---------|--------------|
+| **Multi-Consumer Handler** | `sharedHandlers` ist jetzt `Map<string, Set<SSEHandler>>` statt `Record<string, SSEHandler>` — mehrere Konsumenten können denselben Event-Namen registrieren |
+| **Consumer-Registry** | Jeder Hook-Instanz bekommt eine eindeutige `consumerId` — ermöglicht sauberes Unmount ohne andere Konsumenten zu beeinflussen |
+| **Handler-Updates bei Render** | `updateConsumerHandlers()` wird bei jedem Render aufgerufen, damit Closures (z.B. `user?.id`) aktuell bleiben |
+| **Kein Key-Kollisions-Override mehr** | Sidebar und ChatView können jetzt gleichzeitig `message_sync`-Handler registrieren — beide werden aufgerufen |
+
+**Ursache des bisher unentdeckten Bugs:** Die Vorgängerversion verwendete `sharedHandlers = { ...sharedHandlers, ...handlers }`, was bei gleichermaßen benannten Events (z.B. `message_sync`) den Handler des ersten Konsumenten (Sidebar) durch den des zweiten (ChatView) überschrieb. Das führte zu:
+- Sidebar erhielt keine `message_sync`-Events mehr, sobald ChatView mountete
+- Keine Unread-Count-Updates, keine Badge-Updates, keine Title-Updates
+- Beim Unmount von ChatView wurde `delete sharedHandlers['message_sync']` ausgeführt — danach gab es gar keinen Handler mehr
+
+### `../stashcat-api/src/realtime/realtime.ts` — Unendliche Reconnection-Versuche
+
+| Feature | Beschreibung |
+|---------|--------------|
+| **`reconnectionAttempts: Infinity`** | Socket.io gibt nicht mehr nach 10 Versuchen auf — der serverseitige `disconnect`-Handler managt den Reconnect |
+
+### `server/index.ts` — connect_error-Handler
+
+| Feature | Beschreibung |
+|---------|--------------|
+| **`connect_error`-Logging** | Socket.io `connect_error`-Event wird jetzt geloggt — Previously wurde es nicht behandelt, was zu "stillen" Verbindungsabbrüchen führen konnte |
+
 ## Test-Empfehlungen
 
 1. **Tab-Hintergrund-Test:** App öffnen, Tab für 5+ Minuten in den Hintergrund wechseln, dann zurückkehren → Notifications sollten sofort wieder funktionieren

@@ -251,6 +251,15 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
       serverLog(`[Realtime] Error for clientKey ${clientKey.slice(0, 8)}:`, err.message);
     });
 
+    // Handle connect_error — Socket.io fires this when it fails to establish
+    // a connection. Without this handler, the server would never know that
+    // the Socket.io client gave up, and the disconnect handler wouldn't fire.
+    rt.on('connect_error', (err: Error) => {
+      serverLog(`[Realtime] Connect error for clientKey ${clientKey.slice(0, 8)}:`, err.message);
+      // Socket.io will auto-retry (reconnectionAttempts: Infinity after our fix),
+      // so we don't need to manually reconnect here. But log it for diagnostics.
+    });
+
     rt.on('disconnect', () => {
       serverLog(`[Realtime] Disconnected for clientKey ${clientKey.slice(0, 8)} — attempting reconnect`);
       // Auto-reconnect: if the SSE connection still has clients, re-establish the RealtimeManager
