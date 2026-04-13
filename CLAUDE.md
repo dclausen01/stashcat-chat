@@ -563,3 +563,42 @@ Multi-step wizard state machine:
 4. **code-entry** → 6-digit code → `loginFinalizeWithDeviceCode()` → done
 
 The device flow button immediately triggers `initiateDeviceKeyTransfer()` (server connects to push.stashcat.com, emits `key_sync_request`) and switches to code entry. The user confirms on their mobile device, enters the code, and the server decrypts the key locally.
+
+---
+
+## Notifications Panel — Klickbare Event- und Poll-Benachrichtigungen (2026-04-13)
+
+### Problem
+Event-Notifications (Termine) wurden im NotificationsPanel als "Umfrage" angezeigt und waren nicht klickbar. Poll-Notifications waren klickbar, öffneten aber nur die Poll-Übersicht, nicht die spezifische Umfrage.
+
+### Ursache
+`formatPollNotification()` in `NotificationsPanel.tsx` identifizierte jedes Objekt mit `{ id, name, creator }` als Umfrage — was auch auf Calendar-Events zutrifft. Der Content-Parser prüfte Events nicht vor Polls.
+
+### Architektur des Fixes
+
+**Pattern:** `idToOpen`-Prop ähnlich wie bei `PollsView` (`pollIdToOpen`), jetzt auch für `CalendarView` (`eventIdToOpen`).
+
+```
+NotificationsPanel (Klick auf Event-Notification)
+  └── onOpenEvent(eventId)  ← extrahiert ID aus n.event.id
+        └── App.tsx: setEventIdToOpen(id) + setActiveView('calendar')
+              └── CalendarView(eventIdToOpen)
+                    └── useEffect: findet Event in events[] → setSelectedEvent(evt)
+                          └── Event-Detail-Modal öffnet sich automatisch
+```
+
+### Geänderte Dateien
+
+| Datei | Änderung |
+|-------|----------|
+| `NotificationsPanel.tsx` | `formatEventNotification()` hinzugefügt (prüft auf `start`/`end`/`location`); Events vor Polls prüfen; Props `onOpenPoll`, `onOpenCalendar`, `onOpenEvent`; Click-Handler mit ID-Extraktion |
+| `CalendarView.tsx` | Props `eventIdToOpen`/`onEventOpened`; useEffect öffnet `selectedEvent`-Modal wenn ID matcht |
+| `App.tsx` | State `eventIdToOpen`, Funktion `openEvent(eventId)`, Props an CalendarView + NotificationsPanel |
+
+### Erkennungslogik: Event vs. Poll
+
+| Kriterium | Event | Poll |
+|-----------|-------|------|
+| `start` / `end` / `location` vorhanden | ✅ | ❌ |
+| `options` / `votes` / `status` vorhanden | ❌ | ✅ |
+| `device_id` / `app_name` vorhanden | ❌ (Device-Objekt) | ❌ (Device-Objekt) |

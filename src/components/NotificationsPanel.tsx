@@ -10,6 +10,7 @@ interface NotificationsPanelProps {
   onOpenPolls?: () => void;
   onOpenPoll?: (pollId: string) => void;
   onOpenCalendar?: () => void;
+  onOpenEvent?: (eventId: string) => void;
 }
 
 /** Map API notification types to user-friendly German labels + icons */
@@ -219,7 +220,7 @@ function formatNotificationContent(content: unknown): { text: string; subtext?: 
   }
 }
 
-export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, onOpenCalendar }: NotificationsPanelProps) {
+export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, onOpenCalendar, onOpenEvent }: NotificationsPanelProps) {
   const [notifications, setNotifications] = useState<api.AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [keySyncState, setKeySyncState] = useState<Record<string, 'accepting' | 'accepted' | 'error'>>({});
@@ -324,10 +325,15 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
                 ? String(n.survey.id)
                 : null;
 
+              // Extract event ID from event object or content
+              const eventId = n.event && typeof n.event === 'object' && 'id' in n.event
+                ? String(n.event.id)
+                : null;
+
               // Content: prefer survey object, then content field, then text
               const rawContent = n.survey ?? n.content ?? n.text;
 
-              // Click handler: poll → open specific poll, event → open calendar
+              // Click handler: poll → open specific poll, event → open specific event, fallback → open calendar
               const handleClick = () => {
                 if (isPollNotif && pollId && onOpenPoll) {
                   onOpenPoll(pollId);
@@ -335,12 +341,15 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
                 } else if (isPollNotif && onOpenPolls) {
                   onOpenPolls();
                   onClose();
+                } else if (isEventNotif && eventId && onOpenEvent) {
+                  onOpenEvent(eventId);
+                  onClose();
                 } else if (isEventNotif && onOpenCalendar) {
                   onOpenCalendar();
                   onClose();
                 }
               };
-              const isClickable = (isPollNotif && (onOpenPoll || onOpenPolls)) || (isEventNotif && onOpenCalendar);
+              const isClickable = (isPollNotif && (onOpenPoll || onOpenPolls)) || (isEventNotif && (onOpenEvent || onOpenCalendar));
 
               // Key sync request: parse requester user info
               const keyUser = isKeyReq ? parseKeyRequestUser(rawContent) : null;

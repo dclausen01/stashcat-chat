@@ -31,6 +31,7 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [flaggedOpen, setFlaggedOpen] = useState(false);
   const [pollIdToOpen, setPollIdToOpen] = useState<string | null>(null);
+  const [eventIdToOpen, setEventIdToOpen] = useState<string | null>(null);
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
 
   // Close all side panels
@@ -71,7 +72,14 @@ export default function App() {
   const openCalendar = () => {
     const wasOpen = activeView === 'calendar';
     closeAllPanels();
+    setEventIdToOpen(null);
     setActiveView(wasOpen ? 'chat' : 'calendar');
+  };
+
+  const openEvent = (eventId: string) => {
+    closeAllPanels();
+    setEventIdToOpen(eventId);
+    setActiveView('calendar');
   };
 
   const openPolls = () => {
@@ -140,7 +148,7 @@ export default function App() {
       />
 
       {activeView === 'calendar' ? (
-        <CalendarView />
+        <CalendarView eventIdToOpen={eventIdToOpen} onEventOpened={() => setEventIdToOpen(null)} />
       ) : activeView === 'polls' ? (
         <PollsView pollIdToOpen={pollIdToOpen} onPollOpened={() => setPollIdToOpen(null)} />
       ) : (
@@ -176,7 +184,7 @@ export default function App() {
             />
           )}
           {notificationsOpen && (
-            <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} onOpenPoll={openPoll} onOpenCalendar={openCalendar} />
+            <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} onOpenPoll={openPoll} onOpenCalendar={openCalendar} onOpenEvent={openEvent} />
           )}
         </>
       )}

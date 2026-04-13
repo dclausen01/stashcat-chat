@@ -63,7 +63,12 @@ interface CalendarSource {
   visible: boolean;
 }
 
-export default function CalendarView() {
+interface CalendarViewProps {
+  eventIdToOpen?: string | null;
+  onEventOpened?: () => void;
+}
+
+export default function CalendarView({ eventIdToOpen, onEventOpened }: CalendarViewProps) {
   const { user } = useAuth();
   const userId = user?.id ?? '';
 
@@ -97,6 +102,16 @@ export default function CalendarView() {
 
   // Map of all channel IDs → names (for resolving names in event details)
   const [allChannelNames, setAllChannelNames] = useState<Map<string, string>>(new Map());
+
+  // When an event ID is passed from notifications, open its detail modal
+  useEffect(() => {
+    if (!eventIdToOpen || events.length === 0) return;
+    const evt = events.find((e) => String(e.id) === eventIdToOpen);
+    if (evt) {
+      setSelectedEvent(evt);
+      onEventOpened?.();
+    }
+  }, [eventIdToOpen, events]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load channel calendars + all channel names on mount
   useEffect(() => {
