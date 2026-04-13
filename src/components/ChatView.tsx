@@ -721,6 +721,36 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           return updated;
         }
 
+        // Defensive: check if a message with the same text + sender + similar time
+        // already exists (race condition: SSE may arrive before optimistic add).
+        // If so, don't add a duplicate — but if it's an optimistic temp message,
+        // replace it with the server version.
+        const existingByContent = prev.findIndex((m) => {
+          if (String(m.sender?.id) !== newSenderId) return false;
+          if (m.text !== newText) return false;
+          const msgTime = Number(m.time) || 0;
+          // Match if within ±5 seconds (wider window for race condition)
+          return Math.abs(msgTime - newTime) <= 5;
+        });
+        if (existingByContent >= 0) {
+          const existingMsg = prev[existingByContent];
+          // If it's an optimistic temp message that the narrow match missed,
+          // replace it with the server version anyway.
+          if (String(existingMsg.id).startsWith('temp-')) {
+            const tempId = existingMsg.id;
+            const pendingInfo = pendingSendRef.current.get(String(tempId));
+            if (pendingInfo) {
+              clearTimeout(pendingInfo.fallbackTimer);
+              pendingSendRef.current.delete(String(tempId));
+            }
+            const updated = [...prev];
+            updated[existingByContent] = newMsg;
+            return updated;
+          }
+          // Real message already in list (SSE delivered before optimistic add) — skip
+          return prev;
+        }
+
         // No match — new message from someone else, just add it
         return [...prev, newMsg].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
       });
@@ -808,34 +838,59 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
   const handleSend = async (text: string) => {
     const opts = replyTo ? { reply_to_id: String(replyTo.id) } : undefined;
-    // Optimistic: add message immediately
     const tempId = `temp-${Date.now()}`;
     const sendTime = Math.floor(Date.now() / 1000);
-    const optimisticMsg: Message = {
-      id: tempId,
-      text,
-      sender: user as unknown as Message['sender'],
-      time: sendTime,
-      reply_to_id: replyTo ? String(replyTo.id) : undefined,
-      reply_to: replyTo ? {
-        message_id: Number(replyTo.id),
-        message_hash: replyTo.id?.toString() || '',
-      } : undefined,
-    };
-    setMessages((prev) => [...prev, optimisticMsg]);
+
+    // Optimistic: add message immediately
+    // Race condition guard inside setMessages: SSE may have already delivered
+    // the real message before we add the optimistic one (especially on fast
+    // connections / Windows). We check against the current prev state.
+    let wasAdded = true;
+    setMessages((prev) => {
+      const sseAlreadyDelivered = prev.find((m) =>
+        !String(m.id).startsWith('temp-') &&
+        String(m.sender?.id) === userId &&
+        m.text === text &&
+        Math.abs((Number(m.time) || 0) - sendTime) <= 10
+      );
+      if (sseAlreadyDelivered) {
+        wasAdded = false;
+        return prev; // SSE already has it — skip optimistic
+      }
+      const optimisticMsg: Message = {
+        id: tempId,
+        text,
+        sender: user as unknown as Message['sender'],
+        time: sendTime,
+        reply_to_id: replyTo ? String(replyTo.id) : undefined,
+        reply_to: replyTo ? {
+          message_id: Number(replyTo.id),
+          message_hash: replyTo.id?.toString() || '',
+        } : undefined,
+      };
+      return [...prev, optimisticMsg];
+    });
+    if (!wasAdded) {
+      // SSE already delivered — just scroll and clear reply
+      setReplyTo(null);
+      requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
+      return;
+    }
     setReplyTo(null);
     requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
 
     try {
       await api.sendMessage(chat.id, chat.type, text, opts);
       // Don't call loadMessages() — SSE will deliver the real message
-      
-      // Set up timeout fallback ONLY after successful send: if SSE doesn't arrive within 15s, reload messages
+
+      // Set up timeout fallback ONLY after successful send: if SSE doesn't
+      // arrive within 30s, do a silent refresh (no spinner, no scroll reset).
+      // The 30-second periodic polling fallback will also eventually catch it.
       const fallbackTimer = setTimeout(() => {
         pendingSendRef.current.delete(tempId);
-        loadMessages();
-      }, 15000);
-      
+        silentRefreshRef.current();
+      }, 30000);
+
       // Store pending info for the SSE handler to match against
       pendingSendRef.current.set(tempId, { text, sendTime, fallbackTimer });
     } catch {
