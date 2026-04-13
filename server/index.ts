@@ -252,7 +252,20 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
     });
 
     rt.on('disconnect', () => {
-      serverLog(`[Realtime] Disconnected for clientKey ${clientKey.slice(0, 8)}`);
+      serverLog(`[Realtime] Disconnected for clientKey ${clientKey.slice(0, 8)} — attempting reconnect`);
+      // Auto-reconnect: if the SSE connection still has clients, re-establish the RealtimeManager
+      setTimeout(() => {
+        const conn = activeSSE.get(clientKey);
+        if (conn && conn.sseClients.size > 0) {
+          serverLog(`[Realtime] Reconnecting for clientKey ${clientKey.slice(0, 8)} (still has ${conn.sseClients.size} SSE clients)`);
+          conn.realtime = undefined; // Clear stale reference
+          connectRealtime(conn.client, clientKey).catch((err) => {
+            serverLog(`[Realtime] Reconnect failed for ${clientKey.slice(0, 8)}:`, errorMessage(err));
+          });
+        } else {
+          serverLog(`[Realtime] Skipping reconnect for ${clientKey.slice(0, 8)} (no more SSE clients)`);
+        }
+      }, 3000); // 3s delay to avoid rapid reconnect loops
     });
 
     rt.on('message_sync', async (data: MessageSyncPayload) => {

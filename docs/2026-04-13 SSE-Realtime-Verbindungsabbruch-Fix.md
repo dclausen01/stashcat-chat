@@ -142,6 +142,20 @@ Der Server sendete Heartbeats als SSE-Kommentare (`: heartbeat\n\n`). Diese sind
                     └────────────────────────────┘
 ```
 
+### `src/components/Sidebar.tsx` — Periodischer Sync als Safety-Net
+
+| Feature | Beschreibung |
+|---------|--------------|
+| **3-Minuten-Sync** | Alle 3 Minuten (nur wenn Tab sichtbar) werden Unread-Counts frisch vom Server geladen |
+| **Fängt verpasste Events ab** | Selbst wenn SSE + RealtimeManager beide sterben, werden Unread-Counts nach spätestens 3 Minuten aktualisiert |
+
+### `server/index.ts` — RealtimeManager Auto-Reconnect
+
+| Feature | Beschreibung |
+|---------|--------------|
+| **Socket.io disconnect → reconnect** | Wenn der RealtimeManager die Verbindung zum Stashcat-Push-Server verliert, wird nach 3s automatisch ein neuer aufgebaut — solange noch SSE-Clients vorhanden sind |
+| **Verhindert verwaiste Verbindungen** | Ohne aktive SSE-Clients wird kein Reconnect versucht |
+
 ## Test-Empfehlungen
 
 1. **Tab-Hintergrund-Test:** App öffnen, Tab für 5+ Minuten in den Hintergrund wechseln, dann zurückkehren → Notifications sollten sofort wieder funktionieren

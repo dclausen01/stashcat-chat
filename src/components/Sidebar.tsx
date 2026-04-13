@@ -162,6 +162,20 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     }
   }
 
+  // Periodic sidebar sync as safety net: refresh unread counts every 3 minutes
+  // This catches any messages that were missed due to SSE/Realtime connection issues
+  useEffect(() => {
+    if (!loggedIn) return;
+    const SYNC_INTERVAL = 3 * 60 * 1000; // 3 minutes
+    const intervalId = setInterval(() => {
+      // Only sync when the tab is visible (avoid unnecessary API calls in background)
+      if (!document.hidden) {
+        loadData();
+      }
+    }, SYNC_INTERVAL);
+    return () => clearInterval(intervalId);
+  }, [loggedIn]);
+
   // Realtime: increment unread count for inactive chats when new message arrives
   useRealtimeEvents({
     message_sync: (data) => {
