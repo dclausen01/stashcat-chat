@@ -1,0 +1,150 @@
+/**
+ * Barrel exports for all API modules.
+ *
+ * Import from `../api` to get everything, or import from a
+ * specific sub-module (e.g. `../api/channels`) for tree-shaking.
+ */
+
+// Core
+export {
+  persistToken,
+  restoreToken,
+  clearSession,
+  getToken,
+  isLoggedIn,
+  get,
+  post,
+  del,
+  patch,
+  put,
+} from './core';
+
+// Auth & Account
+export {
+  login,
+  loginCredentials,
+  loginFinalizeWithPassword,
+  initiateDeviceKeyTransfer,
+  loginFinalizeWithDeviceCode,
+  logout,
+  getMe,
+  getCompanies,
+  getAccountSettings,
+  changeStatus,
+  setOnlineStatus,
+  deriveAvailability,
+  uploadProfileImage,
+  resetProfileImage,
+} from './auth';
+export type { AccountSettings } from './auth';
+
+// Channels
+export {
+  getChannels,
+  getChannelInfo,
+  getChannelMembers,
+  inviteToChannel,
+  removeFromChannel,
+  addModerator,
+  removeModerator,
+  editChannel,
+  deleteChannel,
+  createChannel,
+  setFavorite,
+  getVisibleChannels,
+  joinChannel,
+  searchCompanyMembers,
+  getCompanyGroups,
+  getGroupMembers,
+} from './channels';
+export type { ManagedUser, CompanyGroup } from './channels';
+
+// Conversations
+export {
+  createConversation,
+  getConversation,
+  getConversations,
+} from './conversations';
+
+// Messages
+export {
+  getMessages,
+  searchMessages,
+  sendMessage,
+  sendTyping,
+  likeMessage,
+  listLikes,
+  unlikeMessage,
+  deleteMessage,
+  markAsRead,
+  flagMessage,
+  unflagMessage,
+  getFlaggedMessages,
+  startVideoMeeting,
+  uploadFile,
+} from './messages';
+export type { LikeInfo } from './messages';
+
+// Files & Storage
+export {
+  listFolder,
+  listPersonalFiles,
+  getFileQuota,
+  deleteFile,
+  deleteFiles,
+  deleteFolder,
+  renameFile,
+  moveFile,
+  createFolder,
+  uploadToStorage,
+  fileDownloadUrl,
+  fileViewUrl,
+  getLinkPreview,
+} from './files';
+export type { FolderContent, FileQuota, FileQuotaEntry, LinkPreview } from './files';
+
+// Broadcasts
+export {
+  listBroadcasts,
+  createBroadcast,
+  deleteBroadcast,
+  renameBroadcast,
+  getBroadcastMessages,
+  sendBroadcastMessage,
+  getBroadcastMembers,
+  addBroadcastMembers,
+  removeBroadcastMembers,
+} from './broadcasts';
+
+// Calendar
+export {
+  listCalendarEvents,
+  getCalendarEvent,
+  createCalendarEvent,
+  editCalendarEvent,
+  deleteCalendarEvent,
+  respondToCalendarEvent,
+  getCalendarChannels,
+} from './calendar';
+export type { CalendarEvent } from './calendar';
+
+// Notifications
+export {
+  getNotifications,
+  getNotificationCount,
+  deleteNotification,
+  acceptKeySync,
+} from './notifications';
+export type { AppNotification } from './notifications';
+
+// Polls
+export {
+  listPolls,
+  getPoll,
+  createPoll,
+  deletePoll,
+  archivePoll,
+  closePoll,
+  submitPollAnswer,
+} from './polls';
+export type { PollUser, PollAnswer, PollQuestion, Poll, CreatePollData } from './polls';
