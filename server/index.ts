@@ -721,12 +721,20 @@ app.get('/api/events', async (req, res) => {
   res.flushHeaders();
   serverLog(`[SSE] Headers sent for clientKey: ${clientKey.slice(0, 8)}...`);
 
-  // Heartbeat every 25 s to keep the connection alive
+  // Heartbeat every 25 s to keep the connection alive.
+  // Use a named event (not a comment) so the client can detect it
+  // for its watchdog timer. SSE comments (`: ...`) are invisible to
+  // EventSource.addEventListener and cannot be used for liveness tracking.
   const hb = setInterval(() => {
     try {
-      res.write(': heartbeat\n\n');
+      res.write('event: heartbeat\ndata: {}\n\n');
       if (typeof (res as unknown as Record<string, unknown>).flush === 'function') {
         (res as unknown as { flush: () => void }).flush();
+      }
+      // Refresh client cache TTL while SSE connection is active
+      const cached = clientCache.get(clientKey);
+      if (cached) {
+        cached.expiresAt = Date.now() + CACHE_TTL;
       }
     } catch { clearInterval(hb); try { res.end(); } catch {} }
   }, 25_000);
