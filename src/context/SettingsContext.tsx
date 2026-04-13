@@ -10,6 +10,7 @@ interface Settings {
   fileBrowserTab: 'context' | 'personal';
   notificationsEnabled: boolean;
   autoAcceptKeySync: boolean;
+  enterSendsMessage: boolean;
 }
 
 interface SettingsContextValue extends Settings {
@@ -22,6 +23,7 @@ interface SettingsContextValue extends Settings {
   setFileBrowserTab: (v: 'context' | 'personal') => void;
   setNotificationsEnabled: (v: boolean) => void;
   setAutoAcceptKeySync: (v: boolean) => void;
+  setEnterSendsMessage: (v: boolean) => void;
 }
 
 const STORAGE_KEY = 'schulchat_settings';
@@ -39,6 +41,7 @@ function loadSettings(): Settings {
       fileBrowserTab: 'context',
       notificationsEnabled: true,
       autoAcceptKeySync: false,
+      enterSendsMessage: true,
       ...JSON.parse(raw) as Partial<Settings>
     };
   } catch { /* ignore */ }
@@ -52,6 +55,7 @@ function loadSettings(): Settings {
     fileBrowserTab: 'context',
     notificationsEnabled: true,
     autoAcceptKeySync: false,
+    enterSendsMessage: true,
   };
 }
 
@@ -65,6 +69,7 @@ const SettingsContext = createContext<SettingsContextValue>({
   fileBrowserTab: 'context',
   notificationsEnabled: true,
   autoAcceptKeySync: false,
+  enterSendsMessage: true,
   setShowImagesInline: () => {},
   setBubbleView: () => {},
   setOwnBubbleColor: () => {},
@@ -74,6 +79,7 @@ const SettingsContext = createContext<SettingsContextValue>({
   setFileBrowserTab: () => {},
   setNotificationsEnabled: () => {},
   setAutoAcceptKeySync: () => {},
+  setEnterSendsMessage: () => {},
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
@@ -99,6 +105,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setFileBrowserTab: (v) => update({ fileBrowserTab: v }),
       setNotificationsEnabled: (v) => update({ notificationsEnabled: v }),
       setAutoAcceptKeySync: (v) => update({ autoAcceptKeySync: v }),
+      setEnterSendsMessage: (v) => update({ enterSendsMessage: v }),
     }}>
       {children}
     </SettingsContext.Provider>

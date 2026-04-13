@@ -80,6 +80,8 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     setNotificationsEnabled,
     autoAcceptKeySync,
     setAutoAcceptKeySync,
+    enterSendsMessage,
+    setEnterSendsMessage,
   } = useSettings();
 
   const notificationPermission = typeof Notification !== 'undefined' ? Notification.permission : 'denied';
@@ -138,6 +140,17 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             description="Neue Geräte-Schlüsselanfragen automatisch annehmen"
             value={autoAcceptKeySync}
             onChange={setAutoAcceptKeySync}
+          />
+        </div>
+
+        <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-surface-600">Eingabe</p>
+
+        <div className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
+          <ToggleRow
+            label="Enter sendet Nachricht"
+            description={enterSendsMessage ? 'Enter = Senden, Shift+Enter = Neue Zeile' : 'Enter = Neue Zeile, Shift+Enter = Senden'}
+            value={enterSendsMessage}
+            onChange={setEnterSendsMessage}
           />
         </div>
 

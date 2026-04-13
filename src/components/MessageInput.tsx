@@ -3,6 +3,7 @@ import { Send, Paperclip, Bold, Italic, Strikethrough, Code, List, Heading2, X, 
 import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react';
 import { clsx } from 'clsx';
 import { useTheme } from '../context/ThemeContext';
+import { useSettings } from '../context/SettingsContext';
 
 interface ReplyTarget {
   id: string;
@@ -58,6 +59,7 @@ const FORMAT_BUTTONS: FormatButton[] = [
 
 export default function MessageInput({ onSend, onUpload, onTyping, chatId, chatName, replyTo, onCancelReply, onCreatePoll, onCreateEvent, droppedFiles, onDroppedFilesConsumed }: MessageInputProps) {
   const { theme } = useTheme();
+  const { enterSendsMessage } = useSettings();
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
@@ -165,9 +167,14 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatId, chatN
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+    if (e.key === 'Enter') {
+      if (enterSendsMessage && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      } else if (!enterSendsMessage && e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
     }
   };
 
@@ -280,8 +287,17 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatId, chatN
           </button>
         ))}
         <div className="ml-auto shrink-0 whitespace-nowrap text-xs text-surface-600 dark:text-surface-400">
-          <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Enter</kbd> Senden{' · '}
-          <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Shift+Enter</kbd> Neue Zeile
+          {enterSendsMessage ? (
+            <>
+              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Enter</kbd> Senden{' · '}
+              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Shift+Enter</kbd> Neue Zeile
+            </>
+          ) : (
+            <>
+              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Shift+Enter</kbd> Senden{' · '}
+              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Enter</kbd> Neue Zeile
+            </>
+          )}
         </div>
       </div>
 
