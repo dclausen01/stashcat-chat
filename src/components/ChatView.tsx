@@ -534,6 +534,43 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     pendingSendRef.current.clear();
   }, [chat.id]);
 
+  // Silent refresh: reload messages without showing a loading spinner or
+  // resetting scroll position. Used when the tab becomes visible again
+  // (SSE events may be silently dropped while minimized).
+  const silentRefresh = useCallback(async () => {
+    try {
+      const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
+      const msgs = res as unknown as Message[];
+      setMessages((prev) => {
+        // Only update if there are actually new messages
+        if (msgs.length > prev.length || (msgs.length > 0 && msgs[msgs.length - 1].id !== prev[prev.length - 1]?.id)) {
+          // Mark latest message as read
+          const last = msgs[msgs.length - 1];
+          if (last) api.markAsRead(chat.id, chat.type, String(last.id)).catch(() => {});
+          return msgs;
+        }
+        return prev; // No change — don't trigger re-render
+      });
+    } catch {
+      // Ignore — the SSE + 3-min fallback will catch it
+    }
+  }, [chat.id, chat.type]);
+
+  // Reload messages when tab becomes visible after being hidden.
+  // While minimized, SSE events may be silently dropped by the browser
+  // even if the connection appears "open" (heartbeats still arrive).
+  // This ensures messages are always fresh when the user returns.
+  useEffect(() => {
+    const onVisible = () => {
+      if (!document.hidden) {
+        // Small delay to let SSE reconnect first if needed
+        setTimeout(() => silentRefresh(), 600);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [silentRefresh]);
+
   // Realtime: new messages + typing indicators
   useRealtimeEvents({
     message_sync: (data) => {
