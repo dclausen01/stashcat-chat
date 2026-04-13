@@ -706,19 +706,19 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     setReplyTo(null);
     requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
 
-    // Set up timeout fallback: if SSE doesn't arrive within 5s, reload messages
-    const fallbackTimer = setTimeout(() => {
-      loadMessages();
-    }, 5000);
-
     try {
       await api.sendMessage(chat.id, chat.type, text, opts);
       // Don't call loadMessages() — SSE will deliver the real message
+      
+      // Set up timeout fallback ONLY after successful send: if SSE doesn't arrive within 15s, reload messages
+      const fallbackTimer = setTimeout(() => {
+        pendingSendRef.current.delete(tempId);
+        loadMessages();
+      }, 15000);
+      
       // Store pending info for the SSE handler to match against
       pendingSendRef.current.set(tempId, { text, sendTime, fallbackTimer });
     } catch {
-      clearTimeout(fallbackTimer);
-      pendingSendRef.current.delete(tempId);
       // Remove optimistic message on failure
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
     }
