@@ -100,7 +100,18 @@ Browser
 
 ```
 src/
-├── api.ts                          # All frontend → backend HTTP calls (incl. phased login)
+├── api/                            # Modular API client layer (barrel exports via index.ts)
+│   ├── core.ts                     # HTTP helpers (get/post/put/patch/del), token management
+│   ├── auth.ts                     # Login, phased login, logout, user, account, companies
+│   ├── channels.ts                 # Channel CRUD, members, moderators, favorites, discovery
+│   ├── conversations.ts            # Conversations CRUD
+│   ├── messages.ts                 # Messages, likes, typing, flagging, video-meeting, upload
+│   ├── files.ts                    # File browser, storage, quota, link preview, download URLs
+│   ├── broadcasts.ts               # Broadcast CRUD, messages, members
+│   ├── calendar.ts                 # Calendar events, RSVP, calendar channels
+│   ├── notifications.ts            # Notifications, key-sync
+│   ├── polls.ts                    # Polls CRUD, voting, archive, close
+│   └── index.ts                    # Barrel exports — all modules re-exported here
 ├── types.ts                        # ChatTarget, LoginDevice, and other shared types
 ├── App.tsx                         # Root layout and panel orchestration
 ├── main.tsx                        # React entry point, context providers
@@ -169,7 +180,13 @@ Do not add a `tailwind.config.*` file — v4 is config-file-free by default.
 
 ## API Layer
 
-`src/api.ts` is the sole frontend HTTP client. It talks to the Express backend at `/backend/api` using `fetch` with a Bearer token. It provides typed wrappers for every backend endpoint.
+`src/api/` is the modular frontend HTTP client layer. All modules talk to the Express backend at `/backend/api` (dev) or `/api` (prod).
+
+**Barrel exports**: `src/api/index.ts` re-exports everything from the sub-modules. Existing imports like `import * as api from '../api'` work unchanged. For better tree-shaking, import directly from a sub-module (e.g. `import { getChannels } from '../api/channels'`).
+
+**Core module** (`api/core.ts`):
+- HTTP helpers: `get<T>`, `post<T>`, `put<T>`, `patch<T>`, `del<T>`
+- Token management: `persistToken`, `restoreToken`, `clearSession`, `getToken`, `isLoggedIn`
 
 **Phased login functions** (for device-to-device key transfer):
 - `loginCredentials(email, password)` — logs in without E2E, returns `preAuthToken`
@@ -178,9 +195,8 @@ Do not add a `tailwind.config.*` file — v4 is config-file-free by default.
 - `loginFinalizeWithDeviceCode(preAuthToken, code)` — decrypts received key with code, returns session token
 - `persistToken(token)` — stores token in localStorage and module state
 
-Key patterns in `api.ts`:
-- `get<T>(path)` and `post<T>(path, body)` are internal helpers.
-- File operations that need `DELETE` or `PATCH` use raw `fetch` calls (not the helpers) because the helpers only support GET and POST.
+Key patterns:
+- File operations that need `DELETE` or `PATCH` use the `del` / `patch` helpers from `core.ts`.
 - `fileDownloadUrl(fileId, name)` and `fileViewUrl(fileId, name)` return URLs with `?token=` embedded, used directly as `<a href>` and `<iframe src>`.
 - `uploadFile(type, targetId, file, text)` posts to `/upload/:type/:targetId` (sends file as message attachment).
 - `uploadToStorage(type, typeId, file, folderId)` posts to `/files/upload` (file browser storage upload).
@@ -255,7 +271,7 @@ All routes are under `/api/` prefix on port 3001.
 - **TypeScript strict mode** — no implicit `any`, no unchecked indexing.
 - **Functional components only** — no class components.
 - **React 19** — use standard hooks (`useState`, `useEffect`, `useCallback`, `useRef`, `useMemo`).
-- API response shapes are typed via interfaces in `src/types.ts` (`User`, `Company`, `Channel`, `Conversation`). The `api.ts` helpers (`get`, `post`, `del`, `patch`, `put`) return typed responses — avoid `Record<string, unknown>`.
+- API response shapes are typed via interfaces in `src/types.ts` (`User`, `Company`, `Channel`, `Conversation`). The `api/` module helpers (`get`, `post`, `del`, `patch`, `put`) return typed responses.
 - Context values (e.g. `AuthContext`) are memoized with `useMemo` to prevent unnecessary re-renders.
 - Use `clsx` for conditional class names.
 - Icon imports come from `lucide-react` (tree-shaken per icon).
