@@ -236,8 +236,30 @@ async function connectRealtime(client, clientKey) {
         rt.on('error', (err) => {
             serverLog(`[Realtime] Error for clientKey ${clientKey.slice(0, 8)}:`, err.message);
         });
+        // Handle connect_error — Socket.io fires this when it fails to establish
+        // a connection. Without this handler, the server would never know that
+        // the Socket.io client gave up, and the disconnect handler wouldn't fire.
+        rt.on('connect_error', (err) => {
+            serverLog(`[Realtime] Connect error for clientKey ${clientKey.slice(0, 8)}:`, err.message);
+            // Socket.io will auto-retry (reconnectionAttempts: Infinity after our fix),
+            // so we don't need to manually reconnect here. But log it for diagnostics.
+        });
         rt.on('disconnect', () => {
-            serverLog(`[Realtime] Disconnected for clientKey ${clientKey.slice(0, 8)}`);
+            serverLog(`[Realtime] Disconnected for clientKey ${clientKey.slice(0, 8)} — attempting reconnect`);
+            // Auto-reconnect: if the SSE connection still has clients, re-establish the RealtimeManager
+            setTimeout(() => {
+                const conn = activeSSE.get(clientKey);
+                if (conn && conn.sseClients.size > 0) {
+                    serverLog(`[Realtime] Reconnecting for clientKey ${clientKey.slice(0, 8)} (still has ${conn.sseClients.size} SSE clients)`);
+                    conn.realtime = undefined; // Clear stale reference
+                    connectRealtime(conn.client, clientKey).catch((err) => {
+                        serverLog(`[Realtime] Reconnect failed for ${clientKey.slice(0, 8)}:`, errorMessage(err));
+                    });
+                }
+                else {
+                    serverLog(`[Realtime] Skipping reconnect for ${clientKey.slice(0, 8)} (no more SSE clients)`);
+                }
+            }, 3000); // 3s delay to avoid rapid reconnect loops
         });
         rt.on('message_sync', async (data) => {
             serverLog(`[Realtime] Received message_sync:`, {
@@ -659,12 +681,20 @@ app.get('/api/events', async (req, res) => {
     res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx response buffering for SSE
     res.flushHeaders();
     serverLog(`[SSE] Headers sent for clientKey: ${clientKey.slice(0, 8)}...`);
-    // Heartbeat every 25 s to keep the connection alive
+    // Heartbeat every 25 s to keep the connection alive.
+    // Use a named event (not a comment) so the client can detect it
+    // for its watchdog timer. SSE comments (`: ...`) are invisible to
+    // EventSource.addEventListener and cannot be used for liveness tracking.
     const hb = setInterval(() => {
         try {
-            res.write(': heartbeat\n\n');
+            res.write('event: heartbeat\ndata: {}\n\n');
             if (typeof res.flush === 'function') {
                 res.flush();
+            }
+            // Refresh client cache TTL while SSE connection is active
+            const cached = clientCache.get(clientKey);
+            if (cached) {
+                cached.expiresAt = Date.now() + CACHE_TTL;
             }
         }
         catch {
@@ -1848,16 +1878,20 @@ app.get('/api/notifications', async (req, res) => {
         const client = await getClient(req);
         const limit = Number(req.query.limit) || 50;
         const offset = Number(req.query.offset) || 0;
-        res.json(await client.getNotifications(limit, offset));
+        const notifications = await client.getNotifications(limit, offset);
+        serverLog(`[notifications] GET limit=${limit} offset=${offset} → ${Array.isArray(notifications) ? notifications.length : 0} notifications`);
+        res.json(notifications);
     }
     catch (err) {
+        serverLog(`[notifications] GET error: ${errorMessage(err)}`);
         res.status(500).json({ error: errorMessage(err) });
     }
 });
 app.get('/api/notifications/count', async (req, res) => {
     try {
         const client = await getClient(req);
-        res.json(await client.getNotificationCount());
+        const count = await client.getNotificationCount();
+        res.json({ count });
     }
     catch (err) {
         res.status(500).json({ error: errorMessage(err) });
@@ -1866,10 +1900,46 @@ app.get('/api/notifications/count', async (req, res) => {
 app.delete('/api/notifications/:notificationId', async (req, res) => {
     try {
         const client = await getClient(req);
-        await client.deleteNotification(req.params.notificationId);
+        const notificationId = req.params.notificationId;
+        serverLog(`[notifications] DELETE id=${notificationId}`);
+        await client.deleteNotification(notificationId);
+        serverLog(`[notifications] DELETE id=${notificationId} — success`);
         res.json({ ok: true });
     }
     catch (err) {
+        serverLog(`[notifications] DELETE id=${req.params.notificationId} — FAILED: ${errorMessage(err)}`);
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+app.delete('/api/notifications', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        serverLog(`[notifications] DELETE ALL (serial)`);
+        // Fetch all notifications first
+        const notifications = await client.getNotifications(200, 0);
+        const items = Array.isArray(notifications) ? notifications : [];
+        serverLog(`[notifications] DELETE ALL — found ${items.length} notifications`);
+        // Delete each notification serially (Stashcat has no bulk delete endpoint)
+        let deleted = 0;
+        let errors = 0;
+        for (const n of items) {
+            const id = String(n.id ?? '');
+            if (!id)
+                continue;
+            try {
+                await client.deleteNotification(id);
+                deleted++;
+            }
+            catch (err) {
+                errors++;
+                serverLog(`[notifications] DELETE ALL — failed for id=${id}: ${errorMessage(err)}`);
+            }
+        }
+        serverLog(`[notifications] DELETE ALL — done: ${deleted} deleted, ${errors} errors`);
+        res.json({ ok: true, deleted, errors });
+    }
+    catch (err) {
+        serverLog(`[notifications] DELETE ALL — FAILED: ${errorMessage(err)}`);
         res.status(500).json({ error: errorMessage(err) });
     }
 });

@@ -534,42 +534,124 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     pendingSendRef.current.clear();
   }, [chat.id]);
 
+  // Track the currently active chat ID to prevent stale refreshes from
+  // triggering API calls for the wrong chat after a quick chat switch.
+  const activeChatIdRef = useRef(chat.id);
+  activeChatIdRef.current = chat.id;
+
+  // Guard to prevent parallel silentRefresh calls (e.g., when visibilitychange
+  // and focus fire nearly simultaneously, or staggered timers overlap).
+  const refreshingRef = useRef(false);
+
   // Silent refresh: reload messages without showing a loading spinner or
-  // resetting scroll position. Used when the tab becomes visible again
-  // (SSE events may be silently dropped while minimized).
+  // resetting scroll position. Used when the tab becomes visible again,
+  // after SSE reconnection, or periodically as a fallback.
+  // Merges new messages into the existing list rather than replacing it,
+  // preserving any older messages loaded via loadOlder().
   const silentRefresh = useCallback(async () => {
+    // Skip if we're already refreshing or the chat has changed
+    if (refreshingRef.current) return;
+    if (chat.id !== activeChatIdRef.current) return;
+
+    refreshingRef.current = true;
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
       const msgs = res as unknown as Message[];
       setMessages((prev) => {
-        // Only update if there are actually new messages
-        if (msgs.length > prev.length || (msgs.length > 0 && msgs[msgs.length - 1].id !== prev[prev.length - 1]?.id)) {
-          // Mark latest message as read
-          const last = msgs[msgs.length - 1];
-          if (last) api.markAsRead(chat.id, chat.type, String(last.id)).catch(() => {});
-          return msgs;
+        // Find messages in the fresh data that aren't in our current list
+        const prevIds = new Set(prev.map(m => String(m.id)));
+        const newMsgs = msgs.filter(m => !prevIds.has(String(m.id)));
+
+        if (newMsgs.length > 0) {
+          // Merge new messages and re-sort
+          const merged = [...prev, ...newMsgs].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
+          // Mark latest message as read — but only if it's not our own message
+          const last = merged[merged.length - 1];
+          if (last && String(last.sender?.id) !== userId) {
+            api.markAsRead(chat.id, chat.type, String(last.id)).catch(() => {});
+          }
+          return merged;
         }
+
         return prev; // No change — don't trigger re-render
       });
+      // Auto-scroll to bottom if new messages arrived and user was near bottom
+      if (containerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+        if (scrollHeight - scrollTop - clientHeight < 150) {
+          requestAnimationFrame(() => {
+            if (messagesEndRef.current) {
+              messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+            }
+          });
+        }
+      }
     } catch {
-      // Ignore — the SSE + 3-min fallback will catch it
+      // Ignore — the SSE + periodic fallback will catch it
+    } finally {
+      refreshingRef.current = false;
     }
-  }, [chat.id, chat.type]);
+  }, [chat.id, chat.type, userId]);
+
+  // Keep a ref to the latest silentRefresh so timers always call the current version
+  const silentRefreshRef = useRef(silentRefresh);
+  silentRefreshRef.current = silentRefresh;
 
   // Reload messages when tab becomes visible after being hidden.
   // While minimized, SSE events may be silently dropped by the browser
   // even if the connection appears "open" (heartbeats still arrive).
-  // This ensures messages are always fresh when the user returns.
+  // Uses staggered checks to catch messages arriving at different speeds
+  // after SSE reconnection.
   useEffect(() => {
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    const scheduleRefresh = (delay: number) => {
+      timers.push(setTimeout(() => {
+        if (!document.hidden) {
+          silentRefreshRef.current();
+        }
+      }, delay));
+    };
+
     const onVisible = () => {
       if (!document.hidden) {
-        // Small delay to let SSE reconnect first if needed
-        setTimeout(() => silentRefresh(), 600);
+        // Staggered checks: SSE may take varying time to reconnect
+        scheduleRefresh(500);   // Quick check — SSE may already be connected
+        scheduleRefresh(2500);  // Medium — SSE reconnecting
+        scheduleRefresh(6000);  // Final check — slow reconnects
       }
     };
+
+    const onFocus = () => {
+      // window.focus fires in some cases where visibilitychange doesn't
+      // (e.g., window minimized then restored on some desktop environments)
+      scheduleRefresh(300);
+    };
+
     document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [silentRefresh]);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onFocus);
+      timers.forEach(clearTimeout);
+    };
+  }, []); // Empty deps — uses ref to always call latest silentRefresh
+
+  // Periodic polling fallback: every 30 seconds, silently check for new
+  // messages when the tab is visible. This catches messages that were
+  // silently dropped by SSE (browser may drop events while keeping the
+  // connection technically "open" with heartbeats still arriving).
+  useEffect(() => {
+    const POLL_INTERVAL = 30_000;
+    // Add random jitter (0–10 s) to prevent thundering-herd when many tabs are open
+    const jitter = Math.random() * 10_000;
+    const intervalId = setInterval(() => {
+      if (!document.hidden) {
+        silentRefreshRef.current();
+      }
+    }, POLL_INTERVAL + jitter);
+    return () => clearInterval(intervalId);
+  }, []); // Empty deps — uses ref
 
   // Realtime: new messages + typing indicators
   useRealtimeEvents({
@@ -664,8 +746,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       });
     },
     reconnect: () => {
-      // Re-fetch messages after SSE reconnection to catch any missed during disconnect
-      loadMessages();
+      // Silently re-fetch messages after SSE reconnection to catch any missed during disconnect.
+      // Uses silentRefresh instead of loadMessages to avoid loading spinner and scroll reset.
+      silentRefreshRef.current();
     },
   }, true);
 
