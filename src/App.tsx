@@ -176,7 +176,7 @@ export default function App() {
             />
           )}
           {notificationsOpen && (
-            <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} />
+            <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} onOpenPoll={openPoll} onOpenCalendar={openCalendar} />
           )}
         </>
       )}

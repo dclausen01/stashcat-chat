@@ -8,6 +8,8 @@ import { useSettings } from '../context/SettingsContext';
 interface NotificationsPanelProps {
   onClose: () => void;
   onOpenPolls?: () => void;
+  onOpenPoll?: (pollId: string) => void;
+  onOpenCalendar?: () => void;
 }
 
 /** Map API notification types to user-friendly German labels + icons */
@@ -72,6 +74,35 @@ function parseKeyRequestUser(content: unknown): { id: string; first_name: string
   };
 }
 
+/** Parse event notification content → event title + organizer */
+function formatEventNotification(content: unknown): { title: string; organizer?: string } | null {
+  if (!content || typeof content !== 'object') return null;
+  const obj = content as Record<string, unknown>;
+  // Must look like an event object (has id + name, but NOT poll-specific fields)
+  if (!('id' in obj) || !('name' in obj)) return null;
+  // Exclude poll/survey objects
+  if ('creator' in obj && ('options' in obj || 'votes' in obj || 'status' in obj)) return null;
+  // Exclude device objects
+  if ('device_id' in obj || 'app_name' in obj) return null;
+
+  // Check for event-like properties (start, end, location, organizer, creator with first/last name)
+  const hasEventProps = 'start' in obj || 'end' in obj || 'location' in obj ||
+    (obj.creator && typeof obj.creator === 'object' &&
+     ('first_name' in (obj.creator as Record<string, unknown>)));
+
+  if (!hasEventProps) return null;
+
+  const title = `Termin: „${String(obj.name)}"`;
+  const creator = obj.creator && typeof obj.creator === 'object'
+    ? (obj.creator as Record<string, unknown>)
+    : null;
+  const organizer = creator
+    ? `${String(creator.first_name ?? '')} ${String(creator.last_name ?? '')}`.trim()
+    : undefined;
+
+  return { title, organizer: organizer || undefined };
+}
+
 /** Parse poll/survey notification content → creator name + poll title */
 function formatPollNotification(content: unknown): { title: string; creator?: string } | null {
   if (!content || typeof content !== 'object') return null;
@@ -80,6 +111,8 @@ function formatPollNotification(content: unknown): { title: string; creator?: st
   if (!('id' in obj) || (!('creator' in obj) && !('name' in obj))) return null;
   // Exclude device objects
   if ('device_id' in obj || 'app_name' in obj) return null;
+  // Exclude event objects (events have start/end/location, polls have options/votes/status)
+  if ('start' in obj || 'end' in obj || 'location' in obj) return null;
 
   const name = obj.name ? String(obj.name) : undefined;
   const creator = obj.creator && typeof obj.creator === 'object'
@@ -150,6 +183,15 @@ function formatNotificationContent(content: unknown): { text: string; subtext?: 
     try { parsed = JSON.parse(content); } catch { return { text: content }; }
   }
 
+  // Try event/calendar notification first
+  const eventInfo = formatEventNotification(parsed);
+  if (eventInfo) {
+    return {
+      text: eventInfo.title,
+      subtext: eventInfo.organizer ? `Eingeladen von ${eventInfo.organizer}` : undefined,
+    };
+  }
+
   // Try poll/survey notification
   const pollInfo = formatPollNotification(parsed);
   if (pollInfo) {
@@ -177,7 +219,7 @@ function formatNotificationContent(content: unknown): { text: string; subtext?: 
   }
 }
 
-export default function NotificationsPanel({ onClose, onOpenPolls }: NotificationsPanelProps) {
+export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, onOpenCalendar }: NotificationsPanelProps) {
   const [notifications, setNotifications] = useState<api.AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [keySyncState, setKeySyncState] = useState<Record<string, 'accepting' | 'accepted' | 'error'>>({});
@@ -274,10 +316,31 @@ export default function NotificationsPanel({ onClose, onOpenPolls }: Notificatio
             {notifications.map((n, i) => {
               const typeInfo = getTypeInfo(n.type);
               const isPollNotif = n.type?.includes('survey') || n.type?.includes('poll');
+              const isEventNotif = n.type?.includes('event') || n.type?.includes('calendar');
               const isKeyReq = n.type?.includes('key');
+
+              // Extract poll ID from survey object or content
+              const pollId = n.survey && typeof n.survey === 'object' && 'id' in n.survey
+                ? String(n.survey.id)
+                : null;
 
               // Content: prefer survey object, then content field, then text
               const rawContent = n.survey ?? n.content ?? n.text;
+
+              // Click handler: poll → open specific poll, event → open calendar
+              const handleClick = () => {
+                if (isPollNotif && pollId && onOpenPoll) {
+                  onOpenPoll(pollId);
+                  onClose();
+                } else if (isPollNotif && onOpenPolls) {
+                  onOpenPolls();
+                  onClose();
+                } else if (isEventNotif && onOpenCalendar) {
+                  onOpenCalendar();
+                  onClose();
+                }
+              };
+              const isClickable = (isPollNotif && (onOpenPoll || onOpenPolls)) || (isEventNotif && onOpenCalendar);
 
               // Key sync request: parse requester user info
               const keyUser = isKeyReq ? parseKeyRequestUser(rawContent) : null;
@@ -293,11 +356,11 @@ export default function NotificationsPanel({ onClose, onOpenPolls }: Notificatio
               return (
                 <div
                   key={n.id ?? `notif-${i}`}
-                  onClick={isPollNotif && onOpenPolls ? () => { onOpenPolls(); onClose(); } : undefined}
+                  onClick={handleClick}
                   className={clsx(
                     'group/notif flex gap-3 px-4 py-3 transition hover:bg-surface-50 dark:hover:bg-surface-800/50',
                     !n.read && 'bg-primary-50/50 dark:bg-primary-950/20',
-                    isPollNotif && onOpenPolls && 'cursor-pointer',
+                    isClickable && 'cursor-pointer',
                   )}
                 >
                   <div className="shrink-0 pt-0.5">
