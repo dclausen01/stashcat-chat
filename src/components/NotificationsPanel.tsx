@@ -219,7 +219,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls }: Notificatio
 
   const handleDeleteAll = async () => {
     try {
-      await Promise.all(notifications.map((n) => api.deleteNotification(n.id)));
+      await api.deleteAllNotifications();
       setNotifications([]);
     } catch (err) {
       console.error('Failed to delete all notifications:', err);

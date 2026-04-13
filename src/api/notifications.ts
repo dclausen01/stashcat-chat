@@ -46,6 +46,10 @@ export async function deleteNotification(
   return del<Record<string, unknown>>(`/notifications/${notificationId}`);
 }
 
+export async function deleteAllNotifications(): Promise<Record<string, unknown>> {
+  return del<Record<string, unknown>>('/notifications');
+}
+
 export async function acceptKeySync(
   userId: string,
   notificationId: string

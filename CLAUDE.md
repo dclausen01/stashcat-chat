@@ -262,6 +262,11 @@ All routes are under `/api/` prefix on port 3001.
 | POST | `/api/polls` | Create poll (+ chat notifications) |
 | DELETE | `/api/polls/:id` | Delete poll |
 | POST | `/api/polls/:id/vote` | Submit vote |
+| GET | `/api/notifications` | List notifications |
+| GET | `/api/notifications/count` | Get unread notification count |
+| DELETE | `/api/notifications/:notificationId` | Delete single notification |
+| DELETE | `/api/notifications` | Delete all notifications (serial — no Stashcat bulk endpoint) |
+| POST | `/api/key-sync/accept` | Accept E2E key sync request (encrypt + submit missing keys) |
 | GET | `/api/events` | SSE stream for realtime events |
 
 ---
@@ -410,6 +415,20 @@ Channel descriptions can contain links to school services. `extractServiceLinks(
 | `https://bbzrdeck.taskcards…` | TaskCards | Teal | "T" text |
 
 Detected links — and any text preceding them on the same segment — are stripped from the visible description. Since channel descriptions are always single-line, the regex `[^\n]*URL` effectively removes all text before the URL up to the line start. Any text appearing *after* a service URL remains in the description. Colored `<a>` buttons appear in the channel header toolbar, opening the link in a new tab.
+
+### Notifications (Stashcat API)
+
+Stashcat's notification API uses `POST` for all endpoints (not REST-style GET/DELETE):
+
+| Stashcat Endpoint | Parameter | Response |
+|---|---|---|
+| `POST /notifications/get` | `{ limit, offset }` | `{ notifications: [...], count }` |
+| `POST /notifications/count` | `{}` | `{ count }` |
+| `POST /notifications/delete` | `{ notification_id }` | `{ success: true }` |
+
+**Important**: There is **no bulk delete endpoint**. "Delete all" must be implemented as serial individual deletions. The server's `DELETE /api/notifications` endpoint handles this by fetching all notifications and deleting them one by one.
+
+The parameter name is **`notification_id`** (not `id`), verified against the original Stashcat web client. The server route logs all notification operations for debugging.
 
 ### Date-Range Message Search
 

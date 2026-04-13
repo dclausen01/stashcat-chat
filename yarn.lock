@@ -2793,7 +2793,7 @@ space-separated-tokens@^2.0.0:
 
 "stashcat-api@github:dclausen01/stashcat-api":
   version "1.0.0"
-  resolved "git+ssh://git@github.com/dclausen01/stashcat-api.git#dda09c740cd20488b11207c528b85df83ee953ac"
+  resolved "git+ssh://git@github.com/dclausen01/stashcat-api.git#05a9f7710c4e11163fc846efbaedef65b5688940"
   dependencies:
     axios "^1.7.7"
     dotenv "^16.4.7"

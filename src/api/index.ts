@@ -133,6 +133,7 @@ export {
   getNotifications,
   getNotificationCount,
   deleteNotification,
+  deleteAllNotifications,
   acceptKeySync,
 } from './notifications';
 export type { AppNotification } from './notifications';
