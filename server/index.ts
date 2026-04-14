@@ -378,12 +378,6 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
       pushSSE(clientKey, 'online_status_change', data);
     });
 
-    // DEBUG: Log ALL incoming events from RealtimeManager
-    rt.on('*', (eventName: string, ...args: unknown[]) => {
-      const dataStr = JSON.stringify(args).slice(0, 500);
-      serverLog(`[Realtime] DEBUG EVENT ${eventName}: ${dataStr}`);
-    });
-
     serverLog(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
   } catch (err) {
     serverLog(`[Realtime] Connection failed:`, errorMessage(err));
