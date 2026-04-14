@@ -372,6 +372,12 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
       pushSSE(clientKey, 'key_sync_request', data);
     });
 
+    // Forward online status changes so the Sidebar can update availability dots in real-time
+    rt.on('online_status_change', (data: unknown) => {
+      serverLog(`[Realtime] Received online_status_change:`, JSON.stringify(data).slice(0, 300));
+      pushSSE(clientKey, 'online_status_change', data);
+    });
+
     serverLog(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
   } catch (err) {
     serverLog(`[Realtime] Connection failed:`, errorMessage(err));

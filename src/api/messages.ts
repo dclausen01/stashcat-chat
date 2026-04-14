@@ -2,7 +2,7 @@
  * Message-related API endpoints.
  */
 
-import { get, post, del } from './core';
+import { get, post, del, getToken, BACKEND } from './core';
 
 // --- Messages ---
 
@@ -129,9 +129,9 @@ export async function uploadFile(
   const formData = new FormData();
   formData.append('file', file);
   formData.append('text', text);
-  const token = localStorage.getItem('schulchat_token') || '';
+  const token = getToken();
   const res = await fetch(
-    `${import.meta.env.DEV ? '/backend/api' : '/api'}/upload/${type}/${targetId}`,
+    `${BACKEND}/upload/${type}/${targetId}`,
     {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },

@@ -151,6 +151,10 @@ function updateConsumerHandlers(consumerId: string, newHandlers: Record<string, 
     }
     // Add new handler before removing old one — prevents event loss
     sharedHandlers.get(eventName)!.add(newHandler);
+    // Now remove the old handler to prevent duplicate dispatching
+    if (existingHandler) {
+      sharedHandlers.get(eventName)!.delete(existingHandler);
+    }
     oldHandlers.set(eventName, newHandler);
   }
 
@@ -232,6 +236,7 @@ function ensureSharedEventSource() {
 
   sharedEs.addEventListener('message_sync', (e) => dispatchToHandlers(e, 'message_sync'));
   sharedEs.addEventListener('typing', (e) => dispatchToHandlers(e, 'typing'));
+  sharedEs.addEventListener('online_status_change', (e) => dispatchToHandlers(e, 'online_status_change'));
   sharedEs.addEventListener('heartbeat', () => {
     // Server sends named heartbeat events — just update the watchdog timestamp
     lastEventTime = Date.now();
