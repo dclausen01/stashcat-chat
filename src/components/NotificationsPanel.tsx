@@ -81,16 +81,14 @@ function formatEventNotification(content: unknown): { title: string; organizer?:
   const obj = content as Record<string, unknown>;
   // Must look like an event object (has id + name, but NOT poll-specific fields)
   if (!('id' in obj) || !('name' in obj)) return null;
-  // Exclude poll/survey objects
-  if ('creator' in obj && ('options' in obj || 'votes' in obj || 'status' in obj)) return null;
+  // Exclude poll/survey objects (check for poll-specific top-level fields)
+  if ('questions' in obj || 'privacy_type' in obj || 'poll_id' in obj ||
+      'options' in obj || 'votes' in obj || 'status' in obj) return null;
   // Exclude device objects
   if ('device_id' in obj || 'app_name' in obj) return null;
 
-  // Check for event-like properties (start, end, location, organizer, creator with first/last name)
-  const hasEventProps = 'start' in obj || 'end' in obj || 'location' in obj ||
-    (obj.creator && typeof obj.creator === 'object' &&
-     ('first_name' in (obj.creator as Record<string, unknown>)));
-
+  // Check for event-like properties (start, end, location)
+  const hasEventProps = 'start' in obj || 'end' in obj || 'location' in obj;
   if (!hasEventProps) return null;
 
   const title = `Termin: „${String(obj.name)}"`;
@@ -245,7 +243,30 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
           sender: n.sender && typeof n.sender === 'object' ? { id: String(n.sender.id ?? ''), first_name: String(n.sender.first_name ?? ''), last_name: String(n.sender.last_name ?? ''), image: n.sender.image } : undefined,
           read: Boolean(n.read),
         }));
-        setNotifications(safeItems as api.AppNotification[]);
+
+        // Deduplicate: if multiple notifications reference the same survey or event,
+        // keep only the most recent one (by created_at). The server sometimes sends
+        // duplicate notification entries for the same poll/event.
+        const seen = new Map<string, typeof safeItems[0]>();
+        for (const item of safeItems) {
+          let key: string | null = null;
+          if (item.survey && typeof item.survey === 'object' && 'id' in item.survey) {
+            key = `survey-${item.survey.id}`;
+          } else if (item.event && typeof item.event === 'object' && 'id' in item.event) {
+            key = `event-${item.event.id}`;
+          }
+          if (key) {
+            const existing = seen.get(key);
+            if (!existing || (item.created_at && existing.created_at && item.created_at > existing.created_at)) {
+              seen.set(key, item);
+            }
+          } else {
+            // Non-survey/non-event notifications — keep as-is (use id as key)
+            seen.set(`notif-${item.id}`, item);
+          }
+        }
+        const deduped = [...seen.values()];
+        setNotifications(deduped as api.AppNotification[]);
       })
       .catch((err) => console.error('Failed to load notifications:', err))
       .finally(() => setLoading(false));
