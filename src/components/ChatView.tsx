@@ -161,9 +161,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const paginationOffsetRef = useRef(0);
   const loadingMoreRef = useRef(false);
   const hasMoreRef = useRef(true);
-  // Track pending sends for SSE matching: tempId → { text, sendTime, fallbackTimer }
-  interface PendingSendInfo { text: string; sendTime: number; fallbackTimer: ReturnType<typeof setTimeout> }
-  const pendingSendRef = useRef<Map<string, PendingSendInfo>>(new Map());
 
   const userId = user?.id ?? '';
 
@@ -527,11 +524,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   // Reset last marked message when switching chats
   useEffect(() => {
     lastMarkedMsgIdRef.current = null;
-    // Clear any pending send timers when switching chats
-    for (const [, info] of pendingSendRef.current) {
-      clearTimeout(info.fallbackTimer);
-    }
-    pendingSendRef.current.clear();
   }, [chat.id]);
 
   // Track the currently active chat ID to prevent stale refreshes from
@@ -558,52 +550,13 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
       const msgs = res as unknown as Message[];
       setMessages((prev) => {
-        // Step 1: Find messages in the fresh data that aren't in our current list
+        // Find messages in the fresh data that aren't in our current list
         const prevIds = new Set(prev.map(m => String(m.id)));
         const newMsgs = msgs.filter(m => !prevIds.has(String(m.id)));
 
-        // Step 2: Check if any server message matches an optimistic temp message
-        // (by text + sender + time). If so, replace the optimistic with the server
-        // version. This handles the case where SSE didn't deliver the message
-        // back to the sender, and silentRefresh was the first to catch it.
-        const replacements = new Map<number, Message>(); // optimisticIdx → serverMsg
-        const consumedServerIds = new Set<string>();
-        const replacedOptimisticIds = new Set<string>(); // temp IDs already replaced
-        for (let i = 0; i < newMsgs.length; i++) {
-          const serverMsg = newMsgs[i];
-          // Skip if this server message was already matched as a replacement target
-          if (consumedServerIds.has(String(serverMsg.id))) continue;
-          const serverTime = Number(serverMsg.time) || 0;
-          const serverSenderId = String(((serverMsg.sender as unknown) as Record<string, unknown>)?.id ?? '');
-          const serverText = String(serverMsg.text ?? '');
-          const optimisticIdx = prev.findIndex((m) => {
-            if (!String(m.id).startsWith('temp-')) return false;
-            if (replacedOptimisticIds.has(String(m.id))) return false;
-            if (String(m.sender?.id) !== serverSenderId) return false;
-            if (m.text !== serverText) return false;
-            return Math.abs((Number(m.time) || 0) - serverTime) <= 5;
-          });
-          if (optimisticIdx >= 0) {
-            const tempId = prev[optimisticIdx].id;
-            const pendingInfo = pendingSendRef.current.get(String(tempId));
-            if (pendingInfo) {
-              clearTimeout(pendingInfo.fallbackTimer);
-              pendingSendRef.current.delete(String(tempId));
-            }
-            replacements.set(optimisticIdx, serverMsg);
-            consumedServerIds.add(String(serverMsg.id));
-            replacedOptimisticIds.add(String(tempId));
-          }
-        }
-
-        // Step 3: Build result — apply replacements and merge remaining new messages
-        const remainingNewMsgs = newMsgs.filter(m => !consumedServerIds.has(String(m.id)));
-        if (replacements.size > 0 || remainingNewMsgs.length > 0) {
-          let merged = prev.map((m, idx) => replacements.get(idx) ?? m);
-          if (remainingNewMsgs.length > 0) {
-            merged = [...merged, ...remainingNewMsgs];
-          }
-          merged.sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
+        if (newMsgs.length > 0) {
+          // Merge new messages and re-sort
+          const merged = [...prev, ...newMsgs].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
           // Mark latest message as read — but only if it's not our own message
           const last = merged[merged.length - 1];
           if (last && String(last.sender?.id) !== userId) {
@@ -720,76 +673,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         return updated;
       }
 
-      // Try to match an optimistic message by text + sender + time
-      const newTime = Number(newMsg.time) || 0;
-      const newSenderId = String((newMsg.sender as any)?.id ?? '');
-      const newText = String(newMsg.text ?? '');
-
-      const optimisticIdx = prev.findIndex((m) => {
-        // Must be a temp-ID message from the same sender
-        if (!String(m.id).startsWith('temp-')) return false;
-        if (String(m.sender?.id) !== newSenderId) return false;
-        // Text must match exactly
-        if (m.text !== newText) return false;
-        // Time must be within ±3 seconds
-        const msgTime = Number(m.time) || 0;
-        return Math.abs(msgTime - newTime) <= 3;
-      });
-
-      if (optimisticIdx >= 0) {
-        // Found matching optimistic message — replace with server version
-        const optimisticMsg = prev[optimisticIdx];
-        const tempId = optimisticMsg.id;
-
-        // Clear the fallback timer
-        const pendingInfo = pendingSendRef.current.get(String(tempId));
-        if (pendingInfo) {
-          clearTimeout(pendingInfo.fallbackTimer);
-          pendingSendRef.current.delete(String(tempId));
-        }
-
-        // Replace: use server message but preserve optimistic reply_to if server didn't send it
-        const merged = { ...newMsg };
-        if (!merged.reply_to && optimisticMsg.reply_to) {
-          merged.reply_to = optimisticMsg.reply_to;
-        }
-
-        const updated = [...prev];
-        updated[optimisticIdx] = merged;
-        return updated;
-      }
-
-      // Defensive: check if a message with the same text + sender + similar time
-      // already exists (race condition: SSE may arrive before optimistic add).
-      // If so, don't add a duplicate — but if it's an optimistic temp message,
-      // replace it with the server version.
-      const existingByContent = prev.findIndex((m) => {
-        if (String(m.sender?.id) !== newSenderId) return false;
-        if (m.text !== newText) return false;
-        const msgTime = Number(m.time) || 0;
-        // Match if within ±5 seconds (wider window for race condition)
-        return Math.abs(msgTime - newTime) <= 5;
-      });
-      if (existingByContent >= 0) {
-        const existingMsg = prev[existingByContent];
-        // If it's an optimistic temp message that the narrow match missed,
-        // replace it with the server version anyway.
-        if (String(existingMsg.id).startsWith('temp-')) {
-          const tempId = existingMsg.id;
-          const pendingInfo = pendingSendRef.current.get(String(tempId));
-          if (pendingInfo) {
-            clearTimeout(pendingInfo.fallbackTimer);
-            pendingSendRef.current.delete(String(tempId));
-          }
-          const updated = [...prev];
-          updated[existingByContent] = newMsg;
-          return updated;
-        }
-        // Real message already in list (SSE delivered before optimistic add) — skip
-        return prev;
-      }
-
-      // No match — new message from someone else, just add it
+      // No match — new message, just add it
       return [...prev, newMsg].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
     });
     // Auto-scroll if already at bottom
@@ -886,64 +770,13 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
   const handleSend = async (text: string) => {
     const opts = replyTo ? { reply_to_id: String(replyTo.id) } : undefined;
-    const tempId = `temp-${Date.now()}`;
-    const sendTime = Math.floor(Date.now() / 1000);
-
-    // Optimistic: add message immediately
-    // Race condition guard inside setMessages: SSE may have already delivered
-    // the real message before we add the optimistic one (especially on fast
-    // connections / Windows). We check against the current prev state.
-    let wasAdded = true;
-    setMessages((prev) => {
-      const sseAlreadyDelivered = prev.find((m) =>
-        !String(m.id).startsWith('temp-') &&
-        String(m.sender?.id) === userId &&
-        m.text === text &&
-        Math.abs((Number(m.time) || 0) - sendTime) <= 10
-      );
-      if (sseAlreadyDelivered) {
-        wasAdded = false;
-        return prev; // SSE already has it — skip optimistic
-      }
-      const optimisticMsg: Message = {
-        id: tempId,
-        text,
-        sender: user as unknown as Message['sender'],
-        time: sendTime,
-        reply_to_id: replyTo ? String(replyTo.id) : undefined,
-        reply_to: replyTo ? {
-          message_id: Number(replyTo.id),
-          message_hash: replyTo.id?.toString() || '',
-        } : undefined,
-      };
-      return [...prev, optimisticMsg];
-    });
-    if (!wasAdded) {
-      // SSE already delivered — just scroll and clear reply
-      setReplyTo(null);
-      requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
-      return;
-    }
     setReplyTo(null);
     requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
-
     try {
       await api.sendMessage(chat.id, chat.type, text, opts);
-      // Don't call loadMessages() — SSE will deliver the real message
-
-      // Set up timeout fallback ONLY after successful send: if SSE doesn't
-      // arrive within 30s, do a silent refresh (no spinner, no scroll reset).
-      // The 30-second periodic polling fallback will also eventually catch it.
-      const fallbackTimer = setTimeout(() => {
-        pendingSendRef.current.delete(tempId);
-        silentRefreshRef.current();
-      }, 30000);
-
-      // Store pending info for the SSE handler to match against
-      pendingSendRef.current.set(tempId, { text, sendTime, fallbackTimer });
+      // SSE will deliver the real message back — no optimistic needed
     } catch {
-      // Remove optimistic message on failure
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      // Send failed — user will see the message isn't in the list
     }
   };
 
