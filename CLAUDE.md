@@ -333,7 +333,7 @@ Two layers:
 1. **Socket.io** (`RealtimeManager` from `stashcat-api`): connects to `push.stashcat.com` per session after login. Receives `message_sync` and `user-started-typing` events.
 2. **SSE** (`/api/events`): the browser subscribes via `EventSource`. The server's `pushSSE()` helper fans out Socket.io events to all connected SSE clients for that session.
 
-`useRealtimeEvents.ts` opens the `EventSource` and dispatches events to registered handler callbacks. It detects SSE reconnections (via `onopen` after `onerror`) and dispatches a synthetic `reconnect` event, allowing consumers (Sidebar, ChatView) to re-fetch missed data automatically.
+`useRealtimeEvents.ts` opens the `EventSource` and dispatches events to registered handler callbacks. It detects SSE reconnections via an `onopen` handler (which fires when EventSource successfully reconnects after a dropped TCP connection — e.g. after system standby in Electron/BBZ Cloud 2). When a reconnect is detected, it dispatches a synthetic `reconnect` event, allowing consumers (Sidebar, ChatView) to re-fetch missed data automatically.
 
 E2E-encrypted `message_sync` events are decrypted by the server (using `getConversationAesKey()` or `getChannelAesKey()`) before being pushed over SSE.
 

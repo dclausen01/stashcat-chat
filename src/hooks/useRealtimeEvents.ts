@@ -53,6 +53,9 @@ const WATCHDOG_INTERVAL = 15_000;
 /** Auto-incrementing consumer ID generator */
 let nextConsumerId = 0;
 
+/** Track whether the current connection attempt is a reconnect (after disconnect). */
+let sharedIsReconnect = false;
+
 /** Build the SSE URL with token */
 function getSseUrl(): string | null {
   const token = localStorage.getItem('schulchat_token');
@@ -223,6 +226,11 @@ function ensureSharedEventSource() {
     // readyState is CLOSED — the old EventSource is dead, tear it down
     console.warn('[useRealtimeEvents] EventSource is CLOSED, recreating connection');
     destroyEventSource();
+    // Mark as reconnect so onopen knows to dispatch 'reconnect' event
+    sharedIsReconnect = true;
+  } else if (!sharedEs) {
+    // No EventSource exists at all — this is a fresh connect (not reconnect)
+    sharedIsReconnect = false;
   }
 
   const url = getSseUrl();
@@ -248,6 +256,20 @@ function ensureSharedEventSource() {
       dispatchNamedEvent('reconnect', {});
     }
   });
+
+  // Detect SSE reconnection (onopen fires after EventSource auto-reconnects).
+  // In Electron/BBZ Cloud 2, the app stays loaded during system standby —
+  // the TCP connection may silently drop, causing EventSource to reconnect
+  // without triggering onerror. We detect this via onopen and dispatch a
+  // synthetic 'reconnect' event so consumers can re-fetch missed data.
+  sharedEs.onopen = () => {
+    lastEventTime = Date.now();
+    if (sharedIsReconnect || sharedWasDisconnected) {
+      console.log('[useRealtimeEvents] SSE reconnected after standby/disconnect');
+      sharedIsReconnect = false;
+      dispatchNamedEvent('reconnect', {});
+    }
+  };
 
   // Also track the generic 'message' event to catch heartbeat comments
   // SSE comment lines (`: heartbeat\n\n`) don't trigger addEventListener,
@@ -285,6 +307,7 @@ function checkAndReconnect() {
     console.warn('[useRealtimeEvents] Tab woke up with CLOSED EventSource — reconnecting');
     destroyEventSource();
     sharedWasDisconnected = true;
+    sharedIsReconnect = true;
     ensureSharedEventSource();
     return;
   }
@@ -295,6 +318,7 @@ function checkAndReconnect() {
     console.warn(`[useRealtimeEvents] Tab woke up, no SSE events for ${Math.round(elapsed / 1000)}s — reconnecting`);
     destroyEventSource();
     sharedWasDisconnected = true;
+    sharedIsReconnect = true;
     ensureSharedEventSource();
   }
 }
@@ -379,5 +403,6 @@ export function closeRealtimeConnection() {
   sharedHandlers.clear();
   consumerRegistry.clear();
   sharedWasDisconnected = false;
+  sharedIsReconnect = false;
   lastEventTime = 0;
 }
