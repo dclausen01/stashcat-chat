@@ -6,15 +6,14 @@ import type { ChatTarget } from '../types';
 
 /** Preset link types with emoji and label */
 const LINK_PRESETS = [
-  { emoji: '📹', label: 'Videokonferenz', placeholder: 'https://meet.example.com/raum' },
-  { emoji: '📚', label: 'Moodle / LMS', placeholder: 'https://moodle.example.com/course/...' },
-  { emoji: '📌', label: 'TaskCards', placeholder: 'https://taskcards.example.com/board/...' },
-  { emoji: '📝', label: 'Dokument', placeholder: 'https://docs.example.com/...' },
-  { emoji: '📊', label: 'Tabelle', placeholder: 'https://sheets.example.com/...' },
-  { emoji: '📓', label: 'Notizbuch', placeholder: 'https://onenote.example.com/...' },
-  { emoji: '🔗', label: 'Link', placeholder: 'https://...' },
-  { emoji: '📂', label: 'Ordner', placeholder: 'https://cloud.example.com/...' },
-  { emoji: '📅', label: 'Kalender', placeholder: 'https://calendar.example.com/...' },
+  { emoji: '📹', label: 'BBB: ', placeholder: 'https://bbb.bbz-rd-eck.de/b/...' },
+  { emoji: '📚', label: 'Moodle: ', placeholder: 'https://portal.bbz-rd-eck.com/course/...' },
+  { emoji: '📌', label: 'TaskCard: ', placeholder: 'https://bbzrdeck.taskcards.app/board/...' },
+  { emoji: '📝', label: 'Dokument: ', placeholder: 'https://cloud.bbz-rd-eck.de/...' },
+  { emoji: '📊', label: 'Tabelle: ', placeholder: 'https://cloud.bbz-rd-eck.de/...' },
+  { emoji: '📓', label: 'Notizbuch:', placeholder: 'https://onenote.com/...' },
+  { emoji: '🔗', label: 'Link:', placeholder: 'https://...' },
+  { emoji: '📂', label: 'Ordner:', placeholder: 'https://cloud.bbz-rd-eck.de/...' },
 ] as const;
 
 interface LinkRow {
