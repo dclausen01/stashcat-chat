@@ -1643,7 +1643,7 @@ function MessageGroup({
         </div>
       )}
 
-      <div className={clsx('flex min-w-0 max-w-[75%] flex-col gap-0.5', isOwn ? 'items-end' : 'items-start')}>
+      <div className={clsx('flex min-w-0 max-w-[75%] flex-col gap-1', isOwn ? 'items-end' : 'items-start')}>
         {!isOwn && (
           <span className="mb-0.5 pl-1 text-xs font-semibold text-surface-600 dark:text-surface-400">
             {senderName}
@@ -1691,7 +1691,7 @@ function MessageGroup({
               data-msg-time={String(msg.time ?? 0)}
               ref={isBubbleMatch ? (el) => onMatchRef?.(String(msg.id), el) : undefined}
               className={clsx(
-                'group/msg relative flex flex-col gap-0.5 before:pointer-events-auto before:absolute before:-top-8 before:left-0 before:right-0 before:h-8',
+                'group/msg relative flex flex-col gap-1 before:pointer-events-auto before:absolute before:-top-8 before:left-0 before:right-0 before:h-8',
                 isOwn ? 'items-end' : 'items-start',
                 isBubbleMatch && 'rounded-xl ring-2',
                 isBubbleCurrent ? 'ring-yellow-400 dark:ring-yellow-500' : isBubbleMatch ? 'ring-yellow-200 dark:ring-yellow-800' : undefined,
