@@ -176,75 +176,83 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     return () => clearInterval(intervalId);
   }, [loggedIn]);
 
+  // Stable handler refs for useRealtimeEvents — prevents handler replacement on every render
+  const handleMessageSync = useCallback((data: unknown) => {
+    const payload = data as Record<string, unknown>;
+    const time = Number(payload.time || 0);
+    const channelId = payload.channel_id && payload.channel_id !== 0 ? String(payload.channel_id) : null;
+    const convId = payload.conversation_id && payload.conversation_id !== 0 ? String(payload.conversation_id) : null;
+    const active = activeChatRef.current;
+    const isInForeground = !document.hidden;
+
+    // Always update lastActivity for sorting; increment unread_count only if:
+    // - Tab is in background, OR
+    // - Tab is in foreground but the chat is not currently open
+    // - AND the message is from someone else (not own messages)
+    const sender = payload.sender as Record<string, unknown> | undefined;
+    const senderId = sender?.id ? String(sender.id) : '';
+    const isOwnMessage = senderId === String(user?.id ?? '');
+
+    if (channelId) {
+      const isActive = active?.type === 'channel' && active.id === channelId;
+      const shouldIncrement = (!isInForeground || !isActive) && !isOwnMessage;
+      setChannels((prev) => sortChats(prev.map((ch) =>
+        ch.id === channelId
+          ? { ...ch, lastActivity: time || ch.lastActivity, unread_count: shouldIncrement ? (ch.unread_count ?? 0) + 1 : ch.unread_count }
+          : ch
+      )));
+    } else if (convId) {
+      const isActive = active?.type === 'conversation' && active.id === convId;
+      const shouldIncrement = (!isInForeground || !isActive) && !isOwnMessage;
+      setConversations((prev) => sortChats(prev.map((conv) =>
+        conv.id === convId
+          ? { ...conv, lastActivity: time || conv.lastActivity, unread_count: shouldIncrement ? (conv.unread_count ?? 0) + 1 : conv.unread_count }
+          : conv
+      )));
+    }
+
+    // OS notification for messages from other users when tab is in background
+    if (senderId && senderId !== String(user?.id ?? '')) {
+      const senderName = `${sender?.first_name ?? ''} ${sender?.last_name ?? ''}`.trim() || 'Neue Nachricht';
+      const text = payload.text ? String(payload.text) : '';
+      const preview = text
+        ? (text.length > 80 ? text.slice(0, 80) + '…' : text)
+        : 'Datei gesendet';
+      notify(senderName, preview);
+    }
+  }, [user?.id, notify]);
+
+  const handleReconnect = useCallback(() => {
+    // Re-fetch all sidebar data after SSE reconnection to sync missed unread counts
+    loadData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleStatusChange = useCallback((data: unknown) => {
+    // Payload: { user_id, status } or similar
+    const payload = data as Record<string, unknown>;
+    const userId = payload.user_id ? String(payload.user_id) : (payload.userId ? String(payload.userId) : null);
+    const statusText = payload.status ? String(payload.status) : null;
+    if (userId && statusText) {
+      // Derive availability from status text
+      let availability: 'available' | 'do_not_disturb' | undefined;
+      if (statusText === 'Bitte nicht stören!') availability = 'do_not_disturb';
+      else if (statusText === 'verfügbar') availability = 'available';
+
+      if (availability) {
+        // Update the userAvailability on existing conversations
+        setConversations((prev) => prev.map((conv) =>
+          conv.userId === userId ? { ...conv, userAvailability: availability } : conv
+        ));
+      }
+    }
+  }, []);
+
   // Realtime: increment unread count for inactive chats when new message arrives
   useRealtimeEvents({
-    message_sync: (data) => {
-      const payload = data as Record<string, unknown>;
-      const time = Number(payload.time || 0);
-      const channelId = payload.channel_id && payload.channel_id !== 0 ? String(payload.channel_id) : null;
-      const convId = payload.conversation_id && payload.conversation_id !== 0 ? String(payload.conversation_id) : null;
-      const active = activeChatRef.current;
-      const isInForeground = !document.hidden;
-
-      // Always update lastActivity for sorting; increment unread_count only if:
-      // - Tab is in background, OR
-      // - Tab is in foreground but the chat is not currently open
-      // - AND the message is from someone else (not own messages)
-      const sender = payload.sender as Record<string, unknown> | undefined;
-      const senderId = sender?.id ? String(sender.id) : '';
-      const isOwnMessage = senderId === String(user?.id ?? '');
-
-      if (channelId) {
-        const isActive = active?.type === 'channel' && active.id === channelId;
-        const shouldIncrement = (!isInForeground || !isActive) && !isOwnMessage;
-        setChannels((prev) => sortChats(prev.map((ch) =>
-          ch.id === channelId
-            ? { ...ch, lastActivity: time || ch.lastActivity, unread_count: shouldIncrement ? (ch.unread_count ?? 0) + 1 : ch.unread_count }
-            : ch
-        )));
-      } else if (convId) {
-        const isActive = active?.type === 'conversation' && active.id === convId;
-        const shouldIncrement = (!isInForeground || !isActive) && !isOwnMessage;
-        setConversations((prev) => sortChats(prev.map((conv) =>
-          conv.id === convId
-            ? { ...conv, lastActivity: time || conv.lastActivity, unread_count: shouldIncrement ? (conv.unread_count ?? 0) + 1 : conv.unread_count }
-            : conv
-        )));
-      }
-
-      // OS notification for messages from other users when tab is in background
-      if (senderId && senderId !== String(user?.id ?? '')) {
-        const senderName = `${sender?.first_name ?? ''} ${sender?.last_name ?? ''}`.trim() || 'Neue Nachricht';
-        const text = payload.text ? String(payload.text) : '';
-        const preview = text
-          ? (text.length > 80 ? text.slice(0, 80) + '…' : text)
-          : 'Datei gesendet';
-        notify(senderName, preview);
-      }
-    },
-    reconnect: () => {
-      // Re-fetch all sidebar data after SSE reconnection to sync missed unread counts
-      loadData();
-    },
-    online_status_change: (data) => {
-      // Payload: { user_id, status } or similar
-      const payload = data as Record<string, unknown>;
-      const userId = payload.user_id ? String(payload.user_id) : (payload.userId ? String(payload.userId) : null);
-      const statusText = payload.status ? String(payload.status) : null;
-      if (userId && statusText) {
-        // Derive availability from status text
-        let availability: 'available' | 'do_not_disturb' | undefined;
-        if (statusText === 'Bitte nicht stören!') availability = 'do_not_disturb';
-        else if (statusText === 'verfügbar') availability = 'available';
-
-        if (availability) {
-          // Update the userAvailability on existing conversations
-          setConversations((prev) => prev.map((conv) =>
-            conv.userId === userId ? { ...conv, userAvailability: availability } : conv
-          ));
-        }
-      }
-    },
+    message_sync: handleMessageSync,
+    reconnect: handleReconnect,
+    online_status_change: handleStatusChange,
   }, loggedIn);
 
   // Mark chat as read (called from ChatView after 3s visibility)

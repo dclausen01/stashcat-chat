@@ -129,7 +129,10 @@ function unregisterConsumer(consumerId: string) {
 }
 
 /** Update a consumer's handlers (e.g. when re-render causes new handler refs).
- *  Removes old handlers and registers new ones, preserving other consumers. */
+ *  Removes old handlers and registers new ones, preserving other consumers.
+ *
+ *  IMPORTANT: handler replacement is atomic — we add the new handler BEFORE
+ *  removing the old one to ensure no events are lost during the swap window. */
 function updateConsumerHandlers(consumerId: string, newHandlers: Record<string, SSEHandler>) {
   const oldHandlers = consumerRegistry.get(consumerId);
   if (!oldHandlers) {
@@ -138,9 +141,29 @@ function updateConsumerHandlers(consumerId: string, newHandlers: Record<string, 
     return;
   }
 
-  // Remove old handlers that are no longer in the new set
-  for (const [eventName, oldHandler] of oldHandlers) {
+  // Phase 1: Add/update new handlers FIRST (atomic — no gap)
+  for (const [eventName, newHandler] of Object.entries(newHandlers)) {
+    const existingHandler = oldHandlers.get(eventName);
+    if (existingHandler === newHandler) continue; // Same ref, no change
+
+    if (!sharedHandlers.has(eventName)) {
+      sharedHandlers.set(eventName, new Set());
+    }
+    // Add new handler before removing old one — prevents event loss
+    sharedHandlers.get(eventName)!.add(newHandler);
+    oldHandlers.set(eventName, newHandler);
+  }
+
+  // Phase 2: Remove old handlers that are no longer in the new set
+  const toRemove: string[] = [];
+  for (const [eventName] of oldHandlers) {
     if (!(eventName in newHandlers)) {
+      toRemove.push(eventName);
+    }
+  }
+  for (const eventName of toRemove) {
+    const oldHandler = oldHandlers.get(eventName);
+    if (oldHandler) {
       const handlerSet = sharedHandlers.get(eventName);
       if (handlerSet) {
         handlerSet.delete(oldHandler);
@@ -150,27 +173,6 @@ function updateConsumerHandlers(consumerId: string, newHandlers: Record<string, 
       }
       oldHandlers.delete(eventName);
     }
-  }
-
-  // Add/update handlers
-  for (const [eventName, newHandler] of Object.entries(newHandlers)) {
-    const existingHandler = oldHandlers.get(eventName);
-    if (existingHandler) {
-      if (existingHandler === newHandler) continue; // Same ref, no change
-      // Replace handler
-      const handlerSet = sharedHandlers.get(eventName);
-      if (handlerSet) {
-        handlerSet.delete(existingHandler);
-        handlerSet.add(newHandler);
-      }
-    } else {
-      // New event for this consumer
-      if (!sharedHandlers.has(eventName)) {
-        sharedHandlers.set(eventName, new Set());
-      }
-      sharedHandlers.get(eventName)!.add(newHandler);
-    }
-    oldHandlers.set(eventName, newHandler);
   }
 }
 

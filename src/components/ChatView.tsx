@@ -653,133 +653,142 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     return () => clearInterval(intervalId);
   }, []); // Empty deps — uses ref
 
-  // Realtime: new messages + typing indicators
-  useRealtimeEvents({
-    message_sync: (data) => {
-      const payload = data as Record<string, unknown>;
-      const currentChat = chatRef.current;
-      const belongsHere =
-        (currentChat.type === 'channel' && String(payload.channel_id) === currentChat.id) ||
-        (currentChat.type === 'conversation' && String(payload.conversation_id) === currentChat.id);
-      if (!belongsHere) return;
+  // Stable handler refs for useRealtimeEvents — prevents handler replacement on every render
+  const handleMessageSync = useCallback((data: unknown) => {
+    const payload = data as Record<string, unknown>;
+    const currentChat = chatRef.current;
+    const belongsHere =
+      (currentChat.type === 'channel' && String(payload.channel_id) === currentChat.id) ||
+      (currentChat.type === 'conversation' && String(payload.conversation_id) === currentChat.id);
+    if (!belongsHere) return;
 
-      const newMsg = payload as unknown as Message;
-      setMessages((prev) => {
-        const existingById = prev.findIndex((m) => String(m.id) === String(newMsg.id));
-        if (existingById >= 0) {
-          // Update existing message (e.g. when deleted)
-          // Preserve reply_to and reply_to_id if server returns null/undefined (happens for own messages)
-          const existingMsg = prev[existingById];
-          const merged = { ...existingMsg, ...newMsg };
-          if (!merged.reply_to && existingMsg.reply_to) {
-            merged.reply_to = existingMsg.reply_to;
-          }
-          if (!merged.reply_to_id && existingMsg.reply_to_id) {
-            merged.reply_to_id = existingMsg.reply_to_id;
-          }
-          const updated = [...prev];
-          updated[existingById] = merged;
-          return updated;
+    const newMsg = payload as unknown as Message;
+    setMessages((prev) => {
+      const existingById = prev.findIndex((m) => String(m.id) === String(newMsg.id));
+      if (existingById >= 0) {
+        // Update existing message (e.g. when deleted)
+        // Preserve reply_to and reply_to_id if server returns null/undefined (happens for own messages)
+        const existingMsg = prev[existingById];
+        const merged = { ...existingMsg, ...newMsg };
+        if (!merged.reply_to && existingMsg.reply_to) {
+          merged.reply_to = existingMsg.reply_to;
+        }
+        if (!merged.reply_to_id && existingMsg.reply_to_id) {
+          merged.reply_to_id = existingMsg.reply_to_id;
+        }
+        const updated = [...prev];
+        updated[existingById] = merged;
+        return updated;
+      }
+
+      // Try to match an optimistic message by text + sender + time
+      const newTime = Number(newMsg.time) || 0;
+      const newSenderId = String((newMsg.sender as any)?.id ?? '');
+      const newText = String(newMsg.text ?? '');
+
+      const optimisticIdx = prev.findIndex((m) => {
+        // Must be a temp-ID message from the same sender
+        if (!String(m.id).startsWith('temp-')) return false;
+        if (String(m.sender?.id) !== newSenderId) return false;
+        // Text must match exactly
+        if (m.text !== newText) return false;
+        // Time must be within ±3 seconds
+        const msgTime = Number(m.time) || 0;
+        return Math.abs(msgTime - newTime) <= 3;
+      });
+
+      if (optimisticIdx >= 0) {
+        // Found matching optimistic message — replace with server version
+        const optimisticMsg = prev[optimisticIdx];
+        const tempId = optimisticMsg.id;
+
+        // Clear the fallback timer
+        const pendingInfo = pendingSendRef.current.get(String(tempId));
+        if (pendingInfo) {
+          clearTimeout(pendingInfo.fallbackTimer);
+          pendingSendRef.current.delete(String(tempId));
         }
 
-        // Try to match an optimistic message by text + sender + time
-        const newTime = Number(newMsg.time) || 0;
-        const newSenderId = String((newMsg.sender as any)?.id ?? '');
-        const newText = String(newMsg.text ?? '');
+        // Replace: use server message but preserve optimistic reply_to if server didn't send it
+        const merged = { ...newMsg };
+        if (!merged.reply_to && optimisticMsg.reply_to) {
+          merged.reply_to = optimisticMsg.reply_to;
+        }
 
-        const optimisticIdx = prev.findIndex((m) => {
-          // Must be a temp-ID message from the same sender
-          if (!String(m.id).startsWith('temp-')) return false;
-          if (String(m.sender?.id) !== newSenderId) return false;
-          // Text must match exactly
-          if (m.text !== newText) return false;
-          // Time must be within ±3 seconds
-          const msgTime = Number(m.time) || 0;
-          return Math.abs(msgTime - newTime) <= 3;
-        });
+        const updated = [...prev];
+        updated[optimisticIdx] = merged;
+        return updated;
+      }
 
-        if (optimisticIdx >= 0) {
-          // Found matching optimistic message — replace with server version
-          const optimisticMsg = prev[optimisticIdx];
-          const tempId = optimisticMsg.id;
-
-          // Clear the fallback timer
+      // Defensive: check if a message with the same text + sender + similar time
+      // already exists (race condition: SSE may arrive before optimistic add).
+      // If so, don't add a duplicate — but if it's an optimistic temp message,
+      // replace it with the server version.
+      const existingByContent = prev.findIndex((m) => {
+        if (String(m.sender?.id) !== newSenderId) return false;
+        if (m.text !== newText) return false;
+        const msgTime = Number(m.time) || 0;
+        // Match if within ±5 seconds (wider window for race condition)
+        return Math.abs(msgTime - newTime) <= 5;
+      });
+      if (existingByContent >= 0) {
+        const existingMsg = prev[existingByContent];
+        // If it's an optimistic temp message that the narrow match missed,
+        // replace it with the server version anyway.
+        if (String(existingMsg.id).startsWith('temp-')) {
+          const tempId = existingMsg.id;
           const pendingInfo = pendingSendRef.current.get(String(tempId));
           if (pendingInfo) {
             clearTimeout(pendingInfo.fallbackTimer);
             pendingSendRef.current.delete(String(tempId));
           }
-
-          // Replace: use server message but preserve optimistic reply_to if server didn't send it
-          const merged = { ...newMsg };
-          if (!merged.reply_to && optimisticMsg.reply_to) {
-            merged.reply_to = optimisticMsg.reply_to;
-          }
-
           const updated = [...prev];
-          updated[optimisticIdx] = merged;
+          updated[existingByContent] = newMsg;
           return updated;
         }
-
-        // Defensive: check if a message with the same text + sender + similar time
-        // already exists (race condition: SSE may arrive before optimistic add).
-        // If so, don't add a duplicate — but if it's an optimistic temp message,
-        // replace it with the server version.
-        const existingByContent = prev.findIndex((m) => {
-          if (String(m.sender?.id) !== newSenderId) return false;
-          if (m.text !== newText) return false;
-          const msgTime = Number(m.time) || 0;
-          // Match if within ±5 seconds (wider window for race condition)
-          return Math.abs(msgTime - newTime) <= 5;
-        });
-        if (existingByContent >= 0) {
-          const existingMsg = prev[existingByContent];
-          // If it's an optimistic temp message that the narrow match missed,
-          // replace it with the server version anyway.
-          if (String(existingMsg.id).startsWith('temp-')) {
-            const tempId = existingMsg.id;
-            const pendingInfo = pendingSendRef.current.get(String(tempId));
-            if (pendingInfo) {
-              clearTimeout(pendingInfo.fallbackTimer);
-              pendingSendRef.current.delete(String(tempId));
-            }
-            const updated = [...prev];
-            updated[existingByContent] = newMsg;
-            return updated;
-          }
-          // Real message already in list (SSE delivered before optimistic add) — skip
-          return prev;
-        }
-
-        // No match — new message from someone else, just add it
-        return [...prev, newMsg].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
-      });
-      // Auto-scroll if already at bottom
-      if (containerRef.current) {
-        const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-        if (scrollHeight - scrollTop - clientHeight < 150) {
-          requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
-        }
+        // Real message already in list (SSE delivered before optimistic add) — skip
+        return prev;
       }
-    },
-    typing: (data) => {
-      const { chatType, chatId, userId: typingUserId } = data as { chatType: string; chatId: number; userId: number };
-      const currentChat = chatRef.current;
-      if (
-        chatType !== currentChat.type ||
-        String(chatId) !== currentChat.id ||
-        String(typingUserId) === userId
-      ) return;
-      setTypingUsers((prev) => {
-        const filtered = prev.filter((t) => t.userId !== typingUserId);
-        return [...filtered, { userId: typingUserId, at: Date.now() }];
-      });
-    },
-    reconnect: () => {
-      // Silently re-fetch messages after SSE reconnection to catch any missed during disconnect.
-      // Uses silentRefresh instead of loadMessages to avoid loading spinner and scroll reset.
-      silentRefreshRef.current();
-    },
+
+      // No match — new message from someone else, just add it
+      return [...prev, newMsg].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
+    });
+    // Auto-scroll if already at bottom
+    if (containerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+      if (scrollHeight - scrollTop - clientHeight < 150) {
+        requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleTypingEvent = useCallback((data: unknown) => {
+    const { chatType, chatId, userId: typingUserId } = data as { chatType: string; chatId: number; userId: number };
+    const currentChat = chatRef.current;
+    if (
+      chatType !== currentChat.type ||
+      String(chatId) !== currentChat.id ||
+      String(typingUserId) === userId
+    ) return;
+    setTypingUsers((prev) => {
+      const filtered = prev.filter((t) => t.userId !== typingUserId);
+      return [...filtered, { userId: typingUserId, at: Date.now() }];
+    });
+  }, [userId]);
+
+  const handleReconnect = useCallback(() => {
+    // Silently re-fetch messages after SSE reconnection to catch any missed during disconnect.
+    // Uses silentRefresh instead of loadMessages to avoid loading spinner and scroll reset.
+    silentRefreshRef.current();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Realtime: new messages + typing indicators
+  useRealtimeEvents({
+    message_sync: handleMessageSync,
+    typing: handleTypingEvent,
+    reconnect: handleReconnect,
   }, true);
 
   const handleScroll = useCallback(() => {
