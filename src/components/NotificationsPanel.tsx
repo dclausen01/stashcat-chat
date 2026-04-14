@@ -108,13 +108,17 @@ function formatEventNotification(content: unknown): { title: string; organizer?:
 function formatPollNotification(content: unknown): { title: string; creator?: string } | null {
   if (!content || typeof content !== 'object') return null;
   const obj = content as Record<string, unknown>;
-  // Must look like a poll object (has id + creator or name)
-  if (!('id' in obj) || (!('creator' in obj) && !('name' in obj))) return null;
+  
+  // Must have id and name (poll objects always have these)
+  if (!('id' in obj) || !('name' in obj)) return null;
+  
+  // Must look like a poll: has privacy_type OR start_time/end_time OR hidden_results
+  // This distinguishes polls from other object types
+  const isPoll = 'privacy_type' in obj || 'start_time' in obj || 'end_time' in obj || 'hidden_results' in obj;
+  if (!isPoll) return null;
+  
   // Exclude device objects
   if ('device_id' in obj || 'app_name' in obj) return null;
-  // Exclude event objects (events have start/end/location, polls have options/votes/status)
-  // Note: polls may have location:"" (empty string), so check for truthy value
-  if ('start' in obj || 'end' in obj || (obj.location && typeof obj.location === 'string' && obj.location.length > 0)) return null;
 
   const name = obj.name ? String(obj.name) : undefined;
   const creator = obj.creator && typeof obj.creator === 'object'
