@@ -163,6 +163,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const loadingMoreRef = useRef(false);
   const hasMoreRef = useRef(true);
 
+  // Track messages that are currently being sent (between sendMessage and SSE delivery)
+  const [sendingTexts, setSendingTexts] = useState<string[]>([]);
+  const sendingTextsRef = useRef<Set<string>>(new Set());
+
   const userId = user?.id ?? '';
 
   // Extract service links (Moodle, BBB, TaskCards) from channel description
@@ -673,6 +677,17 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     if (!belongsHere) return;
 
     const newMsg = payload as unknown as Message;
+
+    // If this is our own message arriving via SSE, clear the sending indicator
+    const senderId = String(((newMsg.sender as unknown) as Record<string, unknown>)?.id ?? '');
+    if (senderId === userId && newMsg.text) {
+      const text = String(newMsg.text);
+      if (sendingTextsRef.current.has(text)) {
+        sendingTextsRef.current.delete(text);
+        setSendingTexts([...sendingTextsRef.current]);
+      }
+    }
+
     setMessages((prev) => {
       const existingById = prev.findIndex((m) => String(m.id) === String(newMsg.id));
       if (existingById >= 0) {
@@ -790,12 +805,20 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     const opts = replyTo ? { reply_to_id: String(replyTo.id) } : undefined;
     setReplyTo(null);
     requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
+
+    // Track as sending
+    sendingTextsRef.current.add(text);
+    setSendingTexts([...sendingTextsRef.current]);
+
     try {
       await api.sendMessage(chat.id, chat.type, text, opts);
       // SSE will deliver the real message back — no optimistic needed
     } catch {
       setSendError('Nachricht konnte nicht gesendet werden.');
       setTimeout(() => setSendError(null), 5000);
+    } finally {
+      sendingTextsRef.current.delete(text);
+      setSendingTexts([...sendingTextsRef.current]);
     }
   };
 
@@ -1354,6 +1377,19 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             })()}
           </div>
         )}
+
+        {/* Sending indicator: show "wird gesendet…" for messages currently in-flight */}
+        {sendingTexts.length > 0 && (
+          <div className="flex justify-end px-4">
+            <div className="flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm text-white/80">
+              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4 31.4" strokeLinecap="round" />
+              </svg>
+              <span>Wird gesendet…</span>
+            </div>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
 
         {showScrollBtn && (
