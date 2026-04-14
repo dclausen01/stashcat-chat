@@ -113,7 +113,8 @@ function formatPollNotification(content: unknown): { title: string; creator?: st
   // Exclude device objects
   if ('device_id' in obj || 'app_name' in obj) return null;
   // Exclude event objects (events have start/end/location, polls have options/votes/status)
-  if ('start' in obj || 'end' in obj || 'location' in obj) return null;
+  // Note: polls may have location:"" (empty string), so check for truthy value
+  if ('start' in obj || 'end' in obj || (obj.location && typeof obj.location === 'string' && obj.location.length > 0)) return null;
 
   const name = obj.name ? String(obj.name) : undefined;
   const creator = obj.creator && typeof obj.creator === 'object'
