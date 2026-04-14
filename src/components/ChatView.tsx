@@ -830,7 +830,12 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     const isOwn = String(msg.sender?.id) === userId;
     const last = groups[groups.length - 1];
     // Don't add to system groups or standalone groups (poll/video)
-    if (last && !last.isSystem && !last.isStandalone && String(last.sender?.id) === String(msg.sender?.id)) {
+    // Also don't group messages from different days together
+    const lastMsg = last?.messages[last.messages.length - 1];
+    const lastDay = lastMsg ? msgDayKey(Number(lastMsg.time)) : '';
+    const thisDay = msg.time ? msgDayKey(msg.time) : '';
+    const sameDay = lastDay === thisDay;
+    if (last && !last.isSystem && !last.isStandalone && String(last.sender?.id) === String(msg.sender?.id) && sameDay) {
       last.messages.push(msg);
     } else {
       groups.push({ sender: msg.sender, isOwn, messages: [msg] });
