@@ -5,7 +5,7 @@
  * Bearer-Auth and JSON body handling.
  */
 
-const BACKEND = import.meta.env.DEV ? '/backend/api' : '/api';
+export const BACKEND = import.meta.env.DEV ? '/backend/api' : '/api';
 
 let token = '';
 const SESSION_KEY = 'schulchat_token';

@@ -55,9 +55,9 @@ function ChannelCard({ channel, onClick }: { channel: ChatTarget; onClick: () =>
       onClick={onClick}
       className="group relative flex flex-col items-center rounded-xl bg-surface-50 p-4 text-center transition hover:bg-surface-200 hover:shadow-md dark:bg-surface-800 dark:hover:bg-surface-700"
     >
-      {(channel.unread_count ?? (channel as any).unread_messages ?? 0) > 0 && (
+      {(channel.unread_count ?? 0) > 0 && (
         <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
-          {(channel.unread_count ?? (channel as any).unread_messages)! > 99 ? '99+' : (channel.unread_count ?? (channel as any).unread_messages)}
+          {(channel.unread_count ?? 0) > 99 ? '99+' : channel.unread_count}
         </span>
       )}
       <div className="relative">

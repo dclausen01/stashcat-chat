@@ -59,20 +59,20 @@ Browser
 
 ### Reply Messages
 
-- When sending a reply, the frontend sets `reply_to_id` on the optimistic message.
+- When sending a reply, the frontend sets `reply_to_id` on the message options.
 - The `stashcat-api` converts this to `reply_to` (Number) in the API request — **the stashcat backend expects `reply_to`, not `reply_to_id`**.
 - The SSE echo returns `reply_to: null` for own messages, but `loadMessages()` returns the full `reply_to` object from the server.
-- The SSE handler preserves `reply_to` from the optimistic update when the server returns null.
+- The SSE handler preserves `reply_to` from the existing message when the server returns null.
 - The rendering code uses `messageMap` to resolve `reply_to.message_id` to the actual message for display in `ReplyQuote`.
 
-### Message Sending Flow (Optimistic + SSE Matching)
+### Message Sending Flow (SSE-basiert, kein Optimistic)
 
-- Messages are added optimistically with a `temp-${Date.now()}` ID.
-- After `sendMessage()` resolves, **no `loadMessages()` is called** — instead we wait for the SSE `message_sync` event.
-- The SSE handler matches the server message against the optimistic one by: **same sender ID + exact text match + time within ±3 seconds**.
-- On match: the optimistic message is replaced with the server version (preserving `reply_to` if server returned null).
-- A 5-second fallback timer triggers `loadMessages()` if the SSE event never arrives.
-- This eliminates the visible "flash" that occurred when reloading all messages after each send.
+- `handleSend()` ruft `api.sendMessage()` auf und wartet auf das SSE `message_sync`-Event, das die echte Nachricht liefert. Es wird **kein** optimistisches Einfuegen mit temporaeren IDs verwendet.
+- Drei Wege fuer Nachrichtenempfang:
+  1. **SSE `message_sync`** (< 100ms) — primaerer Kanal fuer neue Nachrichten
+  2. **`silentRefresh()`** — laedt fehlende Nachrichten bei Tab-Sichtbarkeit, SSE-Reconnect oder als 30s-Fallback-Polling
+  3. **Periodisches Polling** (30–40s mit Jitter) — Safety-Net falls SSE Events verloren gehen
+- Bei Sendefehlern wird eine Fehlermeldung angezeigt (5s sichtbar).
 
 ### Availability / Online Status
 

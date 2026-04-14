@@ -114,7 +114,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
             description: ch.description,
             image: ch.image,
             encrypted: Boolean(ch.encrypted),
-            unread_count: Number(ch.unread_count || (ch as any).unread_messages || 0),
+            unread_count: Number(ch.unread_count ?? 0),
             favorite: Boolean(ch.favorite),
             lastActivity: ch.last_message ? Number(ch.last_message.time || 0) : 0,
             company_id: cid,
@@ -139,18 +139,15 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         // Extract other user's ID and derive availability from status
         const otherUserId = otherMembers.length === 1 ? String(otherMembers[0].id) : undefined;
         const otherStatus = otherMembers.length === 1 ? String(otherMembers[0].status || '') : undefined;
-        const userAvailability: 'available' | 'do_not_disturb' | undefined =
-          otherStatus === 'Bitte nicht stören!' ? 'do_not_disturb'
-          : otherStatus === 'verfügbar' ? 'available'
-          : undefined;
+        const userAvailability = api.deriveAvailability(otherStatus);
         return {
           type: 'conversation' as const,
           id: String(c.id),
           name,
           image,
           encrypted: Boolean(c.encrypted),
-          unread_count: Number(c.unread_count || (c as any).unread_messages || 0),
-          favorite: Boolean(c.favorite || c.is_favorite),
+          unread_count: Number(c.unread_count ?? 0),
+          favorite: Boolean(c.favorite ?? c.is_favorite),
           lastActivity,
           userId: otherUserId,
           userAvailability,
@@ -234,13 +231,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     const userId = payload.user_id ? String(payload.user_id) : (payload.userId ? String(payload.userId) : null);
     const statusText = payload.status ? String(payload.status) : null;
     if (userId && statusText) {
-      // Derive availability from status text
-      let availability: 'available' | 'do_not_disturb' | undefined;
-      if (statusText === 'Bitte nicht stören!') availability = 'do_not_disturb';
-      else if (statusText === 'verfügbar') availability = 'available';
-
+      const availability = api.deriveAvailability(statusText);
       if (availability) {
-        // Update the userAvailability on existing conversations
         setConversations((prev) => prev.map((conv) =>
           conv.userId === userId ? { ...conv, userAvailability: availability } : conv
         ));
@@ -529,7 +521,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
                   name: o.length > 0 ? o.map((mb) => `${mb.first_name ?? ''} ${mb.last_name ?? ''}`.trim()).join(', ') : 'Eigene Notizen',
                   image: o.length === 1 && o[0].image ? String(o[0].image) : undefined,
                   encrypted: Boolean(c.encrypted),
-                  unread_count: Number(c.unread_count || (c as any).unread_messages || 0),
+                  unread_count: Number(c.unread_count ?? 0),
                   favorite: Boolean(c.favorite),
                   lastActivity: Number(c.last_action || c.last_activity || 0),
                 };

@@ -138,6 +138,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [showPollModal, setShowPollModal] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMatchIdx, setSearchMatchIdx] = useState(0);
@@ -224,7 +225,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       if (firstUnreadMsg) {
         firstUnreadId = String(firstUnreadMsg.id);
       } else {
-        const unreadCount = Number(chat.unread_count || (chat as any).unread_messages || 0);
+        const unreadCount = Number(chat.unread_count ?? 0);
         if (unreadCount > 0 && msgs.length > 0) {
           let foundUnread = 0;
           for (let i = msgs.length - 1; i >= 0; i--) {
@@ -550,22 +551,39 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
       const msgs = res as unknown as Message[];
       setMessages((prev) => {
-        // Find messages in the fresh data that aren't in our current list
-        const prevIds = new Set(prev.map(m => String(m.id)));
-        const newMsgs = msgs.filter(m => !prevIds.has(String(m.id)));
+        const prevMap = new Map(prev.map(m => [String(m.id), m]));
+        let changed = false;
 
-        if (newMsgs.length > 0) {
-          // Merge new messages and re-sort
-          const merged = [...prev, ...newMsgs].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
-          // Mark latest message as read — but only if it's not our own message
-          const last = merged[merged.length - 1];
-          if (last && String(last.sender?.id) !== userId) {
-            api.markAsRead(chat.id, chat.type, String(last.id)).catch(() => {});
+        for (const msg of msgs) {
+          const id = String(msg.id);
+          const existing = prevMap.get(id);
+          if (!existing) {
+            // New message
+            prevMap.set(id, msg);
+            changed = true;
+          } else if (
+            existing.text !== msg.text ||
+            existing.likes !== msg.likes ||
+            existing.liked !== msg.liked ||
+            existing.deleted !== msg.deleted ||
+            existing.flagged !== msg.flagged ||
+            existing.edited !== msg.edited
+          ) {
+            // Existing message with changed content — update it
+            prevMap.set(id, { ...existing, ...msg });
+            changed = true;
           }
-          return merged;
         }
 
-        return prev; // No change — don't trigger re-render
+        if (!changed) return prev; // No change — don't trigger re-render
+
+        const merged = Array.from(prevMap.values()).sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
+        // Mark latest message as read — but only if it's not our own message
+        const last = merged[merged.length - 1];
+        if (last && String(last.sender?.id) !== userId) {
+          api.markAsRead(chat.id, chat.type, String(last.id)).catch(() => {});
+        }
+        return merged;
       });
       // Auto-scroll to bottom if new messages arrived and user was near bottom
       if (containerRef.current) {
@@ -776,7 +794,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       await api.sendMessage(chat.id, chat.type, text, opts);
       // SSE will deliver the real message back — no optimistic needed
     } catch {
-      // Send failed — user will see the message isn't in the list
+      setSendError('Nachricht konnte nicht gesendet werden.');
+      setTimeout(() => setSendError(null), 5000);
     }
   };
 
@@ -1360,6 +1379,11 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         </div>
       )}
 
+      {sendError && (
+        <div className="mx-4 mb-1 rounded bg-red-100 px-3 py-1.5 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300">
+          {sendError}
+        </div>
+      )}
       <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatId={chat.id} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} droppedFiles={droppedFiles} onDroppedFilesConsumed={() => setDroppedFiles([])} />
       {showPollModal && (
         <CreatePollModal

@@ -2,9 +2,7 @@
  * File browser and storage API endpoints.
  */
 
-import { get, post, patch } from './core';
-
-const BACKEND = import.meta.env.DEV ? '/backend/api' : '/api';
+import { get, post, patch, getToken, BACKEND } from './core';
 
 // --- Folder / File Browser ---
 
@@ -100,7 +98,7 @@ export async function uploadToStorage(
   formData.append('type', type);
   if (typeId) formData.append('typeId', typeId);
   if (folderId) formData.append('folderId', folderId);
-  const token = localStorage.getItem('schulchat_token') || '';
+  const token = getToken();
   const res = await fetch(`${BACKEND}/files/upload`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
@@ -114,12 +112,12 @@ export async function uploadToStorage(
 }
 
 export function fileDownloadUrl(fileId: string, name: string): string {
-  const token = localStorage.getItem('schulchat_token') || '';
+  const token = getToken();
   return `${BACKEND}/file/${fileId}?name=${encodeURIComponent(name)}&token=${encodeURIComponent(token)}`;
 }
 
 export function fileViewUrl(fileId: string, name: string): string {
-  const token = localStorage.getItem('schulchat_token') || '';
+  const token = getToken();
   return `${BACKEND}/file/${fileId}?name=${encodeURIComponent(name)}&token=${encodeURIComponent(token)}&view=1`;
 }
 
