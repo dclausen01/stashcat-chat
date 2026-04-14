@@ -325,10 +325,12 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
               const isEventNotif = n.type?.includes('event') || n.type?.includes('calendar');
               const isKeyReq = n.type?.includes('key');
 
-              // Extract poll ID from survey object or content
+              // Extract poll ID from survey object, content (for poll notifications), or text
               const pollId = n.survey && typeof n.survey === 'object' && 'id' in n.survey
                 ? String(n.survey.id)
-                : null;
+                : (isPollNotif && n.content && typeof n.content === 'object' && 'id' in n.content)
+                  ? String(n.content.id)
+                  : null;
 
               // Extract event ID from event object or content
               const eventId = n.event && typeof n.event === 'object' && 'id' in n.event
