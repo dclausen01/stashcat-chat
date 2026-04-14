@@ -810,13 +810,27 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     sendingTextsRef.current.add(text);
     setSendingTexts([...sendingTextsRef.current]);
 
+    // Safety net: if SSE echo doesn't arrive within 15s, clear the indicator.
+    // This handles cases where the SSE connection is silently broken after
+    // standby (EventSource appears open but drops events), and also provides
+    // visual feedback for genuinely slow sends.
+    const timeoutId = setTimeout(() => {
+      if (sendingTextsRef.current.has(text)) {
+        console.warn('[ChatView] SSE echo timeout — clearing sending indicator for:', text.slice(0, 40));
+        sendingTextsRef.current.delete(text);
+        setSendingTexts([...sendingTextsRef.current]);
+      }
+    }, 15_000);
+
     try {
       await api.sendMessage(chat.id, chat.type, text, opts);
       // SSE will deliver the real message back — no optimistic needed
     } catch {
+      clearTimeout(timeoutId);
       setSendError('Nachricht konnte nicht gesendet werden.');
       setTimeout(() => setSendError(null), 5000);
     } finally {
+      clearTimeout(timeoutId);
       sendingTextsRef.current.delete(text);
       setSendingTexts([...sendingTextsRef.current]);
     }
