@@ -2497,7 +2497,12 @@ function ForwardDialog({ message, onClose }: { message: Message; onClose: () => 
     setForwarding(target.id);
     try {
       const text = message.text || '';
-      await api.sendMessage(target.id, target.type, text, { is_forwarded: true });
+      const fileIds = message.files?.map((f) => String(f.id)).filter(Boolean);
+      const opts: { is_forwarded?: boolean; files?: string[] } = { is_forwarded: true };
+      if (fileIds && fileIds.length > 0) {
+        opts.files = fileIds;
+      }
+      await api.sendMessage(target.id, target.type, text, opts);
       onClose();
     } catch (err) {
       alert(`Weiterleiten fehlgeschlagen: ${err instanceof Error ? err.message : err}`);
