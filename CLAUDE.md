@@ -602,3 +602,35 @@ NotificationsPanel (Klick auf Event-Notification)
 | `start` / `end` / `location` vorhanden | ✅ | ❌ |
 | `options` / `votes` / `status` vorhanden | ❌ | ✅ |
 | `device_id` / `app_name` vorhanden | ❌ (Device-Objekt) | ❌ (Device-Objekt) |
+
+---
+
+## Notification Types (2026-04-14)
+
+Das NotificationsPanel (`NotificationsPanel.tsx`) verwendet eine `TYPE_MAP` zur Zuordnung von Server-Notification-Types zu deutschen Labels und Icons:
+
+### Poll / Survey Types
+
+| Type | Label | Icon | Beschreibung |
+|------|-------|------|--------------|
+| `poll_invited` | Einladung zu einer Umfrage | 🔵 BarChart3 | Nutzer wurde zu einer Umfrage eingeladen |
+| `poll_answered` | Neue Antwort auf deine Umfrage | 🟢 BarChart3 | Jemand hat auf eine Umfrage des Nutzers geantwortet |
+| `survey_invite` | Einladung zu einer Umfrage | 🔵 BarChart3 | Alternative Umfrage-Einladung |
+| `survey_created` | Neue Umfrage erstellt | 🔵 BarChart3 | Eigene Umfrage wurde erstellt |
+| `survey_changed` | Umfrage aktualisiert | 🟡 BarChart3 | Umfrage wurde bearbeitet |
+| `survey_published` | Umfrage veröffentlicht | 🟢 BarChart3 | Umfrage ist jetzt aktiv |
+| `survey_closed` | Umfrage beendet | ⚪ BarChart3 | Umfrage wurde geschlossen |
+
+**Wichtig:** `poll_answered` wurde am 2026-04-14 hinzugefügt, da der Server zwei separate Notifications sendet:
+1. `poll_invited` — bei Einladung zur Umfrage
+2. `poll_answered` — wenn jemand auf die Umfrage antwortet
+
+Beide werden im Panel korrekt mit unterschiedlichen Labels angezeigt (nicht dedupliziert).
+
+### Formatierungs-Logik
+
+Die Content-Formatierung (`formatNotificationContent`) unterscheidet Objekt-Typen anhand charakteristischer Felder:
+
+- **Polls**: `privacy_type`, `start_time`/`end_time`, `hidden_results`
+- **Events**: `start`/`end`/`location` (nicht `start_time`/`end_time`)
+- **Devices**: `device_id`, `app_name`
