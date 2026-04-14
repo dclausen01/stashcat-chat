@@ -558,13 +558,52 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
       const msgs = res as unknown as Message[];
       setMessages((prev) => {
-        // Find messages in the fresh data that aren't in our current list
+        // Step 1: Find messages in the fresh data that aren't in our current list
         const prevIds = new Set(prev.map(m => String(m.id)));
         const newMsgs = msgs.filter(m => !prevIds.has(String(m.id)));
 
-        if (newMsgs.length > 0) {
-          // Merge new messages and re-sort
-          const merged = [...prev, ...newMsgs].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
+        // Step 2: Check if any server message matches an optimistic temp message
+        // (by text + sender + time). If so, replace the optimistic with the server
+        // version. This handles the case where SSE didn't deliver the message
+        // back to the sender, and silentRefresh was the first to catch it.
+        const replacements = new Map<number, Message>(); // optimisticIdx → serverMsg
+        const consumedServerIds = new Set<string>();
+        const replacedOptimisticIds = new Set<string>(); // temp IDs already replaced
+        for (let i = 0; i < newMsgs.length; i++) {
+          const serverMsg = newMsgs[i];
+          // Skip if this server message was already matched as a replacement target
+          if (consumedServerIds.has(String(serverMsg.id))) continue;
+          const serverTime = Number(serverMsg.time) || 0;
+          const serverSenderId = String(((serverMsg.sender as unknown) as Record<string, unknown>)?.id ?? '');
+          const serverText = String(serverMsg.text ?? '');
+          const optimisticIdx = prev.findIndex((m) => {
+            if (!String(m.id).startsWith('temp-')) return false;
+            if (replacedOptimisticIds.has(String(m.id))) return false;
+            if (String(m.sender?.id) !== serverSenderId) return false;
+            if (m.text !== serverText) return false;
+            return Math.abs((Number(m.time) || 0) - serverTime) <= 5;
+          });
+          if (optimisticIdx >= 0) {
+            const tempId = prev[optimisticIdx].id;
+            const pendingInfo = pendingSendRef.current.get(String(tempId));
+            if (pendingInfo) {
+              clearTimeout(pendingInfo.fallbackTimer);
+              pendingSendRef.current.delete(String(tempId));
+            }
+            replacements.set(optimisticIdx, serverMsg);
+            consumedServerIds.add(String(serverMsg.id));
+            replacedOptimisticIds.add(String(tempId));
+          }
+        }
+
+        // Step 3: Build result — apply replacements and merge remaining new messages
+        const remainingNewMsgs = newMsgs.filter(m => !consumedServerIds.has(String(m.id)));
+        if (replacements.size > 0 || remainingNewMsgs.length > 0) {
+          let merged = prev.map((m, idx) => replacements.get(idx) ?? m);
+          if (remainingNewMsgs.length > 0) {
+            merged = [...merged, ...remainingNewMsgs];
+          }
+          merged.sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
           // Mark latest message as read — but only if it's not our own message
           const last = merged[merged.length - 1];
           if (last && String(last.sender?.id) !== userId) {
