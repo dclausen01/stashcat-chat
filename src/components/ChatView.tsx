@@ -806,33 +806,58 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     setReplyTo(null);
     requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
 
-    // Track as sending
+    // Track as sending — the "Wird gesendet…" bubble stays visible until
+    // either SSE delivers the echo (cleared in handleMessageSync) or one of
+    // the fallback timers below fires. Crucially: we do NOT clear the
+    // indicator when api.sendMessage() resolves, because the HTTP response
+    // only confirms the server accepted the message — it does not mean the
+    // message is yet visible in the chat.
     sendingTextsRef.current.add(text);
     setSendingTexts([...sendingTextsRef.current]);
 
-    // Safety net: if SSE echo doesn't arrive within 15s, clear the indicator.
-    // This handles cases where the SSE connection is silently broken after
-    // standby (EventSource appears open but drops events), and also provides
-    // visual feedback for genuinely slow sends.
-    const timeoutId = setTimeout(() => {
+    // Tier 1: Fast fallback — if SSE hasn't delivered within 2s, proactively
+    // trigger a silent refresh via REST. This dramatically shortens the
+    // visible gap on broken/stale SSE connections (e.g. after standby) where
+    // the EventSource looks open but drops events. If SSE is healthy
+    // (< 100 ms typical), the indicator is already gone and this is a no-op.
+    const fastFallbackId = setTimeout(() => {
+      if (sendingTextsRef.current.has(text)) {
+        silentRefreshRef.current();
+      }
+    }, 2_000);
+
+    // Tier 2: A second silent refresh at 5s catches cases where the first
+    // refresh raced with the server's own commit.
+    const midFallbackId = setTimeout(() => {
+      if (sendingTextsRef.current.has(text)) {
+        silentRefreshRef.current();
+      }
+    }, 5_000);
+
+    // Tier 3: Hard safety net. After 10s we give up on the indicator and
+    // trigger one final refresh. The periodic 30s poll remains as a backstop.
+    const hardTimeoutId = setTimeout(() => {
       if (sendingTextsRef.current.has(text)) {
         console.warn('[ChatView] SSE echo timeout — clearing sending indicator for:', text.slice(0, 40));
         sendingTextsRef.current.delete(text);
         setSendingTexts([...sendingTextsRef.current]);
+        silentRefreshRef.current();
       }
-    }, 15_000);
+    }, 10_000);
 
     try {
       await api.sendMessage(chat.id, chat.type, text, opts);
-      // SSE will deliver the real message back — no optimistic needed
+      // Success path: keep the indicator visible until SSE echoes the real
+      // message back (handleMessageSync clears it) or a fallback timer fires.
     } catch {
-      clearTimeout(timeoutId);
-      setSendError('Nachricht konnte nicht gesendet werden.');
-      setTimeout(() => setSendError(null), 5000);
-    } finally {
-      clearTimeout(timeoutId);
+      // Real send failure: clear indicator + timers immediately, show error.
+      clearTimeout(fastFallbackId);
+      clearTimeout(midFallbackId);
+      clearTimeout(hardTimeoutId);
       sendingTextsRef.current.delete(text);
       setSendingTexts([...sendingTextsRef.current]);
+      setSendError('Nachricht konnte nicht gesendet werden.');
+      setTimeout(() => setSendError(null), 5000);
     }
   };
 
