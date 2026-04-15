@@ -197,6 +197,12 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     savedMessagesRef.current = null;
   }, [chat.id]);
 
+  // Clear sending indicators when switching chats
+  useEffect(() => {
+    sendingTextsRef.current.clear();
+    setSendingTexts([]);
+  }, [chat.id]);
+
   // Focus search input when opened
   useEffect(() => {
     if (searchOpen) setTimeout(() => searchInputRef.current?.focus(), 50);
