@@ -1,6 +1,6 @@
 # Feature-Dokumentation
 
-## 2026-04-15 — Emoji-Darstellung und Textauswahl in Chat-Bubbles
+## 2026-04-15 — Emoji-Darstellung, Textauswahl und personalisierte Typing-Notifications
 
 ### Feature 1: Emoji-only Nachrichten werden größer dargestellt
 
@@ -30,6 +30,21 @@
 **Implementierung:**
 - `MessageGroup` (Bubble-View): `select-text` auf Bubble-Container
 - `PlainTextMessage` (Flat-View): `select-text` auf Content-Container
+
+**Betroffene Dateien:**
+- `src/components/ChatView.tsx`
+
+---
+
+### Feature 3: Personalisierte Typing-Notifications
+
+**Beschreibung:** Wenn jemand tippt, wird statt "Jemand tippt…" der vollständige Name angezeigt (z.B. "Dennis Clausen tippt…").
+
+**Implementierung:**
+- `userNameCacheRef`: Eine Map zwischen `userId` (number) und dem vollständigen Namen
+- Der Cache wird beim Laden von Nachrichten (`loadMessages`, `loadOlder`, `silentRefresh`) aus den Sender-Informationen befüllt
+- Bei Empfang eines Typing-Events wird versucht, den Namen aus dem Cache zu holen
+- Falls der Name nicht im Cache ist (z.B. bei neuen Usern), wird "Jemand tippt…" angezeigt
 
 **Betroffene Dateien:**
 - `src/components/ChatView.tsx`

@@ -245,6 +245,15 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       setFirstUnreadMsgId(firstUnreadId);
 
       setMessages(msgs);
+      // Update user name cache from loaded messages
+      for (const m of msgs) {
+        if (m.sender?.id && m.sender?.first_name) {
+          userNameCacheRef.current.set(
+            Number(m.sender.id),
+            `${m.sender.first_name} ${m.sender.last_name ?? ''}`.trim()
+          );
+        }
+      }
       if (msgs.length < PAGE_SIZE) {
         setHasMore(false);
         hasMoreRef.current = false;
@@ -282,6 +291,15 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
       if (older.length > 0) {
         paginationOffsetRef.current += older.length;
+        // Update user name cache
+        for (const m of older) {
+          if (m.sender?.id && m.sender?.first_name) {
+            userNameCacheRef.current.set(
+              Number(m.sender.id),
+              `${m.sender.first_name} ${m.sender.last_name ?? ''}`.trim()
+            );
+          }
+        }
         setMessages((prev) => {
           const combined = [...older, ...prev];
           const deduped = combined.filter(
@@ -582,6 +600,15 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         if (!changed) return prev; // No change — don't trigger re-render
 
         const merged = Array.from(prevMap.values()).sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
+        // Update user name cache from all merged messages
+        for (const m of merged) {
+          if (m.sender?.id && m.sender?.first_name) {
+            userNameCacheRef.current.set(
+              Number(m.sender.id),
+              `${m.sender.first_name} ${m.sender.last_name ?? ''}`.trim()
+            );
+          }
+        }
         // Mark latest message as read — but only if it's not our own message
         const last = merged[merged.length - 1];
         if (last && String(last.sender?.id) !== userId) {
@@ -719,6 +746,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Cache for user names: userId -> full name
+  const userNameCacheRef = useRef<Map<number, string>>(new Map());
+
   const handleTypingEvent = useCallback((data: unknown) => {
     const { chatType, chatId, userId: typingUserId } = data as { chatType: string; chatId: number; userId: number };
     const currentChat = chatRef.current;
@@ -727,9 +757,11 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       String(chatId) !== currentChat.id ||
       String(typingUserId) === userId
     ) return;
+    // Try to get the user's name from the cache
+    const name = userNameCacheRef.current.get(typingUserId);
     setTypingUsers((prev) => {
       const filtered = prev.filter((t) => t.userId !== typingUserId);
-      return [...filtered, { userId: typingUserId, at: Date.now() }];
+      return [...filtered, { userId: typingUserId, name, at: Date.now() }];
     });
   }, [userId]);
 
@@ -1445,7 +1477,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       {typingUsers.length > 0 && (
         <div className="shrink-0 px-6 pb-1 text-xs text-surface-600 italic">
           {typingUsers.length === 1
-            ? 'Jemand tippt…'
+            ? typingUsers[0].name
+              ? `${typingUsers[0].name} tippt…`
+              : 'Jemand tippt…'
             : `${typingUsers.length} Personen tippen…`}
           <span className="ml-1 inline-flex gap-0.5">
             {[0, 1, 2].map((i) => (
