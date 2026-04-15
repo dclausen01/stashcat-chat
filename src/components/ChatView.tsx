@@ -713,11 +713,20 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
     // If this is our own message arriving via SSE, clear the sending indicator
     const senderId = String(((newMsg.sender as unknown) as Record<string, unknown>)?.id ?? '');
-    if (senderId === userId && newMsg.text) {
-      const text = String(newMsg.text);
-      if (sendingTextsRef.current.has(text)) {
+    if (senderId === userId && sendingTextsRef.current.size > 0) {
+      const text = String(newMsg.text ?? '');
+      // Try exact match first
+      if (text && sendingTextsRef.current.has(text)) {
         sendingTextsRef.current.delete(text);
         setSendingTexts([...sendingTextsRef.current]);
+      } else if (!text || !sendingTextsRef.current.has(text)) {
+        // No exact match (formatting differences, attachments, etc.) —
+        // but our own message arrived: remove the oldest pending indicator
+        const oldest = [...sendingTextsRef.current][0];
+        if (oldest) {
+          sendingTextsRef.current.delete(oldest);
+          setSendingTexts([...sendingTextsRef.current]);
+        }
       }
     }
 
