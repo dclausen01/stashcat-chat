@@ -1648,6 +1648,12 @@ function MessageGroup({
             // Server may only return reply_to_id without the full reply_to object
             replyTo = messageMap.get(Number(msg.reply_to_id));
           }
+          // Check if this message is emoji-only (no files, no reply, no forward, only emoji text)
+          const msgIsEmojiOnly = Boolean(
+            msg.text && !msg.deleted && !msg.is_deleted_by_manager &&
+            !msg.encrypted && !replyTo && !msg.is_forwarded &&
+            !msg.files?.length && isOnlyEmoji(msg.text)
+          );
 
           const isBubbleMatch = searchMatchSet.has(String(msg.id));
           const isBubbleCurrent = currentMatchMsgId === String(msg.id);
@@ -1743,7 +1749,7 @@ function MessageGroup({
 
               <div
                 className={clsx(
-                  'relative max-w-full rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed',
+                  'relative max-w-full rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed select-text',
                   isOwn && !isFirst && 'rounded-tr-md',
                   isOwn && !isLast && 'rounded-br-md',
                   !isOwn && !isFirst && 'rounded-tl-md',
@@ -1764,7 +1770,7 @@ function MessageGroup({
                 <div className="overflow-x-auto">
                   {searchQuery && content.toLowerCase().includes(searchQuery.toLowerCase())
                     ? <p className="whitespace-pre"><HighlightedText text={content} query={searchQuery} /></p>
-                    : <MarkdownContent content={content} isOwn={isOwn} />}
+                    : <MarkdownContent content={content} isOwn={isOwn} isEmojiOnly={msgIsEmojiOnly} />}
                   <FileList files={msg.files} isOwn={isOwn} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
                 </div>
               </div>
@@ -1848,11 +1854,17 @@ function PlainTextMessage({
   } else if (msg.reply_to_id) {
     replyTo = messageMap.get(Number(msg.reply_to_id));
   }
+  // Check if this message is emoji-only (no files, no reply, no forward, only emoji text)
+  const msgIsEmojiOnly = Boolean(
+    msg.text && !msg.deleted && !msg.is_deleted_by_manager &&
+    !msg.encrypted && !replyTo && !msg.is_forwarded &&
+    !msg.files?.length && isOnlyEmoji(msg.text)
+  );
 
   return (
     <div className="group/msg flex gap-3 px-2 py-2 hover:bg-surface-50 dark:hover:bg-surface-900/50">
       <Avatar name={senderName} image={msg.sender?.image} size="sm" />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 select-text">
         <div className="flex items-baseline gap-2">
           <span className={clsx('text-sm font-semibold', isOwn ? 'text-primary-700 dark:text-primary-400' : 'text-surface-900 dark:text-surface-100')}>
             {senderName}
@@ -1885,10 +1897,10 @@ function PlainTextMessage({
         )}
         {/* Scrollable content area for long text without spaces */}
         <div className="overflow-x-auto">
-          <div className="text-sm text-surface-800 dark:text-surface-200">
+          <div className={clsx('text-sm text-surface-800 dark:text-surface-200', msgIsEmojiOnly && 'text-5xl leading-tight')}>
             {searchQuery && content.toLowerCase().includes(searchQuery.toLowerCase())
               ? <p className="whitespace-pre"><HighlightedText text={content} query={searchQuery} /></p>
-              : <MarkdownContent content={content} isOwn={false} />}
+              : <MarkdownContent content={content} isOwn={false} isEmojiOnly={msgIsEmojiOnly} />}
           </div>
           <FileList files={msg.files} isOwn={false} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
         </div>
@@ -2371,7 +2383,21 @@ function autoLinkify(text: string): string {
   );
 }
 
-function MarkdownContent({ content, isOwn }: { content: string; isOwn: boolean }) {
+/** Returns true if the text consists solely of emoji characters (no letters, numbers, or punctuation) */
+function isOnlyEmoji(text: string): boolean {
+  if (!text || text.trim().length === 0) return false;
+  // Remove common whitespace
+  const trimmed = text.trim();
+  // Emoji regex: matches Unicode emoji characters
+  // This covers most emoji including skin tones, ZWJ sequences, and combined emoji
+  const emojiRegex = /^[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2300}-\u{23FF}\u{2B50}\u{1FA00}-\u{1FAFF}\u{231A}-\u{231B}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{25AA}-\u{25AB}\u{25B6}\u{25C0}\u{25FB}-\u{25FE}\u{2614}-\u{2615}\u{2648}-\u{2653}\u{267F}\u{2693}\u{26A1}\u{26AA}-\u{26AB}\u{26BD}-\u{26BE}\u{26C4}-\u{26C5}\u{26CE}\u{26D4}\u{26EA}\u{26F2}-\u{26F3}\u{26F5}\u{26FA}\u{26FD}\u{2702}\u{2705}\u{2708}-\u{270D}\u{270F}\u{2712}\u{2714}\u{2716}\u{271D}\u{2721}\u{2728}\u{2733}-\u{2734}\u{2744}\u{2747}\u{274C}\u{274E}\u{2753}-\u{2755}\u{2757}\u{2763}-\u{2764}\u{2795}-\u{2797}\u{27A1}\u{27B0}\u{27BF}\u{2934}-\u{2935}\u{2B05}-\u{2B07}\u{2B1B}-\u{2B1C}\u{2B55}\u{3030}\u{303D}\u{3297}\u{3299}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F171}\u{1F17E}-\u{1F17F}\u{1F18E}\u{1F191}-\u{1F19A}\u{1F201}-\u{1F202}\u{1F21A}\u{1F22F}\u{1F232}-\u{1F23A}\u{1F250}-\u{1F251}\u{1F300}-\u{1F320}\u{1F32D}-\u{1F335}\u{1F337}-\u{1F392}\u{1F393}\u{1F3A0}-\u{1F3C4}\u{1F3C6}-\u{1F3CA}\u{1F3CF}-\u{1F3D3}\u{1F3E0}-\u{1F3F0}\u{1F3F4}\u{1F3F8}-\u{1F43E}\u{1F440}\u{1F442}-\u{1F4FC}\u{1F4FF}\u{1F500}-\u{1F53D}\u{1F54A}-\u{1F54B}\u{1F54E}-\u{1F567}\u{1F5A4}-\u{1F5A5}\u{1F5FA}-\u{1F64F}\u{1F680}-\u{1F6C5}\u{1F6CB}-\u{1F6CF}\u{1F6D0}-\u{1F6D2}\u{1F6D5}-\u{1F6D7}\u{1F6EB}-\u{1F6EC}\u{1F6F4}-\u{1F6FC}\u{1F7E0}-\u{1F7EB}\u{1F90C}-\u{1F93A}\u{1F93C}-\u{1F945}\u{1F947}-\u{1F978}\u{1F97A}-\u{1F9CB}\u{1F9CD}-\u{1F9FF}\u{1FA70}-\u{1FA74}\u{1FA78}-\u{1FA7A}\u{1FA80}-\u{1FA86}\u{1FA90}-\u{1FAA8}\u{1FAB0}-\u{1FAB6}\u{1FAC0}-\u{1FAC2}\u{1FAD0}-\u{1FAD6}]+$/u;
+  // Check if the trimmed text matches emoji-only pattern
+  if (!emojiRegex.test(trimmed)) return false;
+  // Additional check: ensure there are actual emoji (not just empty string)
+  return trimmed.length > 0;
+}
+
+function MarkdownContent({ content, isOwn, isEmojiOnly = false }: { content: string; isOwn: boolean; isEmojiOnly?: boolean }) {
   // Extract URLs for preview cards
   const urls = extractUrls(content);
   // Auto-linkify plain URLs in the content
@@ -2382,7 +2408,7 @@ function MarkdownContent({ content, isOwn }: { content: string; isOwn: boolean }
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          p: ({ children }) => <p className="m-0">{children}</p>,
+          p: ({ children }) => <p className={clsx('m-0', isEmojiOnly && 'text-5xl leading-tight')}>{children}</p>,
           strong: ({ children }) => <strong className="font-bold">{children}</strong>,
           em: ({ children }) => <em className="italic">{children}</em>,
           del: ({ children }) => <del className="line-through opacity-75">{children}</del>,
