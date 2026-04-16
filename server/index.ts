@@ -324,8 +324,13 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
     // Incoming messages from others arrive as 'notification', not 'message_sync'.
     // 'message_sync' is only the sender's echo. Payload: { message: MessageSyncPayload }
     rt.on('notification', async (data: unknown) => {
-      const msg = (data as Record<string, unknown>).message as MessageSyncPayload | undefined;
-      if (!msg) return; // Not a message notification
+      const raw = data as Record<string, unknown>;
+      const msg = raw.message as MessageSyncPayload | undefined;
+      if (!msg) {
+        // Log non-message notifications so we can diagnose missed events
+        serverLog(`[Realtime] Non-message notification received (keys: ${Object.keys(raw).join(', ')}):`, JSON.stringify(raw).slice(0, 500));
+        return;
+      }
 
       serverLog(`[Realtime] Received notification (new message):`, {
         channel_id: msg.channel_id,
