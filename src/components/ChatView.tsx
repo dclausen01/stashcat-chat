@@ -1036,13 +1036,13 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           <h2 className="truncate text-base font-semibold text-surface-900 dark:text-white">{chat.name}</h2>
           {cleanDescription ? (
             <div className="flex items-center gap-1">
-              <p className="min-w-0 truncate text-xs text-surface-600 dark:text-surface-400">
+              <p className="min-w-0 truncate text-xs text-surface-600 dark:text-surface-300">
                 <LinkifiedText text={cleanDescription} />
               </p>
               {isManager && chat.type === 'channel' && (
                 <button
                   onClick={() => setDescEditorOpen(true)}
-                  className="shrink-0 rounded p-0.5 text-surface-400 transition hover:bg-surface-200 hover:text-surface-600 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-600"
+                  className="shrink-0 rounded p-0.5 text-surface-400 transition hover:bg-surface-200 hover:text-surface-600 dark:text-surface-300 dark:hover:bg-surface-800 dark:hover:text-surface-500"
                   title="Beschreibung bearbeiten"
                 >
                   <Pencil size={11} />
@@ -1098,7 +1098,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             'rounded-lg p-2 transition',
             meetingLoading
               ? 'animate-pulse text-primary-500'
-              : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
+              : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
           )}
           title="Videokonferenz starten"
         >
@@ -1140,7 +1140,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               'rounded-lg p-2 transition',
               membersOpen
                 ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-                : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
+                : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
             )}
             title="Mitglieder"
           >
@@ -1153,7 +1153,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             'rounded-lg p-2 transition',
             fileBrowserOpen
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-              : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
+              : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
           )}
           title="Dateiablage"
         >
@@ -1166,7 +1166,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               'rounded-lg p-2 transition',
               flaggedOpen
                 ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-                : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
+                : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
             )}
             title="Markierte Nachrichten"
           >
@@ -1179,7 +1179,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             'rounded-lg p-2 transition',
             searchOpen
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-              : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
+              : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
           )}
           title="Suche (Ctrl+F)"
         >
@@ -1187,7 +1187,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         </button>
         <button
           onClick={onGoHome}
-          className="rounded-lg p-2 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800"
+          className="rounded-lg p-2 text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800"
           title="Zur Startseite"
         >
           <Home size={20} />
