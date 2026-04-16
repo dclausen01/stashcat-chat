@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, Presentation } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -1104,7 +1104,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           )}
           title="Videokonferenz starten"
         >
-          {meetingLoading ? <Loader2 size={20} className="animate-spin" /> : <Video size={20} />}
+          {meetingLoading ? <Loader2 size={20} className="animate-spin" /> : <Presentation size={20} />}
         </button>
         {/* Audio call button — only for 1:1 conversations */}
         {chat.type === 'conversation' && chat.userId && onStartCall && (
@@ -1118,7 +1118,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               };
               onStartCall(chat.userId!, chat.id, callee);
             }}
-            className="rounded-lg p-2 transition text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800"
+            className={clsx(
+              'rounded-lg p-2 transition',
+              'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
+            )}
             title="Audioanruf starten"
           >
             <Phone size={20} />

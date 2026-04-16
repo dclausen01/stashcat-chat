@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Phone, PhoneOff, Mic, MicOff } from 'lucide-react';
 import { clsx } from 'clsx';
-import Avatar from './Avatar';
 import type { ActiveCall } from '../hooks/useCallManager';
 
 interface CallModalProps {
@@ -11,6 +10,20 @@ interface CallModalProps {
   onHangUp: () => void;
   isMuted: boolean;
   onToggleMute: () => void;
+}
+
+const COLORS = [
+  'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500',
+  'bg-pink-500', 'bg-teal-500', 'bg-indigo-500', 'bg-rose-500',
+];
+function avatarColor(name: string): string {
+  let h = 0;
+  for (const c of name) h = c.charCodeAt(0) + ((h << 5) - h);
+  return COLORS[Math.abs(h) % COLORS.length];
+}
+function initials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  return words.slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('') || '?';
 }
 
 function formatDuration(ms: number): string {
@@ -50,11 +63,24 @@ export default function CallModal({
         'bg-surface-900 border border-surface-700 text-white',
         call.status === 'ended' && 'opacity-70',
       )}>
-        {/* Avatar */}
+        {/* Avatar — large for quick identification */}
         <div className="relative mt-1">
-          <Avatar name={name} image={party.image} size="lg" />
+          {party.image ? (
+            <img
+              src={party.image}
+              alt={name}
+              className="w-24 h-24 rounded-full object-cover shadow-lg"
+            />
+          ) : (
+            <div className={clsx(
+              'w-24 h-24 rounded-full flex items-center justify-center text-3xl font-semibold text-white shadow-lg',
+              avatarColor(name),
+            )}>
+              {initials(name)}
+            </div>
+          )}
           {call.status === 'connected' && (
-            <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-400 border-2 border-surface-900 animate-pulse" />
+            <span className="absolute bottom-0.5 right-0.5 w-5 h-5 rounded-full bg-green-400 border-2 border-surface-900 animate-pulse" />
           )}
         </div>
 
