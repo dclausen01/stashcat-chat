@@ -43,7 +43,6 @@ export default function ChatItem({ target, active, onSelect, onToggleFavorite }:
           <Star size={13} className={target.favorite ? 'fill-yellow-400' : ''} />
         </span>
       )}
-      {target.encrypted && <span className="shrink-0 text-xs text-surface-500" title="Verschlüsselt">🔒</span>}
       {(target.unread_count ?? 0) > 0 && (
         <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-ci-red-500 px-1.5 text-xs font-bold text-white">
           {target.unread_count}

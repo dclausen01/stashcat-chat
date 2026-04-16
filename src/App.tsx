@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useSettings } from './context/SettingsContext';
+import { useCallManager } from './hooks/useCallManager';
 import LoginPage from './pages/LoginPage';
 import Sidebar from './components/Sidebar';
 import ChatView from './components/ChatView';
@@ -14,13 +15,16 @@ import NotificationsPanel from './components/NotificationsPanel';
 import FavoriteCardsView from './components/FavoriteCardsView';
 import ProfileModal from './components/ProfileModal';
 import FlaggedMessagesPanel from './components/FlaggedMessagesPanel';
+import CallModal from './components/CallModal';
 import type { ChatTarget } from './types';
+import type { CallParty } from './api/calls';
 
 type ActiveView = 'chat' | 'calendar' | 'polls';
 
 export default function App() {
   const { loggedIn } = useAuth();
   const { homeView } = useSettings();
+  const { activeCall, startCall, acceptCall, rejectCall, hangUp, isMuted, toggleMute } = useCallManager(loggedIn);
   const [activeChat, setActiveChat] = useState<ChatTarget | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [fileBrowserOpen, setFileBrowserOpen] = useState(false);
@@ -173,6 +177,9 @@ export default function App() {
                 jumpToMessageTime={jumpToMessageTime}
                 jumpKey={jumpKey}
                 onJumpComplete={handleJumpComplete}
+                onStartCall={(calleeId: string, targetId: string, callee: CallParty) =>
+                  startCall(calleeId, targetId, callee)
+                }
               />
             : homeView === 'cards'
               ? <FavoriteCardsView channels={channels} onSelectChat={handleSelectChat} />
@@ -197,6 +204,16 @@ export default function App() {
       )}
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
       {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
+      {activeCall && (
+        <CallModal
+          call={activeCall}
+          onAccept={acceptCall}
+          onReject={rejectCall}
+          onHangUp={hangUp}
+          isMuted={isMuted}
+          onToggleMute={toggleMute}
+        />
+      )}
     </div>
   );
 }

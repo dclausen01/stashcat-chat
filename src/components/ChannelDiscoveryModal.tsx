@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Hash, Search, X, Loader2, Lock, Users, LogIn } from 'lucide-react';
+import { Hash, Search, X, Loader2, Users, LogIn } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
@@ -125,7 +125,6 @@ export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClos
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="truncate text-sm font-medium text-surface-900 dark:text-white">{ch.name}</span>
-                      {ch.encrypted && <Lock size={12} className="shrink-0 text-surface-500" />}
                     </div>
                     {ch.description && (
                       <p className="truncate text-xs text-surface-500">{ch.description}</p>

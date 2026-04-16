@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, Presentation } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -17,6 +17,7 @@ import ChannelDescriptionEditor from './ChannelDescriptionEditor';
 import CreatePollModal from './CreatePollModal';
 import CreateEventModal from './CreateEventModal';
 import type { ChatTarget, Message } from '../types';
+import type { CallParty } from '../api/calls';
 
 interface ChatViewProps {
   chat: ChatTarget;
@@ -33,6 +34,7 @@ interface ChatViewProps {
   jumpToMessageTime?: number | null;
   jumpKey?: number;
   onJumpComplete?: () => void;
+  onStartCall?: (calleeId: string, targetId: string, callee: CallParty) => void;
 }
 
 interface TypingUser {
@@ -118,7 +120,9 @@ function extractServiceLinks(description: string): { cleanDescription: string; l
   return { cleanDescription: cleaned, links };
 }
 
-export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete }: ChatViewProps) {
+interface PendingMessage { text: string; replyTo: Message | null; time: number }
+
+export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -165,9 +169,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const loadingMoreRef = useRef(false);
   const hasMoreRef = useRef(true);
 
-  // Track messages that are currently being sent (between sendMessage and SSE delivery)
-  const [sendingTexts, setSendingTexts] = useState<string[]>([]);
-  const sendingTextsRef = useRef<Set<string>>(new Set());
+  // Track messages that are currently being sent (between sendMessage and SSE delivery).
+  // Each entry is pure UI state — never inserted into messages[]. This prevents duplicates.
+  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([]);
+  const pendingMessagesRef = useRef<Map<string, PendingMessage>>(new Map());
 
   const userId = user?.id ?? '';
 
@@ -199,10 +204,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     savedMessagesRef.current = null;
   }, [chat.id]);
 
-  // Clear sending indicators when switching chats
+  // Clear pending message indicators when switching chats
   useEffect(() => {
-    sendingTextsRef.current.clear();
-    setSendingTexts([]);
+    pendingMessagesRef.current.clear();
+    setPendingMessages([]);
   }, [chat.id]);
 
   // Focus search input when opened
@@ -610,6 +615,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
       const msgs = res as unknown as Message[];
+      let hadNewOwnMessages = false;
       setMessages((prev) => {
         const prevMap = new Map(prev.map(m => [String(m.id), m]));
         let changed = false;
@@ -618,9 +624,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           const id = String(msg.id);
           const existing = prevMap.get(id);
           if (!existing) {
-            // New message
             prevMap.set(id, msg);
             changed = true;
+            if (String(msg.sender?.id) === userId) hadNewOwnMessages = true;
           } else if (
             existing.text !== msg.text ||
             existing.likes !== msg.likes ||
@@ -629,16 +635,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             existing.flagged !== msg.flagged ||
             existing.edited !== msg.edited
           ) {
-            // Existing message with changed content — update it
             prevMap.set(id, { ...existing, ...msg });
             changed = true;
           }
         }
 
-        if (!changed) return prev; // No change — don't trigger re-render
+        if (!changed) return prev;
 
         const merged = Array.from(prevMap.values()).sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
-        // Update user name cache from all merged messages
         for (const m of merged) {
           if (m.sender?.id && m.sender?.first_name) {
             userNameCacheRef.current.set(
@@ -647,13 +651,26 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             );
           }
         }
-        // Mark latest message as read — but only if it's not our own message
         const last = merged[merged.length - 1];
         if (last && String(last.sender?.id) !== userId) {
           api.markAsRead(chat.id, chat.type, String(last.id)).catch(() => {});
         }
         return merged;
       });
+      // Clear pending bubbles when our own messages arrived via REST
+      if (hadNewOwnMessages && pendingMessagesRef.current.size > 0) {
+        const ownMsgs = msgs.filter(m => String(m.sender?.id) === userId);
+        for (const msg of ownMsgs) {
+          const text = String(msg.text ?? '');
+          for (const [key, pm] of pendingMessagesRef.current) {
+            if (text && pm.text === text) {
+              pendingMessagesRef.current.delete(key);
+              break;
+            }
+          }
+        }
+        setPendingMessages([...pendingMessagesRef.current.values()]);
+      }
       // Auto-scroll to bottom if new messages arrived and user was near bottom
       if (containerRef.current) {
         const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
@@ -743,23 +760,25 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
     const newMsg = payload as unknown as Message;
 
-    // If this is our own message arriving via SSE, clear the sending indicator
+    // If this is our own message arriving via SSE, clear the matching pending bubble
     const senderId = String(((newMsg.sender as unknown) as Record<string, unknown>)?.id ?? '');
-    if (senderId === userId && sendingTextsRef.current.size > 0) {
+    if (senderId === userId && pendingMessagesRef.current.size > 0) {
       const text = String(newMsg.text ?? '');
-      // Try exact match first
-      if (text && sendingTextsRef.current.has(text)) {
-        sendingTextsRef.current.delete(text);
-        setSendingTexts([...sendingTextsRef.current]);
-      } else if (!text || !sendingTextsRef.current.has(text)) {
-        // No exact match (formatting differences, attachments, etc.) —
-        // but our own message arrived: remove the oldest pending indicator
-        const oldest = [...sendingTextsRef.current][0];
-        if (oldest) {
-          sendingTextsRef.current.delete(oldest);
-          setSendingTexts([...sendingTextsRef.current]);
+      let matched = false;
+      // Try exact text match first
+      for (const [key, pm] of pendingMessagesRef.current) {
+        if (text && pm.text === text) {
+          pendingMessagesRef.current.delete(key);
+          matched = true;
+          break;
         }
       }
+      // No exact match — remove the oldest pending entry (handles formatting diffs)
+      if (!matched) {
+        const firstKey = pendingMessagesRef.current.keys().next().value;
+        if (firstKey !== undefined) pendingMessagesRef.current.delete(firstKey);
+      }
+      setPendingMessages([...pendingMessagesRef.current.values()]);
     }
 
     setMessages((prev) => {
@@ -882,59 +901,37 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
   const handleSend = async (text: string) => {
     const opts = replyTo ? { reply_to_id: String(replyTo.id) } : undefined;
+    const pendingReply = replyTo;
     setReplyTo(null);
     requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
 
-    // Track as sending — the "Wird gesendet…" bubble stays visible until
-    // either SSE delivers the echo (cleared in handleMessageSync) or one of
-    // the fallback timers below fires. Crucially: we do NOT clear the
-    // indicator when api.sendMessage() resolves, because the HTTP response
-    // only confirms the server accepted the message — it does not mean the
-    // message is yet visible in the chat.
-    sendingTextsRef.current.add(text);
-    setSendingTexts([...sendingTextsRef.current]);
+    // Show an optimistic bubble immediately. This is pure UI state — never
+    // inserted into messages[], so it cannot cause duplicates.
+    const pendingKey = `p-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const pending: PendingMessage = { text, replyTo: pendingReply, time: Date.now() / 1000 };
+    pendingMessagesRef.current.set(pendingKey, pending);
+    setPendingMessages([...pendingMessagesRef.current.values()]);
 
-    // Tier 1: Fast fallback — if SSE hasn't delivered within 2s, proactively
-    // trigger a silent refresh via REST. This dramatically shortens the
-    // visible gap on broken/stale SSE connections (e.g. after standby) where
-    // the EventSource looks open but drops events. If SSE is healthy
-    // (< 100 ms typical), the indicator is already gone and this is a no-op.
-    const fastFallbackId = setTimeout(() => {
-      if (sendingTextsRef.current.has(text)) {
-        silentRefreshRef.current();
-      }
-    }, 2_000);
-
-    // Tier 2: A second silent refresh at 5s catches cases where the first
-    // refresh raced with the server's own commit.
-    const midFallbackId = setTimeout(() => {
-      if (sendingTextsRef.current.has(text)) {
-        silentRefreshRef.current();
-      }
-    }, 5_000);
-
-    // Tier 3: Hard safety net. After 10s we give up on the indicator and
-    // trigger one final refresh. The periodic 30s poll remains as a backstop.
+    // Three-tier fallback: proactive silentRefresh if SSE is slow/broken
+    const stillPending = () => pendingMessagesRef.current.has(pendingKey);
+    const fastFallbackId = setTimeout(() => { if (stillPending()) silentRefreshRef.current(); }, 2_000);
+    const midFallbackId = setTimeout(() => { if (stillPending()) silentRefreshRef.current(); }, 5_000);
     const hardTimeoutId = setTimeout(() => {
-      if (sendingTextsRef.current.has(text)) {
-        console.warn('[ChatView] SSE echo timeout — clearing sending indicator for:', text.slice(0, 40));
-        sendingTextsRef.current.delete(text);
-        setSendingTexts([...sendingTextsRef.current]);
+      if (stillPending()) {
+        pendingMessagesRef.current.delete(pendingKey);
+        setPendingMessages([...pendingMessagesRef.current.values()]);
         silentRefreshRef.current();
       }
     }, 10_000);
 
     try {
       await api.sendMessage(chat.id, chat.type, text, opts);
-      // Success path: keep the indicator visible until SSE echoes the real
-      // message back (handleMessageSync clears it) or a fallback timer fires.
     } catch {
-      // Real send failure: clear indicator + timers immediately, show error.
       clearTimeout(fastFallbackId);
       clearTimeout(midFallbackId);
       clearTimeout(hardTimeoutId);
-      sendingTextsRef.current.delete(text);
-      setSendingTexts([...sendingTextsRef.current]);
+      pendingMessagesRef.current.delete(pendingKey);
+      setPendingMessages([...pendingMessagesRef.current.values()]);
       setSendError('Nachricht konnte nicht gesendet werden.');
       setTimeout(() => setSendError(null), 5000);
     }
@@ -1032,13 +1029,13 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           <h2 className="truncate text-base font-semibold text-surface-900 dark:text-white">{chat.name}</h2>
           {cleanDescription ? (
             <div className="flex items-center gap-1">
-              <p className="min-w-0 truncate text-xs text-surface-600 dark:text-surface-400">
+              <p className="min-w-0 truncate text-xs text-surface-600 dark:text-surface-300">
                 <LinkifiedText text={cleanDescription} />
               </p>
               {isManager && chat.type === 'channel' && (
                 <button
                   onClick={() => setDescEditorOpen(true)}
-                  className="shrink-0 rounded p-0.5 text-surface-400 transition hover:bg-surface-200 hover:text-surface-600 dark:text-surface-400 dark:hover:bg-surface-800 dark:hover:text-surface-600"
+                  className="shrink-0 rounded p-0.5 text-surface-400 transition hover:bg-surface-200 hover:text-surface-600 dark:text-surface-300 dark:hover:bg-surface-800 dark:hover:text-surface-500"
                   title="Beschreibung bearbeiten"
                 >
                   <Pencil size={11} />
@@ -1094,12 +1091,33 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             'rounded-lg p-2 transition',
             meetingLoading
               ? 'animate-pulse text-primary-500'
-              : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
+              : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
           )}
           title="Videokonferenz starten"
         >
-          {meetingLoading ? <Loader2 size={20} className="animate-spin" /> : <Video size={20} />}
+          {meetingLoading ? <Loader2 size={20} className="animate-spin" /> : <Presentation size={20} />}
         </button>
+        {/* Audio call button — only for 1:1 conversations */}
+        {chat.type === 'conversation' && chat.userId && onStartCall && (
+          <button
+            onClick={() => {
+              const callee = {
+                id: chat.userId!,
+                first_name: chat.name.split(' ')[0] ?? chat.name,
+                last_name: chat.name.split(' ').slice(1).join(' '),
+                image: chat.image,
+              };
+              onStartCall(chat.userId!, chat.id, callee);
+            }}
+            className={clsx(
+              'rounded-lg p-2 transition',
+              'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
+            )}
+            title="Audioanruf starten"
+          >
+            <Phone size={20} />
+          </button>
+        )}
         {/* Service link buttons (Moodle, BBB, TaskCards) extracted from channel description */}
         {serviceLinks.map((link, i) => (
           <a
@@ -1136,7 +1154,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               'rounded-lg p-2 transition',
               membersOpen
                 ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-                : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
+                : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
             )}
             title="Mitglieder"
           >
@@ -1149,7 +1167,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             'rounded-lg p-2 transition',
             fileBrowserOpen
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-              : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
+              : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
           )}
           title="Dateiablage"
         >
@@ -1162,7 +1180,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               'rounded-lg p-2 transition',
               flaggedOpen
                 ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-                : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
+                : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
             )}
             title="Markierte Nachrichten"
           >
@@ -1175,7 +1193,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             'rounded-lg p-2 transition',
             searchOpen
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-              : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
+              : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
           )}
           title="Suche (Ctrl+F)"
         >
@@ -1183,7 +1201,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         </button>
         <button
           onClick={onGoHome}
-          className="rounded-lg p-2 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800"
+          className="rounded-lg p-2 text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800"
           title="Zur Startseite"
         >
           <Home size={20} />
@@ -1513,17 +1531,25 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           </div>
         )}
 
-        {/* Sending indicator: show "wird gesendet…" for messages currently in-flight */}
-        {sendingTexts.length > 0 && (
-          <div className="flex justify-end px-4">
-            <div className="flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm text-white/80">
-              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4 31.4" strokeLinecap="round" />
-              </svg>
-              <span>Wird gesendet…</span>
+        {/* Pending message bubbles — real-looking own-message bubbles with a clock icon */}
+        {pendingMessages.map((pm, i) => (
+          <div key={`pending-${i}`} className="flex flex-row-reverse gap-2">
+            <div className="flex min-w-0 max-w-[75%] flex-col items-end gap-1">
+              <div
+                className="relative max-w-full rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed opacity-80"
+                style={{ backgroundColor: settings.ownBubbleColor, color: '#fff' }}
+              >
+                {pm.replyTo && <ReplyQuote msg={pm.replyTo} isOwn />}
+                <div className="overflow-x-auto">
+                  <MarkdownContent content={pm.text} isOwn isEmojiOnly={false} />
+                </div>
+              </div>
+              <span className="flex items-center gap-0.5 px-1 text-xs text-surface-600">
+                <Clock size={12} className="text-surface-400" />
+              </span>
             </div>
           </div>
-        )}
+        ))}
 
         <div ref={messagesEndRef} />
 

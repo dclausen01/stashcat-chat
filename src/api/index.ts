@@ -138,6 +138,15 @@ export {
 } from './notifications';
 export type { AppNotification } from './notifications';
 
+// Calls (WebRTC Audio)
+export {
+  getTurnServer,
+  createCall,
+  sendCallSignal,
+  endCall,
+} from './calls';
+export type { TurnServer, CallParty, CallInfo } from './calls';
+
 // Polls
 export {
   listPolls,
