@@ -34,6 +34,7 @@ export default function App() {
   const [eventIdToOpen, setEventIdToOpen] = useState<string | null>(null);
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
   const [jumpToMessageTime, setJumpToMessageTime] = useState<number | null>(null);
+  const [jumpKey, setJumpKey] = useState(0);
 
   // Close all side panels
   const closeAllPanels = () => {
@@ -119,6 +120,7 @@ export default function App() {
     // Set the message ID and timestamp to jump to (ChatView will handle the scrolling)
     setJumpToMessageId(messageId);
     setJumpToMessageTime(messageTime ?? null);
+    setJumpKey((k) => k + 1);
   }, [activeChat]);
 
   const handleJumpComplete = useCallback(() => {
@@ -169,6 +171,7 @@ export default function App() {
                 flaggedOpen={flaggedOpen}
                 jumpToMessageId={jumpToMessageId}
                 jumpToMessageTime={jumpToMessageTime}
+                jumpKey={jumpKey}
                 onJumpComplete={handleJumpComplete}
               />
             : homeView === 'cards'
