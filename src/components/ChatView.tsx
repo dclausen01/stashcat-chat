@@ -32,6 +32,7 @@ interface ChatViewProps {
   flaggedOpen?: boolean;
   jumpToMessageId?: string | null;
   jumpToMessageTime?: number | null;
+  jumpKey?: number;
   onJumpComplete?: () => void;
   onStartCall?: (calleeId: string, targetId: string, callee: CallParty) => void;
 }
@@ -121,7 +122,7 @@ function extractServiceLinks(description: string): { cleanDescription: string; l
 
 interface PendingMessage { text: string; replyTo: Message | null; time: number }
 
-export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, onJumpComplete, onStartCall }: ChatViewProps) {
+export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -424,90 +425,85 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   // Jump to specific message (from flagged messages panel)
   // Track whether we're viewing jumped-to results (separate from date search)
   const [viewingJumpedMessage, setViewingJumpedMessage] = useState(false);
-  const isJumpingRef = useRef(false);
 
   // Reset jump state when chat changes
   useEffect(() => {
     setViewingJumpedMessage(false);
   }, [chat.id]);
 
-  // Use refs to avoid re-triggering the effect when messages/hasMore change
-  const messagesSnapshotRef = useRef(messages);
-  messagesSnapshotRef.current = messages;
-  const hasMoreSnapshotRef = useRef(hasMore);
-  hasMoreSnapshotRef.current = hasMore;
+  const scrollAndHighlight = useCallback((el: HTMLElement) => {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('ring-2', 'ring-primary-400', 'rounded-xl');
+    setTimeout(() => {
+      el.classList.remove('ring-2', 'ring-primary-400', 'rounded-xl');
+    }, 3000);
+  }, []);
 
+  // Refs for values needed inside the jump effect without triggering re-runs
+  const jumpDepsRef = useRef({ messages, hasMore, jumpToMessageId, jumpToMessageTime });
+  jumpDepsRef.current = { messages, hasMore, jumpToMessageId, jumpToMessageTime };
+
+  // jumpKey changes on every click, guaranteeing the effect re-runs
   useEffect(() => {
-    if (!jumpToMessageId || isJumpingRef.current) return;
-    // Wait for initial load to complete before attempting to jump
+    const { jumpToMessageId: targetId, jumpToMessageTime: targetTime } = jumpDepsRef.current;
+    if (!targetId) return;
     if (loading) return;
 
-    const tryScrollToMessage = async () => {
-      isJumpingRef.current = true;
-
-      // Fast path: message is already in the current view
-      const existingEl = document.getElementById(`msg-${jumpToMessageId}`);
-      if (existingEl) {
-        existingEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        existingEl.classList.add('ring-2', 'ring-primary-400', 'rounded-xl');
-        setTimeout(() => {
-          existingEl.classList.remove('ring-2', 'ring-primary-400', 'rounded-xl');
-        }, 3000);
-        onJumpComplete?.();
-        isJumpingRef.current = false;
-        return;
-      }
-
-      // Slow path: message not loaded — use search API to load messages around its timestamp
-      if (jumpToMessageTime) {
-        try {
-          // Load a window of messages around the target timestamp (±12 hours)
-          const windowSecs = 12 * 60 * 60;
-          const startDate = jumpToMessageTime - windowSecs;
-          const endDate = jumpToMessageTime + windowSecs;
-          const result = await api.searchMessages(
-            chat.id, chat.type, startDate, endDate, undefined, 0, 200
-          );
-          const searchMsgs = (result.messages ?? []) as unknown as Message[];
-
-          if (searchMsgs.length > 0) {
-            // Save current state so we can restore later
-            if (!savedMessagesRef.current) {
-              savedMessagesRef.current = {
-                messages: [...messagesSnapshotRef.current],
-                hasMore: hasMoreSnapshotRef.current,
-                offset: paginationOffsetRef.current,
-              };
-            }
-            setMessages(searchMsgs);
-            setHasMore(false);
-            hasMoreRef.current = false;
-            setViewingJumpedMessage(true);
-
-            // Scroll to target after render
-            requestAnimationFrame(() => {
-              const el = document.getElementById(`msg-${jumpToMessageId}`);
-              if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                el.classList.add('ring-2', 'ring-primary-400', 'rounded-xl');
-                setTimeout(() => {
-                  el.classList.remove('ring-2', 'ring-primary-400', 'rounded-xl');
-                }, 3000);
-              }
-            });
-          }
-        } catch (err) {
-          console.error('Failed to load messages around target:', err);
-        }
-      }
-
+    // Fast path: message is already in the current view
+    const existingEl = document.getElementById(`msg-${targetId}`);
+    if (existingEl) {
+      scrollAndHighlight(existingEl);
       onJumpComplete?.();
-      isJumpingRef.current = false;
-    };
+      return;
+    }
 
-    tryScrollToMessage();
+    // Slow path: message not loaded — use search API to load messages around its timestamp
+    if (!targetTime) {
+      onJumpComplete?.();
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const windowSecs = 12 * 60 * 60;
+        const result = await api.searchMessages(
+          chat.id, chat.type, targetTime - windowSecs, targetTime + windowSecs, undefined, 0, 200
+        );
+        if (cancelled) return;
+        const searchMsgs = (result.messages ?? []) as unknown as Message[];
+
+        if (searchMsgs.length > 0) {
+          if (!savedMessagesRef.current) {
+            const snap = jumpDepsRef.current;
+            savedMessagesRef.current = {
+              messages: snap.messages,
+              hasMore: snap.hasMore,
+              offset: paginationOffsetRef.current,
+            };
+          }
+          setMessages(searchMsgs);
+          setHasMore(false);
+          hasMoreRef.current = false;
+          setViewingJumpedMessage(true);
+
+          // Wait for React to render the new messages, then scroll
+          setTimeout(() => {
+            if (cancelled) return;
+            const el = document.getElementById(`msg-${targetId}`);
+            if (el) scrollAndHighlight(el);
+          }, 100);
+        }
+      } catch (err) {
+        console.error('Failed to load messages around target:', err);
+      } finally {
+        if (!cancelled) onJumpComplete?.();
+      }
+    })();
+
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jumpToMessageId, jumpToMessageTime, onJumpComplete, loading, chat.id, chat.type]);
+  }, [jumpKey, loading, chat.id, chat.type, scrollAndHighlight, onJumpComplete]);
 
   // Clear stale typing indicators after 4 s
   useEffect(() => {
