@@ -245,6 +245,9 @@ function ensureSharedEventSource() {
   sharedEs.addEventListener('message_sync', (e) => dispatchToHandlers(e, 'message_sync'));
   sharedEs.addEventListener('typing', (e) => dispatchToHandlers(e, 'typing'));
   sharedEs.addEventListener('online_status_change', (e) => dispatchToHandlers(e, 'online_status_change'));
+  sharedEs.addEventListener('call_created', (e) => dispatchToHandlers(e, 'call_created'));
+  sharedEs.addEventListener('call_signal', (e) => dispatchToHandlers(e, 'call_signal'));
+  sharedEs.addEventListener('call_change', (e) => dispatchToHandlers(e, 'call_change'));
   sharedEs.addEventListener('heartbeat', () => {
     // Server sends named heartbeat events — just update the watchdog timestamp
     lastEventTime = Date.now();
