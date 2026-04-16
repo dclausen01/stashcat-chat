@@ -57,7 +57,12 @@ html {
   color: var(--color-surface-400) !important;
 }
 
-/* Light mode: stronger borders for better visual separation (only when NOT in dark mode) */
+/* Dark mode: darker borders for better visual separation */
+.dark .border-surface-700 {
+  border-color: var(--color-surface-800) !important;
+}
+
+/* Light mode: stronger borders for better visual separation */
 :where(:not(.dark)) .border-surface-200 {
   border-color: var(--color-surface-300) !important;
 }
