@@ -1120,7 +1120,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             }}
             className={clsx(
               'rounded-lg p-2 transition',
-              'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
+              'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
             )}
             title="Audioanruf starten"
           >
