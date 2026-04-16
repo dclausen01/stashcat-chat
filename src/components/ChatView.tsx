@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -17,6 +17,7 @@ import ChannelDescriptionEditor from './ChannelDescriptionEditor';
 import CreatePollModal from './CreatePollModal';
 import CreateEventModal from './CreateEventModal';
 import type { ChatTarget, Message } from '../types';
+import type { CallParty } from '../api/calls';
 
 interface ChatViewProps {
   chat: ChatTarget;
@@ -32,6 +33,7 @@ interface ChatViewProps {
   jumpToMessageId?: string | null;
   jumpToMessageTime?: number | null;
   onJumpComplete?: () => void;
+  onStartCall?: (calleeId: string, targetId: string, callee: CallParty) => void;
 }
 
 interface TypingUser {
@@ -117,7 +119,7 @@ function extractServiceLinks(description: string): { cleanDescription: string; l
   return { cleanDescription: cleaned, links };
 }
 
-export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, onJumpComplete }: ChatViewProps) {
+export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, onJumpComplete, onStartCall }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -1104,6 +1106,24 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         >
           {meetingLoading ? <Loader2 size={20} className="animate-spin" /> : <Video size={20} />}
         </button>
+        {/* Audio call button — only for 1:1 conversations */}
+        {chat.type === 'conversation' && chat.userId && onStartCall && (
+          <button
+            onClick={() => {
+              const callee = {
+                id: chat.userId!,
+                first_name: chat.name.split(' ')[0] ?? chat.name,
+                last_name: chat.name.split(' ').slice(1).join(' '),
+                image: chat.image,
+              };
+              onStartCall(chat.userId!, chat.id, callee);
+            }}
+            className="rounded-lg p-2 transition text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800"
+            title="Audioanruf starten"
+          >
+            <Phone size={20} />
+          </button>
+        )}
         {/* Service link buttons (Moodle, BBB, TaskCards) extracted from channel description */}
         {serviceLinks.map((link, i) => (
           <a

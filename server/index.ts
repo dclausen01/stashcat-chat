@@ -378,6 +378,26 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
       pushSSE(clientKey, 'online_status_change', data);
     });
 
+    // Forward call-related events to SSE so the browser can manage WebRTC
+    rt.on('call_created', (data: unknown) => {
+      serverLog(`[Realtime] call_created for clientKey ${clientKey.slice(0, 8)}`);
+      pushSSE(clientKey, 'call_created', data);
+    });
+
+    rt.on('signal', (data: unknown) => {
+      const sig = data as Record<string, unknown>;
+      serverLog(`[Realtime] signal (${sig?.signalType}) for clientKey ${clientKey.slice(0, 8)}`);
+      pushSSE(clientKey, 'call_signal', data);
+    });
+
+    rt.on('object_change', (data: unknown) => {
+      const change = data as { type?: string };
+      if (change?.type === 'call') {
+        serverLog(`[Realtime] object_change (call) for clientKey ${clientKey.slice(0, 8)}`);
+        pushSSE(clientKey, 'call_change', data);
+      }
+    });
+
     serverLog(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
   } catch (err) {
     serverLog(`[Realtime] Connection failed:`, errorMessage(err));
@@ -2582,6 +2602,74 @@ app.post('/api/polls/:id/answer', async (req, res) => {
     await client.storePollUserAnswers(question_id, answer_ids);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: String(err) }); }
+});
+
+// ── Calls (WebRTC Audio) ──────────────────────────────────────────────────────
+
+app.post('/api/call/get_turn_server', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const data = client.api.createAuthenticatedRequestData({});
+    const result = await client.api.post<{ turn_server: unknown }>('/call/get_turn_server', data);
+    res.json(result.turn_server);
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err, 'TURN server request failed') });
+  }
+});
+
+app.post('/api/call/create', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const { callee_id, target_id, target, type, verification } = req.body as Record<string, string>;
+    const data = client.api.createAuthenticatedRequestData({
+      callee_id,
+      target_id: String(target_id),
+      target: target || 'conversation',
+      type: type || 'audio',
+      verification,
+    });
+    const result = await client.api.post<{ call: unknown }>('/call/create', data);
+    res.json(result.call);
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err, 'Call creation failed') });
+  }
+});
+
+app.post('/api/call/signal', async (req, res) => {
+  try {
+    const token = extractToken(req);
+    const sessionPayload = decryptSession(token);
+    const { clientKey, deviceId } = sessionPayload;
+    const conn = activeSSE.get(clientKey);
+    if (!conn?.realtime) {
+      return res.status(503).json({ error: 'Not connected to realtime' });
+    }
+    const socket = (conn.realtime as unknown as {
+      socket: { emit: (event: string, ...args: unknown[]) => void } | null;
+    }).socket;
+    if (!socket) {
+      return res.status(503).json({ error: 'Socket not available' });
+    }
+    const signalData = { ...req.body as Record<string, unknown>, deviceId };
+    socket.emit('signal', signalData);
+    serverLog(`[Call] Signal emitted: signalType=${(req.body as Record<string, unknown>).signalType}, call_id=${(req.body as Record<string, unknown>).call_id}`);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err, 'Signal send failed') });
+  }
+});
+
+app.post('/api/call/end', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const { call_id } = req.body as { call_id: number | string };
+    const data = client.api.createAuthenticatedRequestData({ call_id: String(call_id) });
+    await client.api.post('/call/end', data);
+    res.json({ ok: true });
+  } catch {
+    // Call may already be ended — treat as success
+    res.json({ ok: true });
+  }
 });
 
 // ── Production: serve static frontend from dist/ ─────────────────────────────
