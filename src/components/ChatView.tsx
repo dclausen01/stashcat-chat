@@ -30,6 +30,7 @@ interface ChatViewProps {
   onToggleFlagged?: () => void;
   flaggedOpen?: boolean;
   jumpToMessageId?: string | null;
+  jumpToMessageTime?: number | null;
   onJumpComplete?: () => void;
 }
 
@@ -116,7 +117,7 @@ function extractServiceLinks(description: string): { cleanDescription: string; l
   return { cleanDescription: cleaned, links };
 }
 
-export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onToggleFlagged, flaggedOpen, jumpToMessageId, onJumpComplete }: ChatViewProps) {
+export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, onJumpComplete }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -378,6 +379,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       loadMessages();
     }
     setViewingDateResults(false);
+    setViewingJumpedMessage(false);
     setDateSearchResults(null);
   }, [loadMessages]);
 
@@ -415,58 +417,92 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   }, [loading]);
 
   // Jump to specific message (from flagged messages panel)
+  // Track whether we're viewing jumped-to results (separate from date search)
+  const [viewingJumpedMessage, setViewingJumpedMessage] = useState(false);
   const isJumpingRef = useRef(false);
+
+  // Reset jump state when chat changes
+  useEffect(() => {
+    setViewingJumpedMessage(false);
+  }, [chat.id]);
+
+  // Use refs to avoid re-triggering the effect when messages/hasMore change
+  const messagesSnapshotRef = useRef(messages);
+  messagesSnapshotRef.current = messages;
+  const hasMoreSnapshotRef = useRef(hasMore);
+  hasMoreSnapshotRef.current = hasMore;
+
   useEffect(() => {
     if (!jumpToMessageId || isJumpingRef.current) return;
     // Wait for initial load to complete before attempting to jump
     if (loading) return;
-    
+
     const tryScrollToMessage = async () => {
       isJumpingRef.current = true;
-      const maxAttempts = 20; // Prevent infinite loops
-      let attempts = 0;
-      
-      while (attempts < maxAttempts) {
-        // Check if message is already loaded
-        const msgElement = document.getElementById(`msg-${jumpToMessageId}`);
-        
-        if (msgElement) {
-          // Message found, scroll to it and highlight
-          msgElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          msgElement.classList.add('ring-2', 'ring-primary-400', 'rounded-xl');
-          setTimeout(() => {
-            msgElement.classList.remove('ring-2', 'ring-primary-400', 'rounded-xl');
-          }, 3000);
-          onJumpComplete?.();
-          isJumpingRef.current = false;
-          return;
-        }
-        
-        // Message not found, check if we can load more
-        if (!hasMoreRef.current || loadingMoreRef.current) {
-          // No more messages to load
-          console.warn(`Message ${jumpToMessageId} not found in chat history`);
-          onJumpComplete?.();
-          isJumpingRef.current = false;
-          return;
-        }
-        
-        // Load more messages and try again
-        await loadOlder();
-        attempts++;
-        
-        // Small delay to allow React to render the new messages
-        await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Fast path: message is already in the current view
+      const existingEl = document.getElementById(`msg-${jumpToMessageId}`);
+      if (existingEl) {
+        existingEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        existingEl.classList.add('ring-2', 'ring-primary-400', 'rounded-xl');
+        setTimeout(() => {
+          existingEl.classList.remove('ring-2', 'ring-primary-400', 'rounded-xl');
+        }, 3000);
+        onJumpComplete?.();
+        isJumpingRef.current = false;
+        return;
       }
-      
-      // Max attempts reached
-      console.warn(`Could not find message ${jumpToMessageId} after ${maxAttempts} attempts`);
+
+      // Slow path: message not loaded — use search API to load messages around its timestamp
+      if (jumpToMessageTime) {
+        try {
+          // Load a window of messages around the target timestamp (±12 hours)
+          const windowSecs = 12 * 60 * 60;
+          const startDate = jumpToMessageTime - windowSecs;
+          const endDate = jumpToMessageTime + windowSecs;
+          const result = await api.searchMessages(
+            chat.id, chat.type, startDate, endDate, undefined, 0, 200
+          );
+          const searchMsgs = (result.messages ?? []) as unknown as Message[];
+
+          if (searchMsgs.length > 0) {
+            // Save current state so we can restore later
+            if (!savedMessagesRef.current) {
+              savedMessagesRef.current = {
+                messages: [...messagesSnapshotRef.current],
+                hasMore: hasMoreSnapshotRef.current,
+                offset: paginationOffsetRef.current,
+              };
+            }
+            setMessages(searchMsgs);
+            setHasMore(false);
+            hasMoreRef.current = false;
+            setViewingJumpedMessage(true);
+
+            // Scroll to target after render
+            requestAnimationFrame(() => {
+              const el = document.getElementById(`msg-${jumpToMessageId}`);
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el.classList.add('ring-2', 'ring-primary-400', 'rounded-xl');
+                setTimeout(() => {
+                  el.classList.remove('ring-2', 'ring-primary-400', 'rounded-xl');
+                }, 3000);
+              }
+            });
+          }
+        } catch (err) {
+          console.error('Failed to load messages around target:', err);
+        }
+      }
+
       onJumpComplete?.();
       isJumpingRef.current = false;
     };
-    
+
     tryScrollToMessage();
-  }, [jumpToMessageId, loadOlder, onJumpComplete, loading]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpToMessageId, jumpToMessageTime, onJumpComplete, loading, chat.id, chat.type]);
 
   // Clear stale typing indicators after 4 s
   useEffect(() => {
@@ -1181,8 +1217,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             {searchQuery.trim().length >= 2 && (
               <span className="shrink-0 text-xs text-surface-600">
                 {searchMatches.length === 0
-                  ? viewingDateResults ? 'Keine Treffer' : hasMore ? 'Keine Treffer (in geladenen Nachrichten)' : 'Keine Treffer'
-                  : `${((searchMatchIdx % searchMatches.length) + searchMatches.length) % searchMatches.length + 1} / ${searchMatches.length}${!viewingDateResults && hasMore ? ' (in geladenen Nachrichten)' : ''}`}
+                  ? (viewingDateResults || viewingJumpedMessage) ? 'Keine Treffer' : hasMore ? 'Keine Treffer (in geladenen Nachrichten)' : 'Keine Treffer'
+                  : `${((searchMatchIdx % searchMatches.length) + searchMatches.length) % searchMatches.length + 1} / ${searchMatches.length}${!(viewingDateResults || viewingJumpedMessage) && hasMore ? ' (in geladenen Nachrichten)' : ''}`}
               </span>
             )}
             {searchMatches.length > 0 && (
@@ -1284,6 +1320,23 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           <button
             onClick={restoreMessages}
             className="flex items-center gap-1 rounded bg-primary-500 px-3 py-1 text-xs font-medium text-white transition hover:bg-primary-600"
+          >
+            <ArrowLeft size={12} />
+            Zurück zur aktuellen Ansicht
+          </button>
+        </div>
+      )}
+
+      {/* Jumped-to-message banner */}
+      {viewingJumpedMessage && !viewingDateResults && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 dark:border-amber-800 dark:bg-amber-950/30">
+          <Bookmark size={14} className="text-amber-500" fill="currentColor" />
+          <span className="flex-1 text-xs text-amber-700 dark:text-amber-300">
+            Markierte Nachricht — älterer Nachrichtenverlauf
+          </span>
+          <button
+            onClick={restoreMessages}
+            className="flex items-center gap-1 rounded bg-amber-500 px-3 py-1 text-xs font-medium text-white transition hover:bg-amber-600"
           >
             <ArrowLeft size={12} />
             Zurück zur aktuellen Ansicht
@@ -1791,8 +1844,9 @@ function MessageGroup({
 
               {/* Bookmark indicator for flagged messages */}
               {msg.flagged && (
-                <div className={clsx('absolute -top-1.5 z-10', isOwn ? '-left-1' : '-right-1')}>
-                  <Bookmark size={14} className="text-amber-500 dark:text-amber-400" fill="currentColor" />
+                <div className={clsx('flex items-center gap-1 text-amber-500 dark:text-amber-400', isOwn ? 'flex-row-reverse' : 'flex-row')}>
+                  <Bookmark size={12} fill="currentColor" />
+                  <span className="text-[10px] font-medium">Markiert</span>
                 </div>
               )}
 
@@ -1803,6 +1857,7 @@ function MessageGroup({
                   isOwn && !isLast && 'rounded-br-md',
                   !isOwn && !isFirst && 'rounded-tl-md',
                   !isOwn && !isLast && 'rounded-bl-md',
+                  msg.flagged && (isOwn ? 'ring-2 ring-amber-400/40 dark:ring-amber-500/30' : 'ring-2 ring-amber-400/40 dark:ring-amber-500/30'),
                 )}
                 style={{
                   backgroundColor: isOwn ? ownBubbleColor : otherBubbleColor,

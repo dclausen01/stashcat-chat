@@ -8,7 +8,7 @@ import type { ChatTarget, Message } from '../types';
 interface FlaggedMessagesPanelProps {
   chat: ChatTarget | null;
   onClose: () => void;
-  onMessageClick?: (messageId: string, chat: ChatTarget) => void;
+  onMessageClick?: (messageId: string, chat: ChatTarget, messageTime?: number) => void;
 }
 
 const PAGE_SIZE = 30;
@@ -23,6 +23,7 @@ export default function FlaggedMessagesPanel({ chat, onClose, onMessageClick }: 
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [confirmUnflag, setConfirmUnflag] = useState<string | null>(null);
   const offsetRef = useRef(0);
   const chatIdRef = useRef<string | null>(null);
 
@@ -70,6 +71,7 @@ export default function FlaggedMessagesPanel({ chat, onClose, onMessageClick }: 
   }, []);
 
   const handleUnflag = useCallback(async (messageId: string) => {
+    setConfirmUnflag(null);
     setMessages((prev) => prev.filter((m) => String(m.id) !== messageId));
     try {
       await api.unflagMessage(messageId);
@@ -165,7 +167,7 @@ export default function FlaggedMessagesPanel({ chat, onClose, onMessageClick }: 
                     size="sm"
                   />
                   <button
-                    onClick={() => onMessageClick?.(String(msg.id), chat)}
+                    onClick={() => onMessageClick?.(String(msg.id), chat, msg.time)}
                     className="min-w-0 flex-1 text-left"
                     title="Zur Nachricht springen"
                   >
@@ -182,7 +184,7 @@ export default function FlaggedMessagesPanel({ chat, onClose, onMessageClick }: 
                     </p>
                   </button>
                   <button
-                    onClick={() => handleUnflag(String(msg.id))}
+                    onClick={() => setConfirmUnflag(String(msg.id))}
                     title="Markierung entfernen"
                     className={clsx(
                       'shrink-0 rounded-md p-1 opacity-0 transition group-hover/entry:opacity-100',
@@ -207,6 +209,35 @@ export default function FlaggedMessagesPanel({ chat, onClose, onMessageClick }: 
           </>
         )}
       </div>
+
+      {/* Confirmation dialog for unflagging */}
+      {confirmUnflag && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/30 backdrop-blur-[2px]">
+          <div className="mx-4 w-full max-w-xs rounded-xl bg-white p-5 shadow-xl dark:bg-surface-800">
+            <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-surface-900 dark:text-surface-100">
+              <Bookmark size={16} className="text-amber-500" fill="currentColor" />
+              Markierung entfernen?
+            </div>
+            <p className="mb-4 text-xs text-surface-600 dark:text-surface-400">
+              Soll die Markierung dieser Nachricht wirklich entfernt werden?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmUnflag(null)}
+                className="rounded-lg px-3 py-1.5 text-xs font-medium text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-700"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => handleUnflag(confirmUnflag)}
+                className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700"
+              >
+                Entfernen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -33,6 +33,7 @@ export default function App() {
   const [pollIdToOpen, setPollIdToOpen] = useState<string | null>(null);
   const [eventIdToOpen, setEventIdToOpen] = useState<string | null>(null);
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
+  const [jumpToMessageTime, setJumpToMessageTime] = useState<number | null>(null);
 
   // Close all side panels
   const closeAllPanels = () => {
@@ -110,17 +111,19 @@ export default function App() {
     setChannels(loadedChannels);
   }, []);
 
-  const handleFlaggedMessageClick = useCallback((messageId: string, chat: ChatTarget) => {
+  const handleFlaggedMessageClick = useCallback((messageId: string, chat: ChatTarget, messageTime?: number) => {
     // If clicking a message from a different chat, switch to that chat first
     if (activeChat?.id !== chat.id || activeChat?.type !== chat.type) {
       setActiveChat(chat);
     }
-    // Set the message ID to jump to (ChatView will handle the scrolling)
+    // Set the message ID and timestamp to jump to (ChatView will handle the scrolling)
     setJumpToMessageId(messageId);
+    setJumpToMessageTime(messageTime ?? null);
   }, [activeChat]);
 
   const handleJumpComplete = useCallback(() => {
     setJumpToMessageId(null);
+    setJumpToMessageTime(null);
   }, []);
 
   if (!loggedIn) {
@@ -165,6 +168,7 @@ export default function App() {
                 onToggleFlagged={toggleFlagged}
                 flaggedOpen={flaggedOpen}
                 jumpToMessageId={jumpToMessageId}
+                jumpToMessageTime={jumpToMessageTime}
                 onJumpComplete={handleJumpComplete}
               />
             : homeView === 'cards'
