@@ -58,12 +58,13 @@ html {
 }
 
 /* Dark mode: darker borders for better visual separation */
-.dark .border-surface-700 {
+.dark .border-surface-700,
+.dark .border-surface-200 {
   border-color: var(--color-surface-800) !important;
 }
 
 /* Light mode: stronger borders for better visual separation */
-:where(:not(.dark)) .border-surface-200 {
+html:not(.dark) .border-surface-200 {
   border-color: var(--color-surface-300) !important;
 }
 
