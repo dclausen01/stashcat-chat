@@ -51,6 +51,9 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   const [showNewChat, setShowNewChat] = useState(false);
   // Track first company ID for creating channels/chats
   const [primaryCompanyId, setPrimaryCompanyId] = useState<string>('');
+  // Track previous unread counts for background poll notification detection.
+  // null = initial load (don't notify), Map = populated (compare & notify).
+  const prevUnreadsRef = useRef<Map<string, number> | null>(null);
 
   // Sidebar width (horizontal resize)
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -122,8 +125,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         }
       }
       setPrimaryCompanyId(firstCompanyId);
-      setChannels(sortChats(allChannels));
-      onChannelsLoaded?.(sortChats(allChannels));
 
       const userId = user?.id ?? '';
       const convTargets: ChatTarget[] = convList.map((c) => {
@@ -153,22 +154,45 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           userAvailability,
         };
       });
+
+      // Detect newly unread chats and show OS notifications.
+      // Only after initial load (prevUnreadsRef populated), so login
+      // doesn't flood with notifications for pre-existing unreads.
+      if (prevUnreadsRef.current) {
+        const allChats = [...allChannels, ...convTargets];
+        for (const chat of allChats) {
+          const prevCount = prevUnreadsRef.current.get(chat.id) ?? 0;
+          const newCount = chat.unread_count ?? 0;
+          if (newCount > prevCount && prevCount === 0) {
+            const body = newCount === 1 ? 'Neue Nachricht' : `${newCount} neue Nachrichten`;
+            notify(chat.name, body);
+          }
+        }
+      }
+
+      // Update ref for next comparison
+      const unreads = new Map<string, number>();
+      for (const ch of allChannels) unreads.set(ch.id, ch.unread_count ?? 0);
+      for (const cv of convTargets) unreads.set(cv.id, cv.unread_count ?? 0);
+      prevUnreadsRef.current = unreads;
+
+      setChannels(sortChats(allChannels));
+      onChannelsLoaded?.(sortChats(allChannels));
       setConversations(sortChats(convTargets));
     } catch (err) {
       console.error('Failed to load sidebar data:', err);
     }
   }
 
-  // Periodic sidebar sync as safety net: refresh unread counts every 3 minutes
-  // This catches any messages that were missed due to SSE/Realtime connection issues
+  // Periodic sidebar sync: refresh unread counts and detect missed messages.
+  // Runs regardless of tab visibility so background notifications work even
+  // when the SSE connection has silently dropped (browser throttling, standby).
+  // Uses a shorter interval (60s) to catch missed messages promptly.
   useEffect(() => {
     if (!loggedIn) return;
-    const SYNC_INTERVAL = 3 * 60 * 1000; // 3 minutes
+    const SYNC_INTERVAL = 60 * 1000; // 60 seconds
     const intervalId = setInterval(() => {
-      // Only sync when the tab is visible (avoid unnecessary API calls in background)
-      if (!document.hidden) {
-        loadData();
-      }
+      loadData();
     }, SYNC_INTERVAL);
     return () => clearInterval(intervalId);
   }, [loggedIn]);
@@ -198,6 +222,10 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           ? { ...ch, lastActivity: time || ch.lastActivity, unread_count: shouldIncrement ? (ch.unread_count ?? 0) + 1 : ch.unread_count }
           : ch
       )));
+      // Keep prevUnreadsRef in sync so background poll doesn't re-notify
+      if (shouldIncrement) {
+        prevUnreadsRef.current?.set(channelId, (prevUnreadsRef.current.get(channelId) ?? 0) + 1);
+      }
     } else if (convId) {
       const isActive = active?.type === 'conversation' && active.id === convId;
       const shouldIncrement = (!isInForeground || !isActive) && !isOwnMessage;
@@ -206,6 +234,9 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           ? { ...conv, lastActivity: time || conv.lastActivity, unread_count: shouldIncrement ? (conv.unread_count ?? 0) + 1 : conv.unread_count }
           : conv
       )));
+      if (shouldIncrement) {
+        prevUnreadsRef.current?.set(convId, (prevUnreadsRef.current.get(convId) ?? 0) + 1);
+      }
     }
 
     // OS notification for messages from other users when tab is in background
@@ -254,6 +285,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     } else {
       setConversations((prev) => prev.map((c) => c.id === chatId ? { ...c, unread_count: 0 } : c));
     }
+    // Keep prevUnreadsRef in sync so background poll doesn't re-notify
+    prevUnreadsRef.current?.set(chatId, 0);
   }, []);
 
   // Listen for mark-read events from ChatView
