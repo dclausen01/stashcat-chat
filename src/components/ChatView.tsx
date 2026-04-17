@@ -1017,7 +1017,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   }
 
   return (
-    <div className="flex h-full flex-1 overflow-hidden">
+    <div className="flex h-full min-w-0 flex-1 overflow-hidden">
       {/* Main chat area */}
       <div
         className="relative flex min-w-0 flex-1 flex-col bg-ci-blue-50 dark:bg-surface-950"
@@ -1406,7 +1406,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="relative flex-1 overflow-x-hidden overflow-y-auto px-4 py-4"
+        className="relative min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4"
       >
         {/* Load-more area at top */}
         {loadingMore && (
@@ -2619,6 +2619,7 @@ function MarkdownContent({ content, isOwn, isEmojiOnly = false }: { content: str
             </a>
           ),
           hr: () => <hr className={clsx('my-1 border-t', isOwn ? 'border-primary-400' : 'border-surface-300 dark:border-surface-600')} />,
+          pre: ({ children }) => <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-words">{children}</pre>,
         }}
       >
         {linkedContent}
