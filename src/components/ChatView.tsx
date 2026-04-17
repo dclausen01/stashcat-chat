@@ -472,34 +472,62 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     let cancelled = false;
     (async () => {
       try {
-        const windowSecs = 12 * 60 * 60;
-        const result = await api.searchMessages(
-          chat.id, chat.type, targetTime - windowSecs, targetTime + windowSecs, undefined, 0, 200
-        );
-        if (cancelled) return;
-        const searchMsgs = (result.messages ?? []) as unknown as Message[];
+        // Try progressively wider windows until we find the target message.
+        // Search may not include the target if timestamps in the chat drift,
+        // or if many messages share a similar time.
+        const windows = [12 * 3600, 48 * 3600, 7 * 24 * 3600, 30 * 24 * 3600, 365 * 24 * 3600];
+        let foundMsgs: Message[] = [];
 
-        if (searchMsgs.length > 0) {
-          if (!savedMessagesRef.current) {
-            const snap = jumpDepsRef.current;
-            savedMessagesRef.current = {
-              messages: snap.messages,
-              hasMore: snap.hasMore,
-              offset: paginationOffsetRef.current,
-            };
+        for (const windowSecs of windows) {
+          if (cancelled) return;
+          const result = await api.searchMessages(
+            chat.id, chat.type,
+            Math.max(0, targetTime - windowSecs),
+            targetTime + windowSecs,
+            undefined, 0, 200,
+          );
+          if (cancelled) return;
+          const searchMsgs = (result.messages ?? []) as unknown as Message[];
+          console.debug('[jump] searchMessages window=', windowSecs, 'returned', searchMsgs.length, 'msgs');
+          if (searchMsgs.some((m) => String(m.id) === targetId)) {
+            foundMsgs = searchMsgs;
+            break;
           }
-          setMessages(searchMsgs);
-          setHasMore(false);
-          hasMoreRef.current = false;
-          setViewingJumpedMessage(true);
+          // Even if target not found, keep the largest non-empty result as fallback
+          if (searchMsgs.length > foundMsgs.length) foundMsgs = searchMsgs;
+        }
 
-          // Wait for React to render the new messages, then scroll
-          setTimeout(() => {
+        if (foundMsgs.length === 0) {
+          console.warn('[jump] no messages returned from search around time', targetTime);
+          return;
+        }
+
+        if (!savedMessagesRef.current) {
+          const snap = jumpDepsRef.current;
+          savedMessagesRef.current = {
+            messages: snap.messages,
+            hasMore: snap.hasMore,
+            offset: paginationOffsetRef.current,
+          };
+        }
+        setMessages(foundMsgs);
+        setHasMore(false);
+        hasMoreRef.current = false;
+        setViewingJumpedMessage(true);
+
+        // Wait for React to render the new messages, then scroll.
+        // Use requestAnimationFrame twice: once to wait for commit, once for paint.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
             if (cancelled) return;
             const el = document.getElementById(`msg-${targetId}`);
-            if (el) scrollAndHighlight(el);
-          }, 100);
-        }
+            if (el) {
+              scrollAndHighlight(el);
+            } else {
+              console.warn('[jump] target element not found after render, id=', targetId);
+            }
+          });
+        });
       } catch (err) {
         console.error('Failed to load messages around target:', err);
       } finally {
