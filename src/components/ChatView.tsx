@@ -487,7 +487,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, offset);
           if (cancelled) return;
           const older = res as unknown as Message[];
-          console.log('[jump] page', page, '— got', older.length, 'messages');
+          const sampleIds = older.slice(0, 3).map((m) => ({ id: m.id, type: typeof m.id, time: m.time }));
+          console.log('[jump] page', page, '— got', older.length, 'msgs, sample:', JSON.stringify(sampleIds), 'looking for targetId=', targetId, '(type:', typeof targetId, ')');
           if (older.length === 0) { console.log('[jump] empty page, stopping'); break; }
 
           const existingIds = new Set(allMsgs.map((m) => String(m.id)));
