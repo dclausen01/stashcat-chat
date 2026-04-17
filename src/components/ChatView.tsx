@@ -2681,7 +2681,7 @@ function LikeBadge({ count, liked, onToggle, messageId }: { count: number; liked
           'flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold transition cursor-pointer shadow-sm',
           liked
             ? 'bg-amber-400 text-white dark:bg-amber-500 dark:text-white'
-            : 'bg-surface-100 text-surface-600 hover:bg-amber-100 hover:text-amber-600 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-amber-900/40 dark:hover:text-amber-400',
+            : 'bg-sky-100 text-sky-600 hover:bg-amber-100 hover:text-amber-600 dark:bg-sky-900/40 dark:text-sky-400 dark:hover:bg-amber-900/40 dark:hover:text-amber-400',
         )}
       >
         <ThumbsUp size={13} fill={liked ? 'currentColor' : 'none'} />
