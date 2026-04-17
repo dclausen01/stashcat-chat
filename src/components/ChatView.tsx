@@ -451,59 +451,78 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
   // jumpKey changes on every click, guaranteeing the effect re-runs
   useEffect(() => {
-    const { jumpToMessageId: targetId, messages: currentMsgs, hasMore: currentHasMore } = jumpDepsRef.current;
-    console.log('[jump] effect fired — jumpKey=', jumpKey, 'targetId=', targetId, 'loading=', loading, 'msgsCount=', currentMsgs.length, 'hasMore=', currentHasMore);
-    if (!targetId) { console.log('[jump] no targetId, skipping'); return; }
-    if (loading) { console.log('[jump] still loading, skipping'); return; }
+    const { jumpToMessageId: targetId, jumpToMessageTime: targetTime } = jumpDepsRef.current;
+    if (!targetId) return;
+    if (loading) return;
 
     // Fast path: message is already in the current view
     const existingEl = document.getElementById(`msg-${targetId}`);
     if (existingEl) {
-      console.log('[jump] fast path — element found in DOM');
       scrollAndHighlight(existingEl);
       onJumpComplete?.();
       return;
     }
-    console.log('[jump] slow path — element not in DOM, loading older pages...');
 
-    // Slow path: message not loaded — load older pages until we find it
+    if (!targetTime) { onJumpComplete?.(); return; }
+
+    // Slow path: binary search by time to find the right offset, then load a window
     let cancelled = false;
     (async () => {
       try {
-        let allMsgs = [...jumpDepsRef.current.messages];
-        let offset = paginationOffsetRef.current;
-        let hasMorePages = jumpDepsRef.current.hasMore;
-        const MAX_PAGES = 40;
-        console.log('[jump] starting iteration — offset=', offset, 'hasMore=', hasMorePages, 'currentMsgs=', allMsgs.length);
-
-        for (let page = 0; page < MAX_PAGES && hasMorePages; page++) {
-          if (cancelled) { console.log('[jump] cancelled at page', page); return; }
-          if (allMsgs.some((m) => String(m.id) === targetId)) {
-            console.log('[jump] target found in allMsgs after', page, 'pages, total msgs=', allMsgs.length);
+        // Phase 1: Find the upper bound (total message count estimate).
+        // Probe with exponentially growing offsets until we get an empty page.
+        let upperBound = 0;
+        const PROBE_STEP = 500;
+        for (let probe = PROBE_STEP; probe <= 50000; probe += PROBE_STEP) {
+          if (cancelled) return;
+          const res = await api.getMessages(chat.id, chat.type, 1, probe);
+          const msgs = res as unknown as Message[];
+          if (msgs.length === 0) { upperBound = probe; break; }
+          const t = Number(msgs[0].time) || 0;
+          if (t <= targetTime) {
+            // This offset is already past (older than) our target
+            upperBound = probe;
             break;
           }
-
-          console.log('[jump] page', page, '— fetching offset=', offset);
-          const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, offset);
-          if (cancelled) return;
-          const older = res as unknown as Message[];
-          const sampleIds = older.slice(0, 3).map((m) => ({ id: m.id, type: typeof m.id, time: m.time }));
-          console.log('[jump] page', page, '— got', older.length, 'msgs, sample:', JSON.stringify(sampleIds), 'looking for targetId=', targetId, '(type:', typeof targetId, ')');
-          if (older.length === 0) { console.log('[jump] empty page, stopping'); break; }
-
-          const existingIds = new Set(allMsgs.map((m) => String(m.id)));
-          const newMsgs = older.filter((m) => !existingIds.has(String(m.id)));
-          allMsgs = [...allMsgs, ...newMsgs].sort(
-            (a, b) => (Number(a.time) || 0) - (Number(b.time) || 0),
-          );
-          offset += older.length;
-          if (older.length < PAGE_SIZE) hasMorePages = false;
+          upperBound = probe + PROBE_STEP;
         }
-
         if (cancelled) return;
-        const found = allMsgs.some((m) => String(m.id) === targetId);
-        console.log('[jump] iteration done — found=', found, 'totalMsgs=', allMsgs.length);
-        if (!found) return;
+        console.log('[jump] upper bound for offset:', upperBound);
+
+        // Phase 2: Binary search within [0, upperBound] to find offset near targetTime
+        let low = 0;
+        let high = upperBound;
+        while (high - low > PAGE_SIZE) {
+          if (cancelled) return;
+          const mid = Math.floor((low + high) / 2);
+          const res = await api.getMessages(chat.id, chat.type, 1, mid);
+          const msgs = res as unknown as Message[];
+          if (msgs.length === 0) { high = mid; continue; }
+          const t = Number(msgs[0].time) || 0;
+          console.log('[jump] binary search: low=', low, 'mid=', mid, 'high=', high, 'time=', t, 'target=', targetTime);
+          if (t > targetTime) {
+            low = mid;
+          } else {
+            high = mid;
+          }
+        }
+        if (cancelled) return;
+
+        // Phase 3: Load a window of messages around the found offset
+        const loadOffset = Math.max(0, low - PAGE_SIZE);
+        const loadSize = PAGE_SIZE * 3;
+        console.log('[jump] loading window at offset=', loadOffset, 'size=', loadSize);
+        const res = await api.getMessages(chat.id, chat.type, loadSize, loadOffset);
+        if (cancelled) return;
+        const windowMsgs = (res as unknown as Message[]).sort(
+          (a, b) => (Number(a.time) || 0) - (Number(b.time) || 0),
+        );
+        console.log('[jump] got', windowMsgs.length, 'msgs, target found=', windowMsgs.some((m) => String(m.id) === targetId));
+
+        if (!windowMsgs.some((m) => String(m.id) === targetId)) {
+          console.warn('[jump] target not found in window');
+          return;
+        }
 
         if (!savedMessagesRef.current) {
           const snap = jumpDepsRef.current;
@@ -513,7 +532,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             offset: paginationOffsetRef.current,
           };
         }
-        setMessages(allMsgs);
+        setMessages(windowMsgs);
         setHasMore(false);
         hasMoreRef.current = false;
         setViewingJumpedMessage(true);
@@ -522,7 +541,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           requestAnimationFrame(() => {
             if (cancelled) return;
             const el = document.getElementById(`msg-${targetId}`);
-            console.log('[jump] after render — element found=', !!el);
             if (el) scrollAndHighlight(el);
           });
         });
