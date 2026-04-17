@@ -425,6 +425,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   // Jump to specific message (from flagged messages panel)
   // Track whether we're viewing jumped-to results (separate from date search)
   const [viewingJumpedMessage, setViewingJumpedMessage] = useState(false);
+  const [jumpSearching, setJumpSearching] = useState(false);
 
   // Ref to block silentRefresh/handleMessageSync while viewing alternate messages
   const viewingAlternateRef = useRef(false);
@@ -435,6 +436,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   // Reset jump state when chat changes
   useEffect(() => {
     setViewingJumpedMessage(false);
+    setJumpSearching(false);
   }, [chat.id]);
 
   const scrollAndHighlight = useCallback((el: HTMLElement) => {
@@ -467,10 +469,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
     // Slow path: binary search by time to find the right offset, then load a window
     let cancelled = false;
+    setJumpSearching(true);
     (async () => {
       try {
-        // Phase 1: Find the upper bound (total message count estimate).
-        // Probe with exponentially growing offsets until we get an empty page.
+        // Phase 1: Probe offsets in steps of 500 to find the upper bound
         let upperBound = 0;
         const PROBE_STEP = 500;
         for (let probe = PROBE_STEP; probe <= 50000; probe += PROBE_STEP) {
@@ -479,15 +481,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           const msgs = res as unknown as Message[];
           if (msgs.length === 0) { upperBound = probe; break; }
           const t = Number(msgs[0].time) || 0;
-          if (t <= targetTime) {
-            // This offset is already past (older than) our target
-            upperBound = probe;
-            break;
-          }
+          if (t <= targetTime) { upperBound = probe; break; }
           upperBound = probe + PROBE_STEP;
         }
         if (cancelled) return;
-        console.log('[jump] upper bound for offset:', upperBound);
 
         // Phase 2: Binary search within [0, upperBound] to find offset near targetTime
         let low = 0;
@@ -499,30 +496,19 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           const msgs = res as unknown as Message[];
           if (msgs.length === 0) { high = mid; continue; }
           const t = Number(msgs[0].time) || 0;
-          console.log('[jump] binary search: low=', low, 'mid=', mid, 'high=', high, 'time=', t, 'target=', targetTime);
-          if (t > targetTime) {
-            low = mid;
-          } else {
-            high = mid;
-          }
+          if (t > targetTime) { low = mid; } else { high = mid; }
         }
         if (cancelled) return;
 
         // Phase 3: Load a window of messages around the found offset
         const loadOffset = Math.max(0, low - PAGE_SIZE);
-        const loadSize = PAGE_SIZE * 3;
-        console.log('[jump] loading window at offset=', loadOffset, 'size=', loadSize);
-        const res = await api.getMessages(chat.id, chat.type, loadSize, loadOffset);
+        const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE * 3, loadOffset);
         if (cancelled) return;
         const windowMsgs = (res as unknown as Message[]).sort(
           (a, b) => (Number(a.time) || 0) - (Number(b.time) || 0),
         );
-        console.log('[jump] got', windowMsgs.length, 'msgs, target found=', windowMsgs.some((m) => String(m.id) === targetId));
 
-        if (!windowMsgs.some((m) => String(m.id) === targetId)) {
-          console.warn('[jump] target not found in window');
-          return;
-        }
+        if (!windowMsgs.some((m) => String(m.id) === targetId)) return;
 
         if (!savedMessagesRef.current) {
           const snap = jumpDepsRef.current;
@@ -544,14 +530,17 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             if (el) scrollAndHighlight(el);
           });
         });
-      } catch (err) {
-        console.error('[jump] error:', err);
+      } catch {
+        // silently fail — user can retry
       } finally {
-        if (!cancelled) onJumpComplete?.();
+        if (!cancelled) {
+          setJumpSearching(false);
+          onJumpComplete?.();
+        }
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; setJumpSearching(false); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpKey, loading, chat.id, chat.type, scrollAndHighlight, onJumpComplete]);
 
@@ -1416,6 +1405,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         onScroll={handleScroll}
         className="relative flex-1 overflow-x-hidden overflow-y-auto px-4 py-4"
       >
+        {jumpSearching && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-surface-900/60">
+            <div className="flex items-center gap-2.5 rounded-xl bg-white px-5 py-3 shadow-lg dark:bg-surface-800">
+              <Loader2 size={18} className="animate-spin text-primary-500" />
+              <span className="text-sm text-surface-600 dark:text-surface-300">Nachricht wird gesucht…</span>
+            </div>
+          </div>
+        )}
         {/* Load-more area at top */}
         {loadingMore && (
           <div className="flex justify-center pb-3">

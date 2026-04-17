@@ -117,7 +117,6 @@ export default function App() {
   }, []);
 
   const handleFlaggedMessageClick = useCallback((messageId: string, chat: ChatTarget, messageTime?: number) => {
-    console.log('[App] handleFlaggedMessageClick — messageId=', messageId, 'chatId=', chat.id, 'chatType=', chat.type, 'messageTime=', messageTime, 'activeChatId=', activeChat?.id);
     if (activeChat?.id !== chat.id || activeChat?.type !== chat.type) {
       setActiveChat(chat);
     }

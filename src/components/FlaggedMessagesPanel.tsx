@@ -167,7 +167,7 @@ export default function FlaggedMessagesPanel({ chat, onClose, onMessageClick }: 
                     size="sm"
                   />
                   <button
-                    onClick={() => { console.log('[flagged] click — msgId=', msg.id, 'msgTime=', msg.time, 'chat=', chat.id, chat.type); onMessageClick?.(String(msg.id), chat, msg.time); }}
+                    onClick={() => onMessageClick?.(String(msg.id), chat, msg.time)}
                     className="min-w-0 flex-1 text-left"
                     title="Zur Nachricht springen"
                   >
