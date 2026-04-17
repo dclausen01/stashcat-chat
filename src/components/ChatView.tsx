@@ -426,6 +426,12 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   // Track whether we're viewing jumped-to results (separate from date search)
   const [viewingJumpedMessage, setViewingJumpedMessage] = useState(false);
 
+  // Ref to block silentRefresh/handleMessageSync while viewing alternate messages
+  const viewingAlternateRef = useRef(false);
+  useEffect(() => {
+    viewingAlternateRef.current = viewingJumpedMessage || viewingDateResults;
+  }, [viewingJumpedMessage, viewingDateResults]);
+
   // Reset jump state when chat changes
   useEffect(() => {
     setViewingJumpedMessage(false);
@@ -610,6 +616,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     // Skip if we're already refreshing or the chat has changed
     if (refreshingRef.current) return;
     if (chat.id !== activeChatIdRef.current) return;
+    if (viewingAlternateRef.current) return;
 
     refreshingRef.current = true;
     try {
@@ -757,6 +764,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       (currentChat.type === 'channel' && String(payload.channel_id) === currentChat.id) ||
       (currentChat.type === 'conversation' && String(payload.conversation_id) === currentChat.id);
     if (!belongsHere) return;
+    if (viewingAlternateRef.current) return;
 
     const newMsg = payload as unknown as Message;
 
