@@ -117,11 +117,10 @@ export default function App() {
   }, []);
 
   const handleFlaggedMessageClick = useCallback((messageId: string, chat: ChatTarget, messageTime?: number) => {
-    // If clicking a message from a different chat, switch to that chat first
+    console.log('[App] handleFlaggedMessageClick — messageId=', messageId, 'chatId=', chat.id, 'chatType=', chat.type, 'messageTime=', messageTime, 'activeChatId=', activeChat?.id);
     if (activeChat?.id !== chat.id || activeChat?.type !== chat.type) {
       setActiveChat(chat);
     }
-    // Set the message ID and timestamp to jump to (ChatView will handle the scrolling)
     setJumpToMessageId(messageId);
     setJumpToMessageTime(messageTime ?? null);
     setJumpKey((k) => k + 1);
