@@ -425,7 +425,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   // Jump to specific message (from flagged messages panel)
   // Track whether we're viewing jumped-to results (separate from date search)
   const [viewingJumpedMessage, setViewingJumpedMessage] = useState(false);
-  const [jumpSearching, setJumpSearching] = useState(false);
 
   // Ref to block silentRefresh/handleMessageSync while viewing alternate messages
   const viewingAlternateRef = useRef(false);
@@ -436,7 +435,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   // Reset jump state when chat changes
   useEffect(() => {
     setViewingJumpedMessage(false);
-    setJumpSearching(false);
   }, [chat.id]);
 
   const scrollAndHighlight = useCallback((el: HTMLElement) => {
@@ -469,7 +467,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
     // Slow path: binary search by time to find the right offset, then load a window
     let cancelled = false;
-    setJumpSearching(true);
     (async () => {
       try {
         // Phase 1: Probe offsets in steps of 500 to find the upper bound
@@ -533,14 +530,11 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       } catch {
         // silently fail — user can retry
       } finally {
-        if (!cancelled) {
-          setJumpSearching(false);
-          onJumpComplete?.();
-        }
+        if (!cancelled) onJumpComplete?.();
       }
     })();
 
-    return () => { cancelled = true; setJumpSearching(false); };
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpKey, loading, chat.id, chat.type, scrollAndHighlight, onJumpComplete]);
 
@@ -1405,14 +1399,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         onScroll={handleScroll}
         className="relative flex-1 overflow-x-hidden overflow-y-auto px-4 py-4"
       >
-        {jumpSearching && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 dark:bg-surface-900/60">
-            <div className="flex items-center gap-2.5 rounded-xl bg-white px-5 py-3 shadow-lg dark:bg-surface-800">
-              <Loader2 size={18} className="animate-spin text-primary-500" />
-              <span className="text-sm text-surface-600 dark:text-surface-300">Nachricht wird gesucht…</span>
-            </div>
-          </div>
-        )}
         {/* Load-more area at top */}
         {loadingMore && (
           <div className="flex justify-center pb-3">

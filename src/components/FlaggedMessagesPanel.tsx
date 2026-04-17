@@ -9,6 +9,7 @@ interface FlaggedMessagesPanelProps {
   chat: ChatTarget | null;
   onClose: () => void;
   onMessageClick?: (messageId: string, chat: ChatTarget, messageTime?: number) => void;
+  jumpSearching?: boolean;
 }
 
 const PAGE_SIZE = 30;
@@ -19,7 +20,7 @@ const formatTime = (ts?: number) => {
   return d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 };
 
-export default function FlaggedMessagesPanel({ chat, onClose, onMessageClick }: FlaggedMessagesPanelProps) {
+export default function FlaggedMessagesPanel({ chat, onClose, onMessageClick, jumpSearching }: FlaggedMessagesPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -112,7 +113,7 @@ export default function FlaggedMessagesPanel({ chat, onClose, onMessageClick }: 
       <div style={{ width }} className="relative flex shrink-0 flex-col border-l border-surface-200 bg-white dark:border-surface-700 dark:bg-surface-900">
         <div className="flex items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-700">
           <h2 className="text-sm font-semibold">Markierte Nachrichten</h2>
-          <button onClick={onClose} className="rounded-lg p-1 hover:bg-surface-200 dark:hover:bg-surface-800"><X size={18} /></button>
+          <button onClick={onClose} className="rounded-lg p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300"><X size={18} /></button>
         </div>
         <div className="flex flex-1 items-center justify-center text-sm text-surface-500">
           Kein Chat ausgewählt
@@ -137,13 +138,21 @@ export default function FlaggedMessagesPanel({ chat, onClose, onMessageClick }: 
             Markiert in {chatName}
           </h2>
         </div>
-        <button onClick={onClose} className="shrink-0 rounded-lg p-1 hover:bg-surface-200 dark:hover:bg-surface-800">
+        <button onClick={onClose} className="shrink-0 rounded-lg p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300">
           <X size={18} />
         </button>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="relative flex-1 overflow-y-auto">
+        {jumpSearching && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 dark:bg-surface-900/70">
+            <div className="flex items-center gap-2.5 rounded-xl bg-white px-4 py-2.5 shadow-lg dark:bg-surface-800">
+              <Loader2 size={16} className="animate-spin text-primary-500" />
+              <span className="text-xs text-surface-600 dark:text-surface-300">Nachricht wird gesucht…</span>
+            </div>
+          </div>
+        )}
         {loading && messages.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 size={24} className="animate-spin text-surface-400" />

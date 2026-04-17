@@ -39,6 +39,7 @@ export default function App() {
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
   const [jumpToMessageTime, setJumpToMessageTime] = useState<number | null>(null);
   const [jumpKey, setJumpKey] = useState(0);
+  const [jumpSearching, setJumpSearching] = useState(false);
 
   // Close all side panels
   const closeAllPanels = () => {
@@ -122,12 +123,14 @@ export default function App() {
     }
     setJumpToMessageId(messageId);
     setJumpToMessageTime(messageTime ?? null);
+    setJumpSearching(true);
     setJumpKey((k) => k + 1);
   }, [activeChat]);
 
   const handleJumpComplete = useCallback(() => {
     setJumpToMessageId(null);
     setJumpToMessageTime(null);
+    setJumpSearching(false);
   }, []);
 
   if (!loggedIn) {
@@ -193,6 +196,7 @@ export default function App() {
               chat={activeChat}
               onClose={() => setFlaggedOpen(false)}
               onMessageClick={handleFlaggedMessageClick}
+              jumpSearching={jumpSearching}
             />
           )}
           {notificationsOpen && (
