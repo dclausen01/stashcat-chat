@@ -133,6 +133,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [isManager, setIsManager] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [fileSentToast, setFileSentToast] = useState(false);
   const [droppedFiles, setDroppedFiles] = useState<File[]>([]);
   const [membersOpen, setMembersOpen] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -1031,6 +1032,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             try {
               await api.sendMessage(chat.id, chat.type, '', { files: [fileId] });
               await loadMessages();
+              setFileSentToast(true);
+              setTimeout(() => setFileSentToast(false), 2500);
             } catch (err) {
               alert(`Datei weiterleiten fehlgeschlagen: ${err instanceof Error ? err.message : err}`);
             }
@@ -1042,6 +1045,12 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           }
         }}
       >
+      {/* File-sent toast */}
+      {fileSentToast && (
+        <div className="absolute bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-surface-800 px-4 py-2 text-sm text-white shadow-lg dark:bg-surface-700">
+          Datei gesendet
+        </div>
+      )}
       {/* Drop overlay */}
       {dragOver && (
         <div className="absolute inset-0 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-primary-400 bg-primary-50/80 dark:bg-primary-950/80">
