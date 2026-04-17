@@ -451,7 +451,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
   // jumpKey changes on every click, guaranteeing the effect re-runs
   useEffect(() => {
-    const { jumpToMessageId: targetId, jumpToMessageTime: targetTime } = jumpDepsRef.current;
+    const { jumpToMessageId: targetId } = jumpDepsRef.current;
     if (!targetId) return;
     if (loading) return;
 
@@ -463,44 +463,35 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       return;
     }
 
-    // Slow path: message not loaded — use search API to load messages around its timestamp
-    if (!targetTime) {
-      onJumpComplete?.();
-      return;
-    }
-
+    // Slow path: message not loaded — load older pages until we find it
     let cancelled = false;
     (async () => {
       try {
-        // Try progressively wider windows until we find the target message.
-        // Search may not include the target if timestamps in the chat drift,
-        // or if many messages share a similar time.
-        const windows = [12 * 3600, 48 * 3600, 7 * 24 * 3600, 30 * 24 * 3600, 365 * 24 * 3600];
-        let foundMsgs: Message[] = [];
+        let allMsgs = [...jumpDepsRef.current.messages];
+        let offset = paginationOffsetRef.current;
+        let hasMorePages = jumpDepsRef.current.hasMore;
+        const MAX_PAGES = 40;
 
-        for (const windowSecs of windows) {
+        for (let page = 0; page < MAX_PAGES && hasMorePages; page++) {
           if (cancelled) return;
-          const result = await api.searchMessages(
-            chat.id, chat.type,
-            Math.max(0, targetTime - windowSecs),
-            targetTime + windowSecs,
-            undefined, 0, 200,
+          if (allMsgs.some((m) => String(m.id) === targetId)) break;
+
+          const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, offset);
+          if (cancelled) return;
+          const older = res as unknown as Message[];
+          if (older.length === 0) break;
+
+          const existingIds = new Set(allMsgs.map((m) => String(m.id)));
+          const newMsgs = older.filter((m) => !existingIds.has(String(m.id)));
+          allMsgs = [...allMsgs, ...newMsgs].sort(
+            (a, b) => (Number(a.time) || 0) - (Number(b.time) || 0),
           );
-          if (cancelled) return;
-          const searchMsgs = (result.messages ?? []) as unknown as Message[];
-          console.debug('[jump] searchMessages window=', windowSecs, 'returned', searchMsgs.length, 'msgs');
-          if (searchMsgs.some((m) => String(m.id) === targetId)) {
-            foundMsgs = searchMsgs;
-            break;
-          }
-          // Even if target not found, keep the largest non-empty result as fallback
-          if (searchMsgs.length > foundMsgs.length) foundMsgs = searchMsgs;
+          offset += older.length;
+          if (older.length < PAGE_SIZE) hasMorePages = false;
         }
 
-        if (foundMsgs.length === 0) {
-          console.warn('[jump] no messages returned from search around time', targetTime);
-          return;
-        }
+        if (cancelled) return;
+        if (!allMsgs.some((m) => String(m.id) === targetId)) return;
 
         if (!savedMessagesRef.current) {
           const snap = jumpDepsRef.current;
@@ -510,26 +501,20 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             offset: paginationOffsetRef.current,
           };
         }
-        setMessages(foundMsgs);
+        setMessages(allMsgs);
         setHasMore(false);
         hasMoreRef.current = false;
         setViewingJumpedMessage(true);
 
-        // Wait for React to render the new messages, then scroll.
-        // Use requestAnimationFrame twice: once to wait for commit, once for paint.
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             if (cancelled) return;
             const el = document.getElementById(`msg-${targetId}`);
-            if (el) {
-              scrollAndHighlight(el);
-            } else {
-              console.warn('[jump] target element not found after render, id=', targetId);
-            }
+            if (el) scrollAndHighlight(el);
           });
         });
       } catch (err) {
-        console.error('Failed to load messages around target:', err);
+        console.error('Failed to jump to message:', err);
       } finally {
         if (!cancelled) onJumpComplete?.();
       }
