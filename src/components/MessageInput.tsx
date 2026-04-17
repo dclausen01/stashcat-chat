@@ -384,7 +384,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatId, chatN
           }}
           placeholder={pendingFiles.length > 0 ? 'Optionale Nachricht zu den Dateien...' : replyTo ? 'Antwort schreiben...' : `Nachricht an ${chatName}...`}
           rows={1}
-          className="max-h-[200px] flex-1 resize-none bg-transparent font-mono text-sm text-surface-900 outline-none placeholder:font-sans placeholder:text-surface-500 dark:text-white"
+          className="max-h-[200px] flex-1 resize-none bg-transparent font-sans text-sm text-surface-900 outline-none placeholder:text-surface-500 dark:text-white"
         />
 
         {/* Emoji picker toggle */}
