@@ -1937,9 +1937,9 @@ function MessageGroup({
                   </div>
                 )}
                 {/* Scrollable content area for long text without spaces */}
-                <div className="overflow-x-auto">
+                <div className="min-w-0 overflow-x-auto">
                   {searchQuery && content.toLowerCase().includes(searchQuery.toLowerCase())
-                    ? <p className="whitespace-pre"><HighlightedText text={content} query={searchQuery} /></p>
+                    ? <p className="whitespace-pre-wrap break-words"><HighlightedText text={content} query={searchQuery} /></p>
                     : <MarkdownContent content={content} isOwn={isOwn} isEmojiOnly={msgIsEmojiOnly} />}
                   <FileList files={msg.files} isOwn={isOwn} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
                 </div>
@@ -2066,10 +2066,10 @@ function PlainTextMessage({
           </div>
         )}
         {/* Scrollable content area for long text without spaces */}
-        <div className="overflow-x-auto">
+        <div className="min-w-0 overflow-x-auto">
           <div className={clsx('text-sm text-surface-800 dark:text-surface-200', msgIsEmojiOnly && 'text-5xl leading-tight')}>
             {searchQuery && content.toLowerCase().includes(searchQuery.toLowerCase())
-              ? <p className="whitespace-pre"><HighlightedText text={content} query={searchQuery} /></p>
+              ? <p className="whitespace-pre-wrap break-words"><HighlightedText text={content} query={searchQuery} /></p>
               : <MarkdownContent content={content} isOwn={false} isEmojiOnly={msgIsEmojiOnly} />}
           </div>
           <FileList files={msg.files} isOwn={false} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
@@ -2578,7 +2578,7 @@ function MarkdownContent({ content, isOwn, isEmojiOnly = false }: { content: str
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          p: ({ children }) => <p className={clsx('m-0', isEmojiOnly && 'text-5xl leading-tight')}>{children}</p>,
+          p: ({ children }) => <p className={clsx('m-0 break-words', isEmojiOnly && 'text-5xl leading-tight')}>{children}</p>,
           strong: ({ children }) => <strong className="font-bold">{children}</strong>,
           em: ({ children }) => <em className="italic">{children}</em>,
           del: ({ children }) => <del className="line-through opacity-75">{children}</del>,
