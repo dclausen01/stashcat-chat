@@ -592,33 +592,21 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     window.addEventListener('mouseup', onUp);
   }, []);
 
-  // Initialize tab based on chat availability; reset to 'context' when chat changes
-  const prevChatIdRef = useRef<string | undefined>(undefined);
-  const initialRunRef = useRef(false);
-  useEffect(() => {
-    // Always run on first mount (initialRunRef check)
-    if (!initialRunRef.current) {
-      initialRunRef.current = true;
-      if (chat) {
-        setTab('context');
-      } else {
-        setTab('personal');
-      }
-      return;
-    }
-    // Subsequent runs: only react to chat.id changes
-    const chatId = chat?.id;
-    if (chatId !== prevChatIdRef.current) {
-      prevChatIdRef.current = chatId;
-      if (chat) {
-        setTab('context');
-      }
-      // When chat becomes undefined, do NOT switch to personal here —
-      // the user might still want to browse personal files; they can switch tabs manually
-    }
-  }, [chat?.id, setTab]);
-
   const [crumbs, setCrumbs] = useState<Crumb[]>([{ id: null, name: 'Alle Dateien' }]);
+
+  // Reset tab to 'context' when chat changes — done synchronously during render
+  // to avoid a stale-tab race where loadFolder runs with the old tab before
+  // a useEffect-based setTab takes effect.
+  const prevChatIdRef = useRef<string | undefined>(undefined);
+  if (chat?.id !== prevChatIdRef.current) {
+    prevChatIdRef.current = chat?.id;
+    if (chat) {
+      setTab('context');
+      setCrumbs([{ id: null, name: 'Alle Dateien' }]);
+    } else if (prevChatIdRef.current === undefined) {
+      setTab('personal');
+    }
+  }
   const [folders, setFolders] = useState<FolderEntry[]>([]);
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
