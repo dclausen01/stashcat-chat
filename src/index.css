@@ -40,6 +40,16 @@
   --color-ci-red-700: #b53a3a;
 }
 
+/* Default theme surface vars — overridden at runtime by ThemeContext */
+:root {
+  --theme-bg: #eff6ff;
+  --theme-panel: #ffffff;
+}
+.dark {
+  --theme-bg: #030712;
+  --theme-panel: #111827;
+}
+
 html, body, #root {
   height: 100%;
   margin: 0;
