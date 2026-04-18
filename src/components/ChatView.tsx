@@ -978,6 +978,33 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     await loadMessages();
   };
 
+  const handleCreateWhiteboard = useCallback(async () => {
+    try {
+      const roomBytes = window.crypto.getRandomValues(new Uint8Array(10));
+      const room = Array.from(roomBytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+      const aesKey = await window.crypto.subtle.generateKey(
+        { name: 'AES-GCM', length: 128 },
+        true,
+        ['encrypt', 'decrypt'],
+      );
+      const jwk = await window.crypto.subtle.exportKey('jwk', aesKey);
+      if (!jwk.k) throw new Error('Key export failed');
+      const link = `https://excalidraw.com/#room=${room},${jwk.k}`;
+      window.open(link, '_blank', 'noopener,noreferrer');
+      const text = [
+        '## 🎨 Kollaboratives Whiteboard',
+        '',
+        'Ich habe ein neues **Excalidraw**-Whiteboard erstellt – klickt auf den Link, um gemeinsam zu zeichnen:',
+        '',
+        `🔗 **[Whiteboard öffnen](${link})**`,
+      ].join('\n');
+      await api.sendMessage(chat.id, chat.type, text);
+    } catch {
+      setSendError('Whiteboard konnte nicht erstellt werden.');
+      setTimeout(() => setSendError(null), 5000);
+    }
+  }, [chat.id, chat.type]);
+
   const handleTyping = useCallback(() => {
     api.sendTyping(chat.type, chat.id).catch(() => {});
   }, [chat.type, chat.id]);
@@ -1632,7 +1659,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           {sendError}
         </div>
       )}
-      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatId={chat.id} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} droppedFiles={droppedFiles} onDroppedFilesConsumed={() => setDroppedFiles([])} />
+      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatId={chat.id} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} onCreateWhiteboard={handleCreateWhiteboard} droppedFiles={droppedFiles} onDroppedFilesConsumed={() => setDroppedFiles([])} />
       {showPollModal && (
         <CreatePollModal
           preselectedChat={chat}

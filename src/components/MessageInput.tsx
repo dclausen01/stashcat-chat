@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, type KeyboardEvent } from 'react';
-import { Send, Paperclip, Bold, Italic, Strikethrough, Code, List, Heading2, X, Loader2, Reply, BarChart3, CalendarPlus } from 'lucide-react';
+import { Send, Paperclip, Bold, Italic, Strikethrough, Code, List, Heading2, X, Loader2, Reply, BarChart3, CalendarPlus, Presentation } from 'lucide-react';
 import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react';
 import { clsx } from 'clsx';
 import { useTheme } from '../context/ThemeContext';
@@ -21,6 +21,7 @@ interface MessageInputProps {
   onCancelReply?: () => void;
   onCreatePoll?: () => void;
   onCreateEvent?: () => void;
+  onCreateWhiteboard?: () => void;
   droppedFiles?: File[];
   onDroppedFilesConsumed?: () => void;
 }
@@ -57,7 +58,7 @@ const FORMAT_BUTTONS: FormatButton[] = [
   { icon: <List size={15} />, label: 'Liste', action: linePrefix('- ', 'Listenpunkt') },
 ];
 
-export default function MessageInput({ onSend, onUpload, onTyping, chatId, chatName, replyTo, onCancelReply, onCreatePoll, onCreateEvent, droppedFiles, onDroppedFilesConsumed }: MessageInputProps) {
+export default function MessageInput({ onSend, onUpload, onTyping, chatId, chatName, replyTo, onCancelReply, onCreatePoll, onCreateEvent, onCreateWhiteboard, droppedFiles, onDroppedFilesConsumed }: MessageInputProps) {
   const { theme } = useTheme();
   const { enterSendsMessage } = useSettings();
   const [text, setText] = useState('');
@@ -352,6 +353,16 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatId, chatN
                 >
                   <CalendarPlus size={15} className="text-green-500" />
                   Neuer Termin
+                </button>
+              )}
+              {onCreateWhiteboard && (
+                <button
+                  type="button"
+                  onClick={() => { setShowAttachMenu(false); onCreateWhiteboard(); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
+                >
+                  <Presentation size={15} className="text-purple-500" />
+                  Kollaboratives Whiteboard erstellen
                 </button>
               )}
             </div>
