@@ -16,6 +16,7 @@ import LinkPreviewCard from './LinkPreviewCard';
 import ChannelDescriptionEditor from './ChannelDescriptionEditor';
 import CreatePollModal from './CreatePollModal';
 import CreateEventModal from './CreateEventModal';
+import CreateWhiteboardModal from './CreateWhiteboardModal';
 import type { ChatTarget, Message } from '../types';
 import type { CallParty } from '../api/calls';
 
@@ -144,6 +145,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [meetingLoading, setMeetingLoading] = useState(false);
   const [showPollModal, setShowPollModal] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
+  const [showWhiteboardModal, setShowWhiteboardModal] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -978,7 +980,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     await loadMessages();
   };
 
-  const handleCreateWhiteboard = useCallback(async () => {
+  const handleCreateWhiteboard = useCallback(async (title: string) => {
+    setShowWhiteboardModal(false);
     try {
       const roomBytes = window.crypto.getRandomValues(new Uint8Array(10));
       const room = Array.from(roomBytes).map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -991,8 +994,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       if (!jwk.k) throw new Error('Key export failed');
       const link = `https://excalidraw.com/#room=${room},${jwk.k}`;
       window.open(link, '_blank', 'noopener,noreferrer');
+      const heading = title ? `## 🎨 ${title}` : '## 🎨 Kollaboratives Whiteboard';
       const text = [
-        '## 🎨 Kollaboratives Whiteboard',
+        heading,
         '',
         'Ich habe ein neues **Excalidraw**-Whiteboard erstellt – klickt auf den Link, um gemeinsam zu zeichnen:',
         '',
@@ -1659,7 +1663,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           {sendError}
         </div>
       )}
-      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatId={chat.id} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} onCreateWhiteboard={handleCreateWhiteboard} droppedFiles={droppedFiles} onDroppedFilesConsumed={() => setDroppedFiles([])} />
+      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatId={chat.id} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} onCreateWhiteboard={() => setShowWhiteboardModal(true)} droppedFiles={droppedFiles} onDroppedFilesConsumed={() => setDroppedFiles([])} />
       {showPollModal && (
         <CreatePollModal
           preselectedChat={chat}
@@ -1673,6 +1677,12 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           preselectedChat={chat}
           onClose={() => setShowEventModal(false)}
           onCreated={() => setShowEventModal(false)}
+        />
+      )}
+      {showWhiteboardModal && (
+        <CreateWhiteboardModal
+          onConfirm={handleCreateWhiteboard}
+          onClose={() => setShowWhiteboardModal(false)}
         />
       )}
       </div>{/* end main chat area */}
