@@ -373,7 +373,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
   return (
     <div
-      className="relative flex h-full shrink-0 flex-col bg-ci-blue-50 dark:bg-surface-900"
+      className="relative flex h-full shrink-0 flex-col bg-[var(--theme-panel)]"
       style={{ width: sidebarWidth }}
     >
       {/* Horizontal resize handle */}

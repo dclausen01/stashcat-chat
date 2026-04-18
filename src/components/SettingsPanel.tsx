@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
+import { useTheme, LIGHT_PRESETS, DARK_PRESETS, type PresetId } from '../context/ThemeContext';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -64,6 +65,35 @@ function ColorRow({
   );
 }
 
+function PresetChip({
+  label,
+  bgColor,
+  active,
+  onClick,
+}: {
+  label: string;
+  bgColor: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+        active
+          ? 'border-primary-400 bg-primary-50 text-primary-700 dark:bg-primary-950/50 dark:text-primary-300'
+          : 'border-surface-200 bg-surface-50 text-surface-600 hover:border-surface-300 dark:border-surface-600 dark:bg-surface-700 dark:text-surface-300 dark:hover:border-surface-500'
+      }`}
+    >
+      <span
+        className="h-3 w-3 shrink-0 rounded-full border border-black/10 dark:border-white/10"
+        style={{ backgroundColor: bgColor }}
+      />
+      {label}
+    </button>
+  );
+}
+
 export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const {
     showImagesInline,
@@ -84,11 +114,15 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     setEnterSendsMessage,
   } = useSettings();
 
+  const { mode, activePreset, activeColors, setPreset, setCustomColor } = useTheme();
+
   const notificationPermission = typeof Notification !== 'undefined' ? Notification.permission : 'denied';
   const notificationsDenied = notificationPermission === 'denied';
 
+  const namedPresets = mode === 'light' ? LIGHT_PRESETS : DARK_PRESETS;
+
   return (
-    <div className="flex h-full w-64 shrink-0 flex-col border-l border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900">
+    <div className="flex h-full w-64 shrink-0 flex-col border-l border-surface-200 bg-[var(--theme-panel)] dark:border-surface-700">
       <div className="flex shrink-0 items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-700">
         <h3 className="text-sm font-semibold text-surface-900 dark:text-white">Einstellungen</h3>
         <button
@@ -172,6 +206,48 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             value={bubbleView}
             onChange={setBubbleView}
           />
+        </div>
+
+        <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-surface-600">Design</p>
+
+        <div className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
+          <div className="mb-2 text-xs text-surface-500 dark:text-surface-400">
+            {mode === 'light' ? 'Helles Design' : 'Dunkles Design'}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {(Object.entries(namedPresets) as [PresetId, { label: string; colors: { bg: string; panel: string } }][]).map(
+              ([id, preset]) => (
+                <PresetChip
+                  key={id}
+                  label={preset.label}
+                  bgColor={preset.colors.bg}
+                  active={activePreset === id}
+                  onClick={() => setPreset(id)}
+                />
+              ),
+            )}
+            <PresetChip
+              label="Eigene"
+              bgColor={activeColors.bg}
+              active={activePreset === 'custom'}
+              onClick={() => setPreset('custom')}
+            />
+          </div>
+
+          {activePreset === 'custom' && (
+            <div className="mt-3 flex flex-col gap-2 border-t border-surface-100 pt-3 dark:border-surface-700">
+              <ColorRow
+                label="Hintergrund"
+                value={activeColors.bg}
+                onChange={(v) => setCustomColor('bg', v)}
+              />
+              <ColorRow
+                label="Panel"
+                value={activeColors.panel}
+                onChange={(v) => setCustomColor('panel', v)}
+              />
+            </div>
+          )}
         </div>
 
         <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-surface-600">Farben</p>
