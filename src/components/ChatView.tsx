@@ -2611,10 +2611,10 @@ function MarkdownContent({ content, isOwn, isEmojiOnly = false }: { content: str
           a: ({ href, children }) => (
             <a href={href} target="_blank" rel="noopener noreferrer"
               className={clsx(
-                'inline-flex items-center gap-0.5 underline',
+                'underline break-all',
                 isOwn ? 'text-primary-200 hover:text-white' : 'text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200',
               )}>
-              <ExternalLink size={11} className="shrink-0" />
+              <ExternalLink size={11} className="inline align-text-bottom mr-0.5 shrink-0" />
               {children}
             </a>
           ),
