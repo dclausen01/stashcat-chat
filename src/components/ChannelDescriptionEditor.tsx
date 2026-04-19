@@ -1,19 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Loader2, Save } from 'lucide-react';
+import { X, Loader2, Save, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { ChatTarget } from '../types';
 
 /** Preset link types with emoji and label */
 const LINK_PRESETS = [
-  { emoji: '📹', label: 'BBB: ', placeholder: 'https://bbb.bbz-rd-eck.de/b/...' },
-  { emoji: '📚', label: 'Moodle: ', placeholder: 'https://portal.bbz-rd-eck.com/course/...' },
-  { emoji: '📌', label: 'TaskCard: ', placeholder: 'https://bbzrdeck.taskcards.app/board/...' },
-  { emoji: '📝', label: 'Dokument: ', placeholder: 'https://cloud.bbz-rd-eck.de/...' },
-  { emoji: '📊', label: 'Tabelle: ', placeholder: 'https://cloud.bbz-rd-eck.de/...' },
-  { emoji: '📓', label: 'Notizbuch:', placeholder: 'https://onenote.com/...' },
-  { emoji: '🔗', label: 'Link:', placeholder: 'https://...' },
-  { emoji: '📂', label: 'Ordner:', placeholder: 'https://cloud.bbz-rd-eck.de/...' },
+  { emoji: '📹', label: 'BBB', placeholder: 'https://bbb.bbz-rd-eck.de/b/...' },
+  { emoji: '📚', label: 'Moodle', placeholder: 'https://portal.bbz-rd-eck.com/course/...' },
+  { emoji: '📌', label: 'TaskCards', placeholder: 'https://bbzrdeck.taskcards.app/board/...' },
+  { emoji: '📝', label: 'Dokument', placeholder: 'https://cloud.bbz-rd-eck.de/...' },
+  { emoji: '📊', label: 'Tabelle', placeholder: 'https://cloud.bbz-rd-eck.de/...' },
+  { emoji: '📓', label: 'Notizbuch', placeholder: 'https://onenote.com/...' },
+  { emoji: '📂', label: 'Ordner', placeholder: 'https://cloud.bbz-rd-eck.de/...' },
+  { emoji: '🔗', label: 'Link', placeholder: 'https://...' },
 ] as const;
 
 interface LinkRow {
@@ -35,15 +35,15 @@ function parseDescription(desc: string): { freeText: string; links: LinkRow[] } 
   const freeLines: string[] = [];
 
   for (const line of lines) {
-    // Match lines like "📹 Videokonferenz: https://..." or "📹 https://..."
-    const match = line.match(/^([^\w\s])\s*(?:([^:h]+?):\s*)?(https?:\/\/\S+)\s*$/u);
+    // Match lines like "📹 BBB: https://..." or "📹 https://..."
+    // Lookahead (?!https?://) prevents matching the URL itself as a label
+    const match = line.match(/^([^\w\s])\s*(?:(?!https?:\/\/)([^:]+?):\s*)?(https?:\/\/\S+)\s*$/u);
     if (match) {
-      const [, emoji, label, url] = match;
-      linkLines.push({
-        emoji,
-        label: label?.trim() || LINK_PRESETS.find((p) => p.emoji === emoji)?.label || '',
-        url,
-      });
+      const [, emoji, rawLabel, url] = match;
+      const label = rawLabel?.replace(/:?\s*$/, '').trim()
+        || LINK_PRESETS.find((p) => p.emoji === emoji)?.label
+        || '';
+      linkLines.push({ emoji, label, url });
     } else {
       freeLines.push(line);
     }
@@ -63,7 +63,7 @@ function buildDescription(freeText: string, links: LinkRow[]): string {
   const linkParts = links
     .filter((l) => l.url.trim())
     .map((l) => {
-      const label = l.label.trim();
+      const label = l.label.replace(/:?\s*$/, '').trim(); // strip any trailing colon
       return label ? `${l.emoji} ${label}: ${l.url.trim()}` : `${l.emoji} ${l.url.trim()}`;
     });
 
@@ -80,17 +80,15 @@ export default function ChannelDescriptionEditor({ chat, onClose, onSaved }: Cha
 
   const [freeText, setFreeText] = useState(parsed.freeText);
   const [links, setLinks] = useState<LinkRow[]>(() => {
-    // Always show 3 rows; fill from parsed, pad with defaults
-    const rows: LinkRow[] = [];
-    for (let i = 0; i < 3; i++) {
-      if (parsed.links[i]) {
-        rows.push({ ...parsed.links[i] });
-      } else {
-        const preset = LINK_PRESETS[i] || LINK_PRESETS[6]; // fallback to generic Link
-        rows.push({ emoji: preset.emoji, label: preset.label, url: '' });
-      }
+    if (parsed.links.length > 0) {
+      return parsed.links.map(l => ({ ...l }));
     }
-    return rows;
+    // Default: first 3 preset rows
+    return Array.from({ length: 3 }, (_, i) => ({
+      emoji: LINK_PRESETS[i].emoji,
+      label: LINK_PRESETS[i].label,
+      url: '',
+    }));
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -101,6 +99,17 @@ export default function ChannelDescriptionEditor({ chat, onClose, onSaved }: Cha
 
   const updateLink = useCallback((index: number, field: keyof LinkRow, value: string) => {
     setLinks((prev) => prev.map((l, i) => i === index ? { ...l, [field]: value } : l));
+  }, []);
+
+  const addLink = useCallback(() => {
+    setLinks((prev) => {
+      const preset = LINK_PRESETS[prev.length % LINK_PRESETS.length];
+      return [...prev, { emoji: preset.emoji, label: preset.label, url: '' }];
+    });
+  }, []);
+
+  const removeLink = useCallback((index: number) => {
+    setLinks((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
   const handleSave = async () => {
@@ -224,9 +233,25 @@ export default function ChannelDescriptionEditor({ chat, onClose, onSaved }: Cha
                     placeholder={LINK_PRESETS.find((p) => p.emoji === link.emoji)?.placeholder || 'https://...'}
                     className="min-w-0 flex-1 rounded-lg border border-surface-300 bg-white px-2.5 py-1.5 text-sm text-surface-900 outline-none transition focus:border-primary-500 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
                   />
+
+                  {/* Remove row */}
+                  <button
+                    onClick={() => removeLink(idx)}
+                    className="shrink-0 rounded-lg p-1.5 text-surface-400 transition hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-800 dark:hover:text-surface-300"
+                    title="Zeile entfernen"
+                  >
+                    <X size={15} />
+                  </button>
                 </div>
               ))}
             </div>
+            <button
+              onClick={addLink}
+              className="mt-2 flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-surface-500 transition hover:bg-surface-100 hover:text-surface-700 dark:hover:bg-surface-800 dark:hover:text-surface-300"
+            >
+              <Plus size={14} />
+              Zeile hinzufügen
+            </button>
           </div>
 
           {/* Preview */}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, Presentation } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -91,34 +91,88 @@ function formatDateLabel(ts: number): string {
 }
 
 interface ExternalServiceLink {
-  type: 'moodle' | 'bbb' | 'taskcards';
+  type: 'moodle' | 'bbb' | 'taskcards' | 'nextcloud' | 'onenote' | 'link';
   url: string;
   label: string;
 }
 
-/** Extract Moodle/BBB/TaskCards links from description and return cleaned text + link objects. */
+const EMOJI_TO_TYPE: Partial<Record<string, ExternalServiceLink['type']>> = {
+  '📹': 'bbb',
+  '📚': 'moodle',
+  '📌': 'taskcards',
+  '📝': 'nextcloud',
+  '📊': 'nextcloud',
+  '📓': 'onenote',
+  '📂': 'nextcloud',
+  '🔗': 'link',
+};
+
+const SERVICE_LINK_DEFAULTS: Record<ExternalServiceLink['type'], string> = {
+  moodle: 'Moodle',
+  bbb: 'BBB',
+  taskcards: 'TaskCards',
+  nextcloud: 'Nextcloud',
+  onenote: 'OneNote',
+  link: 'Link',
+};
+
+function detectLinkType(url: string, emoji?: string): ExternalServiceLink['type'] {
+  if (emoji) {
+    const fromEmoji = EMOJI_TO_TYPE[emoji];
+    if (fromEmoji) return fromEmoji;
+  }
+  if (/moodle\.bbz|portal\.bbz/i.test(url)) return 'moodle';
+  if (/bbb\.bbz/i.test(url)) return 'bbb';
+  if (/taskcards/i.test(url)) return 'taskcards';
+  if (/cloud\.bbz/i.test(url)) return 'nextcloud';
+  if (/onenote\.com/i.test(url)) return 'onenote';
+  return 'link';
+}
+
+/** Extract service links from description and return cleaned text + link objects. */
 function extractServiceLinks(description: string): { cleanDescription: string; links: ExternalServiceLink[] } {
   const links: ExternalServiceLink[] = [];
-  // Match lines/segments containing the special URLs, capturing optional preceding text on the same segment
-  const patterns: { regex: RegExp; type: ExternalServiceLink['type']; label: string }[] = [
-    { regex: /(?:[^\n]*?\s)??(https?:\/\/moodle\.bbz[^\s)]*)/gi, type: 'moodle', label: 'Moodle' },
-    { regex: /(?:[^\n]*?\s)??(https?:\/\/portal\.bbz[^\s)]*)/gi, type: 'moodle', label: 'Moodle' },
-    { regex: /(?:[^\n]*?\s)??(https?:\/\/bbb\.bbz[^\s)]*)/gi, type: 'bbb', label: 'BBB' },
-    { regex: /(?:[^\n]*?\s)??(https?:\/\/bbzrdeck\.taskcards[^\s)]*)/gi, type: 'taskcards', label: 'TaskCards' },
-  ];
+  const removedLines = new Set<string>();
 
-  let cleaned = description;
-  for (const { regex, type, label } of patterns) {
-    let match;
-    while ((match = regex.exec(description)) !== null) {
-      links.push({ type, url: match[1], label });
+  for (const line of description.split('\n')) {
+    // Emoji-prefixed link lines (e.g. "📹 BBB: https://..." or "📹 https://...")
+    const emojiMatch = line.match(/^([^\w\s])\s*(?:(?!https?:\/\/)([^:]+?):\s*)?(https?:\/\/\S+)\s*$/u);
+    if (emojiMatch) {
+      const [, emoji, rawLabel, url] = emojiMatch;
+      links.push({
+        type: detectLinkType(url, emoji),
+        url,
+        label: rawLabel?.replace(/:?\s*$/, '').trim() ?? '',
+      });
+      removedLines.add(line);
+      continue;
     }
-    // Remove the full match (line with the URL) from description
-    cleaned = cleaned.replace(new RegExp(`[^\\n]*https?:\\/\\/(${type === 'moodle' ? 'moodle\\.bbz|portal\\.bbz' : type === 'bbb' ? 'bbb\\.bbz' : 'bbzrdeck\\.taskcards'})[^\\s)]*`, 'gi'), '');
+    // Legacy: bare known-domain URLs without emoji prefix (backward compat)
+    const LEGACY_PATTERNS: [RegExp, ExternalServiceLink['type']][] = [
+      [/https?:\/\/moodle\.bbz[^\s)]*/gi, 'moodle'],
+      [/https?:\/\/portal\.bbz[^\s)]*/gi, 'moodle'],
+      [/https?:\/\/bbb\.bbz[^\s)]*/gi, 'bbb'],
+      [/https?:\/\/bbzrdeck\.taskcards[^\s)]*/gi, 'taskcards'],
+    ];
+    let legacyMatched = false;
+    for (const [regex, type] of LEGACY_PATTERNS) {
+      let m: RegExpExecArray | null;
+      while ((m = regex.exec(line)) !== null) {
+        links.push({ type, url: m[0], label: '' });
+        legacyMatched = true;
+      }
+    }
+    if (legacyMatched) removedLines.add(line);
   }
-  // Clean up leftover blank lines
-  cleaned = cleaned.replace(/\n{2,}/g, '\n').trim();
-  return { cleanDescription: cleaned, links };
+
+  const cleanDescription = description
+    .split('\n')
+    .filter(line => !removedLines.has(line))
+    .join('\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+
+  return { cleanDescription, links };
 }
 
 interface PendingMessage { text: string; replyTo: Message | null; time: number }
@@ -1170,7 +1224,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           )}
           title="Videokonferenz starten"
         >
-          {meetingLoading ? <Loader2 size={20} className="animate-spin" /> : <Presentation size={20} />}
+          {meetingLoading ? <Loader2 size={20} className="animate-spin" /> : <TvMinimalPlay size={20} />}
         </button>
         {/* Audio call button — only for 1:1 conversations */}
         {chat.type === 'conversation' && chat.userId && onStartCall && (
@@ -1193,25 +1247,31 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             <Phone size={20} />
           </button>
         )}
-        {/* Service link buttons (Moodle, BBB, TaskCards) extracted from channel description */}
+        {/* Service link buttons extracted from channel description */}
         {serviceLinks.map((link, i) => (
           <a
             key={`${link.type}-${i}`}
             href={link.url}
             target="_blank"
             rel="noopener noreferrer"
-            title={`${link.label} öffnen`}
+            title={`${link.label || SERVICE_LINK_DEFAULTS[link.type]} öffnen`}
             className={clsx(
-              'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90',
+              'flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90',
               link.type === 'moodle' && 'bg-orange-500 hover:bg-orange-600',
               link.type === 'bbb' && 'bg-blue-500 hover:bg-blue-600',
               link.type === 'taskcards' && 'bg-teal-500 hover:bg-teal-600',
+              link.type === 'nextcloud' && 'bg-indigo-500 hover:bg-indigo-600',
+              link.type === 'onenote' && 'bg-purple-500 hover:bg-purple-600',
+              link.type === 'link' && 'bg-surface-600 hover:bg-surface-700',
             )}
           >
-            {link.type === 'moodle' && <GraduationCap size={16} />}
-            {link.type === 'bbb' && <span className="text-sm">📹</span>}
-            {link.type === 'taskcards' && <span className="text-sm">📋</span>}
-            {link.label}
+            {link.type === 'moodle' && <GraduationCap size={14} />}
+            {link.type === 'bbb' && <Video size={14} />}
+            {link.type === 'taskcards' && <span className="font-bold leading-none">T</span>}
+            {link.type === 'nextcloud' && <Cloud size={14} />}
+            {link.type === 'onenote' && <BookOpen size={14} />}
+            {link.type === 'link' && <ExternalLink size={14} />}
+            {link.label || SERVICE_LINK_DEFAULTS[link.type]}
           </a>
         ))}
         {chat.type === 'channel' && isManager && (
