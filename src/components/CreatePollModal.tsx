@@ -62,7 +62,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
       try {
         const [companies, convs] = await Promise.all([
           api.getCompanies(),
-          api.getConversations(100, 0).catch(() => [] as Conversation[]),
+          api.getConversations().catch(() => [] as Conversation[]),
         ]);
         const opts: ChatOption[] = [];
 
