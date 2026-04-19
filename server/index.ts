@@ -1148,9 +1148,27 @@ app.get('/api/conversations', async (req, res) => {
     const token = extractToken(req);
     const payload = decryptSession(token);
     const client = await getClient(req);
-    const limit = Number(req.query.limit) || 50;
-    const offset = Number(req.query.offset) || 0;
-    const conversations = await client.getConversations({ limit, offset }) as unknown as Array<Record<string, unknown>>;
+
+    // When no explicit limit is passed, paginate through all conversations.
+    // Stashcat's API caps each response at ~100 regardless of the requested limit,
+    // so a single request would silently truncate the list (losing favorites
+    // that sit further down by last_activity).
+    let conversations: Array<Record<string, unknown>>;
+    if (req.query.limit !== undefined) {
+      const limit = Number(req.query.limit) || 50;
+      const offset = Number(req.query.offset) || 0;
+      conversations = await client.getConversations({ limit, offset }) as unknown as Array<Record<string, unknown>>;
+    } else {
+      conversations = [];
+      const PAGE = 100;
+      let offset = 0;
+      while (true) {
+        const batch = await client.getConversations({ limit: PAGE, offset }) as unknown as Array<Record<string, unknown>>;
+        conversations.push(...batch);
+        if (batch.length < PAGE) break;
+        offset += PAGE;
+      }
+    }
 
     // Discover bot before filtering so the first request also filters correctly
     await findChatBot(client, payload.clientKey).catch(() => {});
