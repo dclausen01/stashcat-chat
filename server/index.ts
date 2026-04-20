@@ -879,6 +879,50 @@ app.post('/api/channels/:channelId/join', async (req, res) => {
   } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
 });
 
+// ── Channel Invitations (accept / decline) ────────────────────────────────────
+// The invite_id comes from the notification's content.id field (NOT the
+// notification_id and NOT the channel_id). These endpoints call the
+// undocumented Stashcat API /channels/acceptInvite and /channels/declineInvite
+// directly via client.api.post.
+
+app.post('/api/channels/invites/:inviteId/accept', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const inviteId = req.params.inviteId;
+    const { notificationId } = req.body as { notificationId?: string };
+    serverLog(`[channel-invite] ACCEPT invite_id=${inviteId}`);
+    const data = client.api.createAuthenticatedRequestData({ invite_id: inviteId });
+    await client.api.post('/channels/acceptInvite', data);
+    if (notificationId) {
+      try { await client.deleteNotification(notificationId); } catch { /* best-effort */ }
+    }
+    serverLog(`[channel-invite] ACCEPT invite_id=${inviteId} — success`);
+    res.json({ ok: true });
+  } catch (e) {
+    serverLog(`[channel-invite] ACCEPT invite_id=${req.params.inviteId} — FAILED: ${errorMessage(e)}`);
+    res.status(500).json({ error: errorMessage(e) });
+  }
+});
+
+app.post('/api/channels/invites/:inviteId/decline', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const inviteId = req.params.inviteId;
+    const { notificationId } = req.body as { notificationId?: string };
+    serverLog(`[channel-invite] DECLINE invite_id=${inviteId}`);
+    const data = client.api.createAuthenticatedRequestData({ invite_id: inviteId });
+    await client.api.post('/channels/declineInvite', data);
+    if (notificationId) {
+      try { await client.deleteNotification(notificationId); } catch { /* best-effort */ }
+    }
+    serverLog(`[channel-invite] DECLINE invite_id=${inviteId} — success`);
+    res.json({ ok: true });
+  } catch (e) {
+    serverLog(`[channel-invite] DECLINE invite_id=${req.params.inviteId} — FAILED: ${errorMessage(e)}`);
+    res.status(500).json({ error: errorMessage(e) });
+  }
+});
+
 app.post('/api/channels/:channelId/favorite', async (req, res) => {
   try {
     const client = await getClient(req);

@@ -21,6 +21,7 @@ const TYPE_MAP: Record<string, { label: string; icon: React.ReactNode }> = {
   device_disconnected:     { label: 'Gerät getrennt',                  icon: <Smartphone size={16} className="text-surface-500" /> },
   new_login:               { label: 'Neue Anmeldung',                  icon: <Shield size={16} className="text-blue-500" /> },
   channel_invite:          { label: 'Einladung in einen Channel',      icon: <Hash size={16} className="text-primary-500" /> },
+  invite:                  { label: 'Einladung in einen Channel',      icon: <Hash size={16} className="text-primary-500" /> },
   channel_membership_gained: { label: 'Channel beigetreten',           icon: <Hash size={16} className="text-green-500" /> },
   channel_membership_lost: { label: 'Channel verlassen',               icon: <Hash size={16} className="text-surface-500" /> },
   channel_created:         { label: 'Neuer Channel erstellt',          icon: <Hash size={16} className="text-primary-500" /> },
@@ -56,6 +57,29 @@ function getTypeInfo(type: string): { label: string; icon: React.ReactNode } {
   // Fallback: humanize the snake_case type
   const humanized = safeType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   return { label: humanized || 'Benachrichtigung', icon: <Bell size={16} className="text-surface-500" /> };
+}
+
+/** Parse channel-invite notification content → invite id, channel name, sender info */
+function parseChannelInviteNotification(content: unknown): {
+  inviteId: string;
+  channelName?: string;
+  sender?: { first_name: string; last_name: string; image?: string };
+} | null {
+  if (!content || typeof content !== 'object') return null;
+  const obj = content as Record<string, unknown>;
+  // Invite content has a string `id` (the invite_id), `channel_id`, and `sender_id`
+  if (!obj.id || !obj.channel_id || !obj.sender_id) return null;
+  const channel = obj.channel && typeof obj.channel === 'object' ? (obj.channel as Record<string, unknown>) : null;
+  const sender = obj.sender && typeof obj.sender === 'object' ? (obj.sender as Record<string, unknown>) : null;
+  return {
+    inviteId: String(obj.id),
+    channelName: channel && typeof channel.name === 'string' ? channel.name : undefined,
+    sender: sender ? {
+      first_name: String(sender.first_name ?? ''),
+      last_name: String(sender.last_name ?? ''),
+      image: sender.image ? String(sender.image) : undefined,
+    } : undefined,
+  };
 }
 
 /** Parse key_request/key_sync_request notification content → requester user info */
@@ -229,6 +253,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
   const [notifications, setNotifications] = useState<api.AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [keySyncState, setKeySyncState] = useState<Record<string, 'accepting' | 'accepted' | 'error'>>({});
+  const [inviteState, setInviteState] = useState<Record<string, 'accepting' | 'declining' | 'accepted' | 'declined' | 'error'>>({});
   const { autoAcceptKeySync } = useSettings();
 
   useEffect(() => {
@@ -271,6 +296,30 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
       setNotifications([]);
     } catch (err) {
       console.error('Failed to delete all notifications:', err);
+    }
+  };
+
+  const handleAcceptInvite = async (notificationId: string, inviteId: string) => {
+    setInviteState((prev) => ({ ...prev, [notificationId]: 'accepting' }));
+    try {
+      await api.acceptChannelInvite(inviteId, notificationId);
+      setInviteState((prev) => ({ ...prev, [notificationId]: 'accepted' }));
+      setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+    } catch (err) {
+      console.error('Failed to accept channel invite:', err);
+      setInviteState((prev) => ({ ...prev, [notificationId]: 'error' }));
+    }
+  };
+
+  const handleDeclineInvite = async (notificationId: string, inviteId: string) => {
+    setInviteState((prev) => ({ ...prev, [notificationId]: 'declining' }));
+    try {
+      await api.declineChannelInvite(inviteId, notificationId);
+      setInviteState((prev) => ({ ...prev, [notificationId]: 'declined' }));
+      setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+    } catch (err) {
+      console.error('Failed to decline channel invite:', err);
+      setInviteState((prev) => ({ ...prev, [notificationId]: 'error' }));
     }
   };
 
@@ -324,6 +373,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
               const isPollNotif = n.type?.includes('survey') || n.type?.includes('poll');
               const isEventNotif = n.type?.includes('event') || n.type?.includes('calendar');
               const isKeyReq = n.type?.includes('key');
+              const isChannelInvite = n.type === 'invite';
 
               // Extract poll ID from survey object, content (for poll notifications), or text
               const pollId = n.survey && typeof n.survey === 'object' && 'id' in n.survey
@@ -361,13 +411,17 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
               // Key sync request: parse requester user info
               const keyUser = isKeyReq ? parseKeyRequestUser(rawContent) : null;
 
-              const formatted = keyUser ? null : formatNotificationContent(rawContent);
+              // Channel invite: parse invite_id, channel, sender
+              const invite = isChannelInvite ? parseChannelInviteNotification(rawContent) : null;
 
-              // Safely extract channel/event names
-              const channelName = n.channel && typeof n.channel.name === 'string' ? n.channel.name : undefined;
+              const formatted = (keyUser || invite) ? null : formatNotificationContent(rawContent);
+
+              // Safely extract channel/event names (suppressed for invites — already shown inline)
+              const channelName = invite ? undefined : (n.channel && typeof n.channel.name === 'string' ? n.channel.name : undefined);
               const eventName = n.event && typeof n.event.name === 'string' ? n.event.name : undefined;
 
               const keySyncStatus = keySyncState[n.id];
+              const inviteStatus = inviteState[n.id];
 
               return (
                 <div
@@ -382,6 +436,8 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
                   <div className="shrink-0 pt-0.5">
                     {keyUser ? (
                       <Avatar name={`${keyUser.first_name} ${keyUser.last_name}`.trim() || 'Unbekannt'} image={keyUser.image} size="sm" />
+                    ) : invite?.sender && (invite.sender.first_name || invite.sender.last_name) ? (
+                      <Avatar name={`${invite.sender.first_name} ${invite.sender.last_name}`.trim() || 'Unbekannt'} image={invite.sender.image} size="sm" />
                     ) : n.sender && (n.sender.first_name || n.sender.last_name) ? (
                       <Avatar name={`${n.sender.first_name ?? ''} ${n.sender.last_name ?? ''}`.trim() || 'Unbekannt'} image={n.sender.image} size="sm" />
                     ) : (
@@ -400,7 +456,62 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
                       )}
                     </div>
 
-                    {keyUser ? (
+                    {invite ? (
+                      <>
+                        <p className="mt-0.5 text-sm text-surface-800 dark:text-surface-200">
+                          {invite.sender && (invite.sender.first_name || invite.sender.last_name) ? (
+                            <>
+                              <span className="font-medium">
+                                {`${invite.sender.first_name} ${invite.sender.last_name}`.trim()}
+                              </span>{' '}hat dich
+                            </>
+                          ) : (
+                            'Du wurdest'
+                          )}
+                          {invite.channelName ? (
+                            <> zum Channel <span className="font-medium">{invite.channelName}</span> eingeladen.</>
+                          ) : (
+                            <> zu einem Channel eingeladen.</>
+                          )}
+                        </p>
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleAcceptInvite(n.id, invite.inviteId); }}
+                            disabled={inviteStatus === 'accepting' || inviteStatus === 'declining' || inviteStatus === 'accepted' || inviteStatus === 'declined'}
+                            className={clsx(
+                              'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition',
+                              inviteStatus === 'accepted'
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                : inviteStatus === 'error'
+                                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                : 'bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-60',
+                            )}
+                          >
+                            {inviteStatus === 'accepting' ? (
+                              <Loader2 size={11} className="animate-spin" />
+                            ) : (
+                              <Check size={11} />
+                            )}
+                            {inviteStatus === 'accepted' ? 'Angenommen' : 'Bestätigen'}
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeclineInvite(n.id, invite.inviteId); }}
+                            disabled={inviteStatus === 'accepting' || inviteStatus === 'declining' || inviteStatus === 'accepted' || inviteStatus === 'declined'}
+                            className="flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium text-surface-600 transition hover:bg-surface-200 disabled:opacity-60 dark:hover:bg-surface-700 dark:text-surface-400"
+                          >
+                            {inviteStatus === 'declining' ? (
+                              <Loader2 size={11} className="animate-spin" />
+                            ) : (
+                              <Ban size={11} />
+                            )}
+                            {inviteStatus === 'declined' ? 'Abgelehnt' : 'Ablehnen'}
+                          </button>
+                        </div>
+                        {inviteStatus === 'error' && (
+                          <p className="mt-1 text-xs text-red-500">Aktion fehlgeschlagen — bitte erneut versuchen.</p>
+                        )}
+                      </>
+                    ) : keyUser ? (
                       <>
                         <p className="mt-0.5 text-sm text-surface-800 dark:text-surface-200">
                           <span className="font-medium">{keyUser.first_name} {keyUser.last_name}</span>{' '}
