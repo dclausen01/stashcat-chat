@@ -11,6 +11,7 @@ interface NotificationsPanelProps {
   onOpenPoll?: (pollId: string) => void;
   onOpenCalendar?: () => void;
   onOpenEvent?: (eventId: string) => void;
+  onChannelJoined?: () => void;
 }
 
 /** Map API notification types to user-friendly German labels + icons */
@@ -249,7 +250,7 @@ function formatNotificationContent(content: unknown): { text: string; subtext?: 
   }
 }
 
-export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, onOpenCalendar, onOpenEvent }: NotificationsPanelProps) {
+export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, onOpenCalendar, onOpenEvent, onChannelJoined }: NotificationsPanelProps) {
   const [notifications, setNotifications] = useState<api.AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [keySyncState, setKeySyncState] = useState<Record<string, 'accepting' | 'accepted' | 'error'>>({});
@@ -305,6 +306,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
       await api.acceptChannelInvite(inviteId, notificationId);
       setInviteState((prev) => ({ ...prev, [notificationId]: 'accepted' }));
       setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+      onChannelJoined?.();
     } catch (err) {
       console.error('Failed to accept channel invite:', err);
       setInviteState((prev) => ({ ...prev, [notificationId]: 'error' }));
