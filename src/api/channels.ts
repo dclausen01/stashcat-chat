@@ -88,6 +88,14 @@ export async function joinChannel(channelId: string): Promise<void> {
   await post(`/channels/${channelId}/join`);
 }
 
+export async function acceptChannelInvite(inviteId: string, notificationId?: string): Promise<void> {
+  await post(`/channels/invites/${inviteId}/accept`, notificationId ? { notificationId } : {});
+}
+
+export async function declineChannelInvite(inviteId: string, notificationId?: string): Promise<void> {
+  await post(`/channels/invites/${inviteId}/decline`, notificationId ? { notificationId } : {});
+}
+
 // --- Company Members & Groups ---
 
 export interface ManagedUser {

@@ -53,6 +53,8 @@ export {
   setFavorite,
   getVisibleChannels,
   joinChannel,
+  acceptChannelInvite,
+  declineChannelInvite,
   searchCompanyMembers,
   getCompanyGroups,
   getGroupMembers,
