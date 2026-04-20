@@ -303,9 +303,13 @@ async function connectRealtime(client, clientKey) {
         // Incoming messages from others arrive as 'notification', not 'message_sync'.
         // 'message_sync' is only the sender's echo. Payload: { message: MessageSyncPayload }
         rt.on('notification', async (data) => {
-            const msg = data.message;
-            if (!msg)
-                return; // Not a message notification
+            const raw = data;
+            const msg = raw.message;
+            if (!msg) {
+                // Log non-message notifications so we can diagnose missed events
+                serverLog(`[Realtime] Non-message notification received (keys: ${Object.keys(raw).join(', ')}):`, JSON.stringify(raw).slice(0, 500));
+                return;
+            }
             serverLog(`[Realtime] Received notification (new message):`, {
                 channel_id: msg.channel_id,
                 conversation_id: msg.conversation_id,
@@ -347,6 +351,28 @@ async function connectRealtime(client, clientKey) {
         rt.on('key_sync_request', (data) => {
             serverLog(`[Realtime] Received key_sync_request:`, JSON.stringify(data).slice(0, 300));
             pushSSE(clientKey, 'key_sync_request', data);
+        });
+        // Forward online status changes so the Sidebar can update availability dots in real-time
+        rt.on('online_status_change', (data) => {
+            serverLog(`[Realtime] Received online_status_change:`, JSON.stringify(data).slice(0, 300));
+            pushSSE(clientKey, 'online_status_change', data);
+        });
+        // Forward call-related events to SSE so the browser can manage WebRTC
+        rt.on('call_created', (data) => {
+            serverLog(`[Realtime] call_created for clientKey ${clientKey.slice(0, 8)}`);
+            pushSSE(clientKey, 'call_created', data);
+        });
+        rt.on('signal', (data) => {
+            const sig = data;
+            serverLog(`[Realtime] signal (${sig?.signalType}) for clientKey ${clientKey.slice(0, 8)}`);
+            pushSSE(clientKey, 'call_signal', data);
+        });
+        rt.on('object_change', (data) => {
+            const change = data;
+            if (change?.type === 'call') {
+                serverLog(`[Realtime] object_change (call) for clientKey ${clientKey.slice(0, 8)}`);
+                pushSSE(clientKey, 'call_change', data);
+            }
         });
         serverLog(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
     }
@@ -790,6 +816,55 @@ app.post('/api/channels/:channelId/join', async (req, res) => {
         res.status(500).json({ error: errorMessage(e) });
     }
 });
+// ── Channel Invitations (accept / decline) ────────────────────────────────────
+// The invite_id comes from the notification's content.id field (NOT the
+// notification_id and NOT the channel_id). These endpoints call the
+// undocumented Stashcat API /channels/acceptInvite and /channels/declineInvite
+// directly via client.api.post.
+app.post('/api/channels/invites/:inviteId/accept', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const inviteId = req.params.inviteId;
+        const { notificationId } = req.body;
+        serverLog(`[channel-invite] ACCEPT invite_id=${inviteId}`);
+        const data = client.api.createAuthenticatedRequestData({ invite_id: inviteId });
+        await client.api.post('/channels/acceptInvite', data);
+        if (notificationId) {
+            try {
+                await client.deleteNotification(notificationId);
+            }
+            catch { /* best-effort */ }
+        }
+        serverLog(`[channel-invite] ACCEPT invite_id=${inviteId} — success`);
+        res.json({ ok: true });
+    }
+    catch (e) {
+        serverLog(`[channel-invite] ACCEPT invite_id=${req.params.inviteId} — FAILED: ${errorMessage(e)}`);
+        res.status(500).json({ error: errorMessage(e) });
+    }
+});
+app.post('/api/channels/invites/:inviteId/decline', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const inviteId = req.params.inviteId;
+        const { notificationId } = req.body;
+        serverLog(`[channel-invite] DECLINE invite_id=${inviteId}`);
+        const data = client.api.createAuthenticatedRequestData({ invite_id: inviteId });
+        await client.api.post('/channels/declineInvite', data);
+        if (notificationId) {
+            try {
+                await client.deleteNotification(notificationId);
+            }
+            catch { /* best-effort */ }
+        }
+        serverLog(`[channel-invite] DECLINE invite_id=${inviteId} — success`);
+        res.json({ ok: true });
+    }
+    catch (e) {
+        serverLog(`[channel-invite] DECLINE invite_id=${req.params.inviteId} — FAILED: ${errorMessage(e)}`);
+        res.status(500).json({ error: errorMessage(e) });
+    }
+});
 app.post('/api/channels/:channelId/favorite', async (req, res) => {
     try {
         const client = await getClient(req);
@@ -1037,9 +1112,28 @@ app.get('/api/conversations', async (req, res) => {
         const token = extractToken(req);
         const payload = (0, token_crypto_1.decryptSession)(token);
         const client = await getClient(req);
-        const limit = Number(req.query.limit) || 50;
-        const offset = Number(req.query.offset) || 0;
-        const conversations = await client.getConversations({ limit, offset });
+        // When no explicit limit is passed, paginate through all conversations.
+        // Stashcat's API caps each response at ~100 regardless of the requested limit,
+        // so a single request would silently truncate the list (losing favorites
+        // that sit further down by last_activity).
+        let conversations;
+        if (req.query.limit !== undefined) {
+            const limit = Number(req.query.limit) || 50;
+            const offset = Number(req.query.offset) || 0;
+            conversations = await client.getConversations({ limit, offset });
+        }
+        else {
+            conversations = [];
+            const PAGE = 100;
+            let offset = 0;
+            while (true) {
+                const batch = await client.getConversations({ limit: PAGE, offset });
+                conversations.push(...batch);
+                if (batch.length < PAGE)
+                    break;
+                offset += PAGE;
+            }
+        }
         // Discover bot before filtering so the first request also filters correctly
         await findChatBot(client, payload.clientKey).catch(() => { });
         // Filter out the Chat Bot conversation
@@ -2424,6 +2518,71 @@ app.post('/api/polls/:id/answer', async (req, res) => {
     }
     catch (err) {
         res.status(500).json({ error: String(err) });
+    }
+});
+// ── Calls (WebRTC Audio) ──────────────────────────────────────────────────────
+app.post('/api/call/get_turn_server', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const data = client.api.createAuthenticatedRequestData({});
+        const result = await client.api.post('/call/get_turn_server', data);
+        res.json(result.turn_server);
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err, 'TURN server request failed') });
+    }
+});
+app.post('/api/call/create', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { callee_id, target_id, target, type, verification } = req.body;
+        const data = client.api.createAuthenticatedRequestData({
+            callee_id,
+            target_id: String(target_id),
+            target: target || 'conversation',
+            type: type || 'audio',
+            verification,
+        });
+        const result = await client.api.post('/call/create', data);
+        res.json(result.call);
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err, 'Call creation failed') });
+    }
+});
+app.post('/api/call/signal', async (req, res) => {
+    try {
+        const token = extractToken(req);
+        const sessionPayload = (0, token_crypto_1.decryptSession)(token);
+        const { clientKey, deviceId } = sessionPayload;
+        const conn = activeSSE.get(clientKey);
+        if (!conn?.realtime) {
+            return res.status(503).json({ error: 'Not connected to realtime' });
+        }
+        const socket = conn.realtime.socket;
+        if (!socket) {
+            return res.status(503).json({ error: 'Socket not available' });
+        }
+        const signalData = { ...req.body, deviceId };
+        socket.emit('signal', signalData);
+        serverLog(`[Call] Signal emitted: signalType=${req.body.signalType}, call_id=${req.body.call_id}`);
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err, 'Signal send failed') });
+    }
+});
+app.post('/api/call/end', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { call_id } = req.body;
+        const data = client.api.createAuthenticatedRequestData({ call_id: String(call_id) });
+        await client.api.post('/call/end', data);
+        res.json({ ok: true });
+    }
+    catch {
+        // Call may already be ended — treat as success
+        res.json({ ok: true });
     }
 });
 // ── Production: serve static frontend from dist/ ─────────────────────────────
