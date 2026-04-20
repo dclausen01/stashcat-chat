@@ -101,6 +101,8 @@ export {
   uploadToStorage,
   fileDownloadUrl,
   fileViewUrl,
+  canViewInOnlyOffice,
+  openInOnlyOffice,
   getLinkPreview,
 } from './files';
 export type { FolderContent, FileQuota, FileQuotaEntry, LinkPreview } from './files';

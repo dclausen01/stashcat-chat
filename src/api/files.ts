@@ -121,6 +121,28 @@ export function fileViewUrl(fileId: string, name: string): string {
   return `${BACKEND}/file/${fileId}?name=${encodeURIComponent(name)}&token=${encodeURIComponent(token)}&view=1`;
 }
 
+// --- OnlyOffice (read-only) ---
+
+const OFFICE_EXTENSIONS = new Set([
+  'docx', 'doc', 'odt', 'rtf', 'txt',
+  'xlsx', 'xls', 'ods', 'csv',
+  'pptx', 'ppt', 'odp',
+]);
+
+export function canViewInOnlyOffice(fileName: string): boolean {
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  return OFFICE_EXTENSIONS.has(ext);
+}
+
+/** Fetch the OnlyOffice viewer config and open the document in a new tab */
+export async function openInOnlyOffice(fileId: string, fileName: string): Promise<void> {
+  const data = await get<{ config: Record<string, unknown>; onlyofficeUrl: string }>(
+    `/onlyoffice/view?fileId=${encodeURIComponent(fileId)}&fileName=${encodeURIComponent(fileName)}`
+  );
+  const encoded = btoa(encodeURIComponent(JSON.stringify(data)));
+  window.open(`/onlyoffice-viewer.html#${encoded}`, '_blank');
+}
+
 // --- Link Preview ---
 
 export interface LinkPreview {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -2573,6 +2573,20 @@ function FileList({
                   )}
                 >
                   <FileText size={12} /> Vorschau
+                </button>
+              )}
+              {api.canViewInOnlyOffice(f.name) && (
+                <button
+                  onClick={() => api.openInOnlyOffice(f.id, f.name)}
+                  title="In OnlyOffice ansehen"
+                  className={clsx(
+                    'inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition',
+                    isOwn
+                      ? 'bg-primary-700 text-primary-100 hover:bg-primary-800'
+                      : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-surface-600',
+                  )}
+                >
+                  <Eye size={12} /> Ansehen
                 </button>
               )}
             </div>

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Grid3x3, List, Upload, Folder, ChevronRight, Home,
   Trash2, Pencil, Check, Loader2, ExternalLink, ArrowUp, ArrowDown, Plus,
-  Square, HardDrive,
+  Square, HardDrive, Eye,
 } from 'lucide-react';
 import { useFileSorting, type SortField, type SortDirection } from '../hooks/useFileSorting';
 import { FolderUploadProgress, type FolderUploadProgressData } from './FolderUploadProgress';
@@ -130,6 +130,8 @@ function canPreview(f: FileEntry): boolean {
   if (f.mime?.startsWith('text/')) return true;
   // Audio / video playable in browser
   if (f.mime?.startsWith('audio/') || f.mime?.startsWith('video/')) return true;
+  // Office files viewable in OnlyOffice
+  if (api.canViewInOnlyOffice(f.name)) return true;
   return false;
 }
 
@@ -271,6 +273,15 @@ function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
               )}
               {/* Hover actions overlay */}
               <div className="absolute inset-0 hidden items-center justify-center gap-1 bg-black/40 group-hover:flex rounded-lg">
+                {api.canViewInOnlyOffice(f.name) && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); api.openInOnlyOffice(f.id, f.name); }}
+                    className="rounded-md bg-white/90 p-1 text-primary-600 hover:bg-white"
+                    title="In OnlyOffice ansehen"
+                  >
+                    <Eye size={13} />
+                  </button>
+                )}
                 <a
                   href={downloadUrl}
                   download={f.name}
@@ -530,6 +541,15 @@ function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
                 >
                   <ExternalLink size={14} />
                 </a>
+                {api.canViewInOnlyOffice(f.name) && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); api.openInOnlyOffice(f.id, f.name); }}
+                    className="rounded-md p-1.5 text-primary-500 hover:bg-primary-100 hover:text-primary-600 dark:hover:bg-primary-900/30"
+                    title="In OnlyOffice ansehen"
+                  >
+                    <Eye size={14} />
+                  </button>
+                )}
                 <button
                   onClick={(e) => { e.stopPropagation(); onRename(f); }}
                   className="rounded-md p-1.5 text-surface-500 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
@@ -990,13 +1010,15 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     ? chat.type === 'channel' ? 'Channel-Dateien' : 'Konversation'
     : null;
 
-  /** Open a file preview: images → lightbox, PDF → iframe modal, others → new tab */
+  /** Open a file preview: images → lightbox, PDF → iframe modal, Office → OnlyOffice viewer, others → new tab */
   const handleFileOpen = useCallback((f: FileEntry) => {
     const viewUrl = api.fileViewUrl(f.id, f.name);
     if (f.mime?.startsWith('image/')) {
       setLightboxUrl(viewUrl);
     } else if (f.mime === 'application/pdf' || f.ext?.toLowerCase() === 'pdf') {
       setPdfView({ fileId: f.id, viewUrl, name: f.name });
+    } else if (api.canViewInOnlyOffice(f.name)) {
+      api.openInOnlyOffice(f.id, f.name);
     } else {
       // All other previewable types: open in new tab
       window.open(viewUrl, '_blank', 'noopener');
