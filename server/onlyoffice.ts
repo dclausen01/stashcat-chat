@@ -88,7 +88,7 @@ export function buildViewerConfig(opts: EditorConfigOptions) {
       key: docKey,
       fileType: ext,
       title: opts.fileName,
-      url: `${PUBLIC_URL}/backend/api/onlyoffice/dl?secret=${encodeURIComponent(dlToken)}`,
+      url: `${PUBLIC_URL}/api/onlyoffice/dl?secret=${encodeURIComponent(dlToken)}`,
       permissions: {
         edit: false,
         download: true,
