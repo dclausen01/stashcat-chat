@@ -39,9 +39,10 @@ interface SidebarProps {
   pollsOpen: boolean;
   notificationsOpen: boolean;
   onChannelsLoaded?: (channels: ChatTarget[]) => void;
+  onRegisterRefresh?: (refresh: () => void) => void;
 }
 
-export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, onOpenSettings, onOpenProfile, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen, onChannelsLoaded }: SidebarProps) {
+export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, onOpenSettings, onOpenProfile, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen, onChannelsLoaded, onRegisterRefresh }: SidebarProps) {
   const { user } = useAuth();
   const { notify } = useNotifications();
   const [channels, setChannels] = useState<ChatTarget[]>([]);
@@ -93,7 +94,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   const activeChatRef = useRef(activeChat);
   activeChatRef.current = activeChat;
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); onRegisterRefresh?.(loadData); }, []);
   useEffect(() => { onChannelsLoaded?.(channels); }, [channels, onChannelsLoaded]);
 
   async function loadData() {

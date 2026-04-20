@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useSettings } from './context/SettingsContext';
 import { useCallManager } from './hooks/useCallManager';
@@ -40,6 +40,7 @@ export default function App() {
   const [jumpToMessageTime, setJumpToMessageTime] = useState<number | null>(null);
   const [jumpKey, setJumpKey] = useState(0);
   const [jumpSearching, setJumpSearching] = useState(false);
+  const refreshSidebarRef = useRef<(() => void) | null>(null);
 
   // Close all side panels
   const closeAllPanels = () => {
@@ -155,6 +156,7 @@ export default function App() {
         pollsOpen={activeView === 'polls'}
         notificationsOpen={notificationsOpen}
         onChannelsLoaded={handleChannelsLoaded}
+        onRegisterRefresh={(fn) => { refreshSidebarRef.current = fn; }}
       />
 
       {activeView === 'calendar' ? (
@@ -200,7 +202,7 @@ export default function App() {
             />
           )}
           {notificationsOpen && (
-            <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} onOpenPoll={openPoll} onOpenCalendar={openCalendar} onOpenEvent={openEvent} />
+            <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} onOpenPoll={openPoll} onOpenCalendar={openCalendar} onOpenEvent={openEvent} onChannelJoined={() => refreshSidebarRef.current?.()} />
           )}
         </>
       )}
