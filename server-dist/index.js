@@ -83,6 +83,7 @@ function serverLog(...args) {
     console.log(...args);
 }
 const token_crypto_1 = require("./token-crypto");
+const onlyoffice_1 = require("./onlyoffice");
 /** Extract error message safely from unknown catch values. */
 function errorMessage(err, fallback = 'Failed') {
     return err instanceof Error ? err.message : fallback;
@@ -2583,6 +2584,65 @@ app.post('/api/call/end', async (req, res) => {
     catch {
         // Call may already be ended — treat as success
         res.json({ ok: true });
+    }
+});
+// ── OnlyOffice Document Server Integration (read-only) ──────────────────────
+/** GET /api/onlyoffice/view — build viewer config for a file */
+app.get('/api/onlyoffice/view', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const token = extractToken(req);
+        const payload = (0, token_crypto_1.decryptSession)(token);
+        const { fileId, fileName } = req.query;
+        if (!fileId || !fileName) {
+            return res.status(400).json({ error: 'fileId and fileName required' });
+        }
+        if (!(0, onlyoffice_1.getOfficeDocType)(fileName)) {
+            return res.status(400).json({ error: 'Dateityp wird nicht unterstützt' });
+        }
+        const me = await client.getMe();
+        const userId = String(me.id);
+        const userName = `${me.first_name || ''} ${me.last_name || ''}`.trim() || 'User';
+        const result = (0, onlyoffice_1.buildViewerConfig)({
+            fileId,
+            fileName,
+            userId,
+            userName,
+            clientKey: payload.clientKey,
+        });
+        res.json(result);
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err, 'OnlyOffice-Konfiguration fehlgeschlagen') });
+    }
+});
+/** GET /api/onlyoffice/dl — serve file bytes to OnlyOffice Document Server */
+app.get('/api/onlyoffice/dl', async (req, res) => {
+    try {
+        const { secret } = req.query;
+        if (!secret)
+            return res.status(400).json({ error: 'Missing secret' });
+        const tokenData = (0, onlyoffice_1.validateDownloadToken)(secret);
+        if (!tokenData)
+            return res.status(403).json({ error: 'Invalid or expired token' });
+        const cached = clientCache.get(tokenData.clientKey);
+        if (!cached)
+            return res.status(403).json({ error: 'Session expired' });
+        const client = cached.client;
+        cached.expiresAt = Date.now() + CACHE_TTL;
+        const info = await client.getFileInfo(tokenData.fileId);
+        const buf = await client.downloadFile({
+            id: tokenData.fileId,
+            encrypted: info.encrypted,
+            e2e_iv: info.e2e_iv ?? null,
+        });
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(info.name || 'document')}"`);
+        res.setHeader('Content-Type', info.mime || 'application/octet-stream');
+        res.send(buf);
+    }
+    catch (err) {
+        console.error('[OnlyOffice/dl] Error:', err);
+        res.status(500).json({ error: errorMessage(err, 'Download failed') });
     }
 });
 // ── Production: serve static frontend from dist/ ─────────────────────────────
