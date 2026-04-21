@@ -472,10 +472,19 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     loadMessages();
   }, [loadMessages, chat.description]);
 
-  // Scroll to bottom after initial load and after chat switch
+  // Scroll to bottom after initial load and after chat switch.
+  // Staggered re-scrolls catch layout shifts from lazy-loaded images and
+  // link previews that increase the container's scroll height after the
+  // initial paint.
   useEffect(() => {
-    if (!loading) {
-      requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'instant' }));
+    if (!loading && containerRef.current) {
+      const container = containerRef.current;
+      const scrollToEnd = () => { container.scrollTop = container.scrollHeight; };
+      scrollToEnd();
+      const t1 = setTimeout(scrollToEnd, 100);
+      const t2 = setTimeout(scrollToEnd, 400);
+      const t3 = setTimeout(scrollToEnd, 1000);
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
     }
   }, [loading]);
 
