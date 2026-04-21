@@ -11,7 +11,7 @@ import SidebarFooter from './SidebarFooter';
 import NewChannelModal from './NewChannelModal';
 import NewChatModal from './NewChatModal';
 import ChannelDiscoveryModal from './ChannelDiscoveryModal';
-import type { ChatTarget } from '../types';
+import type { ChatTarget, Message } from '../types';
 
 /** Sort: favorites first, non-favorites second. Within each group: by lastActivity desc. */
 function sortChats(items: ChatTarget[]): ChatTarget[] {
@@ -55,6 +55,11 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   // Track previous unread counts for background poll notification detection.
   // null = initial load (don't notify), Map = populated (compare & notify).
   const prevUnreadsRef = useRef<Map<string, number> | null>(null);
+  // Mirror of current state for async verify helper (avoids stale closure).
+  const channelsRef = useRef<ChatTarget[]>([]);
+  const conversationsRef = useRef<ChatTarget[]>([]);
+  // Guard against overlapping verifyUnreadCounts runs.
+  const verifyInFlightRef = useRef(false);
 
   // Sidebar width (horizontal resize)
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -94,7 +99,11 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   const activeChatRef = useRef(activeChat);
   activeChatRef.current = activeChat;
 
-  useEffect(() => { loadData(); onRegisterRefresh?.(loadData); }, []);
+  // Keep refs in sync with state so async helpers see current values
+  channelsRef.current = channels;
+  conversationsRef.current = conversations;
+
+  useEffect(() => { (async () => { await loadData(); verifyUnreadCounts(); })(); onRegisterRefresh?.(loadData); }, []);
   useEffect(() => { onChannelsLoaded?.(channels); }, [channels, onChannelsLoaded]);
 
   async function loadData() {
@@ -118,7 +127,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
             description: ch.description,
             image: ch.image,
             encrypted: Boolean(ch.encrypted),
-            unread_count: Number(ch.unread_count ?? 0),
+            // Fallback to `unread_messages` — some API responses use this field instead.
+            unread_count: Number(ch.unread_count ?? (ch as unknown as Record<string, unknown>).unread_messages ?? 0),
             favorite: Boolean(ch.favorite),
             lastActivity: ch.last_message ? Number(ch.last_message.time || 0) : 0,
             company_id: cid,
@@ -148,7 +158,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           name,
           image,
           encrypted: Boolean(c.encrypted),
-          unread_count: Number(c.unread_count ?? 0),
+          unread_count: Number(c.unread_count ?? (c as unknown as Record<string, unknown>).unread_messages ?? 0),
           favorite: Boolean(c.favorite ?? c.is_favorite),
           lastActivity,
           userId: otherUserId,
@@ -177,13 +187,86 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       for (const cv of convTargets) unreads.set(cv.id, cv.unread_count ?? 0);
       prevUnreadsRef.current = unreads;
 
-      setChannels(sortChats(allChannels));
-      onChannelsLoaded?.(sortChats(allChannels));
-      setConversations(sortChats(convTargets));
+      const sortedChannels = sortChats(allChannels);
+      const sortedConvs = sortChats(convTargets);
+      // Pre-populate refs so async helpers (e.g. verifyUnreadCounts called
+      // immediately after loadData) see fresh data without waiting for the
+      // next render cycle.
+      channelsRef.current = sortedChannels;
+      conversationsRef.current = sortedConvs;
+      setChannels(sortedChannels);
+      onChannelsLoaded?.(sortedChannels);
+      setConversations(sortedConvs);
     } catch (err) {
       console.error('Failed to load sidebar data:', err);
     }
   }
+
+  // Fix stale per-channel unread counts (Stashcat returns unread_count=0
+  // for chats whose messages actually carry `unread: true` — visible after
+  // standby/resume in Electron wrappers). For each recently-active chat that
+  // reports 0 unread, fetch the first page of messages and count
+  // `unread === true` messages from other users. If the true count exceeds
+  // the cached one, correct the sidebar badge.
+  const verifyUnreadCounts = useCallback(async () => {
+    if (verifyInFlightRef.current) return;
+    verifyInFlightRef.current = true;
+    try {
+      const userId = String(user?.id ?? '');
+      if (!userId) return;
+      const RECENT_WINDOW_S = 48 * 60 * 60; // 48 hours
+      const nowS = Math.floor(Date.now() / 1000);
+      const candidates: ChatTarget[] = [];
+      for (const ch of channelsRef.current) {
+        if ((ch.unread_count ?? 0) === 0 && ch.lastActivity && (nowS - ch.lastActivity) < RECENT_WINDOW_S) {
+          candidates.push(ch);
+        }
+      }
+      for (const cv of conversationsRef.current) {
+        if ((cv.unread_count ?? 0) === 0 && cv.lastActivity && (nowS - cv.lastActivity) < RECENT_WINDOW_S) {
+          candidates.push(cv);
+        }
+      }
+      if (candidates.length === 0) return;
+
+      const VERIFY_PAGE_SIZE = 20;
+      const BATCH = 5;
+      const corrections: Array<{ chat: ChatTarget; actual: number }> = [];
+      for (let i = 0; i < candidates.length; i += BATCH) {
+        const batch = candidates.slice(i, i + BATCH);
+        const results = await Promise.all(batch.map(async (chat) => {
+          try {
+            const msgs = await api.getMessages(chat.id, chat.type, VERIFY_PAGE_SIZE, 0) as unknown as Message[];
+            const actual = msgs.filter((m) => m.unread === true && String(m.sender?.id ?? '') !== userId).length;
+            return { chat, actual };
+          } catch {
+            return { chat, actual: 0 };
+          }
+        }));
+        for (const r of results) {
+          if (r.actual > 0) corrections.push(r);
+        }
+      }
+      if (corrections.length === 0) return;
+      const corrByChannel = new Map<string, number>();
+      const corrByConv = new Map<string, number>();
+      for (const { chat, actual } of corrections) {
+        if (chat.type === 'channel') corrByChannel.set(chat.id, actual);
+        else corrByConv.set(chat.id, actual);
+        prevUnreadsRef.current?.set(chat.id, actual);
+      }
+      if (corrByChannel.size > 0) {
+        setChannels((prev) => sortChats(prev.map((ch) => corrByChannel.has(ch.id) ? { ...ch, unread_count: corrByChannel.get(ch.id)! } : ch)));
+      }
+      if (corrByConv.size > 0) {
+        setConversations((prev) => sortChats(prev.map((cv) => corrByConv.has(cv.id) ? { ...cv, unread_count: corrByConv.get(cv.id)! } : cv)));
+      }
+    } catch (err) {
+      console.error('verifyUnreadCounts failed:', err);
+    } finally {
+      verifyInFlightRef.current = false;
+    }
+  }, [user?.id]);
 
   // Periodic sidebar sync: refresh unread counts and detect missed messages.
   // Runs regardless of tab visibility so background notifications work even
@@ -252,10 +335,16 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   }, [user?.id, notify]);
 
   const handleReconnect = useCallback(() => {
-    // Re-fetch all sidebar data after SSE reconnection to sync missed unread counts
-    loadData();
+    // Re-fetch all sidebar data after SSE reconnection to sync missed unread counts,
+    // then verify per-message unread flags to catch stale unread_count values
+    // (Stashcat sometimes reports unread_count=0 for chats with actual unread messages
+    // after a standby/resume cycle — see verifyUnreadCounts).
+    (async () => {
+      await loadData();
+      verifyUnreadCounts();
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [verifyUnreadCounts]);
 
   const handleStatusChange = useCallback((data: unknown) => {
     // Payload: { user_id, status } or similar
