@@ -1907,7 +1907,7 @@ function MessageGroup({
   firstUnreadMsgId?: string | null;
 }) {
   const { sender, isOwn, messages } = group;
-  const senderName = sender ? `${sender.first_name} ${sender.last_name}` : 'Unbekannt';
+  const senderName = sender ? `${sender.first_name ?? ''} ${sender.last_name ?? ''}`.trim() || 'Unbekannt' : 'Unbekannt';
 
   return (
     <div className={clsx('flex gap-2', isOwn ? 'flex-row-reverse' : 'flex-row')}>
@@ -1936,7 +1936,7 @@ function MessageGroup({
           const isLast = i === messages.length - 1;
           const content = msg.deleted || msg.is_deleted_by_manager
             ? '*`Nachricht wurde gelöscht`*'
-            : msg.text || (msg.encrypted ? '🔒 *Verschlüsselte Nachricht*' : (msg.files?.length ? '' : '*`Nachricht wurde gelöscht`*'));
+            : msg.text || (msg.encrypted ? '🔒 *Verschlüsselte Nachricht*' : '');
           const canDelete = isOwn || canDeleteAll;
           // Try msg.reply_to first, fall back to reply_to_id if available
           let replyTo: Message | undefined;
@@ -2137,7 +2137,7 @@ function PlainTextMessage({
   onPdfClick: (fileId: string, viewUrl: string, name: string) => void;
   searchQuery?: string;
 }) {
-  const senderName = msg.sender ? `${msg.sender.first_name} ${msg.sender.last_name}` : 'Unbekannt';
+  const senderName = msg.sender ? `${msg.sender.first_name ?? ''} ${msg.sender.last_name ?? ''}`.trim() || 'Unbekannt' : 'Unbekannt';
   const timeDate = msg.time ? new Date(msg.time * 1000) : null;
   const time = timeDate ? timeDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
   const isToday = timeDate ? msgDayKey(msg.time!) === msgDayKey(Date.now() / 1000) : true;
@@ -2146,7 +2146,7 @@ function PlainTextMessage({
     : time;
   const content = msg.deleted || msg.is_deleted_by_manager
     ? 'Nachricht wurde gelöscht'
-    : msg.text || (msg.encrypted ? '🔒 Verschlüsselte Nachricht' : (msg.files?.length ? '' : 'Nachricht wurde gelöscht'));
+    : msg.text || (msg.encrypted ? '🔒 Verschlüsselte Nachricht' : '');
   // Try msg.reply_to first, fall back to reply_to_id if available
   let replyTo: Message | undefined;
   if (msg.reply_to && msg.reply_to.message_id) {
@@ -2275,7 +2275,7 @@ function VideoMeetingCard({ msg }: { msg: Message }) {
   const match = (msg.text || '').match(VIDEO_MSG_RE);
   if (!match) return null;
   const [, startTime, link] = match;
-  const senderName = msg.sender ? `${msg.sender.first_name} ${msg.sender.last_name}`.trim() : 'Jemand';
+  const senderName = msg.sender ? `${msg.sender.first_name ?? ''} ${msg.sender.last_name ?? ''}`.trim() || 'Jemand' : 'Jemand';
   const date = msg.time
     ? new Date(msg.time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : '';
@@ -2466,7 +2466,7 @@ function CalendarEventCard({ msg, onOpenCalendar }: { msg: Message; onOpenCalend
 }
 
 function SystemMessage({ msg }: { msg: Message }) {
-  const senderName = msg.sender ? `${msg.sender.first_name} ${msg.sender.last_name}`.trim() : 'Jemand';
+  const senderName = msg.sender ? `${msg.sender.first_name ?? ''} ${msg.sender.last_name ?? ''}`.trim() || 'Jemand' : 'Jemand';
   const time = msg.time
     ? new Date(msg.time * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
     : '';
@@ -2508,9 +2508,9 @@ function SystemMessage({ msg }: { msg: Message }) {
 // ── Reply quote ────────────────────────────────────────────────────────────────
 
 function ReplyQuote({ msg, isOwn }: { msg: Message; isOwn: boolean }) {
-  const senderName = msg.sender ? `${msg.sender.first_name} ${msg.sender.last_name}`.trim() : 'Unbekannt';
+  const senderName = msg.sender ? `${msg.sender.first_name ?? ''} ${msg.sender.last_name ?? ''}`.trim() || 'Unbekannt' : 'Unbekannt';
   const isDeleted = msg.deleted || msg.is_deleted_by_manager;
-  const text = isDeleted ? 'Nachricht wurde gelöscht' : (msg.text || (msg.files?.length ? '' : 'Nachricht wurde gelöscht'));
+  const text = isDeleted ? 'Nachricht wurde gelöscht' : (msg.text || '');
   const preview = text.slice(0, 120) + (text.length > 120 ? '...' : '');
 
   const handleClick = () => {
@@ -2798,7 +2798,7 @@ function LikeBadge({ count, liked, onToggle, messageId }: { count: number; liked
         setLikeError('Unerwartetes Format');
         return;
       }
-      setLikers(data.map((l) => ({ name: `${l.user.first_name} ${l.user.last_name}`.trim(), image: l.user.image })));
+      setLikers(data.map((l) => ({ name: `${l.user.first_name ?? ''} ${l.user.last_name ?? ''}`.trim() || 'Unbekannt', image: l.user.image })));
     } catch (err) {
       console.error('Failed to load likers:', err);
       setLikeError(err instanceof Error ? err.message : 'Fehler beim Laden');
