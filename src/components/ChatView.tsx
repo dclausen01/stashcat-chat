@@ -1187,7 +1187,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           <Avatar name={chat.name} image={chat.image} size="md" />
         )}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
+            <h2 className="truncate text-base font-semibold text-surface-900 dark:text-white">{chat.name}</h2>
             {/* Favorite toggle button */}
             {onToggleFavorite && (
               <button
@@ -1272,7 +1273,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 </div>
               )}
             </div>
-            <h2 className="truncate text-base font-semibold text-surface-900 dark:text-white">{chat.name}</h2>
           </div>
           {cleanDescription ? (
             <div className="flex items-center gap-1">
