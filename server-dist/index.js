@@ -920,6 +920,27 @@ app.get('/api/channels/:channelId/members', async (req, res) => {
         res.status(500).json({ error: errorMessage(err) });
     }
 });
+app.get('/api/channels/:channelId/pending-members', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const channelId = req.params.channelId;
+        const all = [];
+        const PAGE = 100;
+        let offset = 0;
+        while (true) {
+            const batch = await client.getChannelMembers(channelId, { limit: PAGE, offset, filter: 'membership_pending' });
+            all.push(...batch);
+            if (batch.length < PAGE)
+                break;
+            offset += PAGE;
+        }
+        console.log(`[channels/pending-members] channelId=${channelId} → ${all.length} pending members`);
+        res.json(all);
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
 app.post('/api/channels/:channelId/invite', async (req, res) => {
     try {
         const client = await getClient(req);
@@ -976,6 +997,28 @@ app.patch('/api/channels/:channelId', async (req, res) => {
     }
     catch (err) {
         res.status(500).json({ error: errorMessage(err) });
+    }
+});
+// ── Channel image ────────────────────────────────────────────────────────────
+app.post('/api/channels/:channelId/image', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { company_id, image } = req.body;
+        // Access internal API to call /channels/setImage
+        const api = client.api;
+        if (!api || typeof api.createAuthenticatedRequestData !== 'function') {
+            throw new Error('API client not available');
+        }
+        const requestData = api.createAuthenticatedRequestData({
+            channel_id: req.params.channelId,
+            company_id,
+            imgBase64: image,
+        });
+        const result = await api.post('/channels/setImage', requestData);
+        res.json(result);
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err, 'Failed to set channel image') });
     }
 });
 // ── Channel info ───────────────────────────────────────────────────────────────

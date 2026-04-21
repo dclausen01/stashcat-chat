@@ -35,6 +35,28 @@ export async function getChannelMembers(channelId: string): Promise<
   >(`/channels/${channelId}/members`);
 }
 
+export async function getPendingChannelMembers(channelId: string): Promise<
+  Array<Record<string, unknown> & {
+    id: string;
+    first_name?: string;
+    last_name?: string;
+    image?: string;
+    email?: string | null;
+    membership_pending?: boolean;
+  }>
+> {
+  return get<
+    Array<Record<string, unknown> & {
+      id: string;
+      first_name?: string;
+      last_name?: string;
+      image?: string;
+      email?: string | null;
+      membership_pending?: boolean;
+    }>
+  >(`/channels/${channelId}/pending-members`);
+}
+
 export async function inviteToChannel(channelId: string, userIds: string[]): Promise<void> {
   return post(`/channels/${channelId}/invite`, { userIds });
 }

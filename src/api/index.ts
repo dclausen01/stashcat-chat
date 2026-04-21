@@ -43,6 +43,7 @@ export {
   getChannels,
   getChannelInfo,
   getChannelMembers,
+  getPendingChannelMembers,
   inviteToChannel,
   removeFromChannel,
   addModerator,

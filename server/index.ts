@@ -973,6 +973,26 @@ app.get('/api/channels/:channelId/members', async (req, res) => {
   }
 });
 
+app.get('/api/channels/:channelId/pending-members', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const channelId = req.params.channelId;
+    const all: unknown[] = [];
+    const PAGE = 100;
+    let offset = 0;
+    while (true) {
+      const batch = await client.getChannelMembers(channelId, { limit: PAGE, offset, filter: 'membership_pending' });
+      all.push(...batch);
+      if (batch.length < PAGE) break;
+      offset += PAGE;
+    }
+    console.log(`[channels/pending-members] channelId=${channelId} → ${all.length} pending members`);
+    res.json(all);
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
 app.post('/api/channels/:channelId/invite', async (req, res) => {
   try {
     const client = await getClient(req);

@@ -68,11 +68,13 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
   const loadMembers = useCallback(async () => {
     setLoadingMembers(true);
     try {
-      const raw = await api.getChannelMembers(chat.id);
+      const [raw, pendingRaw] = await Promise.all([
+        api.getChannelMembers(chat.id),
+        api.getPendingChannelMembers(chat.id).catch(() => []),
+      ]);
       const memberList = raw as RawMember[];
       setMembers(memberList);
-      const realIds = new Set(memberList.map((m) => String(m.user_id ?? m.id)));
-      setPendingMembers((prev) => prev.filter((m) => !realIds.has(String(m.user_id ?? m.id))));
+      setPendingMembers(pendingRaw as RawMember[]);
       const me = memberList.find(
         (m) => String(m.user_id ?? m.id) === myId
       );
@@ -167,10 +169,6 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
     setInviting(userId);
     try {
       await api.inviteToChannel(chat.id, [userId]);
-      setPendingMembers((prev) => [
-        ...prev,
-        { id: userId, user_id: userId, first_name: u.first_name, last_name: u.last_name, email: u.email, image: u.image, pending: true },
-      ]);
       await loadMembers();
     } catch (err) {
       alert(`Fehler: ${err instanceof Error ? err.message : err}`);
@@ -195,18 +193,6 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
       for (let i = 0; i < userIds.length; i += 50) {
         await api.inviteToChannel(chat.id, userIds.slice(i, i + 50));
       }
-      const invitedUsers = result.users.filter((u) => userIds.includes(String(u.id)));
-      setPendingMembers((prev) => [
-        ...prev,
-        ...invitedUsers.map((u) => ({
-          id: String(u.id),
-          user_id: String(u.id),
-          first_name: (u as { first_name?: string }).first_name,
-          last_name: (u as { last_name?: string }).last_name,
-          email: (u as { email?: string }).email,
-          pending: true,
-        })),
-      ]);
       await loadMembers();
     } catch (err) {
       alert(`Fehler: ${err instanceof Error ? err.message : err}`);
