@@ -203,6 +203,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [meetingLoading, setMeetingLoading] = useState(false);
   const [notificationsMuted, setNotificationsMuted] = useState(chat.muted === true);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [muteMenuOpen, setMuteMenuOpen] = useState(false);
+  const muteMenuRef = useRef<HTMLDivElement>(null);
   const [showPollModal, setShowPollModal] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showWhiteboardModal, setShowWhiteboardModal] = useState(false);
@@ -270,6 +272,18 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   useEffect(() => {
     setNotificationsMuted(chat.muted === true);
   }, [chat.muted, chat.id]);
+
+  // Close mute menu when clicking outside
+  useEffect(() => {
+    if (!muteMenuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (muteMenuRef.current && !muteMenuRef.current.contains(e.target as Node)) {
+        setMuteMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [muteMenuOpen]);
 
   // Clear pending message indicators when switching chats
   useEffect(() => {
@@ -1213,40 +1227,77 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             <Star size={16} className={chat.favorite ? 'fill-yellow-400' : ''} />
           </button>
         )}
-        {/* Notifications mute toggle */}
-        <button
-          onClick={async () => {
-            if (notificationsLoading) return;
-            setNotificationsLoading(true);
-            try {
-              const enable = notificationsMuted; // if currently muted, enable; otherwise disable
-              await api.setChannelNotifications(chat.id, enable);
-              setNotificationsMuted(!notificationsMuted);
-            } catch (err) {
-              console.error('Failed to toggle notifications:', err);
-              alert(err instanceof Error ? err.message : 'Fehler beim Ändern der Benachrichtigungseinstellungen');
-            } finally {
-              setNotificationsLoading(false);
-            }
-          }}
-          disabled={notificationsLoading}
-          className={clsx(
-            'rounded-md p-1.5 transition',
-            notificationsLoading && 'opacity-50 cursor-not-allowed',
-            notificationsMuted
-              ? 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300'
-              : 'text-primary-500 hover:text-primary-600',
+        {/* Notifications mute toggle with duration options */}
+        <div className="relative" ref={muteMenuRef}>
+          <button
+            onClick={async () => {
+              if (notificationsLoading) return;
+              if (notificationsMuted) {
+                // Currently muted → enable immediately
+                setNotificationsLoading(true);
+                try {
+                  await api.setChannelNotifications(chat.id, true);
+                  setNotificationsMuted(false);
+                } catch (err) {
+                  console.error('Failed to enable notifications:', err);
+                  alert(err instanceof Error ? err.message : 'Fehler beim Aktivieren der Benachrichtigungen');
+                } finally {
+                  setNotificationsLoading(false);
+                }
+              } else {
+                // Currently enabled → show mute duration menu
+                setMuteMenuOpen((v) => !v);
+              }
+            }}
+            disabled={notificationsLoading}
+            className={clsx(
+              'rounded-md p-1.5 transition',
+              notificationsLoading && 'opacity-50 cursor-not-allowed',
+              notificationsMuted
+                ? 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300'
+                : 'text-primary-500 hover:text-primary-600',
+            )}
+            title={notificationsMuted ? 'Benachrichtigungen aktivieren' : 'Benachrichtigungen stummschalten'}
+          >
+            {notificationsLoading ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : notificationsMuted ? (
+              <BellOff size={16} />
+            ) : (
+              <Bell size={16} />
+            )}
+          </button>
+          {muteMenuOpen && !notificationsMuted && (
+            <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800">
+              {[
+                { label: '2 Stunden', duration: 7200 },
+                { label: '1 Tag', duration: 86400 },
+                { label: '7 Tage', duration: 604800 },
+                { label: 'Für immer', duration: 2147483647 },
+              ].map((opt) => (
+                <button
+                  key={opt.duration}
+                  onClick={async () => {
+                    setMuteMenuOpen(false);
+                    setNotificationsLoading(true);
+                    try {
+                      await api.setChannelNotifications(chat.id, false, opt.duration);
+                      setNotificationsMuted(true);
+                    } catch (err) {
+                      console.error('Failed to mute notifications:', err);
+                      alert(err instanceof Error ? err.message : 'Fehler beim Stummschalten');
+                    } finally {
+                      setNotificationsLoading(false);
+                    }
+                  }}
+                  className="block w-full px-3 py-1.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           )}
-          title={notificationsMuted ? 'Benachrichtigungen aktivieren' : 'Benachrichtigungen stummschalten'}
-        >
-          {notificationsLoading ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : notificationsMuted ? (
-            <BellOff size={16} />
-          ) : (
-            <Bell size={16} />
-          )}
-        </button>
+        </div>
         {/* Video meeting button */}
         <button
           onClick={async () => {

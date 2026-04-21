@@ -168,6 +168,6 @@ export async function getGroupMembers(
   );
 }
 
-export async function setChannelNotifications(channelId: string, enabled: boolean): Promise<void> {
-  await post(`/channels/${channelId}/notifications`, { enabled });
+export async function setChannelNotifications(channelId: string, enabled: boolean, duration?: number): Promise<void> {
+  await post(`/channels/${channelId}/notifications`, { enabled, duration });
 }
