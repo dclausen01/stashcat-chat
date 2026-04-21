@@ -202,6 +202,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const [meetingLoading, setMeetingLoading] = useState(false);
   const [notificationsMuted, setNotificationsMuted] = useState(chat.muted === true);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [showPollModal, setShowPollModal] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showWhiteboardModal, setShowWhiteboardModal] = useState(false);
@@ -265,6 +266,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     setDateSearchResults(null); setViewingDateResults(false);
     savedMessagesRef.current = null;
   }, [chat.id]);
+  // Sync muted state when chat changes
+  useEffect(() => {
+    setNotificationsMuted(chat.muted === true);
+  }, [chat.muted, chat.id]);
 
   // Clear pending message indicators when switching chats
   useEffect(() => {
@@ -1211,23 +1216,36 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         {/* Notifications mute toggle */}
         <button
           onClick={async () => {
+            if (notificationsLoading) return;
+            setNotificationsLoading(true);
             try {
               const enable = notificationsMuted; // if currently muted, enable; otherwise disable
               await api.setChannelNotifications(chat.id, enable);
               setNotificationsMuted(!notificationsMuted);
             } catch (err) {
               console.error('Failed to toggle notifications:', err);
+              alert(err instanceof Error ? err.message : 'Fehler beim Ändern der Benachrichtigungseinstellungen');
+            } finally {
+              setNotificationsLoading(false);
             }
           }}
+          disabled={notificationsLoading}
           className={clsx(
             'rounded-md p-1.5 transition',
+            notificationsLoading && 'opacity-50 cursor-not-allowed',
             notificationsMuted
               ? 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300'
               : 'text-primary-500 hover:text-primary-600',
           )}
           title={notificationsMuted ? 'Benachrichtigungen aktivieren' : 'Benachrichtigungen stummschalten'}
         >
-          {notificationsMuted ? <BellOff size={16} /> : <Bell size={16} />}
+          {notificationsLoading ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : notificationsMuted ? (
+            <BellOff size={16} />
+          ) : (
+            <Bell size={16} />
+          )}
         </button>
         {/* Video meeting button */}
         <button

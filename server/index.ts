@@ -941,10 +941,15 @@ app.get('/api/channels/:companyId', async (req, res) => {
   try {
     const client = await getClient(req);
     const channels = await client.getChannels(req.params.companyId);
-    if (channels.length > 0) {
-      serverLog(`[channels] first channel unread keys: unread_count=${channels[0].unread_count}, unread_messages=${(channels[0] as any).unread_messages}, raw=${JSON.stringify(channels[0]).slice(0, 200)}`);
-    }
-    res.json(channels);
+    // Flatten membership.muted into top-level muted for easier frontend use
+    const mapped = channels.map((ch) => {
+      const membership = (ch as any).membership;
+      return {
+        ...ch,
+        muted: membership?.muted ?? null,
+      };
+    });
+    res.json(mapped);
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }
