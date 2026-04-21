@@ -472,10 +472,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     loadMessages();
   }, [loadMessages, chat.description]);
 
-  // Scroll to bottom after initial load
+  // Scroll to bottom after initial load and after chat switch
   useEffect(() => {
     if (!loading) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'instant' }));
     }
   }, [loading]);
 
@@ -894,13 +894,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       // No match — new message, just add it
       return [...prev, newMsg].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
     });
-    // Auto-scroll if already at bottom
-    if (containerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-      if (scrollHeight - scrollTop - clientHeight < 150) {
-        requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
-      }
-    }
+    // Always scroll to bottom when a new message arrives in the open chat
+    requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
