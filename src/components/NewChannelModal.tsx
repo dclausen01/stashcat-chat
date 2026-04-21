@@ -131,7 +131,7 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
     setSaving(true);
     setError('');
     try {
-      const channel = await api.createChannel({
+      let channel = await api.createChannel({
         name: name.trim(),
         company_id: companyId,
         description: description.trim() || undefined,
@@ -146,7 +146,10 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
       });
       if (imageBase64) {
         try {
-          await api.setChannelImage(channel.id, companyId, imageBase64);
+          const imgResult = await api.setChannelImage(channel.id, companyId, imageBase64);
+          if (imgResult?.channel?.image) {
+            channel = { ...channel, image: imgResult.channel.image };
+          }
         } catch (imgErr) {
           console.error('Channel image upload failed:', imgErr);
         }

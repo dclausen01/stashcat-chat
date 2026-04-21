@@ -55,7 +55,7 @@ export async function editChannel(channelId: string, companyId: string, descript
   return patch(`/channels/${channelId}`, { description, company_id: companyId });
 }
 
-export async function setChannelImage(channelId: string, companyId: string, image: string): Promise<void> {
+export async function setChannelImage(channelId: string, companyId: string, image: string): Promise<{ channel?: { image?: string } }> {
   return post(`/channels/${channelId}/image`, { company_id: companyId, image });
 }
 
