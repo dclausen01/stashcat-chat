@@ -16,6 +16,7 @@ interface RawMember {
   role?: string;
   manager?: boolean;
   pending?: boolean;
+  membership_pending?: boolean;
 }
 
 interface RawUser {
@@ -131,11 +132,17 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
 
   const handleRemove = async (m: RawMember) => {
     const userId = m.user_id ?? m.id;
-    if (!userId || !confirm(`${memberName(m)} aus dem Channel entfernen?`)) return;
+    const isPending = m.membership_pending === true || m.pending === true;
+    const actionText = isPending ? 'Einladung zurückziehen' : 'aus dem Channel entfernen';
+    if (!userId || !confirm(`${memberName(m)} ${actionText}?`)) return;
     setRemoving(userId);
     try {
       await api.removeFromChannel(chat.id, userId);
-      setMembers((prev) => prev.filter((x) => (x.user_id ?? x.id) !== userId));
+      if (isPending) {
+        setPendingMembers((prev) => prev.filter((x) => (x.user_id ?? x.id) !== userId));
+      } else {
+        setMembers((prev) => prev.filter((x) => (x.user_id ?? x.id) !== userId));
+      }
     } catch (err) {
       alert(`Fehler: ${err instanceof Error ? err.message : err}`);
     } finally {
@@ -382,7 +389,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
               return (
                 <div
                   key={`pending-${uid}`}
-                  className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 dark:border-amber-800/40 dark:bg-amber-900/10"
+                  className="group flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 dark:border-amber-800/40 dark:bg-amber-900/10"
                 >
                   <Avatar name={name} image={m.image} size="sm" />
                   <div className="min-w-0 flex-1">
@@ -391,9 +398,23 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
                     </div>
                     {m.email && <div className="truncate text-xs text-surface-600">{m.email}</div>}
                   </div>
-                  <div className="flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 dark:bg-amber-900/30">
-                    <Clock size={10} className="text-amber-600 dark:text-amber-400" />
-                    <span className="text-xs text-amber-700 dark:text-amber-300">Ausstehend</span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 dark:bg-amber-900/30">
+                      <Clock size={10} className="text-amber-600 dark:text-amber-400" />
+                      <span className="text-xs text-amber-700 dark:text-amber-300">Ausstehend</span>
+                    </div>
+                    {canManage && (
+                      <button
+                        onClick={() => handleRemove(m)}
+                        disabled={removing === uid}
+                        title="Einladung zurückziehen"
+                        className="hidden rounded-md p-1 text-surface-300 hover:bg-red-100 hover:text-red-600 group-hover:block dark:text-surface-400 dark:hover:bg-red-900/30 dark:hover:text-red-400 disabled:opacity-50"
+                      >
+                        {removing === uid
+                          ? <Loader2 size={14} className="animate-spin" />
+                          : <UserMinus size={14} />}
+                      </button>
+                    )}
                   </div>
                 </div>
               );
