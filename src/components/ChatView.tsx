@@ -273,6 +273,11 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     setNotificationsMuted(chat.muted === true);
   }, [chat.muted, chat.id]);
 
+  // Sync chat image when channel changes
+  useEffect(() => {
+    setChatImage(chat.image || '');
+  }, [chat.image, chat.id]);
+
   // Close mute menu when clicking outside
   useEffect(() => {
     if (!muteMenuOpen) return;
