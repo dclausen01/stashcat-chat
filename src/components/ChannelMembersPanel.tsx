@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, UserMinus, UserPlus, Search, ShieldCheck, ShieldOff, ShieldPlus, Loader2, UsersRound } from 'lucide-react';
+import { X, UserMinus, UserPlus, Search, ShieldCheck, ShieldOff, ShieldPlus, Loader2, UsersRound, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
@@ -15,6 +15,7 @@ interface RawMember {
   image?: string;
   role?: string;
   manager?: boolean;
+  pending?: boolean;
 }
 
 interface RawUser {
@@ -47,6 +48,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
   const [removing, setRemoving] = useState<string | null>(null);
   const [togglingMod, setTogglingMod] = useState<string | null>(null);
 
+  const [pendingMembers, setPendingMembers] = useState<RawMember[]>([]);
   const [memberFilter, setMemberFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<RawUser[]>([]);
@@ -69,6 +71,8 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
       const raw = await api.getChannelMembers(chat.id);
       const memberList = raw as RawMember[];
       setMembers(memberList);
+      const realIds = new Set(memberList.map((m) => String(m.user_id ?? m.id)));
+      setPendingMembers((prev) => prev.filter((m) => !realIds.has(String(m.user_id ?? m.id))));
       const me = memberList.find(
         (m) => String(m.user_id ?? m.id) === myId
       );
@@ -163,6 +167,10 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
     setInviting(userId);
     try {
       await api.inviteToChannel(chat.id, [userId]);
+      setPendingMembers((prev) => [
+        ...prev,
+        { id: userId, user_id: userId, first_name: u.first_name, last_name: u.last_name, email: u.email, image: u.image, pending: true },
+      ]);
       await loadMembers();
     } catch (err) {
       alert(`Fehler: ${err instanceof Error ? err.message : err}`);
@@ -187,6 +195,18 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
       for (let i = 0; i < userIds.length; i += 50) {
         await api.inviteToChannel(chat.id, userIds.slice(i, i + 50));
       }
+      const invitedUsers = result.users.filter((u) => userIds.includes(String(u.id)));
+      setPendingMembers((prev) => [
+        ...prev,
+        ...invitedUsers.map((u) => ({
+          id: String(u.id),
+          user_id: String(u.id),
+          first_name: (u as { first_name?: string }).first_name,
+          last_name: (u as { last_name?: string }).last_name,
+          email: (u as { email?: string }).email,
+          pending: true,
+        })),
+      ]);
       await loadMembers();
     } catch (err) {
       alert(`Fehler: ${err instanceof Error ? err.message : err}`);
@@ -361,9 +381,45 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
 
       {/* Member list */}
       <div className="flex-1 overflow-y-auto p-2">
+        {/* Pending invitations */}
+        {pendingMembers.length > 0 && (
+          <>
+            <div className="mb-1 flex items-center gap-1.5 px-2 py-1">
+              <Clock size={12} className="shrink-0 text-amber-500" />
+              <span className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                Warten auf Beitritt ({pendingMembers.length})
+              </span>
+            </div>
+            {pendingMembers.map((m) => {
+              const name = memberName(m);
+              const uid = m.user_id ?? m.id ?? '';
+              return (
+                <div
+                  key={`pending-${uid}`}
+                  className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 dark:border-amber-800/40 dark:bg-amber-900/10"
+                >
+                  <Avatar name={name} image={m.image} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-sm font-medium text-surface-900 dark:text-surface-100">{name}</span>
+                    </div>
+                    {m.email && <div className="truncate text-xs text-surface-600">{m.email}</div>}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 dark:bg-amber-900/30">
+                    <Clock size={10} className="text-amber-600 dark:text-amber-400" />
+                    <span className="text-xs text-amber-700 dark:text-amber-300">Ausstehend</span>
+                  </div>
+                </div>
+              );
+            })}
+            {members.length > 0 && (
+              <div className="my-2 border-t border-surface-200 dark:border-surface-700" />
+            )}
+          </>
+        )}
         {loadingMembers ? (
           <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-primary-400" /></div>
-        ) : members.length === 0 ? (
+        ) : members.length === 0 && pendingMembers.length === 0 ? (
           <p className="py-8 text-center text-sm text-surface-600">Keine Mitglieder gefunden</p>
         ) : (
           members.filter((m) => {
