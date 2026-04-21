@@ -1082,6 +1082,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   // Poll invites and video meetings are always standalone (not grouped)
   const groups: Array<{ sender: Message['sender']; isOwn: boolean; messages: Message[]; isSystem?: boolean; isStandalone?: boolean }> = [];
   for (const msg of messages) {
+    // Skip completely empty messages that have no visible content
+    const hasContent = msg.text || msg.files?.length || msg.deleted || msg.is_deleted_by_manager || msg.is_forwarded || msg.reply_to_id;
+    if (!hasContent && !msg.kind) continue;
     if (SYSTEM_KINDS.has(msg.kind ?? '')) {
       groups.push({ sender: msg.sender, isOwn: false, messages: [msg], isSystem: true });
       continue;
