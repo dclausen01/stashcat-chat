@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -36,6 +36,7 @@ interface ChatViewProps {
   jumpKey?: number;
   onJumpComplete?: () => void;
   onStartCall?: (calleeId: string, targetId: string, callee: CallParty) => void;
+  onToggleFavorite?: (chat: ChatTarget) => void;
 }
 
 interface TypingUser {
@@ -177,7 +178,7 @@ function extractServiceLinks(description: string): { cleanDescription: string; l
 
 interface PendingMessage { text: string; replyTo: Message | null; time: number }
 
-export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall }: ChatViewProps) {
+export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall, onToggleFavorite }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -1184,6 +1185,21 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             </button>
           ) : null}
         </div>
+        {/* Favorite toggle button */}
+        {onToggleFavorite && (
+          <button
+            onClick={() => onToggleFavorite(chat)}
+            className={clsx(
+              'rounded-md p-1.5 transition',
+              chat.favorite
+                ? 'text-yellow-400 hover:text-yellow-500'
+                : 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300',
+            )}
+            title={chat.favorite ? 'Favorit entfernen' : 'Als Favorit markieren'}
+          >
+            <Star size={16} className={chat.favorite ? 'fill-yellow-400' : ''} />
+          </button>
+        )}
         {/* Video meeting button */}
         <button
           onClick={async () => {

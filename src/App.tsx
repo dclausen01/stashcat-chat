@@ -41,6 +41,12 @@ export default function App() {
   const [jumpKey, setJumpKey] = useState(0);
   const [jumpSearching, setJumpSearching] = useState(false);
   const refreshSidebarRef = useRef<(() => void) | null>(null);
+  const toggleFavoriteRef = useRef<((target: ChatTarget) => void) | null>(null);
+
+  const handleToggleFavoriteFromChatView = useCallback((chat: ChatTarget) => {
+    setActiveChat((prev) => prev?.id === chat.id ? { ...prev, favorite: !prev.favorite } : prev);
+    toggleFavoriteRef.current?.(chat);
+  }, []);
 
   // Close all side panels
   const closeAllPanels = () => {
@@ -157,6 +163,7 @@ export default function App() {
         notificationsOpen={notificationsOpen}
         onChannelsLoaded={handleChannelsLoaded}
         onRegisterRefresh={(fn) => { refreshSidebarRef.current = fn; }}
+        onRegisterToggleFavorite={(fn) => { toggleFavoriteRef.current = fn; }}
       />
 
       {activeView === 'calendar' ? (
@@ -183,6 +190,7 @@ export default function App() {
                 onStartCall={(calleeId: string, targetId: string, callee: CallParty) =>
                   startCall(calleeId, targetId, callee)
                 }
+                onToggleFavorite={handleToggleFavoriteFromChatView}
               />
             : homeView === 'cards'
               ? <FavoriteCardsView channels={channels} onSelectChat={handleSelectChat} />

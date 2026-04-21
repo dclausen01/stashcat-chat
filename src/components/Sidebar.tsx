@@ -40,9 +40,10 @@ interface SidebarProps {
   notificationsOpen: boolean;
   onChannelsLoaded?: (channels: ChatTarget[]) => void;
   onRegisterRefresh?: (refresh: () => void) => void;
+  onRegisterToggleFavorite?: (toggle: (target: ChatTarget) => void) => void;
 }
 
-export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, onOpenSettings, onOpenProfile, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen, onChannelsLoaded, onRegisterRefresh }: SidebarProps) {
+export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, onOpenSettings, onOpenProfile, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen, onChannelsLoaded, onRegisterRefresh, onRegisterToggleFavorite }: SidebarProps) {
   const { user } = useAuth();
   const { notify } = useNotifications();
   const [channels, setChannels] = useState<ChatTarget[]>([]);
@@ -103,7 +104,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   channelsRef.current = channels;
   conversationsRef.current = conversations;
 
-  useEffect(() => { (async () => { await loadData(); verifyUnreadCounts(); })(); onRegisterRefresh?.(loadData); }, []);
+  useEffect(() => { (async () => { await loadData(); verifyUnreadCounts(); })(); onRegisterRefresh?.(loadData); onRegisterToggleFavorite?.(handleToggleFavorite); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { onChannelsLoaded?.(channels); }, [channels, onChannelsLoaded]);
 
   async function loadData() {
