@@ -1174,30 +1174,67 @@ app.post('/api/channels', async (req, res) => {
     const isEncrypted = channel_type === 'encrypted';
     const isPassword  = channel_type === 'password';
 
-    // For encrypted channels generate a random AES key (hex)
-    let encryption_key: string | undefined;
-    if (isEncrypted) {
-      const crypto = await import('crypto');
-      encryption_key = crypto.randomBytes(32).toString('hex');
-    }
-
-    const channel = await client.createChannel({
+    // Build channel options
+    const channelOpts: Parameters<typeof client.createChannel>[0] = {
       channel_name: name,
       company: company_id,
       description: [description, policies ? `\n\nRichtlinien: ${policies}` : ''].filter(Boolean).join(''),
-      type: isEncrypted ? 'private' : 'public',
+      type: isEncrypted ? 'closed' : 'public',
       visible: !hidden,
-      writable: !read_only,
-      inviteable: !invite_only,          // inviteable=false → only managers can invite
+      writable: read_only ? 'manager' : 'all',
+      inviteable: invite_only ? 'manager' : 'all',
       show_activities: show_activities ?? true,
       show_membership_activities: show_membership_activities ?? true,
       ...(isPassword && password ? { password, password_repeat: password_repeat ?? password } : {}),
-      ...(isEncrypted ? { encryption_key } : {}),
-    });
+    };
+
+    // For encrypted channels: generate AES key, encrypt with own public key, sign
+    if (isEncrypted) {
+      const crypto = await import('crypto');
+      const aesKey = crypto.randomBytes(32);
+
+      if (!client.isE2EUnlocked()) {
+        return res.status(400).json({ error: 'E2E not unlocked — encrypted channels require E2E. Please re-login with your security password.' });
+      }
+
+      // Get own public key
+      const me = await client.getMe();
+      if (!me.public_key) {
+        return res.status(500).json({ error: 'Own public key not available' });
+      }
+
+      // Encrypt AES key with own RSA public key (RSA-OAEP)
+      const encryptedKey = StashcatClient.encryptWithPublicKey(me.public_key, aesKey);
+      channelOpts.encryption_key = encryptedKey.toString('base64');
+
+      // Sign the encrypted key with own private signing key
+      const signature = client.signData(encryptedKey);
+      channelOpts.encryption_key_signature = signature.toString('hex');
+    }
+
+    const channel = await client.createChannel(channelOpts);
     console.log(`[channels/create] created channel: ${(channel as unknown as Record<string,unknown>).name ?? name}`);
     res.json(channel);
   } catch (err) {
     res.status(500).json({ error: errorMessage(err, 'Failed to create channel') });
+  }
+});
+
+// ── Set missing encryption keys for channel members ──────────────────────────
+
+app.post('/api/channels/:channelId/keys', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const channelId = req.params.channelId;
+    const { keys } = req.body as { keys: Array<{ user_id: string; key: string; key_signature: string }> };
+    if (!keys || !Array.isArray(keys)) {
+      return res.status(400).json({ error: 'keys array required' });
+    }
+    await client.setMissingKey('channel', channelId, keys);
+    console.log(`[channels/keys] distributed ${keys.length} keys for channel ${channelId}`);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err, 'Failed to set channel keys') });
   }
 });
 
