@@ -1083,8 +1083,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const groups: Array<{ sender: Message['sender']; isOwn: boolean; messages: Message[]; isSystem?: boolean; isStandalone?: boolean }> = [];
   for (const msg of messages) {
     // Skip completely empty messages that have no visible content
-    const hasContent = msg.text || msg.files?.length || msg.deleted || msg.is_deleted_by_manager || msg.is_forwarded || msg.reply_to_id;
-    if (!hasContent && !msg.kind) continue;
+    const hasVisibleContent = msg.text?.trim() || msg.files?.length || msg.deleted || msg.is_deleted_by_manager || msg.is_forwarded || msg.reply_to_id;
+    const isSpecialKind = SYSTEM_KINDS.has(msg.kind ?? '') || isPollInviteMessage(msg) || isVideoMeetingMessage(msg) || isCalendarEventMessage(msg);
+    if (!hasVisibleContent && !isSpecialKind) continue;
     if (SYSTEM_KINDS.has(msg.kind ?? '')) {
       groups.push({ sender: msg.sender, isOwn: false, messages: [msg], isSystem: true });
       continue;
