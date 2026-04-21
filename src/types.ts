@@ -32,6 +32,8 @@ export interface Channel {
   created_at?: number;
   /** Unix timestamp (seconds) of last activity */
   last_activity?: number;
+  /** Whether notifications are muted for this channel */
+  muted?: boolean | null;
 }
 
 export interface Conversation {
@@ -136,4 +138,6 @@ export interface ChatTarget {
   userId?: string;
   /** For conversations: the other user's availability */
   userAvailability?: 'available' | 'do_not_disturb';
+  /** Whether notifications are muted (channels only) */
+  muted?: boolean | null;
 }

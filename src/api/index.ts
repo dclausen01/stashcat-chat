@@ -60,6 +60,7 @@ export {
   searchCompanyMembers,
   getCompanyGroups,
   getGroupMembers,
+  setChannelNotifications,
 } from './channels';
 export type { ManagedUser, CompanyGroup } from './channels';
 

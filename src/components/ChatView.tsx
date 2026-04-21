@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -201,6 +201,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [imageEditorOpen, setImageEditorOpen] = useState(false);
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const [meetingLoading, setMeetingLoading] = useState(false);
+  const [notificationsMuted, setNotificationsMuted] = useState(chat.muted === true);
   const [showPollModal, setShowPollModal] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showWhiteboardModal, setShowWhiteboardModal] = useState(false);
@@ -1207,6 +1208,27 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             <Star size={16} className={chat.favorite ? 'fill-yellow-400' : ''} />
           </button>
         )}
+        {/* Notifications mute toggle */}
+        <button
+          onClick={async () => {
+            try {
+              const enable = notificationsMuted; // if currently muted, enable; otherwise disable
+              await api.setChannelNotifications(chat.id, enable);
+              setNotificationsMuted(!notificationsMuted);
+            } catch (err) {
+              console.error('Failed to toggle notifications:', err);
+            }
+          }}
+          className={clsx(
+            'rounded-md p-1.5 transition',
+            notificationsMuted
+              ? 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300'
+              : 'text-primary-500 hover:text-primary-600',
+          )}
+          title={notificationsMuted ? 'Benachrichtigungen aktivieren' : 'Benachrichtigungen stummschalten'}
+        >
+          {notificationsMuted ? <BellOff size={16} /> : <Bell size={16} />}
+        </button>
         {/* Video meeting button */}
         <button
           onClick={async () => {

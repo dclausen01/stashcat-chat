@@ -167,3 +167,7 @@ export async function getGroupMembers(
     `/companies/${companyId}/groups/${groupId}/members`
   );
 }
+
+export async function setChannelNotifications(channelId: string, enabled: boolean): Promise<void> {
+  await post(`/channels/${channelId}/notifications`, { enabled });
+}

@@ -941,6 +941,25 @@ app.get('/api/channels/:channelId/pending-members', async (req, res) => {
         res.status(500).json({ error: errorMessage(err) });
     }
 });
+app.post('/api/channels/:channelId/notifications', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const channelId = req.params.channelId;
+        const { enabled } = req.body;
+        if (enabled) {
+            await client.enableChannelNotifications(channelId);
+            console.log(`[channels/notifications] enabled for ${channelId}`);
+        }
+        else {
+            await client.disableChannelNotifications(channelId);
+            console.log(`[channels/notifications] disabled for ${channelId}`);
+        }
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
 app.post('/api/channels/:channelId/invite', async (req, res) => {
     try {
         const client = await getClient(req);
