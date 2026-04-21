@@ -1007,7 +1007,8 @@ app.post('/api/channels/:channelId/notifications', async (req, res) => {
       await client.enableChannelNotifications(channelId);
       console.log(`[channels/notifications] enabled for ${channelId}`);
     } else {
-      await client.disableChannelNotifications(channelId);
+      // duration=2147483647 ≈ "mute forever" (matches original app behavior)
+      await client.disableChannelNotifications(channelId, 2147483647);
       console.log(`[channels/notifications] disabled for ${channelId}`);
     }
     res.json({ ok: true });
