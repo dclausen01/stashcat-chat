@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, Hash, Lock, KeyRound, Loader2, ChevronDown } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { X, Hash, Lock, KeyRound, Loader2, ChevronDown, Upload, ImageIcon, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { Channel } from '../types';
@@ -83,11 +83,44 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
   );
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const setToggle = (key: string, val: boolean) =>
     setToggles((prev) => ({ ...prev, [key]: val }));
 
+  const fileToBase64 = useCallback((file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
+  const handleFile = useCallback(async (file: File) => {
+    setError('');
+    if (!file.type.startsWith('image/')) { setError('Bitte ein Bild auswählen.'); return; }
+    if (file.size > 5 * 1024 * 1024) { setError('Max. 5 MB.'); return; }
+    try {
+      setImagePreview(URL.createObjectURL(file));
+      setImageBase64(await fileToBase64(file));
+    } catch { setError('Fehler beim Lesen der Datei.'); }
+  }, [fileToBase64]);
+
+  const removeImage = useCallback(() => {
+    if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
+    setImagePreview(null);
+    setImageBase64(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [imagePreview]);
+
   const selectedType = CHANNEL_TYPES.find((t) => t.value === channelType)!;
+
+  useEffect(() => {
+    return () => { if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview); };
+  }, [imagePreview]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,6 +144,13 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
         show_membership_activities: toggles.show_membership_activities,
         ...(channelType === 'password' ? { password, password_repeat: password2 } : {}),
       });
+      if (imageBase64) {
+        try {
+          await api.setChannelImage(channel.id, companyId, imageBase64);
+        } catch (imgErr) {
+          console.error('Channel image upload failed:', imgErr);
+        }
+      }
       onCreate(channel);
       onClose();
     } catch (err) {
@@ -160,6 +200,47 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
                 autoFocus
                 className="w-full rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm text-surface-900 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
               />
+            </div>
+
+            {/* Channel image */}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-600">
+                Channel-Bild <span className="text-surface-600 font-normal normal-case">(optional)</span>
+              </label>
+              <div className="flex items-center gap-3">
+                {imagePreview ? (
+                  <div className="relative">
+                    <img src={imagePreview} alt="Vorschau" className="h-14 w-14 rounded-full object-cover ring-2 ring-surface-200 dark:ring-surface-700" />
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white hover:bg-red-600"
+                      title="Entfernen"
+                    >
+                      <Trash2 size={10} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-surface-200 dark:bg-surface-700">
+                    <ImageIcon size={20} className="text-surface-400" />
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1.5 rounded-lg border border-surface-300 px-3 py-2 text-sm font-medium text-surface-600 transition hover:bg-surface-100 dark:border-surface-600 dark:text-surface-300 dark:hover:bg-surface-800"
+                >
+                  <Upload size={14} />
+                  Bild hochladen
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+                  className="hidden"
+                />
+              </div>
             </div>
 
             {/* Description */}
