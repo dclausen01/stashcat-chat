@@ -1033,6 +1033,28 @@ app.patch('/api/channels/:channelId', async (req, res) => {
   }
 });
 
+// ── Channel image ────────────────────────────────────────────────────────────
+app.post('/api/channels/:channelId/image', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const { company_id, image } = req.body as { company_id: string; image: string };
+    // Access internal API to call /channels/setImage
+    const api = (client as any).api;
+    if (!api || typeof api.createAuthenticatedRequestData !== 'function') {
+      throw new Error('API client not available');
+    }
+    const requestData = api.createAuthenticatedRequestData({
+      channel_id: req.params.channelId,
+      company_id,
+      imgBase64: image,
+    });
+    const result = await api.post('/channels/setImage', requestData);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err, 'Failed to set channel image') });
+  }
+});
+
 // ── Channel info ───────────────────────────────────────────────────────────────
 app.get('/api/channels/:channelId/info', async (req, res) => {
   try {

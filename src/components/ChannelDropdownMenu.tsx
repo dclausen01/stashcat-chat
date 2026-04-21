@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { MoreVertical, Users, Pencil, Download, Trash2, Loader2, Info, X, Lock, UsersRound, Clock } from 'lucide-react';
+import { MoreVertical, Users, Pencil, Download, Trash2, Loader2, Info, X, Lock, UsersRound, Clock, ImageIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { ChatTarget, Channel } from '../types';
@@ -9,6 +9,7 @@ interface ChannelDropdownMenuProps {
   isManager: boolean;
   onOpenMembers: () => void;
   onOpenDescriptionEditor: () => void;
+  onOpenImageEditor?: () => void;
 }
 
 function formatDateLabel(ts: number): string {
@@ -284,6 +285,7 @@ export default function ChannelDropdownMenu({
   isManager,
   onOpenMembers,
   onOpenDescriptionEditor,
+  onOpenImageEditor,
 }: ChannelDropdownMenuProps) {
   const [open, setOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -360,6 +362,15 @@ export default function ChannelDropdownMenu({
               <Pencil size={16} className="text-surface-500" />
               Beschreibung bearbeiten
             </button>
+            {onOpenImageEditor && (
+              <button
+                onClick={() => { setOpen(false); onOpenImageEditor(); }}
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-surface-700 transition hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-surface-700"
+              >
+                <ImageIcon size={16} className="text-surface-500" />
+                Bild ändern
+              </button>
+            )}
             <button
               onClick={handleExport}
               disabled={exporting}

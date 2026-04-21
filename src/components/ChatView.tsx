@@ -14,6 +14,7 @@ import ChannelMembersPanel from './ChannelMembersPanel';
 import ChannelDropdownMenu from './ChannelDropdownMenu';
 import LinkPreviewCard from './LinkPreviewCard';
 import ChannelDescriptionEditor from './ChannelDescriptionEditor';
+import ChannelImageEditor from './ChannelImageEditor';
 import CreatePollModal from './CreatePollModal';
 import CreateEventModal from './CreateEventModal';
 import CreateWhiteboardModal from './CreateWhiteboardModal';
@@ -196,6 +197,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [pdfView, setPdfView] = useState<{ fileId: string; viewUrl: string; name: string } | null>(null);
   const [descEditorOpen, setDescEditorOpen] = useState(false);
   const [chatDescription, setChatDescription] = useState(chat.description || '');
+  const [chatImage, setChatImage] = useState(chat.image || '');
+  const [imageEditorOpen, setImageEditorOpen] = useState(false);
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const [meetingLoading, setMeetingLoading] = useState(false);
   const [showPollModal, setShowPollModal] = useState(false);
@@ -1153,8 +1156,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       {/* Header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 px-6 py-3 dark:border-surface-700">
         {chat.type === 'channel' ? (
-          chat.image
-            ? <Avatar name={chat.name} image={chat.image} size="md" />
+          chatImage
+            ? <Avatar name={chat.name} image={chatImage} size="md" />
             : <Hash size={22} className="text-surface-600" />
         ) : (
           <Avatar name={chat.name} image={chat.image} size="md" />
@@ -1300,6 +1303,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             isManager={isManager}
             onOpenMembers={() => setMembersOpen(true)}
             onOpenDescriptionEditor={() => setDescEditorOpen(true)}
+            onOpenImageEditor={() => setImageEditorOpen(true)}
           />
         )}
         {chat.type === 'channel' && (
@@ -1802,6 +1806,15 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         chat={{ ...chat, description: chatDescription }}
         onClose={() => setDescEditorOpen(false)}
         onSaved={(newDesc) => setChatDescription(newDesc)}
+      />
+    )}
+
+    {/* Channel image editor */}
+    {imageEditorOpen && chat.type === 'channel' && (
+      <ChannelImageEditor
+        chat={{ ...chat, image: chatImage }}
+        onClose={() => setImageEditorOpen(false)}
+        onSaved={(newImage) => setChatImage(newImage)}
       />
     )}
 

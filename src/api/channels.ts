@@ -55,6 +55,10 @@ export async function editChannel(channelId: string, companyId: string, descript
   return patch(`/channels/${channelId}`, { description, company_id: companyId });
 }
 
+export async function setChannelImage(channelId: string, companyId: string, image: string): Promise<void> {
+  return post(`/channels/${channelId}/image`, { company_id: companyId, image });
+}
+
 export async function deleteChannel(channelId: string): Promise<void> {
   return del(`/channels/${channelId}`);
 }

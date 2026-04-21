@@ -48,6 +48,7 @@ export {
   addModerator,
   removeModerator,
   editChannel,
+  setChannelImage,
   deleteChannel,
   createChannel,
   setFavorite,
