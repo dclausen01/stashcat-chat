@@ -255,6 +255,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     if (channelId) {
       const isActive = active?.type === 'channel' && active.id === channelId;
       const shouldIncrement = (!isInForeground || !isActive) && !isOwnMessage;
+      // eslint-disable-next-line no-console
+      console.log('[handleMessageSync] channel:', channelId, 'isInForeground:', isInForeground, 'isActive:', isActive, 'isOwnMessage:', isOwnMessage, 'shouldIncrement:', shouldIncrement, 'activeChat:', active?.id);
       setChannels((prev) => sortChats(prev.map((ch) =>
         ch.id === channelId
           ? { ...ch, lastActivity: time || ch.lastActivity, unread_count: shouldIncrement ? (ch.unread_count ?? 0) + 1 : ch.unread_count }
@@ -267,6 +269,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     } else if (convId) {
       const isActive = active?.type === 'conversation' && active.id === convId;
       const shouldIncrement = (!isInForeground || !isActive) && !isOwnMessage;
+      // eslint-disable-next-line no-console
+      console.log('[handleMessageSync] conv:', convId, 'isInForeground:', isInForeground, 'isActive:', isActive, 'isOwnMessage:', isOwnMessage, 'shouldIncrement:', shouldIncrement, 'activeChat:', active?.id);
       setConversations((prev) => sortChats(prev.map((conv) =>
         conv.id === convId
           ? { ...conv, lastActivity: time || conv.lastActivity, unread_count: shouldIncrement ? (conv.unread_count ?? 0) + 1 : conv.unread_count }
