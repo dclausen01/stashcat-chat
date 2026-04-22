@@ -195,7 +195,42 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
       if (isEdit && editingEvent) {
         await api.editCalendarEvent(String(editingEvent.id), eventData);
       } else {
-        await api.createCalendarEvent(eventData);
+        const { id: eventId } = await api.createCalendarEvent(eventData);
+
+        // Send notification messages to all relevant chats
+        if (eventId) {
+          const targets: Array<{ id: string; type: 'channel' | 'conversation' }> = [];
+
+          if (category === 'channel') {
+            for (const cid of inviteChannelIds) {
+              if (!targets.some((t) => t.id === cid && t.type === 'channel')) {
+                targets.push({ id: cid, type: 'channel' });
+              }
+            }
+          }
+
+          if (preselectedChat && !isEdit) {
+            if (!targets.some((t) => t.id === preselectedChat.id && t.type === preselectedChat.type)) {
+              targets.push({ id: preselectedChat.id, type: preselectedChat.type });
+            }
+          }
+
+          const startDate = new Date(start * 1000);
+          const endDate = new Date(end * 1000);
+          const dateStr = allday
+            ? startDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            : `${startDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}, ${startDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} – ${endDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+
+          const messageText = `**Neuer Termin: ${name.trim()}**\n📅 ${dateStr}${location ? `\n📍 ${location}` : ''}\n\nDetails im Kalender ansehen. [%event:${eventId}%]`;
+
+          for (const target of targets) {
+            try {
+              await api.sendMessage(target.id, target.type, messageText);
+            } catch {
+              // Ignore send errors — event was already created successfully
+            }
+          }
+        }
       }
       onCreated();
     } catch (err) {

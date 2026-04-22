@@ -29,6 +29,7 @@ interface ChatViewProps {
   onOpenPolls?: () => void;
   onOpenPoll?: (pollId: string) => void;
   onOpenCalendar?: () => void;
+  onOpenEvent?: (eventId: string) => void;
   onMarkRead?: (chatId: string, chatType: 'channel' | 'conversation') => void;
   onToggleFlagged?: () => void;
   flaggedOpen?: boolean;
@@ -179,7 +180,7 @@ function extractServiceLinks(description: string): { cleanDescription: string; l
 
 interface PendingMessage { text: string; replyTo: Message | null; time: number }
 
-export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall, onToggleFavorite }: ChatViewProps) {
+export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onOpenEvent, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall, onToggleFavorite }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -1676,14 +1677,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                   if (isPollInviteMessage(sysMsg)) {
                     elements.push(<PollInviteMessage key={gi} msg={sysMsg} onOpenPolls={onOpenPolls} onOpenPoll={onOpenPoll} />);
                   } else if (isCalendarEventMessage(sysMsg)) {
-                    elements.push(<CalendarEventCard key={gi} msg={sysMsg} onOpenCalendar={onOpenCalendar} />);
+                    elements.push(<CalendarEventCard key={gi} msg={sysMsg} onOpenCalendar={onOpenCalendar} onOpenEvent={onOpenEvent} />);
                   } else {
                     elements.push(<SystemMessage key={gi} msg={sysMsg} />);
                   }
                 } else if (group.messages.length === 1 && isPollInviteMessage(group.messages[0])) {
                   elements.push(<PollInviteMessage key={gi} msg={group.messages[0]} onOpenPolls={onOpenPolls} onOpenPoll={onOpenPoll} />);
                 } else if (group.messages.length === 1 && isCalendarEventMessage(group.messages[0])) {
-                  elements.push(<CalendarEventCard key={gi} msg={group.messages[0]} onOpenCalendar={onOpenCalendar} />);
+                  elements.push(<CalendarEventCard key={gi} msg={group.messages[0]} onOpenCalendar={onOpenCalendar} onOpenEvent={onOpenEvent} />);
                 } else if (group.messages.length === 1 && isVideoMeetingMessage(group.messages[0])) {
                   elements.push(<VideoMeetingCard key={gi} msg={group.messages[0]} />);
                 } else {
@@ -1748,7 +1749,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                   return elements;
                 }
                 if (isCalendarEventMessage(msg)) {
-                  elements.push(<CalendarEventCard key={msg.id} msg={msg} onOpenCalendar={onOpenCalendar} />);
+                  elements.push(<CalendarEventCard key={msg.id} msg={msg} onOpenCalendar={onOpenCalendar} onOpenEvent={onOpenEvent} />);
                   return elements;
                 }
                 if (isVideoMeetingMessage(msg)) {
@@ -2445,6 +2446,16 @@ function extractPollId(msg: Message): string | undefined {
   return match?.[1];
 }
 
+/** Extract event ID from message text format: [... [%event:ID%]] */
+function extractEventId(msg: Message): string | undefined {
+  const raw = msg as unknown as Record<string, unknown>;
+  if (raw.event_id) return String(raw.event_id);
+  if (raw.target_id) return String(raw.target_id);
+  // Parse from text format: "[%event:ID%]"
+  const match = (msg.text ?? '').match(/\[%event:([^%]+)%\]$/);
+  return match?.[1];
+}
+
 /** Convert message text to React spans, stripping poll markers and bold markers */
 function renderPollText(text: string): ReactNode[] {
   if (!text) return [];
@@ -2540,10 +2551,20 @@ function renderEventText(text: string): ReactNode[] {
   return parts.length > 0 ? parts : [clean];
 }
 
-function CalendarEventCard({ msg, onOpenCalendar }: { msg: Message; onOpenCalendar?: () => void }) {
+function CalendarEventCard({ msg, onOpenCalendar, onOpenEvent }: { msg: Message; onOpenCalendar?: () => void; onOpenEvent?: (eventId: string) => void }) {
   const time = msg.time
     ? new Date(msg.time * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
     : '';
+
+  const eventId = extractEventId(msg);
+
+  const handleClick = () => {
+    if (eventId && onOpenEvent) {
+      onOpenEvent(eventId);
+    } else if (onOpenCalendar) {
+      onOpenCalendar();
+    }
+  };
 
   return (
     <div className="flex justify-center py-2 px-4">
@@ -2551,9 +2572,9 @@ function CalendarEventCard({ msg, onOpenCalendar }: { msg: Message; onOpenCalend
         <p className="text-sm text-surface-100 dark:text-surface-200 whitespace-pre-wrap">
           {renderEventText(msg.text ?? '')}
         </p>
-        {onOpenCalendar && (
+        {(onOpenCalendar || onOpenEvent) && (
           <button
-            onClick={onOpenCalendar}
+            onClick={handleClick}
             className="mt-1 block text-sm font-semibold text-green-400 hover:text-green-300 dark:text-green-400 dark:hover:text-green-300 transition"
           >
             Im Kalender ansehen

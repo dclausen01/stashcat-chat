@@ -181,6 +181,7 @@ export default function App() {
                 onOpenPolls={openPolls}
                 onOpenPoll={openPoll}
                 onOpenCalendar={openCalendar}
+                onOpenEvent={openEvent}
                 onToggleFlagged={toggleFlagged}
                 flaggedOpen={flaggedOpen}
                 jumpToMessageId={jumpToMessageId}
