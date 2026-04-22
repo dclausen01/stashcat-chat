@@ -239,12 +239,21 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       const VERIFY_PAGE_SIZE = 20;
       const BATCH = 5;
       const corrections: Array<{ chat: ChatTarget; actual: number }> = [];
+      // eslint-disable-next-line no-console
+      console.log('[verifyUnreadCounts] candidates:', candidates.length, candidates.map((c) => c.name));
       for (let i = 0; i < candidates.length; i += BATCH) {
         const batch = candidates.slice(i, i + BATCH);
         const results = await Promise.all(batch.map(async (chat) => {
           try {
             const msgs = await api.getMessages(chat.id, chat.type, VERIFY_PAGE_SIZE, 0) as unknown as Message[];
-            const actual = msgs.filter((m) => m.unread === true && String(m.sender?.id ?? '') !== userId).length;
+            const unreadMsgs = msgs.filter((m) => m.unread === true);
+            const actual = unreadMsgs.filter((m) => String(m.sender?.id ?? '') !== userId).length;
+            // eslint-disable-next-line no-console
+            console.log(`[verifyUnreadCounts] ${chat.name}: loaded=${msgs.length}, unreadFlags=${unreadMsgs.length}, actual=${actual}, cached=${chat.unread_count ?? 0}`);
+            if (msgs.length > 0) {
+              // eslint-disable-next-line no-console
+              console.log('[verifyUnreadCounts] sample msg sender:', msgs[0].sender, 'unread:', msgs[0].unread);
+            }
             return { chat, actual };
           } catch {
             return { chat, actual: 0 };
