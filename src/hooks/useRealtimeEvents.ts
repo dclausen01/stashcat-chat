@@ -196,7 +196,11 @@ function startWatchdog() {
   stopWatchdog();
   lastEventTime = Date.now();
   watchdogInterval = setInterval(() => {
-    if (!sharedEs) return;
+    if (!sharedEs) {
+      // No EventSource at all — try to reconnect (e.g. after CLOSED state)
+      ensureSharedEventSource();
+      return;
+    }
     const elapsed = Date.now() - lastEventTime;
     if (elapsed > WATCHDOG_TIMEOUT) {
       console.warn(`[useRealtimeEvents] No SSE event received for ${Math.round(elapsed / 1000)}s — reconnecting`);
