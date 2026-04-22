@@ -165,22 +165,33 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         };
       });
 
-      // ── Merge API unread_count with SSE-tracked state ───────────────────
-      // The API often reports stale unread_count=0 for chats with unread messages.
-      // SSE reliably increments unread_count in real-time, so we preserve any
-      // SSE-tracked value that is higher than the API value. The API value can
-      // only increase the unread count (e.g. after reconnect catching up),
-      // never decrease it — only mark-as-read resets to 0.
+      // ── Merge API unread_count with current state ───────────────────────
+      // The API often reports stale unread_count=0. We use two signals:
+      // 1. SSE-tracked unread_count: preserve if higher than API (handles live case)
+      // 2. lastActivity increase: if lastActivity went up since our last load,
+      //    new messages exist → set unread_count to at least 1 (handles SSE-dead case)
+      // Only markAsRead/handleSelect can reset unread_count to 0.
       for (const ch of allChannels) {
-        const sseCount = channelsRef.current.find((c) => c.id === ch.id)?.unread_count ?? 0;
-        if (sseCount > (ch.unread_count ?? 0)) {
-          ch.unread_count = sseCount;
+        const prev = channelsRef.current.find((c) => c.id === ch.id);
+        const apiUnread = ch.unread_count ?? 0;
+        const sseUnread = prev?.unread_count ?? 0;
+        const hasNewActivity = prev ? (ch.lastActivity ?? 0) > (prev.lastActivity ?? 0) : false;
+        if (hasNewActivity && apiUnread === 0) {
+          // New messages detected via lastActivity, but API says 0 → stale
+          ch.unread_count = Math.max(sseUnread, 1);
+        } else {
+          ch.unread_count = Math.max(apiUnread, sseUnread);
         }
       }
       for (const cv of convTargets) {
-        const sseCount = conversationsRef.current.find((c) => c.id === cv.id)?.unread_count ?? 0;
-        if (sseCount > (cv.unread_count ?? 0)) {
-          cv.unread_count = sseCount;
+        const prev = conversationsRef.current.find((c) => c.id === cv.id);
+        const apiUnread = cv.unread_count ?? 0;
+        const sseUnread = prev?.unread_count ?? 0;
+        const hasNewActivity = prev ? (cv.lastActivity ?? 0) > (prev.lastActivity ?? 0) : false;
+        if (hasNewActivity && apiUnread === 0) {
+          cv.unread_count = Math.max(sseUnread, 1);
+        } else {
+          cv.unread_count = Math.max(apiUnread, sseUnread);
         }
       }
 
@@ -255,8 +266,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     if (channelId) {
       const isActive = active?.type === 'channel' && active.id === channelId;
       const shouldIncrement = (!isInForeground || !isActive) && !isOwnMessage;
-      // eslint-disable-next-line no-console
-      console.log('[handleMessageSync] channel:', channelId, 'isInForeground:', isInForeground, 'isActive:', isActive, 'isOwnMessage:', isOwnMessage, 'shouldIncrement:', shouldIncrement, 'activeChat:', active?.id);
       setChannels((prev) => sortChats(prev.map((ch) =>
         ch.id === channelId
           ? { ...ch, lastActivity: time || ch.lastActivity, unread_count: shouldIncrement ? (ch.unread_count ?? 0) + 1 : ch.unread_count }
@@ -269,8 +278,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     } else if (convId) {
       const isActive = active?.type === 'conversation' && active.id === convId;
       const shouldIncrement = (!isInForeground || !isActive) && !isOwnMessage;
-      // eslint-disable-next-line no-console
-      console.log('[handleMessageSync] conv:', convId, 'isInForeground:', isInForeground, 'isActive:', isActive, 'isOwnMessage:', isOwnMessage, 'shouldIncrement:', shouldIncrement, 'activeChat:', active?.id);
       setConversations((prev) => sortChats(prev.map((conv) =>
         conv.id === convId
           ? { ...conv, lastActivity: time || conv.lastActivity, unread_count: shouldIncrement ? (conv.unread_count ?? 0) + 1 : conv.unread_count }
