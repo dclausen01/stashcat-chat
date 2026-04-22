@@ -13,6 +13,22 @@ import NewChatModal from './NewChatModal';
 import ChannelDiscoveryModal from './ChannelDiscoveryModal';
 import type { ChatTarget, Message } from '../types';
 
+// ── Client-side last-read tracking (localStorage) ──────────────────────────
+// Stashcat's API sometimes returns unread_count=0 for chats with actual unread
+// messages. We track the last time a chat was read locally so we can detect
+// stale zero counts and show badges / update the title & favicon.
+const LASTREAD_PREFIX = 'schulchat_lastread_';
+function lastReadKey(chatId: string, chatType: 'channel' | 'conversation') {
+  return `${LASTREAD_PREFIX}${chatType}_${chatId}`;
+}
+function getLastRead(chatId: string, chatType: 'channel' | 'conversation'): number | null {
+  const raw = localStorage.getItem(lastReadKey(chatId, chatType));
+  return raw ? Number(raw) : null;
+}
+function setLastRead(chatId: string, chatType: 'channel' | 'conversation', timestampS: number) {
+  localStorage.setItem(lastReadKey(chatId, chatType), String(timestampS));
+}
+
 /** Sort: favorites first, non-favorites second. Within each group: by lastActivity desc. */
 function sortChats(items: ChatTarget[]): ChatTarget[] {
   return [...items].sort((a, b) => {
@@ -166,6 +182,23 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           userAvailability,
         };
       });
+
+      // ── Correct stale unread_count values from the API ─────────────────
+      // Stashcat sometimes reports unread_count=0 for chats with unread messages.
+      // We use local last-read timestamps to detect this: if the chat's lastActivity
+      // is newer than the last time the user read it, there must be unread messages.
+      for (const ch of allChannels) {
+        const lastRead = getLastRead(ch.id, 'channel');
+        if (lastRead !== null && ch.lastActivity && ch.lastActivity > lastRead && (ch.unread_count ?? 0) === 0) {
+          ch.unread_count = 1; // at least one unread; exact count unknown
+        }
+      }
+      for (const cv of convTargets) {
+        const lastRead = getLastRead(cv.id, 'conversation');
+        if (lastRead !== null && cv.lastActivity && cv.lastActivity > lastRead && (cv.unread_count ?? 0) === 0) {
+          cv.unread_count = 1;
+        }
+      }
 
       // Detect newly unread chats and show OS notifications.
       // Only after initial load (prevUnreadsRef populated), so login
@@ -390,6 +423,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     }
     // Keep prevUnreadsRef in sync so background poll doesn't re-notify
     prevUnreadsRef.current?.set(chatId, 0);
+    // Track locally so stale API unread_count=0 can be detected after reload/restart
+    setLastRead(chatId, chatType, Math.floor(Date.now() / 1000));
   }, []);
 
   // Listen for mark-read events from ChatView
@@ -408,6 +443,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     } else {
       setConversations((prev) => prev.map((c) => c.id === target.id ? { ...c, unread_count: 0 } : c));
     }
+    // Track locally so stale API unread_count=0 can be detected after reload/restart
+    setLastRead(target.id, target.type, Math.floor(Date.now() / 1000));
     onSelectChat(target);
   }, [onSelectChat]);
 
