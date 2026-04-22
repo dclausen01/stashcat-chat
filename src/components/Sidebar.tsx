@@ -203,12 +203,10 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     }
   }
 
-  // Fix stale per-channel unread counts (Stashcat returns unread_count=0
-  // for chats whose messages actually carry `unread: true` — visible after
-  // standby/resume in Electron wrappers). For each recently-active chat that
-  // reports 0 unread, fetch the first page of messages and count
-  // `unread === true` messages from other users. If the true count exceeds
-  // the cached one, correct the sidebar badge.
+  // Verify unread counts for all recently-active channels by fetching messages
+  // and counting `unread === true`. This catches stale unread_count values from
+  // the API (common after standby/resume in Electron wrappers). Runs every 60s
+  // together with loadData().
   const verifyUnreadCounts = useCallback(async () => {
     if (verifyInFlightRef.current) return;
     verifyInFlightRef.current = true;
@@ -217,17 +215,25 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       if (!userId) return;
       const RECENT_WINDOW_S = 48 * 60 * 60; // 48 hours
       const nowS = Math.floor(Date.now() / 1000);
-      const candidates: ChatTarget[] = [];
+
+      // Check ALL recently-active channels (not just those with unread_count=0)
+      const channelCandidates: ChatTarget[] = [];
       for (const ch of channelsRef.current) {
-        if ((ch.unread_count ?? 0) === 0 && ch.lastActivity && (nowS - ch.lastActivity) < RECENT_WINDOW_S) {
-          candidates.push(ch);
+        if (ch.lastActivity && (nowS - ch.lastActivity) < RECENT_WINDOW_S) {
+          channelCandidates.push(ch);
         }
       }
+
+      // For conversations, only check those with unread_count=0 (problem not
+      // observed for conversations with >0 unread_count, and 1000+ convs is too many)
+      const convCandidates: ChatTarget[] = [];
       for (const cv of conversationsRef.current) {
         if ((cv.unread_count ?? 0) === 0 && cv.lastActivity && (nowS - cv.lastActivity) < RECENT_WINDOW_S) {
-          candidates.push(cv);
+          convCandidates.push(cv);
         }
       }
+
+      const candidates = [...channelCandidates, ...convCandidates];
       if (candidates.length === 0) return;
 
       const VERIFY_PAGE_SIZE = 20;
@@ -245,7 +251,9 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           }
         }));
         for (const r of results) {
-          if (r.actual > 0) corrections.push(r);
+          // Only correct if the actual count differs from the cached one
+          const cached = r.chat.unread_count ?? 0;
+          if (r.actual !== cached) corrections.push(r);
         }
       }
       if (corrections.length === 0) return;
@@ -273,14 +281,18 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   // Runs regardless of tab visibility so background notifications work even
   // when the SSE connection has silently dropped (browser throttling, standby).
   // Uses a shorter interval (60s) to catch missed messages promptly.
+  // Also verifies per-message unread flags to correct stale unread_count values.
   useEffect(() => {
     if (!loggedIn) return;
     const SYNC_INTERVAL = 60 * 1000; // 60 seconds
     const intervalId = setInterval(() => {
-      loadData();
+      (async () => {
+        await loadData();
+        verifyUnreadCounts();
+      })();
     }, SYNC_INTERVAL);
     return () => clearInterval(intervalId);
-  }, [loggedIn]);
+  }, [loggedIn, verifyUnreadCounts]);
 
   // Stable handler refs for useRealtimeEvents — prevents handler replacement on every render
   const handleMessageSync = useCallback((data: unknown) => {
