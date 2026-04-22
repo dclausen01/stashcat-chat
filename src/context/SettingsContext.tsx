@@ -11,6 +11,7 @@ interface Settings {
   notificationsEnabled: boolean;
   autoAcceptKeySync: boolean;
   enterSendsMessage: boolean;
+  favoriteCardsSortMode: 'sidebar' | 'alphabetical' | 'manual';
 }
 
 interface SettingsContextValue extends Settings {
@@ -24,28 +25,13 @@ interface SettingsContextValue extends Settings {
   setNotificationsEnabled: (v: boolean) => void;
   setAutoAcceptKeySync: (v: boolean) => void;
   setEnterSendsMessage: (v: boolean) => void;
+  setFavoriteCardsSortMode: (v: 'sidebar' | 'alphabetical' | 'manual') => void;
 }
 
 const STORAGE_KEY = 'schulchat_settings';
 
 function loadSettings(): Settings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return {
-      showImagesInline: true,
-      bubbleView: true,
-      ownBubbleColor: '#4f46e5',
-      otherBubbleColor: '#f3f4f6',
-      homeView: 'info',
-      fileBrowserViewMode: 'grid',
-      fileBrowserTab: 'context',
-      notificationsEnabled: true,
-      autoAcceptKeySync: false,
-      enterSendsMessage: true,
-      ...JSON.parse(raw) as Partial<Settings>
-    };
-  } catch { /* ignore */ }
-  return {
+  const defaults: Settings = {
     showImagesInline: true,
     bubbleView: true,
     ownBubbleColor: '#4f46e5',
@@ -56,7 +42,20 @@ function loadSettings(): Settings {
     notificationsEnabled: true,
     autoAcceptKeySync: false,
     enterSendsMessage: true,
+    favoriteCardsSortMode: 'sidebar',
   };
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<Settings>;
+      return {
+        ...defaults,
+        ...parsed,
+        favoriteCardsSortMode: parsed.favoriteCardsSortMode ?? defaults.favoriteCardsSortMode,
+      };
+    }
+  } catch { /* ignore */ }
+  return defaults;
 }
 
 const SettingsContext = createContext<SettingsContextValue>({
@@ -70,6 +69,7 @@ const SettingsContext = createContext<SettingsContextValue>({
   notificationsEnabled: true,
   autoAcceptKeySync: false,
   enterSendsMessage: true,
+  favoriteCardsSortMode: 'sidebar',
   setShowImagesInline: () => {},
   setBubbleView: () => {},
   setOwnBubbleColor: () => {},
@@ -80,6 +80,7 @@ const SettingsContext = createContext<SettingsContextValue>({
   setNotificationsEnabled: () => {},
   setAutoAcceptKeySync: () => {},
   setEnterSendsMessage: () => {},
+  setFavoriteCardsSortMode: () => {},
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
@@ -106,6 +107,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setNotificationsEnabled: (v) => update({ notificationsEnabled: v }),
       setAutoAcceptKeySync: (v) => update({ autoAcceptKeySync: v }),
       setEnterSendsMessage: (v) => update({ enterSendsMessage: v }),
+      setFavoriteCardsSortMode: (v) => update({ favoriteCardsSortMode: v }),
     }}>
       {children}
     </SettingsContext.Provider>
