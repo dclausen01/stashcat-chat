@@ -126,6 +126,12 @@ const activeSSE = new Map<string, SSEConnection>(); // keyed by clientKey
 /** Pending key_sync_request events received via Socket.io, keyed by clientKey → userId → event payload */
 const pendingKeyRequests = new Map<string, Map<string, unknown>>();
 
+/** Tracks the last time a chat was marked as read per client session.
+ *  Key: `${clientKey}:${chatType}:${targetId}`, Value: Unix timestamp (seconds).
+ *  Used to enrich message responses with accurate `unread` flags since
+ *  Stashcat's /message/content endpoint does not always populate this field. */
+const lastReadTimestamps = new Map<string, number>();
+
 function pushSSE(clientKey: string, event: string, data: unknown) {
   const conn = activeSSE.get(clientKey);
   if (!conn) return;
@@ -1533,6 +1539,22 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
       }
     }
     const messages = await client.getMessages(targetId, chatType, { limit, offset });
+
+    // Enrich messages with accurate `unread` flags. Stashcat's API sometimes
+    // omits the `unread` field entirely. We compute it from our local
+    // last-read tracking (populated whenever markAsRead is called).
+    const token = extractToken(req);
+    const payload = decryptSession(token);
+    const { clientKey } = payload;
+    const lastReadKey = `${clientKey}:${chatType}:${targetId}`;
+    const lastReadTs = lastReadTimestamps.get(lastReadKey);
+    if (lastReadTs !== undefined) {
+      for (const msg of messages) {
+        const msgTime = Number((msg as unknown as Record<string, unknown>).time) || 0;
+        (msg as unknown as Record<string, unknown>).unread = msgTime > lastReadTs;
+      }
+    }
+
     const sorted = [...messages].sort(
       (a, b) => (Number((a as unknown as Record<string, unknown>).time) || 0) - (Number((b as unknown as Record<string, unknown>).time) || 0)
     );
@@ -1568,6 +1590,15 @@ app.post('/api/messages/:type/:targetId/read', async (req, res) => {
     if (messageId) {
       await client.markAsRead(targetId, chatType, messageId);
     }
+
+    // Track this chat as read so getMessages can compute accurate unread flags.
+    // We use the current timestamp because markAsRead means "everything up to now is read".
+    const token = extractToken(req);
+    const payload = decryptSession(token);
+    const { clientKey } = payload;
+    const lastReadKey = `${clientKey}:${chatType}:${targetId}`;
+    lastReadTimestamps.set(lastReadKey, Math.floor(Date.now() / 1000));
+
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
