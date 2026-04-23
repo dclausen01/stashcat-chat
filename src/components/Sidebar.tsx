@@ -127,9 +127,10 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
             image: ch.image,
             encrypted: Boolean(ch.encrypted),
             // Fallback to `unread_messages` — some API responses use this field instead.
-            unread_count: Number(ch.unread_count ?? (ch as unknown as Record<string, unknown>).unread_messages ?? 0),
-            favorite: Boolean(ch.favorite),
-            lastActivity: ch.last_message ? Number(ch.last_message.time || 0) : 0,
+            // Stashcat API: 'unread' (not 'unread_count') carries the actual count.
+            // 'unread_count' is always 0. 'unread_messages' is a legacy fallback.
+            unread_count: (ch as any).unread ?? ch.unread_count ?? 0,
+            lastActivity: Number((ch as any).last_action || (ch as any).last_activity || 0),
             company_id: cid,
           });
         }
