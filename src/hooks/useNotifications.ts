@@ -13,7 +13,6 @@ export function useNotifications() {
   const notify = useCallback((title: string, body: string) => {
     if (typeof Notification === 'undefined') return;
     if (!notificationsEnabled) return;
-    if (!document.hidden) return;
     if (Notification.permission !== 'granted') return;
 
     const notification = new Notification(title, {
