@@ -20,7 +20,8 @@
       "Bash(true)",
       "Bash(pnpm install)",
       "Bash(npm install)",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Read(//Users/dennis/Projekte/bbzcloud-2/**)"
     ]
   },
   "$version": 3
