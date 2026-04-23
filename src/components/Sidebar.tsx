@@ -119,13 +119,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         if (!firstCompanyId) firstCompanyId = cid;
         const channelList = await api.getChannels(cid);
         for (const ch of channelList) {
-          // Diagnostic: log raw channel fields to see what API actually returns
-          if (ch.name === 'DigitalHilfe' || ch.unread_count || (ch as any).last_action || (ch as any).last_activity || ch.last_message) {
-            const rawKeys = Object.keys(ch).filter(k => !['members', 'member_count', 'created_at', 'updated_at', 'company_id', 'description', 'type', 'visible', 'writable', 'inviteable', 'owner_id', 'key', 'key_requested', 'key_signature', 'key_sender', 'signature_expiry'].includes(k));
-            const rawFields: Record<string, unknown> = {};
-            for (const k of rawKeys) rawFields[k] = (ch as any)[k];
-            console.log(`[badge-diag-raw] Channel "${ch.name}" raw keys:`, JSON.stringify(rawFields));
-          }
           allChannels.push({
             type: 'channel',
             id: String(ch.id),
@@ -145,13 +138,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
       const userId = user?.id ?? '';
       const convTargets: ChatTarget[] = convList.map((c) => {
-        // Diagnostic: log raw conv fields for first 3 convs with unread or activity
-        if (c.unread_count || c.last_action || c.last_activity || c.last_message) {
-          const rawKeys = Object.keys(c).filter(k => !['members', 'participants', 'created_at', 'updated_at', 'created', 'deleted', 'key', 'key_requested', 'key_signature', 'key_sender', 'signature_expiry', 'unique_identifier', 'num_members_without_keys'].includes(k));
-          const rawFields: Record<string, unknown> = {};
-          for (const k of rawKeys) rawFields[k] = (c as any)[k];
-          console.log(`[badge-diag-raw] Conv "${(c as any).name || c.id}" raw keys:`, JSON.stringify(rawFields));
-        }
         const members = c.members || [];
         const otherMembers = members.filter((m) => String(m.id) !== userId);
         const name = otherMembers.length > 0
@@ -179,20 +165,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         };
       });
 
-      // ── Diagnostic: log raw API unread fields ────────────────────────
-      for (const ch of allChannels) {
-        const prev = channelsRef.current.find((c) => c.id === ch.id);
-        if (!prev || ch.unread_count || (ch as any).last_action || (ch as any).last_activity) {
-          console.log(`[badge-diag] Channel "${ch.name}": api_unread=${ch.unread_count}, lastActivity=${ch.lastActivity}, last_action=${(ch as any).last_action}, last_activity=${(ch as any).last_activity}, prev_unread=${prev?.unread_count}, prev_lastActivity=${prev?.lastActivity}`);
-        }
-      }
-      for (const cv of convTargets) {
-        const prev = conversationsRef.current.find((c) => c.id === cv.id);
-        if (!prev || cv.unread_count) {
-          console.log(`[badge-diag] Conv "${cv.name}": api_unread=${cv.unread_count}, last_action=${(cv as any).last_action}, last_activity=${(cv as any).last_activity}, prev_unread=${prev?.unread_count}, prev_lastActivity=${prev?.lastActivity}`);
-        }
-      }
-
       // ── Merge API unread_count with current state ───────────────────────
       // The API often reports stale unread_count=0. We use two signals:
       // 1. SSE-tracked unread_count: preserve if higher than API (handles live case)
@@ -207,12 +179,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         if (hasNewActivity && apiUnread === 0) {
           // New messages detected via lastActivity, but API says 0 → stale
           ch.unread_count = Math.max(sseUnread, 1);
-          console.log(`[badge-diag] Channel "${ch.name}" merge: hasNewActivity=${hasNewActivity}, api=${apiUnread}, sse=${sseUnread} → ${ch.unread_count} (lastActivity bump)`);
         } else {
           ch.unread_count = Math.max(apiUnread, sseUnread);
-          if (apiUnread !== sseUnread) {
-            console.log(`[badge-diag] Channel "${ch.name}" merge: api=${apiUnread}, sse=${sseUnread} → ${ch.unread_count}`);
-          }
         }
       }
       for (const cv of convTargets) {
@@ -222,12 +190,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         const hasNewActivity = prev ? (cv.lastActivity ?? 0) > (prev.lastActivity ?? 0) : false;
         if (hasNewActivity && apiUnread === 0) {
           cv.unread_count = Math.max(sseUnread, 1);
-          console.log(`[badge-diag] Conv "${cv.name}" merge: hasNewActivity=${hasNewActivity}, api=${apiUnread}, sse=${sseUnread} → ${cv.unread_count} (lastActivity bump)`);
         } else {
           cv.unread_count = Math.max(apiUnread, sseUnread);
-          if (apiUnread !== sseUnread) {
-            console.log(`[badge-diag] Conv "${cv.name}" merge: api=${apiUnread}, sse=${sseUnread} → ${cv.unread_count}`);
-          }
         }
       }
 
@@ -302,7 +266,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     if (channelId) {
       const isActive = active?.type === 'channel' && active.id === channelId;
       const shouldIncrement = (!isInForeground || !isActive) && !isOwnMessage;
-      console.log(`[badge-diag] SSE channel_msg: id=${channelId}, time=${time}, isOwn=${isOwnMessage}, isActive=${isActive}, fg=${isInForeground}, shouldInc=${shouldIncrement}`);
       setChannels((prev) => sortChats(prev.map((ch) =>
         ch.id === channelId
           ? { ...ch, lastActivity: time || ch.lastActivity, unread_count: shouldIncrement ? (ch.unread_count ?? 0) + 1 : ch.unread_count }
@@ -315,7 +278,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     } else if (convId) {
       const isActive = active?.type === 'conversation' && active.id === convId;
       const shouldIncrement = (!isInForeground || !isActive) && !isOwnMessage;
-      console.log(`[badge-diag] SSE conv_msg: id=${convId}, time=${time}, isOwn=${isOwnMessage}, isActive=${isActive}, fg=${isInForeground}, shouldInc=${shouldIncrement}`);
       setConversations((prev) => sortChats(prev.map((conv) =>
         conv.id === convId
           ? { ...conv, lastActivity: time || conv.lastActivity, unread_count: shouldIncrement ? (conv.unread_count ?? 0) + 1 : conv.unread_count }

@@ -12,17 +12,41 @@ Obwohl neue Nachrichten korrekt erkannt wurden (Channel sortierte nach oben, NEU
 
 ## Ursachenanalyse
 
-### Ursache 1: `loadData()` überschrieb SSE-Inkremente
+### Ursache 1 (Hauptursache): Falsches API-Feld für Unread-Count
+
+Die Stashcat-API liefert die Unread-Anzahl im Feld **`unread`** (top-level), nicht in `unread_count`. Das Feld `unread_count` ist **immer 0**.
+
+Beispiel (Channel "BGG24b Klassenkollegium"):
+```json
+{
+  "unread": 4,           // ← Tatsächliche Unread-Anzahl
+  "unread_count": 0,     // ← Immer 0!
+  "last_action": "1776939286",
+  "last_activity": "1776939286"
+}
+```
+
+Unser Code las `ch.unread_count` → immer 0 → kein Badge.
+
+Fix: `(ch as any).unread ?? ch.unread_count ?? 0`
+
+### Ursache 2: `lastActivity` für Channels aus falschem Feld
+
+Für Channels wurde `lastActivity` aus `ch.last_message.time` gelesen. Die Stashcat-API liefert `last_message` aber nicht verlässlich. Stattdessen stehen `last_action` und `last_activity` direkt auf dem Channel-Objekt (als String).
+
+Fix: `Number((ch as any).last_action || (ch as any).last_activity || 0)`
+
+### Ursache 3: `loadData()` überschrieb SSE-Inkremente
 
 `loadData()` lief alle 60s und holte `unread_count` von der Stashcat-API. Diese meldete oft stale `0` für Chats mit ungelesenen Nachrichten. Der Wert wurde **bedingungslos** übernommen und überschrieb damit die korrekten SSE-Inkremente.
 
-### Ursache 2: SSE-Verbindung starb dauerhaft
+### Ursache 3 (behoben vorher): SSE-Verbindung starb dauerhaft
 
 Der Watchdog in `useRealtimeEvents.ts` hatte einen Bug: Wenn die EventSource auf `CLOSED` ging, rief `onerror` `destroyEventSource()` auf (setzt `sharedEs = null`). Der Watchdog prüfte als erstes `if (!sharedEs) return` — und brach ab, ohne einen Reconnect zu versuchen.
 
 **Folge:** Sobald die SSE-Verbindung einmal abbrach (Netzwerkfehler, Standby, Server-Restart), blieb sie tot — bis zum nächsten Tab-Wechsel oder Page-Reload.
 
-### Ursache 3: `verifyUnreadCounts()` war nutzlos
+### Ursache 4 (behoben vorher): `verifyUnreadCounts()` war nutzlos
 
 Die Funktion lud die ersten 20 Nachrichten pro Chat und zählte `msg.unread === true`. Debug-Logs zeigten: Stashcats `/message/content`-API **setzt das `unread`-Feld niemals auf `true`** — es ist immer `false` oder `undefined`. Die Funktion korrigierte daher nie etwas.
 
