@@ -167,33 +167,19 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       });
 
       // ── Merge API unread_count with current state ───────────────────────
-      // The API often reports stale unread_count=0. We use two signals:
-      // 1. SSE-tracked unread_count: preserve if higher than API (handles live case)
-      // 2. lastActivity increase: if lastActivity went up since our last load,
-      //    new messages exist → set unread_count to at least 1 (handles SSE-dead case)
+      // Preserve SSE-tracked unread_count if higher than API (handles live case).
       // Only markAsRead/handleSelect can reset unread_count to 0.
       for (const ch of allChannels) {
         const prev = channelsRef.current.find((c) => c.id === ch.id);
         const apiUnread = ch.unread_count ?? 0;
         const sseUnread = prev?.unread_count ?? 0;
-        const hasNewActivity = prev ? (ch.lastActivity ?? 0) > (prev.lastActivity ?? 0) : false;
-        if (hasNewActivity && apiUnread === 0) {
-          // New messages detected via lastActivity, but API says 0 → stale
-          ch.unread_count = Math.max(sseUnread, 1);
-        } else {
-          ch.unread_count = Math.max(apiUnread, sseUnread);
-        }
+        ch.unread_count = Math.max(apiUnread, sseUnread);
       }
       for (const cv of convTargets) {
         const prev = conversationsRef.current.find((c) => c.id === cv.id);
         const apiUnread = cv.unread_count ?? 0;
         const sseUnread = prev?.unread_count ?? 0;
-        const hasNewActivity = prev ? (cv.lastActivity ?? 0) > (prev.lastActivity ?? 0) : false;
-        if (hasNewActivity && apiUnread === 0) {
-          cv.unread_count = Math.max(sseUnread, 1);
-        } else {
-          cv.unread_count = Math.max(apiUnread, sseUnread);
-        }
+        cv.unread_count = Math.max(apiUnread, sseUnread);
       }
 
       // Detect newly unread chats and show OS notifications.
