@@ -126,10 +126,10 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
             description: ch.description,
             image: ch.image,
             encrypted: Boolean(ch.encrypted),
-            // Fallback to `unread_messages` — some API responses use this field instead.
             // Stashcat API: 'unread' (not 'unread_count') carries the actual count.
             // 'unread_count' is always 0. 'unread_messages' is a legacy fallback.
             unread_count: (ch as any).unread ?? ch.unread_count ?? 0,
+            favorite: Boolean(ch.favorite),
             lastActivity: Number((ch as any).last_action || (ch as any).last_activity || 0),
             company_id: cid,
           });
