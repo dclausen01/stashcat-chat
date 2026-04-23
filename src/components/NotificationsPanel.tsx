@@ -37,6 +37,7 @@ const TYPE_MAP: Record<string, { label: string; icon: React.ReactNode }> = {
   // Poll / Survey types
   survey_invite:           { label: 'Einladung zu einer Umfrage',      icon: <BarChart3 size={16} className="text-primary-500" /> },
   poll_invite:             { label: 'Einladung zu einer Umfrage',      icon: <BarChart3 size={16} className="text-primary-500" /> },
+  poll_invited:            { label: 'Einladung zu einer Umfrage',      icon: <BarChart3 size={16} className="text-primary-500" /> },
   poll_answered:           { label: 'Neue Antwort auf deine Umfrage',  icon: <BarChart3 size={16} className="text-green-500" /> },
   survey_created:          { label: 'Neue Umfrage erstellt',           icon: <BarChart3 size={16} className="text-primary-500" /> },
   survey_changed:          { label: 'Umfrage aktualisiert',            icon: <BarChart3 size={16} className="text-amber-500" /> },

@@ -690,6 +690,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                   window.dispatchEvent(new CustomEvent('chat-mark-read', {
                     detail: { chatId: chatRefForMarkRead.current.id, chatType: chatRefForMarkRead.current.type }
                   }));
+                  // Remove the "NEU" divider — all visible messages have been read
+                  setFirstUnreadMsgId(null);
                 }
                 markReadTimersRef.current.delete(msgId);
               }, 3000);
@@ -713,6 +715,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
     return () => {
       observer.disconnect();
+      // Cancel in-flight 3s timers so they don't fire against the next chat
+      // (the separate unmount-only cleanup at line ~654 covers full unmount).
+      markReadTimersRef.current.forEach((timer) => clearTimeout(timer));
+      markReadTimersRef.current.clear();
     };
   }, [chat.id, chat.type, loading, messages.length, userId]);
 

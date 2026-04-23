@@ -158,7 +158,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           name,
           image,
           encrypted: Boolean(c.encrypted),
-          unread_count: Number(c.unread_count ?? (c as unknown as Record<string, unknown>).unread_messages ?? 0),
+          // Stashcat API: same as channels, 'unread' (not 'unread_count') carries the actual count.
+          unread_count: (c as any).unread ?? c.unread_count ?? (c as any).unread_messages ?? 0,
           favorite: Boolean(c.favorite ?? c.is_favorite),
           lastActivity,
           userId: otherUserId,
@@ -324,16 +325,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     }
     // Keep prevUnreadsRef in sync so background poll doesn't re-notify
     prevUnreadsRef.current?.set(chatId, 0);
-    // Update ref's lastActivity to current time so loadData() doesn't see
-    // a lastActivity increase from the user's own messages and flash a badge.
-    const nowS = Math.floor(Date.now() / 1000);
-    if (chatType === 'channel') {
-      const ch = channelsRef.current.find((c) => c.id === chatId);
-      if (ch) ch.lastActivity = nowS;
-    } else {
-      const cv = conversationsRef.current.find((c) => c.id === chatId);
-      if (cv) cv.lastActivity = nowS;
-    }
   }, []);
 
   // Listen for mark-read events from ChatView
@@ -351,16 +342,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       setChannels((prev) => prev.map((ch) => ch.id === target.id ? { ...ch, unread_count: 0 } : ch));
     } else {
       setConversations((prev) => prev.map((c) => c.id === target.id ? { ...c, unread_count: 0 } : c));
-    }
-    // Update ref's lastActivity so loadData() doesn't flash a badge on the
-    // user's own messages in the chat they just opened.
-    const nowS = Math.floor(Date.now() / 1000);
-    if (target.type === 'channel') {
-      const ch = channelsRef.current.find((c) => c.id === target.id);
-      if (ch) ch.lastActivity = nowS;
-    } else {
-      const cv = conversationsRef.current.find((c) => c.id === target.id);
-      if (cv) cv.lastActivity = nowS;
     }
     onSelectChat(target);
   }, [onSelectChat]);

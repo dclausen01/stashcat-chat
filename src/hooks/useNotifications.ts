@@ -3,8 +3,8 @@ import { useSettings } from '../context/SettingsContext';
 
 /**
  * Hook that provides browser OS notification support.
- * - Shows notifications only when the tab is hidden and the setting is enabled
- * - Uses a tag to replace rapid successive notifications instead of stacking
+ * - Shows notifications whenever the setting is enabled (tab visibility is not checked)
+ * - Uses a shared tag so rapid successive notifications replace each other instead of stacking
  * - Permission is requested via the Settings panel toggle (user gesture required)
  */
 export function useNotifications() {

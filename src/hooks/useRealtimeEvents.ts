@@ -274,6 +274,9 @@ function ensureSharedEventSource() {
     if (sharedIsReconnect || sharedWasDisconnected) {
       console.log('[useRealtimeEvents] SSE reconnected after standby/disconnect');
       sharedIsReconnect = false;
+      // Clear sharedWasDisconnected here so the 'connected' event handler
+      // below does not dispatch a second 'reconnect' event for the same reconnect.
+      sharedWasDisconnected = false;
       dispatchNamedEvent('reconnect', {});
     }
   };
