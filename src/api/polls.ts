@@ -36,7 +36,6 @@ export interface Poll {
   start_time?: number;
   end_time?: number;
   privacy_type?: 'open' | 'hidden' | 'anonymous';
-  hidden_results?: boolean;
   status?: string;
   company_id?: string;
   creator?: { id: string; first_name?: string; last_name?: string };
@@ -50,7 +49,6 @@ export interface CreatePollData {
   start_time: number;
   end_time: number;
   privacy_type?: 'open' | 'hidden' | 'anonymous';
-  hidden_results?: boolean;
   questions: Array<{
     name: string;
     answer_limit?: number;

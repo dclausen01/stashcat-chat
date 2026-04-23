@@ -137,9 +137,9 @@ function formatPollNotification(content: unknown): { title: string; creator?: st
   // Must have id and name (poll objects always have these)
   if (!('id' in obj) || !('name' in obj)) return null;
   
-  // Must look like a poll: has privacy_type OR start_time/end_time OR hidden_results
+  // Must look like a poll: has privacy_type OR start_time/end_time
   // This distinguishes polls from other object types
-  const isPoll = 'privacy_type' in obj || 'start_time' in obj || 'end_time' in obj || 'hidden_results' in obj;
+  const isPoll = 'privacy_type' in obj || 'start_time' in obj || 'end_time' in obj;
   if (!isPoll) return null;
   
   // Exclude device objects

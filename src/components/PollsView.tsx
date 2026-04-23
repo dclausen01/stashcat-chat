@@ -171,7 +171,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh, onDelete }: { poll: Po
           const alreadyVoted = (q.user_answers?.length ?? 0) > 0 || allSubmitted;
           const chosen = selections[q.id] ?? new Set<string>();
           const totalVotes = (q.answers ?? []).reduce((s, a) => s + (a.votes ?? 0), 0);
-          const showResults = alreadyVoted || !active || d.hidden_results === false || isCreator;
+          const showResults = alreadyVoted || !active || isCreator;
 
           return (
             <div key={q.id} className="rounded-2xl border border-surface-200 bg-surface-50 p-5 dark:border-surface-700 dark:bg-surface-800">
@@ -476,7 +476,7 @@ export default function PollsView({ pollIdToOpen, onPollOpened }: PollsViewProps
                     >
                       <Archive size={15} />
                     </button>
-                    {(tab !== 'invited' || poll.hidden_results === false) && (
+                    {tab !== 'invited' && (
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setSelectedPoll(poll); }}

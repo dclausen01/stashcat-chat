@@ -45,7 +45,6 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
   const [startDate, setStartDate] = useState(today());
   const [endDate, setEndDate] = useState(inTwoWeeks());
   const [privacyType, setPrivacyType] = useState<'open' | 'hidden' | 'anonymous'>('open');
-  const [hiddenResults, setHiddenResults] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([{ ...DEFAULT_QUESTION, answers: ['', ''] }]);
 
   const [chatOptions, setChatOptions] = useState<ChatOption[]>([]);
@@ -188,7 +187,6 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
         start_time: dateToTs(startDate),
         end_time: dateToTs(endDate),
         privacy_type: privacyType,
-        hidden_results: hiddenResults,
         questions: questions.map((q) => ({
           name: q.name.trim(),
           answer_limit: q.answer_limit,
@@ -256,23 +254,17 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
             </div>
 
             {/* Privacy */}
-            <div className="flex flex-wrap items-center gap-4">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-400">Datenschutz</label>
-                <select
-                  className="rounded-lg border border-surface-200 bg-surface-50 px-3 py-2 text-sm text-surface-900 outline-none focus:border-primary-500 dark:border-surface-700 dark:bg-surface-800 dark:text-white"
-                  value={privacyType}
-                  onChange={(e) => setPrivacyType(e.target.value as 'open' | 'hidden' | 'anonymous')}
-                >
-                  <option value="open">Offen (Name sichtbar)</option>
-                  <option value="hidden">Versteckt (Namen privat)</option>
-                  <option value="anonymous">Anonym</option>
-                </select>
-              </div>
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-surface-700 dark:text-surface-400">
-                <input type="checkbox" className="accent-primary-500" checked={hiddenResults} onChange={(e) => setHiddenResults(e.target.checked)} />
-                Ergebnisse zunächst verbergen
-              </label>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-surface-600 dark:text-surface-400">Datenschutz</label>
+              <select
+                className="w-full rounded-lg border border-surface-200 bg-surface-50 px-3 py-2 text-sm text-surface-900 outline-none focus:border-primary-500 dark:border-surface-700 dark:bg-surface-800 dark:text-white"
+                value={privacyType}
+                onChange={(e) => setPrivacyType(e.target.value as 'open' | 'hidden' | 'anonymous')}
+              >
+                <option value="open">Offen (Namen für alle sichtbar)</option>
+                <option value="hidden">Versteckt (Namen nur für Erstellende sichtbar)</option>
+                <option value="anonymous">Anonym</option>
+              </select>
             </div>
 
             {/* Questions */}
