@@ -119,6 +119,13 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         if (!firstCompanyId) firstCompanyId = cid;
         const channelList = await api.getChannels(cid);
         for (const ch of channelList) {
+          // Diagnostic: log raw channel fields to see what API actually returns
+          if (ch.name === 'DigitalHilfe' || ch.unread_count || (ch as any).last_action || (ch as any).last_activity || ch.last_message) {
+            const rawKeys = Object.keys(ch).filter(k => !['members', 'member_count', 'created_at', 'updated_at', 'company_id', 'description', 'type', 'visible', 'writable', 'inviteable', 'owner_id', 'key', 'key_requested', 'key_signature', 'key_sender', 'signature_expiry'].includes(k));
+            const rawFields: Record<string, unknown> = {};
+            for (const k of rawKeys) rawFields[k] = (ch as any)[k];
+            console.log(`[badge-diag-raw] Channel "${ch.name}" raw keys:`, JSON.stringify(rawFields));
+          }
           allChannels.push({
             type: 'channel',
             id: String(ch.id),
@@ -138,6 +145,13 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
       const userId = user?.id ?? '';
       const convTargets: ChatTarget[] = convList.map((c) => {
+        // Diagnostic: log raw conv fields for first 3 convs with unread or activity
+        if (c.unread_count || c.last_action || c.last_activity || c.last_message) {
+          const rawKeys = Object.keys(c).filter(k => !['members', 'participants', 'created_at', 'updated_at', 'created', 'deleted', 'key', 'key_requested', 'key_signature', 'key_sender', 'signature_expiry', 'unique_identifier', 'num_members_without_keys'].includes(k));
+          const rawFields: Record<string, unknown> = {};
+          for (const k of rawKeys) rawFields[k] = (c as any)[k];
+          console.log(`[badge-diag-raw] Conv "${(c as any).name || c.id}" raw keys:`, JSON.stringify(rawFields));
+        }
         const members = c.members || [];
         const otherMembers = members.filter((m) => String(m.id) !== userId);
         const name = otherMembers.length > 0
