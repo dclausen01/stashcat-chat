@@ -82,12 +82,12 @@ interface EditorConfigOptions {
   downloadUrl: string;
 }
 
-export function buildViewerConfig(opts: EditorConfigOptions) {
+export function buildViewerConfig(opts: EditorConfigOptions & { fileId?: string }) {
   const ext = opts.fileName.split('.').pop()?.toLowerCase() || '';
   const docType = OFFICE_EXTENSIONS[ext];
   if (!docType) throw new Error(`Unsupported file type: .${ext}`);
 
-  const docKey = `${opts.downloadUrl}_view_${Date.now()}`;
+  const docKey = opts.fileId ? `${opts.fileId}_view` : `nc_${Date.now()}`;
 
   const config: Record<string, unknown> = {
     documentType: docType,

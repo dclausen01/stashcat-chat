@@ -2877,7 +2877,7 @@ app.get('/api/onlyoffice/view', async (req, res) => {
     const dlToken = createDownloadToken({ fileId, clientKey: payload.clientKey });
     const downloadUrl = `${PUBLIC_URL}/api/onlyoffice/dl?secret=${encodeURIComponent(dlToken)}`;
 
-    const result = buildViewerConfig({ fileName, userId, userName, downloadUrl });
+    const result = buildViewerConfig({ fileId, fileName, userId, userName, downloadUrl });
     const doc = (result.config as Record<string, unknown>).document as Record<string, unknown>;
     serverLog('[OnlyOffice/view-stashcat] token len:', (result.config as Record<string, unknown>).token ? String((result.config as Record<string, unknown>).token).length : 0, 'docKey:', doc?.key, 'url:', String(doc?.url ?? '').slice(0, 80));
     serverLog('[OnlyOffice/view-stashcat] full config:', JSON.stringify(result.config).slice(0, 200));
@@ -2913,7 +2913,7 @@ app.post('/api/onlyoffice/view-nc', async (req, res) => {
     const result = buildViewerConfig({ fileName, userId: creds.username, userName, downloadUrl });
     const doc = (result.config as Record<string, unknown>).document as Record<string, unknown>;
     serverLog('[OnlyOffice/view-nc] token len:', (result.config as Record<string, unknown>).token ? String((result.config as Record<string, unknown>).token).length : 0, 'docKey:', doc?.key, 'url:', String(doc?.url ?? '').slice(0, 80));
-    serverLog('[OnlyOffice/view-nc] full config:', JSON.stringify(result.config).slice(0, 200));
+    serverLog('[OnlyOffice/view-nc] full config:', JSON.stringify(result.config));
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: errorMessage(err, 'OnlyOffice-Konfiguration fehlgeschlagen') });
