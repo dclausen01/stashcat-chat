@@ -1,5 +1,18 @@
-import { useState, useRef, useCallback, useEffect, type KeyboardEvent } from 'react';
-import { Send, Paperclip, Bold, Italic, Strikethrough, Code, List, Heading2, X, Loader2, Reply, BarChart3, CalendarPlus, Presentation } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import { Extension } from '@tiptap/core';
+import type { Editor } from '@tiptap/core';
+import StarterKit from '@tiptap/starter-kit';
+import TiptapLink from '@tiptap/extension-link';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import Placeholder from '@tiptap/extension-placeholder';
+import { Markdown } from 'tiptap-markdown';
+import {
+  Send, Paperclip, Bold, Italic, Strikethrough, Code, List, ListOrdered,
+  Heading2, Quote, Link as LinkIcon, ListTodo, Code2,
+  X, Loader2, Reply, BarChart3, CalendarPlus, Presentation,
+} from 'lucide-react';
 import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react';
 import { clsx } from 'clsx';
 import { useTheme } from '../context/ThemeContext';
@@ -29,206 +42,351 @@ interface MessageInputProps {
 interface FormatButton {
   icon: React.ReactNode;
   label: string;
-  action: (text: string, sel: { start: number; end: number }) => { text: string; cursor: number };
+  command: (editor: Editor) => void;
+  isActive?: (editor: Editor) => boolean;
 }
 
-function wrap(before: string, after: string, placeholder: string) {
-  return (text: string, sel: { start: number; end: number }) => {
-    const selected = text.slice(sel.start, sel.end) || placeholder;
-    const newText = text.slice(0, sel.start) + before + selected + after + text.slice(sel.end);
-    return { text: newText, cursor: sel.start + before.length + selected.length + after.length };
-  };
+interface LinkDialogState {
+  url: string;
+  text: string;
+  hasSelection: boolean;
 }
 
-function linePrefix(prefix: string, placeholder: string) {
-  return (text: string, sel: { start: number; end: number }) => {
-    const lineStart = text.lastIndexOf('\n', sel.start - 1) + 1;
-    const selected = text.slice(sel.start, sel.end) || placeholder;
-    const newText = text.slice(0, lineStart) + prefix + text.slice(lineStart, sel.start) + selected + text.slice(sel.end);
-    return { text: newText, cursor: lineStart + prefix.length + (sel.end - lineStart) + (selected === placeholder ? placeholder.length : 0) };
-  };
-}
-
-const FORMAT_BUTTONS: FormatButton[] = [
-  { icon: <Bold size={15} />, label: 'Fett', action: wrap('**', '**', 'Fetter Text') },
-  { icon: <Italic size={15} />, label: 'Kursiv', action: wrap('_', '_', 'Kursiver Text') },
-  { icon: <Strikethrough size={15} />, label: 'Durchgestrichen', action: wrap('~~', '~~', 'Durchgestrichener Text') },
-  { icon: <Code size={15} />, label: 'Code', action: wrap('`', '`', 'code') },
-  { icon: <Heading2 size={15} />, label: 'Überschrift', action: linePrefix('## ', 'Überschrift') },
-  { icon: <List size={15} />, label: 'Liste', action: linePrefix('- ', 'Listenpunkt') },
-];
-
-export default function MessageInput({ onSend, onUpload, onTyping, chatId, chatName, replyTo, onCancelReply, onCreatePoll, onCreateEvent, onCreateWhiteboard, droppedFiles, onDroppedFilesConsumed }: MessageInputProps) {
+export default function MessageInput({
+  onSend, onUpload, onTyping, chatId, chatName,
+  replyTo, onCancelReply, onCreatePoll, onCreateEvent, onCreateWhiteboard,
+  droppedFiles, onDroppedFilesConsumed,
+}: MessageInputProps) {
   const { theme } = useTheme();
   const { enterSendsMessage } = useSettings();
-  const [text, setText] = useState('');
+
   const [sending, setSending] = useState(false);
+  const [focused, setFocused] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [focused, setFocused] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [linkDialog, setLinkDialog] = useState<LinkDialogState | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const attachMenuRef = useRef<HTMLDivElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
+  const linkUrlInputRef = useRef<HTMLInputElement>(null);
   const typingThrottle = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Per-chat draft storage: preserve text when switching chats
   const draftsRef = useRef<Map<string, string>>(new Map());
   const prevChatIdRef = useRef(chatId);
 
-  useEffect(() => {
-    if (prevChatIdRef.current !== chatId) {
-      // Save current text for the previous chat
-      draftsRef.current.set(prevChatIdRef.current, text);
-      // Restore saved text for the new chat (or empty)
-      const saved = draftsRef.current.get(chatId) || '';
-      setText(saved);
-      // Reset textarea height
-      if (textareaRef.current) textareaRef.current.style.height = 'auto';
-      prevChatIdRef.current = chatId;
-    }
-  }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Refs read inside Tiptap extension — capture latest values without recreating the extension
+  const enterSendsRef = useRef(enterSendsMessage);
+  const handleSendRef = useRef<() => void>(() => {});
+  const pendingFilesRef = useRef(pendingFiles);
 
-  // Focus textarea when reply is activated
-  useEffect(() => {
-    if (replyTo) textareaRef.current?.focus();
-  }, [replyTo]);
+  useEffect(() => { enterSendsRef.current = enterSendsMessage; }, [enterSendsMessage]);
+  useEffect(() => { pendingFilesRef.current = pendingFiles; }, [pendingFiles]);
 
-  // Consume files dropped from the parent (system file drag & drop)
-  useEffect(() => {
-    if (droppedFiles && droppedFiles.length > 0) {
-      setPendingFiles((prev) => [...prev, ...droppedFiles]);
-      onDroppedFilesConsumed?.();
-      textareaRef.current?.focus();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [droppedFiles]);
+  // Dynamic placeholder — ref so the Placeholder extension reads the current value on each render
+  const placeholderRef = useRef('');
+  placeholderRef.current = pendingFiles.length > 0
+    ? 'Optionale Nachricht zu den Dateien...'
+    : replyTo
+    ? 'Antwort schreiben...'
+    : `Nachricht an ${chatName}...`;
 
-  useEffect(() => {
-    if (!showAttachMenu) return;
-    const handler = (e: MouseEvent) => {
-      if (attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node)) {
-        setShowAttachMenu(false);
+  // Custom extension — created once on mount; reads from refs to avoid stale closures
+  const EnterBehaviorExtension = useRef(
+    Extension.create({
+      name: 'enterBehavior',
+      addKeyboardShortcuts() {
+        return {
+          Enter: ({ editor }) => {
+            // Let list/codeBlock extensions manage Enter themselves
+            if (
+              editor.isActive('codeBlock') ||
+              editor.isActive('bulletList') ||
+              editor.isActive('orderedList') ||
+              editor.isActive('taskList')
+            ) return false;
+            if (enterSendsRef.current) {
+              handleSendRef.current();
+              return true;
+            }
+            return false; // default: create new paragraph
+          },
+          'Shift-Enter': ({ editor }) => {
+            if (editor.isActive('codeBlock')) return false;
+            if (!enterSendsRef.current) {
+              handleSendRef.current();
+              return true;
+            }
+            return false; // default: HardBreak extension inserts <br>
+          },
+        };
+      },
+    })
+  ).current;
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      TiptapLink.configure({
+        openOnClick: false,
+        HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
+      }),
+      TaskList,
+      TaskItem.configure({ nested: false }),
+      Placeholder.configure({ placeholder: () => placeholderRef.current }),
+      Markdown.configure({
+        html: false,
+        tightLists: true,
+        linkify: true,
+        breaks: false,
+        transformPastedText: true,
+      }),
+      EnterBehaviorExtension,
+    ],
+    editorProps: {
+      handlePaste: (_view, event) => {
+        const items = event.clipboardData?.items;
+        if (!items) return false;
+        for (const item of items) {
+          if (item.type.startsWith('image/')) {
+            event.preventDefault();
+            const blob = item.getAsFile();
+            if (blob) {
+              const ext = item.type.split('/')[1] || 'png';
+              setPendingFiles([new File([blob], `Eingefügtes Bild.${ext}`, { type: item.type })]);
+            }
+            return true;
+          }
+        }
+        return false;
+      },
+    },
+    onFocus: () => setFocused(true),
+    onBlur: () => setFocused(false),
+    onUpdate: ({ editor: ed }) => {
+      // Keep draft in sync so chat-switch saves the latest content
+      draftsRef.current.set(chatId, ed.storage.markdown.getMarkdown());
+      if (onTyping && !typingThrottle.current) {
+        onTyping();
+        typingThrottle.current = setTimeout(() => { typingThrottle.current = null; }, 2000);
       }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showAttachMenu]);
+    },
+    onCreate: ({ editor: ed }) => {
+      const saved = draftsRef.current.get(chatId) ?? '';
+      if (saved) ed.commands.setContent(saved);
+    },
+  });
 
-  useEffect(() => {
-    if (!showEmoji) return;
-    const handler = (e: MouseEvent) => {
-      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) {
-        setShowEmoji(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showEmoji]);
-
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     if (sending) return;
-    if (pendingFiles.length > 0) {
+    const currentFiles = pendingFilesRef.current;
+    if (currentFiles.length > 0) {
       setSending(true);
-      const total = pendingFiles.length;
-      const filesToSend = [...pendingFiles];
+      const msgText = editor?.storage.markdown.getMarkdown()?.trim() ?? '';
+      const filesToSend = [...currentFiles];
       let failCount = 0;
       for (let i = 0; i < filesToSend.length; i++) {
         try {
-          await onUpload(filesToSend[i], i === 0 ? `${text.trim()} 1/${total}` : `${i + 1}/${total}`);
+          const label = i === 0
+            ? `${msgText} 1/${filesToSend.length}`.trim()
+            : `${i + 1}/${filesToSend.length}`;
+          await onUpload(filesToSend[i], label);
         } catch {
           failCount++;
         }
       }
       if (failCount > 0) {
-        const msg = failCount === 1
+        alert(failCount === 1
           ? '1 Datei konnte nicht hochgeladen werden.'
-          : `${failCount} Dateien konnten nicht hochgeladen werden.`;
-        alert(msg);
+          : `${failCount} Dateien konnten nicht hochgeladen werden.`);
       }
       setPendingFiles([]);
-      setText('');
+      editor?.commands.clearContent();
       draftsRef.current.delete(chatId);
-      if (textareaRef.current) textareaRef.current.style.height = 'auto';
       setSending(false);
     } else {
-      const trimmed = text.trim();
-      if (!trimmed) return;
+      const md = editor?.storage.markdown.getMarkdown()?.trim() ?? '';
+      if (!md) return;
       setSending(true);
       try {
-        await onSend(trimmed);
-        setText('');
+        await onSend(md);
+        editor?.commands.clearContent();
         draftsRef.current.delete(chatId);
       } finally {
         setSending(false);
-        if (textareaRef.current) textareaRef.current.style.height = 'auto';
       }
     }
-  };
+  }, [sending, editor, onSend, onUpload, chatId]);
 
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      if (enterSendsMessage && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-      } else if (!enterSendsMessage && e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-      }
-    }
-  };
+  // Keep handleSendRef current so the Tiptap extension always calls the latest version
+  handleSendRef.current = handleSend;
 
-  const handleInput = () => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
-    }
-    if (onTyping && !typingThrottle.current) {
-      onTyping();
-      typingThrottle.current = setTimeout(() => { typingThrottle.current = null; }, 2000);
-    }
-  };
+  // Save/restore draft on chat switch
+  useEffect(() => {
+    if (!editor || prevChatIdRef.current === chatId) return;
+    draftsRef.current.set(prevChatIdRef.current, editor.storage.markdown.getMarkdown());
+    editor.commands.setContent(draftsRef.current.get(chatId) ?? '');
+    prevChatIdRef.current = chatId;
+  }, [chatId, editor]);
 
-  const applyFormat = useCallback((btn: FormatButton) => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    const sel = { start: ta.selectionStart, end: ta.selectionEnd };
-    const result = btn.action(text, sel);
-    setText(result.text);
-    requestAnimationFrame(() => {
-      ta.focus();
-      ta.setSelectionRange(result.cursor, result.cursor);
-      ta.style.height = 'auto';
-      ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
-    });
-  }, [text]);
+  // Focus editor when reply activates
+  useEffect(() => {
+    if (replyTo) editor?.commands.focus();
+  }, [replyTo, editor]);
+
+  // Consume files dropped from parent
+  useEffect(() => {
+    if (droppedFiles && droppedFiles.length > 0) {
+      setPendingFiles((prev) => [...prev, ...droppedFiles]);
+      onDroppedFilesConsumed?.();
+      editor?.commands.focus();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [droppedFiles]);
+
+  // Close attach menu on outside click
+  useEffect(() => {
+    if (!showAttachMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node))
+        setShowAttachMenu(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showAttachMenu]);
+
+  // Close emoji picker on outside click
+  useEffect(() => {
+    if (!showEmoji) return;
+    const handler = (e: MouseEvent) => {
+      if (emojiRef.current && !emojiRef.current.contains(e.target as Node))
+        setShowEmoji(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showEmoji]);
+
+  // Focus URL input when link dialog opens
+  useEffect(() => {
+    if (linkDialog !== null) requestAnimationFrame(() => linkUrlInputRef.current?.focus());
+  }, [linkDialog]);
 
   const onEmojiClick = useCallback((emojiData: EmojiClickData) => {
-    const ta = textareaRef.current;
-    const emoji = emojiData.emoji;
-    if (ta) {
-      const pos = ta.selectionStart;
-      setText((prev) => prev.slice(0, pos) + emoji + prev.slice(pos));
-      requestAnimationFrame(() => {
-        ta.focus();
-        ta.setSelectionRange(pos + emoji.length, pos + emoji.length);
-      });
-    } else {
-      setText((prev) => prev + emoji);
-    }
+    editor?.chain().focus().insertContent(emojiData.emoji).run();
     setShowEmoji(false);
-  }, []);
+  }, [editor]);
 
   const onFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    if (files.length > 0) {
-      setPendingFiles((prev) => [...prev, ...files]);
-    }
+    if (files.length > 0) setPendingFiles((prev) => [...prev, ...files]);
     e.target.value = '';
   };
 
-  const canSend = !sending && (pendingFiles.length > 0 || text.trim().length > 0);
+  const openLinkDialog = useCallback(() => {
+    if (!editor) return;
+    const { from, to, empty } = editor.state.selection;
+    const selectedText = empty ? '' : editor.state.doc.textBetween(from, to, '');
+    setLinkDialog({
+      url: editor.getAttributes('link').href ?? '',
+      text: selectedText,
+      hasSelection: !empty,
+    });
+  }, [editor]);
+
+  const applyLink = useCallback(() => {
+    if (!editor || !linkDialog) return;
+    const url = linkDialog.url.trim();
+    if (!url) {
+      editor.chain().focus().unsetLink().run();
+      setLinkDialog(null);
+      return;
+    }
+    const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+    if (linkDialog.hasSelection) {
+      editor.chain().focus().setLink({ href }).run();
+    } else {
+      const displayText = linkDialog.text.trim() || href;
+      editor.chain().focus().insertContent({
+        type: 'text',
+        marks: [{ type: 'link', attrs: { href } }],
+        text: displayText,
+      }).run();
+    }
+    setLinkDialog(null);
+  }, [editor, linkDialog]);
+
+  const FORMAT_BUTTONS: FormatButton[] = [
+    {
+      icon: <Bold size={15} />,
+      label: 'Fett',
+      command: (ed) => ed.chain().focus().toggleBold().run(),
+      isActive: (ed) => ed.isActive('bold'),
+    },
+    {
+      icon: <Italic size={15} />,
+      label: 'Kursiv',
+      command: (ed) => ed.chain().focus().toggleItalic().run(),
+      isActive: (ed) => ed.isActive('italic'),
+    },
+    {
+      icon: <Strikethrough size={15} />,
+      label: 'Durchgestrichen',
+      command: (ed) => ed.chain().focus().toggleStrike().run(),
+      isActive: (ed) => ed.isActive('strike'),
+    },
+    {
+      icon: <Code size={15} />,
+      label: 'Code (inline)',
+      command: (ed) => ed.chain().focus().toggleCode().run(),
+      isActive: (ed) => ed.isActive('code'),
+    },
+    {
+      icon: <LinkIcon size={15} />,
+      label: 'Link',
+      command: () => openLinkDialog(),
+      isActive: (ed) => ed.isActive('link'),
+    },
+    {
+      icon: <Heading2 size={15} />,
+      label: 'Überschrift',
+      command: (ed) => ed.chain().focus().toggleHeading({ level: 2 }).run(),
+      isActive: (ed) => ed.isActive('heading', { level: 2 }),
+    },
+    {
+      icon: <List size={15} />,
+      label: 'Liste',
+      command: (ed) => ed.chain().focus().toggleBulletList().run(),
+      isActive: (ed) => ed.isActive('bulletList'),
+    },
+    {
+      icon: <ListOrdered size={15} />,
+      label: 'Nummerierte Liste',
+      command: (ed) => ed.chain().focus().toggleOrderedList().run(),
+      isActive: (ed) => ed.isActive('orderedList'),
+    },
+    {
+      icon: <ListTodo size={15} />,
+      label: 'Aufgabenliste',
+      command: (ed) => ed.chain().focus().toggleTaskList().run(),
+      isActive: (ed) => ed.isActive('taskList'),
+    },
+    {
+      icon: <Quote size={15} />,
+      label: 'Zitat',
+      command: (ed) => ed.chain().focus().toggleBlockquote().run(),
+      isActive: (ed) => ed.isActive('blockquote'),
+    },
+    {
+      icon: <Code2 size={15} />,
+      label: 'Codeblock',
+      command: (ed) => ed.chain().focus().toggleCodeBlock().run(),
+      isActive: (ed) => ed.isActive('codeBlock'),
+    },
+  ];
+
+  const isEmpty = editor?.isEmpty ?? true;
+  const canSend = !sending && (pendingFiles.length > 0 || !isEmpty);
+  const toolbarVisible = focused || !isEmpty || pendingFiles.length > 0;
 
   return (
     <div className="shrink-0 border-t border-surface-200 p-3 dark:border-surface-700">
@@ -238,7 +396,9 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatId, chatN
           <Reply size={14} className="shrink-0 text-primary-500" />
           <div className="min-w-0 flex-1">
             <span className="text-xs font-semibold text-primary-700 dark:text-primary-400">
-              {replyTo.sender ? `${replyTo.sender.first_name ?? ''} ${replyTo.sender.last_name ?? ''}`.trim() : 'Nachricht'}
+              {replyTo.sender
+                ? `${replyTo.sender.first_name ?? ''} ${replyTo.sender.last_name ?? ''}`.trim()
+                : 'Nachricht'}
             </span>
             <p className="truncate text-xs text-surface-500">{replyTo.text?.slice(0, 100) || 'Nachricht'}</p>
           </div>
@@ -254,9 +414,7 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatId, chatN
           {pendingFiles.map((file, idx) => (
             <div key={idx} className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 text-sm dark:bg-surface-800">
               <Paperclip size={14} className="shrink-0 text-surface-500" />
-              <span className="min-w-0 flex-1 truncate text-surface-700 dark:text-surface-300">
-                {file.name}
-              </span>
+              <span className="min-w-0 flex-1 truncate text-surface-700 dark:text-surface-300">{file.name}</span>
               <span className="shrink-0 text-xs text-surface-500">
                 {file.size >= 1024 * 1024
                   ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
@@ -274,15 +432,21 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatId, chatN
         </div>
       )}
 
-      {/* Formatting toolbar — only visible when focused or text present */}
-      <div className={clsx('mb-2 flex items-center gap-0.5', !focused && !text && pendingFiles.length === 0 && 'hidden')}>
+      {/* Formatting toolbar */}
+      <div className={clsx('mb-2 flex flex-wrap items-center gap-0.5', !toolbarVisible && 'hidden')}>
         {FORMAT_BUTTONS.map((btn) => (
           <button
             key={btn.label}
             type="button"
             title={btn.label}
-            onMouseDown={(e) => { e.preventDefault(); applyFormat(btn); }}
-            className="rounded p-1.5 text-surface-500 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-800 dark:hover:text-surface-300"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              if (editor) btn.command(editor);
+            }}
+            className={clsx(
+              'rounded p-1.5 text-surface-500 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-800 dark:hover:text-surface-300',
+              editor && btn.isActive?.(editor) && 'bg-surface-200 text-surface-800 dark:bg-surface-700 dark:text-surface-100',
+            )}
           >
             {btn.icon}
           </button>
@@ -290,17 +454,60 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatId, chatN
         <div className="ml-auto shrink-0 whitespace-nowrap text-xs text-surface-600 dark:text-surface-400">
           {enterSendsMessage ? (
             <>
-              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Enter</kbd> Senden{' · '}
-              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Shift+Enter</kbd> Neue Zeile
+              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Enter</kbd>{' '}Senden{' · '}
+              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Shift+Enter</kbd>{' '}Neue Zeile
             </>
           ) : (
             <>
-              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Shift+Enter</kbd> Senden{' · '}
-              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Enter</kbd> Neue Zeile
+              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Shift+Enter</kbd>{' '}Senden{' · '}
+              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Enter</kbd>{' '}Neue Zeile
             </>
           )}
         </div>
       </div>
+
+      {/* Link insertion dialog */}
+      {linkDialog !== null && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-3 py-2 shadow-sm dark:border-surface-700 dark:bg-surface-800">
+          <input
+            ref={linkUrlInputRef}
+            type="url"
+            placeholder="https://..."
+            value={linkDialog.url}
+            onChange={(e) => setLinkDialog((d) => d && { ...d, url: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); applyLink(); }
+              if (e.key === 'Escape') setLinkDialog(null);
+            }}
+            className="min-w-0 flex-1 bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:text-white"
+          />
+          {!linkDialog.hasSelection && (
+            <input
+              type="text"
+              placeholder="Link-Text (optional)"
+              value={linkDialog.text}
+              onChange={(e) => setLinkDialog((d) => d && { ...d, text: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); applyLink(); }
+                if (e.key === 'Escape') setLinkDialog(null);
+              }}
+              className="min-w-0 flex-1 bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-400 dark:text-white"
+            />
+          )}
+          <button
+            onClick={applyLink}
+            className="shrink-0 rounded-md bg-primary-600 px-3 py-1 text-xs font-medium text-white hover:bg-primary-700"
+          >
+            Einfügen
+          </button>
+          <button
+            onClick={() => setLinkDialog(null)}
+            className="shrink-0 rounded p-1 text-surface-500 hover:text-surface-700"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Input area */}
       <div className={clsx(
@@ -308,14 +515,8 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatId, chatN
         'border-surface-200 focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500/20',
         'dark:border-surface-600 dark:bg-surface-800',
       )}>
-        {/* File attach / poll dropdown */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={onFilesChange}
-        />
+        {/* Attach / poll / event dropdown */}
+        <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onFilesChange} />
         <div ref={attachMenuRef} className="relative shrink-0">
           <button
             type="button"
@@ -369,36 +570,12 @@ export default function MessageInput({ onSend, onUpload, onTyping, chatId, chatN
           )}
         </div>
 
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onInput={handleInput}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          onPaste={(e) => {
-            const items = e.clipboardData?.items;
-            if (!items) return;
-            for (const item of items) {
-              if (item.type.startsWith('image/')) {
-                e.preventDefault();
-                const blob = item.getAsFile();
-                if (blob) {
-                  const ext = item.type.split('/')[1] || 'png';
-                  const file = new File([blob], `Eingefügtes Bild.${ext}`, { type: item.type });
-                  setPendingFiles([file]);
-                }
-                return;
-              }
-            }
-          }}
-          placeholder={pendingFiles.length > 0 ? 'Optionale Nachricht zu den Dateien...' : replyTo ? 'Antwort schreiben...' : `Nachricht an ${chatName}...`}
-          rows={1}
-          className="max-h-[200px] flex-1 resize-none bg-transparent font-sans text-sm text-surface-900 outline-none placeholder:text-surface-500 dark:text-white"
-        />
+        {/* Tiptap WYSIWYG editor */}
+        <div className="max-h-[200px] min-h-[1.5rem] flex-1 overflow-y-auto py-1">
+          <EditorContent editor={editor} />
+        </div>
 
-        {/* Emoji picker toggle */}
+        {/* Emoji picker */}
         <div ref={emojiRef} className="relative shrink-0">
           <button
             type="button"
