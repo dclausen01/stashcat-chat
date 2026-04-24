@@ -72,7 +72,7 @@ function parseWebDAVListing(xml: string, creds: NCCredentials, folderPath: strin
       : decodedHref;
     if (!logicalPath.startsWith('/')) logicalPath = '/' + logicalPath;
 
-    // Skip the root directory entry itself
+    // Skip the root directory and the folder being listed (depth:1 includes the target folder itself)
     if (logicalPath === '/' || logicalPath === '') continue;
 
     const isFolder = /<(?:d|D):collection\s*\/>/.test(block);
@@ -80,23 +80,22 @@ function parseWebDAVListing(xml: string, creds: NCCredentials, folderPath: strin
     const cleanPath = isFolder ? logicalPath.replace(/\/$/, '') : logicalPath;
     if (cleanPath === '') continue; // root again after stripping
 
+    // Skip the folder being listed itself (depth:1 includes the target folder)
+    if (cleanPath === folderPath) continue;
+
+    // Skip entries outside the requested folder (Depth:1 includes parent dirs)
+    const folderPrefix = folderPath.endsWith('/') ? folderPath : folderPath + '/';
+    if (!cleanPath.startsWith(folderPrefix)) continue;
+
     const nameRaw = xmlText(block, 'displayname');
     const name = nameRaw || cleanPath.split('/').filter(Boolean).pop() || cleanPath;
-
     const sizeRaw = xmlText(block, 'getcontentlength');
     const size = sizeRaw ? Number(sizeRaw) : undefined;
-
     const mime = xmlText(block, 'getcontenttype');
     const modified = xmlText(block, 'getlastmodified');
     const etag = xmlText(block, 'getetag')?.replace(/"/g, '');
 
-    // Skip entries outside the requested folder (Depth:1 includes parent dirs)
-  const folderPrefix = folderPath.endsWith('/') ? folderPath : folderPath + '/';
-  const isInsideFolder = (path: string): boolean =>
-    path === folderPath || path.startsWith(folderPrefix);
-  if (!isInsideFolder(cleanPath)) continue;
-
-  entries.push({ href: hrefRaw.trim(), name, path: cleanPath, isFolder, size, mime, modified, etag });
+    entries.push({ href: hrefRaw.trim(), name, path: cleanPath, isFolder, size, mime, modified, etag });
   }
 
   return entries;
