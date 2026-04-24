@@ -51,7 +51,7 @@ function xmlText(block: string, tag: string): string | undefined {
   return m?.[1]?.trim();
 }
 
-function parseWebDAVListing(xml: string, creds: NCCredentials): NCEntry[] {
+function parseWebDAVListing(xml: string, creds: NCCredentials, folderPath: string): NCEntry[] {
   const entries: NCEntry[] = [];
   const root = userRootDecoded(creds);
 
@@ -120,7 +120,7 @@ export async function ncListFolder(creds: NCCredentials, folderPath: string): Pr
   if (res.status !== 207 && !res.ok) {
     throw new Error(`WebDAV PROPFIND failed: ${res.status} ${res.statusText}`);
   }
-  return parseWebDAVListing(await res.text(), creds);
+  return parseWebDAVListing(await res.text(), creds, folderPath);
 }
 
 export async function ncDownload(creds: NCCredentials, filePath: string): Promise<Response> {
