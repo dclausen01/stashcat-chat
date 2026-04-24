@@ -18,6 +18,7 @@ import ChannelImageEditor from './ChannelImageEditor';
 import CreatePollModal from './CreatePollModal';
 import CreateEventModal from './CreateEventModal';
 import CreateWhiteboardModal from './CreateWhiteboardModal';
+import NCShareChoiceModal from './NCShareChoiceModal';
 import type { ChatTarget, Message } from '../types';
 import type { CallParty } from '../api/calls';
 
@@ -193,6 +194,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [dragOver, setDragOver] = useState(false);
   const [fileSentToast, setFileSentToast] = useState(false);
   const [droppedFiles, setDroppedFiles] = useState<File[]>([]);
+  const [ncShareChoice, setNcShareChoice] = useState<{ path: string; file?: File } | null>(null);
   const [membersOpen, setMembersOpen] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [pdfView, setPdfView] = useState<{ fileId: string; viewUrl: string; name: string } | null>(null);
@@ -1158,6 +1160,12 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           // Check for file-id from sidebar drag (forward existing file)
           const fileId = e.dataTransfer.getData('text/file-id');
           if (fileId) {
+            // Nextcloud files have path-like IDs starting with "/"
+            if (fileId.startsWith('/')) {
+              // Show choice modal: public link vs. direct attach
+              setNcShareChoice({ path: fileId });
+              return;
+            }
             try {
               await api.sendMessage(chat.id, chat.type, '', { files: [fileId] });
               await loadMessages();
@@ -1930,6 +1938,23 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       <ForwardDialog
         message={forwardMsg}
         onClose={() => setForwardMsg(null)}
+      />
+    )}
+
+    {/* Nextcloud file share choice */}
+    {ncShareChoice && (
+      <NCShareChoiceModal
+        fileName={ncShareChoice.path.split('/').pop() || ncShareChoice.path}
+        ncPath={ncShareChoice.path}
+        file={ncShareChoice.file}
+        chatId={chat.id}
+        chatType={chat.type}
+        onClose={() => setNcShareChoice(null)}
+        onSent={async () => {
+          await loadMessages();
+          setFileSentToast(true);
+          setTimeout(() => setFileSentToast(false), 2500);
+        }}
       />
     )}
 

@@ -42,7 +42,13 @@ export function ncClearUsernameOverride(): void {
   localStorage.removeItem(NC_USERNAME_KEY);
 }
 
-// ── Request helpers ───────────────────────────────────────────────────────────
+/** Save both app password and username at once (used by setup panel). */
+export function ncSetCredentials(appPassword: string, username: string): void {
+  localStorage.setItem(NC_APP_PW_KEY, appPassword);
+  localStorage.setItem(NC_USERNAME_KEY, username);
+}
+
+// ── Request helpers ────────────────────────────────────────────────────────────
 
 function ncHeaders(): Record<string, string> {
   const token = getToken();

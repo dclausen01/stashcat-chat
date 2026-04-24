@@ -90,11 +90,30 @@ function NCQuotaBar() {
   useEffect(() => {
     api.ncQuota().then(setQuota).catch(() => setQuota(null));
   }, []);
+
   if (!quota) return null;
+
+  const isUnlimited = quota.available < 0; // -1 = kein festes Quota
+
+  if (isUnlimited) {
+    return (
+      <div className="shrink-0 border-t border-surface-200 px-4 py-3 dark:border-surface-700">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
+          <HardDrive size={12} />
+          Nextcloud-Speicher
+        </div>
+        <div className="mt-1 text-[11px] text-surface-500">
+          {formatBytes(quota.used)} belegt
+        </div>
+      </div>
+    );
+  }
+
   const total = quota.used + quota.available;
   const pct = total > 0 ? (quota.used / total) * 100 : 0;
   const isCritical = pct > 95;
   const isHigh = pct > 80;
+
   return (
     <div className="shrink-0 border-t border-surface-200 px-4 py-3 space-y-1 dark:border-surface-700">
       <div className="flex items-center gap-1.5 text-[11px] font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
@@ -720,6 +739,14 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   const [ncAppPwInput, setNcAppPwInput] = useState('');
   const [ncUsernameInput, setNcUsernameInput] = useState('');
   const [ncSaving, setNcSaving] = useState(false);
+
+  // Pre-fill from localStorage on mount
+  useEffect(() => {
+    const storedPw = api.ncGetStoredAppPassword() || '';
+    const storedUser = api.ncGetUsernameOverride() || '';
+    if (storedPw) setNcAppPwInput(storedPw);
+    if (storedUser) setNcUsernameInput(storedUser);
+  }, []);
   const [shareFile, setShareFile] = useState<FileEntry | null>(null);
 
   const currentFolderId = crumbs[crumbs.length - 1].id ?? undefined;
@@ -1516,32 +1543,25 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
                 </p>
                 <div className="space-y-2">
                   <input
+                    type="text"
+                    value={ncUsernameInput}
+                    onChange={(e) => setNcUsernameInput(e.target.value)}
+                    placeholder="Lehrerkürzel (z. B. MuelM)"
+                    className="w-full rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-teal-500 dark:border-teal-700 dark:bg-surface-800 dark:text-surface-100"
+                  />
+                  <input
                     type="password"
                     value={ncAppPwInput}
                     onChange={(e) => setNcAppPwInput(e.target.value)}
                     placeholder="App-Passwort"
                     className="w-full rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-teal-500 dark:border-teal-700 dark:bg-surface-800 dark:text-surface-100"
                   />
-                  <details className="group">
-                    <summary className="cursor-pointer text-xs text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-200 list-none flex items-center gap-1">
-                      <span className="group-open:hidden">▶</span><span className="hidden group-open:inline">▼</span>
-                      Abweichenden Benutzernamen angeben
-                    </summary>
-                    <input
-                      type="text"
-                      value={ncUsernameInput}
-                      onChange={(e) => setNcUsernameInput(e.target.value)}
-                      placeholder="Benutzername (optional)"
-                      className="mt-2 w-full rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-teal-500 dark:border-teal-700 dark:bg-surface-800 dark:text-surface-100"
-                    />
-                  </details>
                   <button
                     onClick={async () => {
-                      if (!ncAppPwInput.trim()) return;
+                      if (!ncAppPwInput.trim() || !ncUsernameInput.trim()) return;
                       setNcSaving(true);
                       try {
-                        api.ncSetStoredAppPassword(ncAppPwInput.trim());
-                        if (ncUsernameInput.trim()) api.ncSetUsernameOverride(ncUsernameInput.trim());
+                        api.ncSetCredentials(ncAppPwInput.trim(), ncUsernameInput.trim());
                         setNcAppPwInput('');
                         setNcUsernameInput('');
                         setNcProbing(true);
@@ -1555,7 +1575,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
                         setNcProbing(false);
                       }
                     }}
-                    disabled={!ncAppPwInput.trim() || ncSaving}
+                    disabled={!ncAppPwInput.trim() || !ncUsernameInput.trim() || ncSaving}
                     className="w-full rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 dark:bg-teal-700 dark:hover:bg-teal-600"
                   >
                     {ncSaving ? 'Wird gespeichert…' : 'Speichern & verbinden'}

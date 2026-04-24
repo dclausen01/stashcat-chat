@@ -1,18 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Search, Loader2, Send } from 'lucide-react';
+import { X, Search, Loader2, Send, Link2, Paperclip } from 'lucide-react';
 import * as api from '../api';
 import { clsx } from 'clsx';
 import type { Channel, Conversation } from '../types';
 
-interface FileEntry {
-  id: string;
-  name: string;
-}
-
 interface ShareToChatModalProps {
-  file: FileEntry;
+  file: {
+    id: string;
+    name: string;
+    /** Nextcloud path (same as id for NC files) */
+    path?: string;
+  };
   onClose: () => void;
 }
+
+type ShareMode = 'link' | 'attach';
 
 interface ChatOption {
   type: 'channel' | 'conversation';
@@ -27,7 +29,11 @@ export default function ShareToChatModal({ file, onClose }: ShareToChatModalProp
   const [sharing, setSharing] = useState(false);
   const [sharedTo, setSharedTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<ShareMode>('link');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Use path if available, fall back to id (for Nextcloud files these are the same)
+  const ncPath = file.path ?? file.id;
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -67,8 +73,19 @@ export default function ShareToChatModal({ file, onClose }: ShareToChatModalProp
     setSharing(true);
     setError(null);
     try {
-      const { url } = await api.ncShare(file.id);
-      await api.sendMessage(target.id, target.type as 'channel' | 'conversation', `📎 ${file.name}\n${url}`);
+      if (mode === 'link') {
+        const { url } = await api.ncShare(ncPath);
+        await api.sendMessage(target.id, target.type, `📎 ${file.name}\n${url}`);
+      } else {
+        // Download file from Nextcloud, then upload + send to chat
+        const url = api.ncDownloadUrl(ncPath);
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Download fehlgeschlagen: ${response.status}`);
+        const blob = await response.blob();
+        const contentType = response.headers.get('content-type') || 'application/octet-stream';
+        const fileToUpload = new File([blob], file.name, { type: contentType });
+        await api.uploadFile(target.type, target.id, fileToUpload);
+      }
       setSharedTo(target.name);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fehler beim Teilen.');
@@ -116,6 +133,43 @@ export default function ShareToChatModal({ file, onClose }: ShareToChatModalProp
         {/* Search + list */}
         {!sharedTo && (
           <>
+            {/* Mode toggle */}
+            <div className="flex shrink-0 gap-1 border-b border-surface-100 px-3 py-2 dark:border-surface-800">
+              <button
+                onClick={() => setMode('link')}
+                className={clsx(
+                  'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition',
+                  mode === 'link'
+                    ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300'
+                    : 'text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800',
+                )}
+              >
+                <Link2 size={13} />
+                Öffentlicher Link
+              </button>
+              <button
+                onClick={() => setMode('attach')}
+                className={clsx(
+                  'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition',
+                  mode === 'attach'
+                    ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300'
+                    : 'text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800',
+                )}
+              >
+                <Paperclip size={13} />
+                Datei anhängen
+              </button>
+            </div>
+
+            {/* Mode hint */}
+            <div className="shrink-0 border-b border-surface-100 px-3 py-1.5 dark:border-surface-800">
+              <p className="text-[10px] text-surface-500">
+                {mode === 'link'
+                  ? 'Erstellt einen Nextcloud-Freigabelink'
+                  : 'Datei wird hochgeladen und angehängt'}
+              </p>
+            </div>
+
             <div className="shrink-0 border-b border-surface-100 px-3 py-2 dark:border-surface-800">
               <div className="flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-2 py-1.5 dark:border-surface-700 dark:bg-surface-800">
                 <Search size={14} className="text-surface-400" />
