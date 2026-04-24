@@ -740,8 +740,11 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   const [ncUsernameInput, setNcUsernameInput] = useState('');
   const [ncSaving, setNcSaving] = useState(false);
 
-  // Pre-fill from localStorage on mount
+  // Pre-fill from localStorage on first mount only (don't override user input on re-render)
+  const isFirstMount = useRef(true);
   useEffect(() => {
+    if (!isFirstMount.current) return;
+    isFirstMount.current = false;
     const storedPw = api.ncGetStoredAppPassword() || '';
     const storedUser = api.ncGetUsernameOverride() || '';
     if (storedPw) setNcAppPwInput(storedPw);

@@ -90,7 +90,13 @@ function parseWebDAVListing(xml: string, creds: NCCredentials): NCEntry[] {
     const modified = xmlText(block, 'getlastmodified');
     const etag = xmlText(block, 'getetag')?.replace(/"/g, '');
 
-    entries.push({ href: hrefRaw.trim(), name, path: cleanPath, isFolder, size, mime, modified, etag });
+    // Skip entries outside the requested folder (Depth:1 includes parent dirs)
+  const folderPrefix = folderPath.endsWith('/') ? folderPath : folderPath + '/';
+  const isInsideFolder = (path: string): boolean =>
+    path === folderPath || path.startsWith(folderPrefix);
+  if (!isInsideFolder(cleanPath)) continue;
+
+  entries.push({ href: hrefRaw.trim(), name, path: cleanPath, isFolder, size, mime, modified, etag });
   }
 
   return entries;
