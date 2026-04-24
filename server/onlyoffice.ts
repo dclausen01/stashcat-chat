@@ -119,6 +119,7 @@ export function buildViewerConfig(opts: EditorConfigOptions) {
   };
 
   config.token = jwt.sign(config, ONLYOFFICE_JWT_SECRET, { algorithm: 'HS256' });
+  console.log('[OnlyOffice] buildViewerConfig:', { fileName: opts.fileName, jwtSecretLen: ONLYOFFICE_JWT_SECRET.length, hasToken: !!config.token });
 
   return { config, onlyofficeUrl: ONLYOFFICE_URL };
 }
