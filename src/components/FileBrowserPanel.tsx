@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Grid3x3, List, Upload, Folder, ChevronRight, Home,
   Trash2, Pencil, Check, Loader2, ExternalLink, ArrowUp, ArrowDown, Plus,
-  Square, HardDrive, Eye,
+  Square, HardDrive, Eye, Cloud,
 } from 'lucide-react';
 import { useFileSorting, type SortField, type SortDirection } from '../hooks/useFileSorting';
 import { FolderUploadProgress, type FolderUploadProgressData } from './FolderUploadProgress';
@@ -12,6 +12,7 @@ import { fileIcon } from '../utils/fileIcon';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import type { ChatTarget } from '../types';
+import ShareToChatModal from './ShareToChatModal';
 
 // ── Quota helpers ──────────────────────────────────────────────────────────────
 
@@ -82,6 +83,41 @@ function QuotaBar({ label, quota }: { label: string; quota: api.FileQuota }) {
   );
 }
 
+// ── Nextcloud Quota Bar ───────────────────────────────────────────────────────
+
+function NCQuotaBar() {
+  const [quota, setQuota] = useState<api.NCQuota | null>(null);
+  useEffect(() => {
+    api.ncQuota().then(setQuota).catch(() => setQuota(null));
+  }, []);
+  if (!quota) return null;
+  const total = quota.used + quota.available;
+  const pct = total > 0 ? (quota.used / total) * 100 : 0;
+  const isCritical = pct > 95;
+  const isHigh = pct > 80;
+  return (
+    <div className="shrink-0 border-t border-surface-200 px-4 py-3 space-y-1 dark:border-surface-700">
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
+        <HardDrive size={12} />
+        Nextcloud-Speicher
+      </div>
+      <div className="flex items-center justify-between text-[11px]">
+        <span className="text-surface-600 dark:text-surface-400">Belegt</span>
+        <span className={clsx('tabular-nums', isCritical ? 'text-red-500' : isHigh ? 'text-amber-500' : 'text-surface-500')}>
+          {formatBytes(quota.used)} / {formatBytes(total)}
+        </span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-200 dark:bg-surface-700">
+        <div
+          className={clsx('h-full rounded-full transition-all', isCritical ? 'bg-red-500' : isHigh ? 'bg-amber-400' : 'bg-teal-500')}
+          style={{ width: `${Math.min(100, pct)}%` }}
+        />
+      </div>
+      <div className="text-[10px] text-surface-500">{formatBytes(quota.available)} frei</div>
+    </div>
+  );
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface FolderEntry {
@@ -106,7 +142,7 @@ interface FileEntry {
 }
 
 interface Crumb { id: string | null; name: string }
-type Tab = 'context' | 'personal';
+type Tab = 'context' | 'personal' | 'nextcloud';
 
 interface FileBrowserPanelProps {
   chat: ChatTarget | null;
@@ -120,6 +156,13 @@ function formatDate(ts?: string): string {
   const n = Number(ts);
   if (isNaN(n) || n === 0) return '';
   return new Date(n * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
 /** Extensible check: can the file be previewed inline? Add new formats here. */
@@ -163,11 +206,16 @@ interface ViewProps {
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   onSelectAll: () => void;
+  // URL builders (allow Nextcloud paths to generate different URLs)
+  buildDownloadUrl: (f: FileEntry) => string;
+  buildViewUrl: (f: FileEntry) => string;
+  // Share to chat (Nextcloud only)
+  onShare?: (f: FileEntry) => void;
 }
 
 // ── Grid view ─────────────────────────────────────────────────────────────────
 
-function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, selectedIds, onToggleSelect }: ViewProps) {
+function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, selectedIds, onToggleSelect, buildDownloadUrl, buildViewUrl, onShare }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   return (
     <div className="grid grid-cols-3 gap-2 p-3">
@@ -221,8 +269,8 @@ function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
       ))}
       {files.map((f) => {
         const isImage = f.mime?.startsWith('image/');
-        const downloadUrl = api.fileDownloadUrl(f.id, f.name);
-        const viewUrl = api.fileViewUrl(f.id, f.name);
+        const downloadUrl = buildDownloadUrl(f);
+        const viewUrl = buildViewUrl(f);
         const isRenaming = renamingId === f.id;
         const previewable = canPreview(f);
 
@@ -273,13 +321,22 @@ function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
               )}
               {/* Hover actions overlay */}
               <div className="absolute inset-0 hidden items-center justify-center gap-1 bg-black/40 group-hover:flex rounded-lg">
-                {api.canViewInOnlyOffice(f.name) && (
+                {api.canViewInOnlyOffice(f.name) && !onShare && (
                   <button
                     onClick={(e) => { e.stopPropagation(); api.openInOnlyOffice(f.id, f.name); }}
                     className="rounded-md bg-white/90 p-1 text-primary-600 hover:bg-white"
                     title="In OnlyOffice ansehen"
                   >
                     <Eye size={13} />
+                  </button>
+                )}
+                {onShare && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onShare(f); }}
+                    className="rounded-md bg-white/90 p-1 text-teal-600 hover:bg-white"
+                    title="In Chat teilen"
+                  >
+                    <ExternalLink size={13} />
                   </button>
                 )}
                 <a
@@ -341,7 +398,7 @@ function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
 
 // ── List view ─────────────────────────────────────────────────────────────────
 
-function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort, selectedIds, onToggleSelect, onSelectAll }: ViewProps) {
+function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort, selectedIds, onToggleSelect, onSelectAll, buildDownloadUrl, buildViewUrl, onShare }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   function SortHeader({ field, label, className = '' }: { field: SortField; label: string; className?: string }) {
@@ -452,8 +509,8 @@ function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
         ))}
         {files.map((f) => {
           const isImage = f.mime?.startsWith('image/');
-          const downloadUrl = api.fileDownloadUrl(f.id, f.name);
-          const viewUrl = api.fileViewUrl(f.id, f.name);
+          const downloadUrl = buildDownloadUrl(f);
+          const viewUrl = buildViewUrl(f);
           const isRenaming = renamingId === f.id;
           const previewable = canPreview(f);
 
@@ -532,6 +589,15 @@ function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
 
               {/* Actions (overlay on hover — no layout shift) */}
               <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden items-center gap-0.5 rounded-md bg-surface-100/95 px-1 shadow-sm backdrop-blur-sm group-hover:flex dark:bg-surface-800/95">
+                {onShare && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onShare(f); }}
+                    className="rounded-md p-1.5 text-teal-500 hover:bg-teal-50 hover:text-teal-600 dark:hover:bg-teal-900/30"
+                    title="In Chat teilen"
+                  >
+                    <ExternalLink size={14} />
+                  </button>
+                )}
                 <a
                   href={downloadUrl}
                   download={f.name}
@@ -541,7 +607,7 @@ function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
                 >
                   <ExternalLink size={14} />
                 </a>
-                {api.canViewInOnlyOffice(f.name) && (
+                {api.canViewInOnlyOffice(f.name) && !onShare && (
                   <button
                     onClick={(e) => { e.stopPropagation(); api.openInOnlyOffice(f.id, f.name); }}
                     className="rounded-md p-1.5 text-primary-500 hover:bg-primary-100 hover:text-primary-600 dark:hover:bg-primary-900/30"
@@ -648,19 +714,44 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   // Quota state
   const [personalQuota, setPersonalQuota] = useState<api.FileQuota | null>(null);
 
+  // Nextcloud state
+  const [ncProbeStatus, setNcProbeStatus] = useState<api.NCStatus | null>(null);
+  const [ncProbing, setNcProbing] = useState(false);
+  const [ncAppPwInput, setNcAppPwInput] = useState('');
+  const [ncUsernameInput, setNcUsernameInput] = useState('');
+  const [ncSaving, setNcSaving] = useState(false);
+  const [shareFile, setShareFile] = useState<FileEntry | null>(null);
+
   const currentFolderId = crumbs[crumbs.length - 1].id ?? undefined;
 
   const loadFolder = useCallback(async () => {
     setLoading(true);
     try {
-      const result = tab === 'personal'
-        ? await api.listPersonalFiles(currentFolderId)
-        : chat
-          ? await api.listFolder(chat.type, chat.id, currentFolderId)
-          : { folder: [], files: [] };
-
-      setFolders(result.folder as unknown as FolderEntry[]);
-      setFiles(result.files as unknown as FileEntry[]);
+      if (tab === 'nextcloud') {
+        const entries = await api.ncList(currentFolderId || '/');
+        setFolders(entries.filter(e => e.isFolder).map(e => ({
+          id: e.path,
+          name: e.name,
+          modified: e.modified,
+        })));
+        setFiles(entries.filter(e => !e.isFolder).map(e => ({
+          id: e.path,
+          name: e.name,
+          size_string: e.size != null ? formatBytes(e.size) : undefined,
+          mime: e.mime,
+          ext: e.name.split('.').pop()?.toLowerCase(),
+          uploaded: e.modified,
+          modified: e.modified,
+        })));
+      } else {
+        const result = tab === 'personal'
+          ? await api.listPersonalFiles(currentFolderId)
+          : chat
+            ? await api.listFolder(chat.type, chat.id, currentFolderId)
+            : { folder: [], files: [] };
+        setFolders(result.folder as unknown as FolderEntry[]);
+        setFiles(result.files as unknown as FileEntry[]);
+      }
     } catch (err) {
       console.error('Failed to load folder:', err);
     } finally {
@@ -672,13 +763,22 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
 
   // Load quotas when tab or chat changes
   useEffect(() => {
-    // Personal quota (always load)
-    if (user?.id) {
+    if (tab !== 'nextcloud' && user?.id) {
       api.getFileQuota('personal', String(user.id))
         .then(setPersonalQuota)
         .catch(() => setPersonalQuota(null));
     }
   }, [tab, chat?.id, chat?.type, user?.id]);
+
+  // Probe NC credentials when NC tab is opened
+  useEffect(() => {
+    if (tab !== 'nextcloud') return;
+    setNcProbing(true);
+    api.ncProbeAndDetect()
+      .then(setNcProbeStatus)
+      .catch(() => setNcProbeStatus({ configured: false, needsAppPassword: true }))
+      .finally(() => setNcProbing(false));
+  }, [tab]);
 
   // Escape key to clear selection
   useEffect(() => {
@@ -706,7 +806,11 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   const handleDelete = async (f: FileEntry) => {
     if (!confirm(`"${f.name}" wirklich löschen?`)) return;
     try {
-      await api.deleteFile(f.id);
+      if (tab === 'nextcloud') {
+        await api.ncDelete([f.id]);
+      } else {
+        await api.deleteFile(f.id);
+      }
       setFiles((prev) => prev.filter((x) => x.id !== f.id));
     } catch (err) {
       alert(`Fehler: ${err instanceof Error ? err.message : err}`);
@@ -716,7 +820,11 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   const handleDeleteFolder = async (f: FolderEntry) => {
     if (!confirm(`Ordner "${f.name}" und alle Inhalte wirklich löschen?`)) return;
     try {
-      await api.deleteFolder(f.id);
+      if (tab === 'nextcloud') {
+        await api.ncDelete([f.id]);
+      } else {
+        await api.deleteFolder(f.id);
+      }
       setFolders((prev) => prev.filter((x) => x.id !== f.id));
     } catch (err) {
       alert(`Fehler: ${err instanceof Error ? err.message : err}`);
@@ -733,8 +841,16 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     setRenamingId(null);
     if (!newName || newName === f.name) return;
     try {
-      await api.renameFile(f.id, newName);
-      setFiles((prev) => prev.map((x) => x.id === f.id ? { ...x, name: newName } : x));
+      if (tab === 'nextcloud') {
+        await api.ncRename(f.id, newName);
+        // Update the id (path) to reflect the new name
+        const parent = f.id.substring(0, f.id.lastIndexOf('/')) || '/';
+        const newPath = parent.replace(/\/$/, '') + '/' + newName;
+        setFiles((prev) => prev.map((x) => x.id === f.id ? { ...x, id: newPath, name: newName } : x));
+      } else {
+        await api.renameFile(f.id, newName);
+        setFiles((prev) => prev.map((x) => x.id === f.id ? { ...x, name: newName } : x));
+      }
     } catch (err) {
       alert(`Fehler: ${err instanceof Error ? err.message : err}`);
     }
@@ -742,7 +858,13 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
 
   const handleMoveToFolder = async (fileId: string, folderId: string) => {
     try {
-      await api.moveFile(fileId, folderId);
+      if (tab === 'nextcloud') {
+        const fileName = fileId.split('/').pop() || fileId;
+        const toPath = folderId.replace(/\/$/, '') + '/' + fileName;
+        await api.ncMove(fileId, toPath);
+      } else {
+        await api.moveFile(fileId, folderId);
+      }
       await loadFolder();
     } catch (err) {
       alert(`Verschieben fehlgeschlagen: ${err instanceof Error ? err.message : err}`);
@@ -770,37 +892,49 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     const total = selFiles.length + selFolders.length;
     if (!confirm(`${total} Item(s) wirklich löschen?`)) return;
     try {
-      if (selFiles.length > 0) {
-        await api.deleteFiles(selFiles.map(f => f.id));
+      if (tab === 'nextcloud') {
+        const allPaths = [...selFiles.map(f => f.id), ...selFolders.map(f => f.id)];
+        await api.ncDelete(allPaths);
         setFiles(prev => prev.filter(f => !selectedIds.has(f.id)));
-      }
-      for (const folder of selFolders) {
-        await api.deleteFolder(folder.id);
-        setFolders(prev => prev.filter(f => f.id !== folder.id));
+        setFolders(prev => prev.filter(f => !selectedIds.has(f.id)));
+      } else {
+        if (selFiles.length > 0) {
+          await api.deleteFiles(selFiles.map(f => f.id));
+          setFiles(prev => prev.filter(f => !selectedIds.has(f.id)));
+        }
+        for (const folder of selFolders) {
+          await api.deleteFolder(folder.id);
+          setFolders(prev => prev.filter(f => f.id !== folder.id));
+        }
       }
     } catch (err) {
       alert(`Fehler: ${err instanceof Error ? err.message : err}`);
     }
     setSelectedIds(new Set());
-  }, [selectedIds, sortedFiles, sortedFolders]);
+  }, [tab, selectedIds, sortedFiles, sortedFolders]);
 
   const handleBatchDownload = useCallback(() => {
     sortedFiles.filter(f => selectedIds.has(f.id)).forEach((f, i) => {
       setTimeout(() => {
         const a = document.createElement('a');
-        a.href = api.fileDownloadUrl(f.id, f.name);
+        a.href = tab === 'nextcloud' ? api.ncDownloadUrl(f.id) : api.fileDownloadUrl(f.id, f.name);
         a.download = f.name;
         a.click();
       }, i * 200);
     });
-  }, [selectedIds, sortedFiles]);
+  }, [tab, selectedIds, sortedFiles]);
 
   const handleMoveSelected = useCallback(async (targetFolderId: string) => {
     setMoveModalOpen(false);
     try {
       for (const id of selectedIds) {
         if (sortedFiles.some(f => f.id === id)) {
-          await api.moveFile(id, targetFolderId);
+          if (tab === 'nextcloud') {
+            const fileName = id.split('/').pop() || id;
+            await api.ncMove(id, targetFolderId.replace(/\/$/, '') + '/' + fileName);
+          } else {
+            await api.moveFile(id, targetFolderId);
+          }
         }
       }
       await loadFolder();
@@ -808,25 +942,31 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     } catch (err) {
       alert(`Verschieben fehlgeschlagen: ${err instanceof Error ? err.message : err}`);
     }
-  }, [selectedIds, sortedFiles]);
+  }, [tab, selectedIds, sortedFiles, loadFolder]);
 
   // ── /Selection handlers ─────────────────────────────────────────────────────
 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
     try {
-      const uploadType = tab === 'personal' ? 'personal' : chat?.type || 'personal';
-      const uploadTypeId = tab === 'personal' ? String(user?.id) : chat?.id;
-      if (!uploadTypeId) {
-        alert('Keine gültige Ziel-ID gefunden');
-        return;
+      if (tab === 'nextcloud') {
+        const basePath = currentFolderId || '/';
+        const newPath = basePath.replace(/\/$/, '') + '/' + newFolderName.trim();
+        await api.ncMkcol(newPath);
+      } else {
+        const uploadType = tab === 'personal' ? 'personal' : chat?.type || 'personal';
+        const uploadTypeId = tab === 'personal' ? String(user?.id) : chat?.id;
+        if (!uploadTypeId) {
+          alert('Keine gültige Ziel-ID gefunden');
+          return;
+        }
+        await api.createFolder(
+          newFolderName.trim(),
+          currentFolderId || '0',
+          uploadType,
+          uploadTypeId!
+        );
       }
-      await api.createFolder(
-        newFolderName.trim(),
-        currentFolderId || '0',
-        uploadType,
-        uploadTypeId!
-      );
       setNewFolderName('');
       setCreatingFolder(false);
       await loadFolder();
@@ -838,7 +978,10 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   const handleUpload = async (file: File, folderId?: string) => {
     setUploading(true);
     try {
-      if (tab === 'personal') {
+      if (tab === 'nextcloud') {
+        const uploadPath = folderId ?? currentFolderId ?? '/';
+        await api.ncUpload(uploadPath, file);
+      } else if (tab === 'personal') {
         const userId = user?.id ? String(user.id) : undefined;
         await api.uploadToStorage('personal', userId, file, folderId ?? currentFolderId);
       } else if (chat) {
@@ -1012,18 +1155,25 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
 
   /** Open a file preview: images → lightbox, PDF → iframe modal, Office → OnlyOffice viewer, others → new tab */
   const handleFileOpen = useCallback((f: FileEntry) => {
-    const viewUrl = api.fileViewUrl(f.id, f.name);
+    const viewUrl = tab === 'nextcloud' ? api.ncViewUrl(f.id) : api.fileViewUrl(f.id, f.name);
     if (f.mime?.startsWith('image/')) {
       setLightboxUrl(viewUrl);
     } else if (f.mime === 'application/pdf' || f.ext?.toLowerCase() === 'pdf') {
       setPdfView({ fileId: f.id, viewUrl, name: f.name });
-    } else if (api.canViewInOnlyOffice(f.name)) {
+    } else if (tab !== 'nextcloud' && api.canViewInOnlyOffice(f.name)) {
       api.openInOnlyOffice(f.id, f.name);
     } else {
-      // All other previewable types: open in new tab
       window.open(viewUrl, '_blank', 'noopener');
     }
-  }, []);
+  }, [tab]);
+
+  const buildDownloadUrl = useCallback((f: FileEntry) =>
+    tab === 'nextcloud' ? api.ncDownloadUrl(f.id) : api.fileDownloadUrl(f.id, f.name),
+  [tab]);
+
+  const buildViewUrl = useCallback((f: FileEntry) =>
+    tab === 'nextcloud' ? api.ncViewUrl(f.id) : api.fileViewUrl(f.id, f.name),
+  [tab]);
 
   const viewProps: ViewProps = {
     folders: sortedFolders,
@@ -1048,6 +1198,9 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     selectedIds,
     onToggleSelect: handleToggleSelect,
     onSelectAll: handleSelectAll,
+    buildDownloadUrl,
+    buildViewUrl,
+    onShare: tab === 'nextcloud' ? (f) => setShareFile(f) : undefined,
   };
 
   return (
@@ -1154,24 +1307,47 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
         </div>
 
         {/* Tabs */}
-        {contextLabel && (
-          <div className="flex border-t border-surface-100 dark:border-surface-800">
-            {(['context', 'personal'] as Tab[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => handleTabChange(t)}
-                className={clsx(
-                  'flex-1 border-b-2 px-3 py-2 text-xs font-medium transition-colors',
-                  tab === t
-                    ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400'
-                    : 'border-transparent text-surface-500 hover:text-surface-700 dark:hover:text-surface-400',
-                )}
-              >
-                {t === 'context' ? contextLabel : 'Meine Dateien'}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="flex border-t border-surface-100 dark:border-surface-800">
+          {contextLabel && (['context', 'personal'] as Tab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => handleTabChange(t)}
+              className={clsx(
+                'flex-1 border-b-2 px-3 py-2 text-xs font-medium transition-colors',
+                tab === t
+                  ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400'
+                  : 'border-transparent text-surface-500 hover:text-surface-700 dark:hover:text-surface-400',
+              )}
+            >
+              {t === 'context' ? contextLabel : 'Meine Dateien'}
+            </button>
+          ))}
+          {!contextLabel && (
+            <button
+              onClick={() => handleTabChange('personal')}
+              className={clsx(
+                'flex-1 border-b-2 px-3 py-2 text-xs font-medium transition-colors',
+                tab === 'personal'
+                  ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400'
+                  : 'border-transparent text-surface-500 hover:text-surface-700 dark:hover:text-surface-400',
+              )}
+            >
+              Meine Dateien
+            </button>
+          )}
+          <button
+            onClick={() => handleTabChange('nextcloud')}
+            className={clsx(
+              'flex items-center gap-1 border-b-2 px-3 py-2 text-xs font-medium transition-colors',
+              tab === 'nextcloud'
+                ? 'border-teal-600 text-teal-600 dark:border-teal-400 dark:text-teal-400'
+                : 'border-transparent text-surface-500 hover:text-surface-700 dark:hover:text-surface-400',
+            )}
+          >
+            <Cloud size={12} />
+            Nextcloud
+          </button>
+        </div>
       </div>
 
       {/* Selection action bar */}
@@ -1312,20 +1488,98 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
             </button>
           </div>
         )}
+        {/* Nextcloud setup panel — shown when credentials are missing or probe failed */}
+        {tab === 'nextcloud' && (ncProbing || ncProbeStatus?.needsAppPassword || (ncProbeStatus && !ncProbeStatus.configured)) && (
+          <div className="m-4 rounded-xl border border-teal-200 bg-teal-50 p-4 dark:border-teal-800 dark:bg-teal-950/40">
+            {ncProbing ? (
+              <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400">
+                <Loader2 size={16} className="animate-spin" />
+                <span className="text-sm">Nextcloud-Verbindung wird geprüft…</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 mb-3">
+                  <Cloud size={18} className="text-teal-600 dark:text-teal-400" />
+                  <h4 className="text-sm font-semibold text-teal-800 dark:text-teal-200">Nextcloud-Zugang einrichten</h4>
+                </div>
+                <p className="text-xs text-teal-700 dark:text-teal-300 mb-3">
+                  Dein Nextcloud-Server nutzt ADFS-Anmeldung. Erstelle ein App-Passwort unter{' '}
+                  <a
+                    href="https://cloud.bbz-rd-eck.de/settings/user/security"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-teal-900 dark:hover:text-teal-100"
+                  >
+                    Einstellungen → Sicherheit
+                  </a>{' '}
+                  und trage es hier ein.
+                </p>
+                <div className="space-y-2">
+                  <input
+                    type="password"
+                    value={ncAppPwInput}
+                    onChange={(e) => setNcAppPwInput(e.target.value)}
+                    placeholder="App-Passwort"
+                    className="w-full rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-teal-500 dark:border-teal-700 dark:bg-surface-800 dark:text-surface-100"
+                  />
+                  <details className="group">
+                    <summary className="cursor-pointer text-xs text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-200 list-none flex items-center gap-1">
+                      <span className="group-open:hidden">▶</span><span className="hidden group-open:inline">▼</span>
+                      Abweichenden Benutzernamen angeben
+                    </summary>
+                    <input
+                      type="text"
+                      value={ncUsernameInput}
+                      onChange={(e) => setNcUsernameInput(e.target.value)}
+                      placeholder="Benutzername (optional)"
+                      className="mt-2 w-full rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-teal-500 dark:border-teal-700 dark:bg-surface-800 dark:text-surface-100"
+                    />
+                  </details>
+                  <button
+                    onClick={async () => {
+                      if (!ncAppPwInput.trim()) return;
+                      setNcSaving(true);
+                      try {
+                        api.ncSetStoredAppPassword(ncAppPwInput.trim());
+                        if (ncUsernameInput.trim()) api.ncSetUsernameOverride(ncUsernameInput.trim());
+                        setNcAppPwInput('');
+                        setNcUsernameInput('');
+                        setNcProbing(true);
+                        const status = await api.ncProbeAndDetect();
+                        setNcProbeStatus(status);
+                        if (!status.needsAppPassword && status.configured) await loadFolder();
+                      } catch {
+                        setNcProbeStatus({ configured: false, needsAppPassword: true });
+                      } finally {
+                        setNcSaving(false);
+                        setNcProbing(false);
+                      }
+                    }}
+                    disabled={!ncAppPwInput.trim() || ncSaving}
+                    className="w-full rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 dark:bg-teal-700 dark:hover:bg-teal-600"
+                  >
+                    {ncSaving ? 'Wird gespeichert…' : 'Speichern & verbinden'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {loading ? (
           <div className="flex h-32 items-center justify-center">
             <Loader2 size={24} className="animate-spin text-primary-400" />
           </div>
-        ) : folders.length === 0 && files.length === 0 ? (
+        ) : folders.length === 0 && files.length === 0 && !(tab === 'nextcloud' && (ncProbing || ncProbeStatus?.needsAppPassword || (ncProbeStatus && !ncProbeStatus.configured))) ? (
           <div className="flex h-32 flex-col items-center justify-center gap-2 text-surface-500">
             <Folder size={36} className="opacity-30" />
             <p className="text-sm">Keine Dateien vorhanden</p>
           </div>
-        ) : viewMode === 'grid' ? (
+        ) : !loading && (folders.length > 0 || files.length > 0) && viewMode === 'grid' ? (
           <GridView {...viewProps} />
-        ) : (
+        ) : !loading && (folders.length > 0 || files.length > 0) ? (
           <ListView {...viewProps} />
-        )}
+        ) : null}
       </div>
 
       {/* Image lightbox */}
@@ -1357,7 +1611,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
           >
             <div className="flex shrink-0 items-center gap-3 border-b border-surface-700 px-4 py-2">
               <span className="flex-1 truncate text-sm font-medium text-white">{pdfView.name}</span>
-              <a href={api.fileDownloadUrl(pdfView.fileId, pdfView.name)} download={pdfView.name} className="rounded-md p-1.5 text-surface-400 hover:bg-surface-700" title="Herunterladen">
+              <a href={tab === 'nextcloud' ? api.ncDownloadUrl(pdfView.fileId) : api.fileDownloadUrl(pdfView.fileId, pdfView.name)} download={pdfView.name} className="rounded-md p-1.5 text-surface-400 hover:bg-surface-700" title="Herunterladen">
                 <ExternalLink size={16} />
               </a>
               <button onClick={() => setPdfView(null)} className="rounded-md p-1.5 text-surface-400 hover:bg-surface-700"><X size={16} /></button>
@@ -1376,7 +1630,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
       )}
 
       {/* Quota footer */}
-      {personalQuota && (
+      {personalQuota && tab !== 'nextcloud' && (
         <div className="shrink-0 border-t border-surface-200 px-4 py-3 space-y-2.5 dark:border-surface-700">
           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider">
             <HardDrive size={12} />
@@ -1387,6 +1641,16 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
             quota={personalQuota}
           />
         </div>
+      )}
+
+      {/* Nextcloud quota footer */}
+      {tab === 'nextcloud' && ncProbeStatus?.configured && !ncProbeStatus.needsAppPassword && (
+        <NCQuotaBar />
+      )}
+
+      {/* Share to chat modal */}
+      {shareFile && (
+        <ShareToChatModal file={shareFile} onClose={() => setShareFile(null)} />
       )}
 
       {/* Move modal */}

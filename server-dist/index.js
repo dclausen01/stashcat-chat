@@ -84,6 +84,7 @@ function serverLog(...args) {
 }
 const token_crypto_1 = require("./token-crypto");
 const onlyoffice_1 = require("./onlyoffice");
+const nextcloud_1 = require("./nextcloud");
 /** Extract error message safely from unknown catch values. */
 function errorMessage(err, fallback = 'Failed') {
     return err instanceof Error ? err.message : fallback;
@@ -394,6 +395,7 @@ app.post('/api/login', async (req, res) => {
             deviceId: serialized.deviceId,
             clientKey: serialized.clientKey,
             securityPassword: effectiveSecurityPassword,
+            loginPassword: password,
             baseUrl,
         });
         // Cache the client
@@ -519,6 +521,7 @@ app.post('/api/login/credentials', async (req, res) => {
             client,
             createdAt,
             expiresAt: createdAt + PREAUTH_TTL,
+            loginPassword: password,
         });
         res.json({ preAuthToken });
     }
@@ -527,7 +530,7 @@ app.post('/api/login/credentials', async (req, res) => {
     }
 });
 /**
- * Helper: consume a preAuthToken, validating TTL.
+ * Helper: consume a preAuthToken, validating TTL. Returns client + loginPassword.
  */
 function consumePreAuthToken(preAuthToken) {
     const entry = preAuthCache.get(preAuthToken);
@@ -538,7 +541,7 @@ function consumePreAuthToken(preAuthToken) {
         return null;
     }
     preAuthCache.delete(preAuthToken);
-    return entry.client;
+    return { client: entry.client, loginPassword: entry.loginPassword };
 }
 /**
  * Step 2a: Password login — unlock E2E with securityPassword.
@@ -549,16 +552,18 @@ app.post('/api/login/password', async (req, res) => {
         if (!preAuthToken || !securityPassword) {
             return res.status(400).json({ error: 'preAuthToken and securityPassword required' });
         }
-        const client = consumePreAuthToken(preAuthToken);
-        if (!client) {
+        const preAuth = consumePreAuthToken(preAuthToken);
+        if (!preAuth) {
             return res.status(400).json({ error: 'Invalid or expired preAuthToken' });
         }
+        const { client, loginPassword } = preAuth;
         await client.unlockE2E(securityPassword);
         const serialized = client.serialize();
         const token = (0, token_crypto_1.encryptSession)({
             deviceId: serialized.deviceId,
             clientKey: serialized.clientKey,
             securityPassword,
+            loginPassword,
             baseUrl: process.env.STASHCAT_BASE_URL || 'https://api.stashcat.com/',
         });
         clientCache.set(serialized.clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
@@ -635,6 +640,7 @@ app.post('/api/login/device/complete', async (req, res) => {
             return res.status(400).json({ error: 'Invalid or expired preAuthToken' });
         }
         const client = entry.client;
+        const loginPassword = entry.loginPassword;
         // Wait up to 30s for the encrypted key data to arrive (it's stored asynchronously)
         let encryptedKeyData;
         for (let attempt = 0; attempt < 30; attempt++) {
@@ -657,6 +663,7 @@ app.post('/api/login/device/complete', async (req, res) => {
             deviceId: serialized.deviceId,
             clientKey: serialized.clientKey,
             privateKeyJwk: jwk,
+            loginPassword,
             baseUrl: process.env.STASHCAT_BASE_URL || 'https://api.stashcat.com/',
         });
         clientCache.set(serialized.clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
@@ -2743,6 +2750,212 @@ app.get('/api/onlyoffice/dl', async (req, res) => {
     catch (err) {
         console.error('[OnlyOffice/dl] Error:', err);
         res.status(500).json({ error: errorMessage(err, 'Download failed') });
+    }
+});
+// ── Nextcloud WebDAV proxy ────────────────────────────────────────────────────
+/**
+ * Resolve NC credentials for the current request.
+ * Password priority: X-NC-App-Password header > loginPassword from session token.
+ * Username priority: X-NC-Username header > derived from user profile (Last, First).
+ */
+async function getNCCreds(req) {
+    const token = extractToken(req);
+    const payload = (0, token_crypto_1.decryptSession)(token);
+    // Accept app password + username from header (JSON requests) or query param (direct URLs)
+    const appPassword = req.headers['x-nc-app-password']
+        ?? req.query.ncAppPw;
+    const usernameOverride = req.headers['x-nc-username']
+        ?? req.query.ncUser;
+    const password = appPassword ?? payload.loginPassword;
+    if (!password)
+        return null;
+    let username = usernameOverride;
+    if (!username) {
+        const client = await getClient(req);
+        const me = await client.getMe();
+        username = `${me.last_name || ''}, ${me.first_name || ''}`.trim() || String(me.email || '');
+    }
+    if (!username)
+        return null;
+    const baseUrl = process.env.NEXTCLOUD_URL || 'https://cloud.bbz-rd-eck.de';
+    return { baseUrl, username, password };
+}
+/** GET /api/nextcloud/status — check if credentials are available. */
+app.get('/api/nextcloud/status', async (req, res) => {
+    try {
+        const creds = await getNCCreds(req);
+        if (!creds) {
+            return res.json({ configured: false, needsAppPassword: true });
+        }
+        res.json({ configured: true, username: creds.username });
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+/** GET /api/nextcloud/probe — test credentials against WebDAV. */
+app.get('/api/nextcloud/probe', async (req, res) => {
+    try {
+        const creds = await getNCCreds(req);
+        if (!creds) {
+            return res.json({ configured: false, needsAppPassword: true });
+        }
+        const ok = await (0, nextcloud_1.ncProbe)(creds);
+        if (ok) {
+            res.json({ configured: true, authMode: creds ? 'ad' : 'app-password', username: creds.username });
+        }
+        else {
+            res.json({ configured: false, needsAppPassword: true });
+        }
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+/** GET /api/nextcloud/folder?path=... — list folder contents. */
+app.get('/api/nextcloud/folder', async (req, res) => {
+    try {
+        const creds = await getNCCreds(req);
+        if (!creds)
+            return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert', needsAppPassword: true });
+        const folderPath = req.query.path || '/';
+        const entries = await (0, nextcloud_1.ncListFolder)(creds, folderPath);
+        res.json(entries);
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+/** GET /api/nextcloud/file?path=...&view=1 — download or view a file. */
+app.get('/api/nextcloud/file', async (req, res) => {
+    try {
+        const creds = await getNCCreds(req);
+        if (!creds)
+            return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
+        const filePath = req.query.path;
+        if (!filePath)
+            return res.status(400).json({ error: 'path required' });
+        const ncRes = await (0, nextcloud_1.ncDownload)(creds, filePath);
+        const contentType = ncRes.headers.get('content-type') || 'application/octet-stream';
+        const disposition = req.query.view === '1' ? 'inline' : 'attachment';
+        const fileName = filePath.split('/').pop() || 'download';
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(fileName)}"`);
+        const buf = Buffer.from(await ncRes.arrayBuffer());
+        res.send(buf);
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+/** POST /api/nextcloud/upload — upload a file (multer). */
+app.post('/api/nextcloud/upload', upload.single('file'), async (req, res) => {
+    const tmpPath = req.file?.path;
+    try {
+        const creds = await getNCCreds(req);
+        if (!creds)
+            return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
+        if (!req.file)
+            throw new Error('No file received');
+        const folderPath = req.body.path || '/';
+        const originalName = req.file.originalname;
+        const targetPath = folderPath.replace(/\/$/, '') + '/' + originalName;
+        const buf = await promises_1.default.readFile(tmpPath);
+        await (0, nextcloud_1.ncUpload)(creds, targetPath, buf, req.file.mimetype || 'application/octet-stream');
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+    finally {
+        if (tmpPath)
+            await promises_1.default.unlink(tmpPath).catch(() => { });
+    }
+});
+/** POST /api/nextcloud/delete — delete one or more paths. */
+app.post('/api/nextcloud/delete', async (req, res) => {
+    try {
+        const creds = await getNCCreds(req);
+        if (!creds)
+            return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
+        const { paths } = req.body;
+        for (const p of paths)
+            await (0, nextcloud_1.ncDelete)(creds, p);
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+/** POST /api/nextcloud/mkcol — create a folder. */
+app.post('/api/nextcloud/mkcol', async (req, res) => {
+    try {
+        const creds = await getNCCreds(req);
+        if (!creds)
+            return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
+        const { path: folderPath } = req.body;
+        await (0, nextcloud_1.ncMkcol)(creds, folderPath);
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+/** POST /api/nextcloud/move — move a file/folder. */
+app.post('/api/nextcloud/move', async (req, res) => {
+    try {
+        const creds = await getNCCreds(req);
+        if (!creds)
+            return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
+        const { from, to } = req.body;
+        await (0, nextcloud_1.ncMove)(creds, from, to);
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+/** POST /api/nextcloud/rename — rename by MOVE to same folder with new name. */
+app.post('/api/nextcloud/rename', async (req, res) => {
+    try {
+        const creds = await getNCCreds(req);
+        if (!creds)
+            return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
+        const { path: filePath, newName } = req.body;
+        const parent = filePath.substring(0, filePath.lastIndexOf('/')) || '/';
+        const newPath = parent.replace(/\/$/, '') + '/' + newName;
+        await (0, nextcloud_1.ncMove)(creds, filePath, newPath);
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+/** POST /api/nextcloud/share — create a public share link. */
+app.post('/api/nextcloud/share', async (req, res) => {
+    try {
+        const creds = await getNCCreds(req);
+        if (!creds)
+            return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
+        const { path: filePath } = req.body;
+        const result = await (0, nextcloud_1.ncCreateShare)(creds, filePath);
+        res.json(result);
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+/** GET /api/nextcloud/quota — storage quota. */
+app.get('/api/nextcloud/quota', async (req, res) => {
+    try {
+        const creds = await getNCCreds(req);
+        if (!creds)
+            return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
+        const quota = await (0, nextcloud_1.ncQuota)(creds);
+        res.json(quota);
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
     }
 });
 // ── Production: serve static frontend from dist/ ─────────────────────────────

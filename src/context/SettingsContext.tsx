@@ -7,7 +7,7 @@ interface Settings {
   otherBubbleColor: string;
   homeView: 'info' | 'cards';
   fileBrowserViewMode: 'grid' | 'list';
-  fileBrowserTab: 'context' | 'personal';
+  fileBrowserTab: 'context' | 'personal' | 'nextcloud';
   notificationsEnabled: boolean;
   autoAcceptKeySync: boolean;
   enterSendsMessage: boolean;
@@ -22,7 +22,7 @@ interface SettingsContextValue extends Settings {
   setOtherBubbleColor: (v: string) => void;
   setHomeView: (v: 'info' | 'cards') => void;
   setFileBrowserViewMode: (v: 'grid' | 'list') => void;
-  setFileBrowserTab: (v: 'context' | 'personal') => void;
+  setFileBrowserTab: (v: 'context' | 'personal' | 'nextcloud') => void;
   setNotificationsEnabled: (v: boolean) => void;
   setAutoAcceptKeySync: (v: boolean) => void;
   setEnterSendsMessage: (v: boolean) => void;

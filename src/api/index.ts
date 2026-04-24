@@ -165,3 +165,26 @@ export {
   submitPollAnswer,
 } from './polls';
 export type { PollUser, PollAnswer, PollQuestion, Poll, CreatePollData } from './polls';
+
+// Nextcloud
+export {
+  ncGetStoredAppPassword,
+  ncSetStoredAppPassword,
+  ncClearStoredAppPassword,
+  ncGetUsernameOverride,
+  ncSetUsernameOverride,
+  ncClearUsernameOverride,
+  ncStatus,
+  ncProbeAndDetect,
+  ncList,
+  ncUpload,
+  ncDelete,
+  ncRename,
+  ncMove,
+  ncMkcol,
+  ncShare,
+  ncQuota,
+  ncDownloadUrl,
+  ncViewUrl,
+} from './nextcloud';
+export type { NCEntry, NCQuota, NCStatus } from './nextcloud';

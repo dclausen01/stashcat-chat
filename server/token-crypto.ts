@@ -24,6 +24,7 @@ export interface SessionPayload {
   baseUrl: string;
   securityPassword?: string;     // Legacy-Flow (Passwort-Login)
   privateKeyJwk?: RsaPrivateKeyJwk;    // Device-Flow (Geräte-Login)
+  loginPassword?: string;        // E-Mail-Login-Passwort (für Nextcloud Basic-Auth)
 }
 
 export function encryptSession(payload: SessionPayload): string {
