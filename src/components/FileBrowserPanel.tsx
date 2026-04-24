@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   X, Grid3x3, List, Upload, Folder, ChevronRight, Home,
   Trash2, Pencil, Check, Loader2, Send, ArrowUp, ArrowDown, Plus,
@@ -752,7 +752,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   }, []);
   const [shareFile, setShareFile] = useState<FileEntry | null>(null);
 
-  const currentFolderId = crumbs[crumbs.length - 1].id ?? undefined;
+  const currentFolderId = useMemo(() => crumbs[crumbs.length - 1].id ?? undefined, [crumbs]);
 
   const loadFolder = useCallback(async () => {
     setLoading(true);
@@ -787,9 +787,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     } finally {
       setLoading(false);
     }
-  }, [tab, chat, currentFolderId]);
-
-  useEffect(() => { loadFolder(); }, [loadFolder]);
+  }, [tab, chat, crumbs]);
 
   // Load quotas when tab or chat changes
   useEffect(() => {
