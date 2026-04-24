@@ -177,6 +177,11 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
     try {
       await api.inviteToChannel(chat.id, [userId]);
       await loadMembers();
+      // Server may not yet reflect the new pending member — add optimistically if missing
+      setPendingMembers((prev) => {
+        if (prev.some((m) => String(m.user_id ?? m.id) === userId)) return prev;
+        return [...prev, { user_id: userId, first_name: u.first_name, last_name: u.last_name, email: u.email, image: u.image, membership_pending: true }];
+      });
     } catch (err) {
       alert(`Fehler: ${err instanceof Error ? err.message : err}`);
     } finally {
