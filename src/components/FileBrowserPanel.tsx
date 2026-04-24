@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Grid3x3, List, Upload, Folder, ChevronRight, Home,
-  Trash2, Pencil, Check, Loader2, ExternalLink, ArrowUp, ArrowDown, Plus,
-  Square, HardDrive, Eye, Cloud,
+  Trash2, Pencil, Check, Loader2, Send, ArrowUp, ArrowDown, Plus,
+  Square, HardDrive, Eye, Cloud, ExternalLink,
 } from 'lucide-react';
 import { useFileSorting, type SortField, type SortDirection } from '../hooks/useFileSorting';
 import { FolderUploadProgress, type FolderUploadProgressData } from './FolderUploadProgress';
@@ -355,7 +355,7 @@ function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
                     className="rounded-md bg-white/90 p-1 text-teal-600 hover:bg-white"
                     title="In Chat teilen"
                   >
-                    <ExternalLink size={13} />
+                    <Send size={13} />
                   </button>
                 )}
                 <a
@@ -614,7 +614,7 @@ function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
                     className="rounded-md p-1.5 text-teal-500 hover:bg-teal-50 hover:text-teal-600 dark:hover:bg-teal-900/30"
                     title="In Chat teilen"
                   >
-                    <ExternalLink size={14} />
+                    <Send size={14} />
                   </button>
                 )}
                 <a
@@ -823,6 +823,9 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     setTab(t);
     setCrumbs([{ id: null, name: 'Alle Dateien' }]);
   };
+
+  // Auto-reload when crumbs change (folder navigation, tab switch)
+  useEffect(() => { loadFolder(); }, [crumbs, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const navigateInto = (folder: FolderEntry) => {
     setSelectedIds(new Set()); // clear selection on navigation
