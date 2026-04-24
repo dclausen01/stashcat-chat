@@ -221,8 +221,10 @@ export async function ncProbe(creds: NCCredentials): Promise<boolean> {
 
 export async function ncCreateShare(creds: NCCredentials, filePath: string): Promise<{ url: string; token: string }> {
   const ocsUrl = `${creds.baseUrl}/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json`;
+  // URL-encode the path to handle special characters (spaces, Umlauts, etc.)
+  const encodedPath = encodeURIComponent(filePath);
   const body = new URLSearchParams({
-    path: filePath,
+    path: encodedPath,
     shareType: '3',  // public link
     permissions: '1', // read-only
   });
@@ -235,7 +237,18 @@ export async function ncCreateShare(creds: NCCredentials, filePath: string): Pro
     },
     body: body.toString(),
   });
-  if (!res.ok) throw new Error(`OCS Share failed: ${res.status}`);
+  if (!res.ok) {
+    // Try to extract OCS error message from response body for better diagnostics
+    const text = await res.text();
+    let hint = text;
+    try {
+      const json = JSON.parse(text);
+      const ocsMsg = json?.ocs?.data?.error ?? json?.ocs?.meta?.message ?? json?.message;
+      if (ocsMsg) hint = ocsMsg;
+    } catch { /* ignore parse errors */ }
+    console.error(`[Nextcloud] OCS Share failed ${res.status}: ${hint}`);
+    throw new Error(`OCS Share failed: ${res.status} — ${hint}`);
+  }
   const json = await res.json() as { ocs: { data: { url: string; token: string } } };
   return { url: json.ocs.data.url, token: json.ocs.data.token };
 }
