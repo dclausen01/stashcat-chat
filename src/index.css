@@ -97,6 +97,38 @@ body {
   background: var(--color-surface-600);
 }
 
+/* Accessible thicker scrollbars — toggled by SettingsContext (thickScrollbars) */
+html.scrollbars-thick {
+  scrollbar-width: auto;
+  scrollbar-color: var(--color-surface-400) transparent;
+}
+html.scrollbars-thick.dark {
+  scrollbar-color: var(--color-surface-500) transparent;
+}
+html.scrollbars-thick ::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+html.scrollbars-thick ::-webkit-scrollbar-thumb {
+  background: var(--color-surface-400);
+  border-radius: 7px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  min-height: 40px;
+}
+html.scrollbars-thick ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-surface-500);
+  background-clip: padding-box;
+}
+html.scrollbars-thick.dark ::-webkit-scrollbar-thumb {
+  background: var(--color-surface-500);
+  background-clip: padding-box;
+}
+html.scrollbars-thick.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-surface-400);
+  background-clip: padding-box;
+}
+
 @keyframes bounce {
   0%, 80%, 100% { transform: translateY(0); }
   40% { transform: translateY(-4px); }

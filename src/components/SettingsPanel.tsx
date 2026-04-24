@@ -112,6 +112,8 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     setAutoAcceptKeySync,
     enterSendsMessage,
     setEnterSendsMessage,
+    thickScrollbars,
+    setThickScrollbars,
   } = useSettings();
 
   const { mode, activePreset, activeColors, setPreset, setCustomColor } = useTheme();
@@ -205,6 +207,15 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
             description="Nachrichten als farbige Sprechblasen"
             value={bubbleView}
             onChange={setBubbleView}
+          />
+        </div>
+
+        <div className="mt-1 rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
+          <ToggleRow
+            label="Dickere Scrollbalken"
+            description="Besser sichtbare, breitere Scrollbalken (z. B. für bessere Zugänglichkeit)"
+            value={thickScrollbars}
+            onChange={setThickScrollbars}
           />
         </div>
 
