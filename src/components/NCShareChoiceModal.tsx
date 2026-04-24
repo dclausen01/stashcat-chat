@@ -16,11 +16,11 @@ interface NCShareChoiceModalProps {
 
 type Mode = 'link' | 'attach';
 
-/** Generate a short random password: 5 chars, letters + digits only */
+/** Generate a short random password: 10 chars, letters + digits only */
 function generatePassword(): string {
   const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
   let pw = '';
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 10; i++) {
     pw += chars[Math.floor(Math.random() * chars.length)];
   }
   return pw;
