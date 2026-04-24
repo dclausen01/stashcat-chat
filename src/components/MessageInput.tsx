@@ -8,6 +8,10 @@ import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Markdown } from 'tiptap-markdown';
+
+function getMd(editor: Editor): string {
+  return (editor.storage as { markdown: { getMarkdown(): string } }).markdown.getMarkdown();
+}
 import {
   Send, Paperclip, Bold, Italic, Strikethrough, Code, List, ListOrdered,
   Heading2, Quote, Link as LinkIcon, ListTodo, Code2,
@@ -165,7 +169,7 @@ export default function MessageInput({
     onBlur: () => setFocused(false),
     onUpdate: ({ editor: ed }) => {
       // Keep draft in sync so chat-switch saves the latest content
-      draftsRef.current.set(chatId, ed.storage.markdown.getMarkdown());
+      draftsRef.current.set(chatId, getMd(ed));
       if (onTyping && !typingThrottle.current) {
         onTyping();
         typingThrottle.current = setTimeout(() => { typingThrottle.current = null; }, 2000);
@@ -182,7 +186,7 @@ export default function MessageInput({
     const currentFiles = pendingFilesRef.current;
     if (currentFiles.length > 0) {
       setSending(true);
-      const msgText = editor?.storage.markdown.getMarkdown()?.trim() ?? '';
+      const msgText = (editor ? getMd(editor) : '').trim();
       const filesToSend = [...currentFiles];
       let failCount = 0;
       for (let i = 0; i < filesToSend.length; i++) {
@@ -205,7 +209,7 @@ export default function MessageInput({
       draftsRef.current.delete(chatId);
       setSending(false);
     } else {
-      const md = editor?.storage.markdown.getMarkdown()?.trim() ?? '';
+      const md = (editor ? getMd(editor) : '').trim();
       if (!md) return;
       setSending(true);
       try {
@@ -224,7 +228,7 @@ export default function MessageInput({
   // Save/restore draft on chat switch
   useEffect(() => {
     if (!editor || prevChatIdRef.current === chatId) return;
-    draftsRef.current.set(prevChatIdRef.current, editor.storage.markdown.getMarkdown());
+    draftsRef.current.set(prevChatIdRef.current, getMd(editor));
     editor.commands.setContent(draftsRef.current.get(chatId) ?? '');
     prevChatIdRef.current = chatId;
   }, [chatId, editor]);
