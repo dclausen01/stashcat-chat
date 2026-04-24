@@ -2884,7 +2884,7 @@ app.get('/api/onlyoffice/view', async (req, res) => {
   }
 });
 
-/** GET /api/onlyoffice/view-nc — OnlyOffice viewer config for Nextcloud files */
+/** POST /api/onlyoffice/view-nc — OnlyOffice viewer config for Nextcloud files */
 app.post('/api/onlyoffice/view-nc', async (req, res) => {
   try {
     const creds = await getNCCreds(req);

@@ -150,9 +150,10 @@ export async function ncMove(from: string, to: string): Promise<void> {
 }
 
 export async function ncOpenInOnlyOffice(filePath: string, fileName: string): Promise<void> {
+  const params = new URLSearchParams({ path: filePath, fileName });
   const { config, onlyofficeUrl } = await ncPost<{ config: Record<string, unknown>; onlyofficeUrl: string }>(
-    '/onlyoffice/view-nc',
-    { path: filePath, fileName }
+    `/onlyoffice/view-nc?${params.toString()}`,
+    {}
   );
   const encoded = btoa(encodeURIComponent(JSON.stringify({ config, onlyofficeUrl })));
   window.open(`/onlyoffice-viewer.html#${encoded}`, '_blank');
