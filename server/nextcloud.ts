@@ -221,10 +221,8 @@ export async function ncProbe(creds: NCCredentials): Promise<boolean> {
 
 export async function ncCreateShare(creds: NCCredentials, filePath: string): Promise<{ url: string; token: string }> {
   const ocsUrl = `${creds.baseUrl}/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json`;
-  // URL-encode the path to handle special characters (spaces, Umlauts, etc.)
-  const encodedPath = encodeURIComponent(filePath);
   const body = new URLSearchParams({
-    path: encodedPath,
+    path: filePath,  // URLSearchParams encodes the value itself — do NOT double-encode
     shareType: '3',  // public link
     permissions: '1', // read-only
   });
