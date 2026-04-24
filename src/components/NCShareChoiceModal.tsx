@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Link2, Paperclip, Loader2 } from 'lucide-react';
+import { X, Link2, Paperclip, Loader2, KeyRound, RefreshCw } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 
@@ -16,6 +16,16 @@ interface NCShareChoiceModalProps {
 
 type Mode = 'link' | 'attach';
 
+/** Generate a short random password: 5 chars, letters + digits only */
+function generatePassword(): string {
+  const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+  let pw = '';
+  for (let i = 0; i < 5; i++) {
+    pw += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return pw;
+}
+
 export default function NCShareChoiceModal({
   fileName,
   ncPath,
@@ -29,23 +39,26 @@ export default function NCShareChoiceModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Share password state
+  const [useAutoPassword, setUseAutoPassword] = useState(true);
+  const [sharePassword, setSharePassword] = useState(() => generatePassword());
+
   async function handleConfirm() {
     setLoading(true);
     setError(null);
     try {
       if (mode === 'link') {
-        // Share as public link
-        const { url } = await api.ncShare(ncPath);
-        await api.sendMessage(chatId, chatType, `📎 ${fileName}\n${url}`);
+        // Share as public link (with optional password)
+        const { url } = await api.ncShare(ncPath, sharePassword);
+        const passwordLine = sharePassword ? `\n🔑 Passwort: ${sharePassword}` : '';
+        await api.sendMessage(chatId, chatType, `📎 ${fileName}\n🔗 ${url}${passwordLine}`);
       } else {
         // Download from Nextcloud and attach as file
         let fileToUpload: File;
 
         if (file) {
-          // File already provided via drag-drop
           fileToUpload = file;
         } else {
-          // Need to download first
           const url = api.ncDownloadUrl(ncPath);
           const response = await fetch(url);
           if (!response.ok) throw new Error(`Download fehlgeschlagen: ${response.status}`);
@@ -54,7 +67,6 @@ export default function NCShareChoiceModal({
           fileToUpload = new File([blob], fileName, { type: contentType });
         }
 
-        // uploadFile uploads + sends the file to the chat in one call
         await api.uploadFile(chatType, chatId, fileToUpload);
       }
 
@@ -135,6 +147,63 @@ export default function NCShareChoiceModal({
             </div>
           </label>
 
+          {/* Share password options — only shown in link mode */}
+          {mode === 'link' && (
+            <div className="space-y-2 rounded-lg border border-surface-200 bg-surface-100 p-3 dark:border-surface-700 dark:bg-surface-800">
+              <div className="flex items-center gap-2">
+                <KeyRound size={14} className="text-surface-500" />
+                <span className="text-xs font-medium text-surface-600 dark:text-surface-400">Link-Passwort</span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setUseAutoPassword(true); setSharePassword(generatePassword()); }}
+                  className={clsx(
+                    'flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition',
+                    useAutoPassword
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-surface-200 text-surface-600 dark:bg-surface-700 dark:text-surface-400 hover:bg-surface-300 dark:hover:bg-surface-600',
+                  )}
+                >
+                  Auto generieren
+                </button>
+                <button
+                  onClick={() => setUseAutoPassword(false)}
+                  className={clsx(
+                    'flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition',
+                    !useAutoPassword
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-surface-200 text-surface-600 dark:bg-surface-700 dark:text-surface-400 hover:bg-surface-300 dark:hover:bg-surface-600',
+                  )}
+                >
+                  Eigenes Passwort
+                </button>
+              </div>
+
+              {useAutoPassword ? (
+                <div className="flex items-center gap-2 rounded-md bg-surface-200 px-3 py-2 dark:bg-surface-700">
+                  <span className="flex-1 font-mono text-sm font-semibold tracking-widest text-surface-700 dark:text-surface-200">
+                    {sharePassword}
+                  </span>
+                  <button
+                    onClick={() => setSharePassword(generatePassword())}
+                    className="rounded p-1 text-surface-500 hover:bg-surface-300 dark:hover:bg-surface-600"
+                    title="Neu generieren"
+                  >
+                    <RefreshCw size={13} />
+                  </button>
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={sharePassword}
+                  onChange={(e) => setSharePassword(e.target.value)}
+                  placeholder="Passwort eingeben"
+                  className="w-full rounded-md border border-surface-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-teal-500 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-100 dark:placeholder-surface-500"
+                />
+              )}
+            </div>
+          )}
+
           {error && (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-950/30 dark:text-red-400">
               {error}
@@ -150,7 +219,7 @@ export default function NCShareChoiceModal({
             </button>
             <button
               onClick={handleConfirm}
-              disabled={loading}
+              disabled={loading || (mode === 'link' && !sharePassword.trim())}
               className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-teal-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-teal-700 disabled:opacity-50"
             >
               {loading && <Loader2 size={14} className="animate-spin" />}

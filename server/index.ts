@@ -3098,8 +3098,8 @@ app.post('/api/nextcloud/share', async (req, res) => {
   try {
     const creds = await getNCCreds(req);
     if (!creds) return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
-    const { path: filePath } = req.body as { path: string };
-    const result = await ncCreateShare(creds, filePath);
+    const { path: filePath, password } = req.body as { path: string; password?: string };
+    const result = await ncCreateShare(creds, filePath, password);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });

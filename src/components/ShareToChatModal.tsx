@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Search, Loader2, Send, Link2, Paperclip } from 'lucide-react';
+import { X, Search, Loader2, Send, Link2, Paperclip, KeyRound, RefreshCw } from 'lucide-react';
 import * as api from '../api';
 import { clsx } from 'clsx';
 import type { Channel, Conversation } from '../types';
@@ -22,6 +22,16 @@ interface ChatOption {
   name: string;
 }
 
+/** Generate a short random password: 5 chars, letters + digits only */
+function generatePassword(): string {
+  const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+  let pw = '';
+  for (let i = 0; i < 5; i++) {
+    pw += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return pw;
+}
+
 export default function ShareToChatModal({ file, onClose }: ShareToChatModalProps) {
   const [query, setQuery] = useState('');
   const [options, setOptions] = useState<ChatOption[]>([]);
@@ -31,6 +41,10 @@ export default function ShareToChatModal({ file, onClose }: ShareToChatModalProp
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<ShareMode>('link');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Share password state
+  const [useAutoPassword, setUseAutoPassword] = useState(true);
+  const [sharePassword, setSharePassword] = useState(() => generatePassword());
 
   // Use path if available, fall back to id (for Nextcloud files these are the same)
   const ncPath = file.path ?? file.id;
@@ -74,8 +88,9 @@ export default function ShareToChatModal({ file, onClose }: ShareToChatModalProp
     setError(null);
     try {
       if (mode === 'link') {
-        const { url } = await api.ncShare(ncPath);
-        await api.sendMessage(target.id, target.type, `📎 ${file.name}\n${url}`);
+        const { url } = await api.ncShare(ncPath, sharePassword);
+        const passwordLine = sharePassword ? `\n🔑 Passwort: ${sharePassword}` : '';
+        await api.sendMessage(target.id, target.type, `📎 ${file.name}\n🔗 ${url}${passwordLine}`);
       } else {
         // Download file from Nextcloud, then upload + send to chat
         const url = api.ncDownloadUrl(ncPath);
@@ -170,6 +185,71 @@ export default function ShareToChatModal({ file, onClose }: ShareToChatModalProp
               </p>
             </div>
 
+            {/* Password row — only in link mode */}
+            {mode === 'link' && (
+              <div className="shrink-0 border-b border-surface-100 px-3 py-2 dark:border-surface-800">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <KeyRound size={11} className="text-surface-400" />
+                  <span className="text-[10px] font-medium text-surface-500">Link-Passwort</span>
+                </div>
+                <div className="flex gap-1.5 mb-1.5">
+                  <button
+                    onClick={() => { setUseAutoPassword(true); setSharePassword(generatePassword()); }}
+                    className={clsx(
+                      'flex-1 rounded-md px-2 py-1 text-[11px] font-medium transition',
+                      useAutoPassword
+                        ? 'bg-teal-600 text-white'
+                        : 'bg-surface-200 text-surface-600 dark:bg-surface-700 dark:text-surface-400 hover:bg-surface-300 dark:hover:bg-surface-600',
+                    )}
+                  >
+                    Auto
+                  </button>
+                  <button
+                    onClick={() => setUseAutoPassword(false)}
+                    className={clsx(
+                      'flex-1 rounded-md px-2 py-1 text-[11px] font-medium transition',
+                      !useAutoPassword
+                        ? 'bg-teal-600 text-white'
+                        : 'bg-surface-200 text-surface-600 dark:bg-surface-700 dark:text-surface-400 hover:bg-surface-300 dark:hover:bg-surface-600',
+                    )}
+                  >
+                    Eigenes
+                  </button>
+                  {!useAutoPassword && (
+                    <button
+                      onClick={() => setSharePassword(generatePassword())}
+                      className="rounded-md p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
+                      title="Auto generieren"
+                    >
+                      <RefreshCw size={11} />
+                    </button>
+                  )}
+                </div>
+                {useAutoPassword ? (
+                  <div className="flex items-center gap-2 rounded-md bg-surface-100 px-3 py-1.5 dark:bg-surface-800">
+                    <span className="flex-1 font-mono text-sm font-semibold tracking-widest text-surface-700 dark:text-surface-200">
+                      {sharePassword}
+                    </span>
+                    <button
+                      onClick={() => setSharePassword(generatePassword())}
+                      className="rounded p-1 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
+                      title="Neu generieren"
+                    >
+                      <RefreshCw size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    value={sharePassword}
+                    onChange={(e) => setSharePassword(e.target.value)}
+                    placeholder="Passwort eingeben"
+                    className="w-full rounded-md border border-surface-300 bg-white px-2 py-1 text-xs outline-none focus:border-teal-500 dark:border-surface-600 dark:bg-surface-900 dark:text-surface-100 dark:placeholder-surface-500"
+                  />
+                )}
+              </div>
+            )}
+
             <div className="shrink-0 border-b border-surface-100 px-3 py-2 dark:border-surface-800">
               <div className="flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-2 py-1.5 dark:border-surface-700 dark:bg-surface-800">
                 <Search size={14} className="text-surface-400" />
@@ -198,11 +278,11 @@ export default function ShareToChatModal({ file, onClose }: ShareToChatModalProp
                 filtered.map((opt) => (
                   <button
                     key={`${opt.type}:${opt.id}`}
-                    disabled={sharing}
+                    disabled={sharing || (mode === 'link' && !sharePassword.trim())}
                     onClick={() => handleShare(opt)}
                     className={clsx(
                       'flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm transition hover:bg-surface-100 dark:hover:bg-surface-800',
-                      sharing && 'opacity-50 cursor-wait',
+                      (sharing || (mode === 'link' && !sharePassword.trim())) && 'opacity-50 cursor-wait',
                     )}
                   >
                     <span className={clsx('text-[10px] font-medium px-1 py-0.5 rounded uppercase tracking-wide',
