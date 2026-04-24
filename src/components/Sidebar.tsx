@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Hash, Search, Users, GripHorizontal, Plus } from 'lucide-react';
+import { Hash, Search, Users, GripHorizontal, Plus, X } from 'lucide-react';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
@@ -432,7 +432,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       {/* Search */}
       <div className="shrink-0 p-3">
         <div className="flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2 dark:bg-surface-800">
-          <Search size={16} className="text-surface-500" />
+          <Search size={16} className="shrink-0 text-surface-500" />
           <input
             type="text"
             value={search}
@@ -440,6 +440,15 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
             placeholder="Suchen..."
             className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-500 dark:text-white"
           />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="shrink-0 rounded text-surface-400 hover:text-surface-600 dark:hover:text-surface-300"
+              aria-label="Suche löschen"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
       </div>
 
