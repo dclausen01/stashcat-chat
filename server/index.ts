@@ -2878,7 +2878,8 @@ app.get('/api/onlyoffice/view', async (req, res) => {
     const downloadUrl = `${PUBLIC_URL}/api/onlyoffice/dl?secret=${encodeURIComponent(dlToken)}`;
 
     const result = buildViewerConfig({ fileName, userId, userName, downloadUrl });
-    serverLog('[OnlyOffice/view-stashcat] result — config.token len:', (result.config as Record<string,unknown>).token ? String((result.config as Record<string,unknown>).token).length : 0, 'docKey:', ((result.config as Record<string,unknown>).document as Record<string,unknown>)?.key, 'url:', ((result.config as Record<string,unknown>).document as Record<string,unknown>)?.url?.slice(0, 100));
+    const doc = (result.config as Record<string, unknown>).document as Record<string, unknown>;
+    serverLog('[OnlyOffice/view-stashcat] token len:', (result.config as Record<string, unknown>).token ? String((result.config as Record<string, unknown>).token).length : 0, 'docKey:', doc?.key, 'url:', String(doc?.url ?? '').slice(0, 80));
     serverLog('[OnlyOffice/view-stashcat] full config:', JSON.stringify(result.config).slice(0, 200));
     res.json(result);
   } catch (err) {
@@ -2908,8 +2909,10 @@ app.post('/api/onlyoffice/view-nc', async (req, res) => {
     const downloadUrl = `${PUBLIC_URL}/api/onlyoffice/dl-nc?secret=${encodeURIComponent(dlToken)}`;
     serverLog('[OnlyOffice/view-nc] dlToken created, downloadUrl:', downloadUrl.slice(0, 80));
 
+    const userName = creds.username;
     const result = buildViewerConfig({ fileName, userId: creds.username, userName, downloadUrl });
-    serverLog('[OnlyOffice/view-nc] result — config.token len:', (result.config as Record<string,unknown>).token ? String((result.config as Record<string,unknown>).token).length : 0, 'docKey:', ((result.config as Record<string,unknown>).document as Record<string,unknown>)?.key, 'url:', ((result.config as Record<string,unknown>).document as Record<string,unknown>)?.url?.slice(0, 100));
+    const doc = (result.config as Record<string, unknown>).document as Record<string, unknown>;
+    serverLog('[OnlyOffice/view-nc] token len:', (result.config as Record<string, unknown>).token ? String((result.config as Record<string, unknown>).token).length : 0, 'docKey:', doc?.key, 'url:', String(doc?.url ?? '').slice(0, 80));
     serverLog('[OnlyOffice/view-nc] full config:', JSON.stringify(result.config).slice(0, 200));
     res.json(result);
   } catch (err) {
