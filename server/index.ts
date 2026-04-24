@@ -2878,9 +2878,6 @@ app.get('/api/onlyoffice/view', async (req, res) => {
     const downloadUrl = `${PUBLIC_URL}/api/onlyoffice/dl?secret=${encodeURIComponent(dlToken)}`;
 
     const result = buildViewerConfig({ fileId, fileName, userId, userName, downloadUrl });
-    const doc = (result.config as Record<string, unknown>).document as Record<string, unknown>;
-    serverLog('[OnlyOffice/view-stashcat] token len:', (result.config as Record<string, unknown>).token ? String((result.config as Record<string, unknown>).token).length : 0, 'docKey:', doc?.key, 'url:', String(doc?.url ?? '').slice(0, 80));
-    serverLog('[OnlyOffice/view-stashcat] full config:', JSON.stringify(result.config).slice(0, 200));
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: errorMessage(err, 'OnlyOffice-Konfiguration fehlgeschlagen') });
@@ -2890,7 +2887,6 @@ app.get('/api/onlyoffice/view', async (req, res) => {
 /** POST /api/onlyoffice/view-nc — OnlyOffice viewer config for Nextcloud files */
 app.post('/api/onlyoffice/view-nc', async (req, res) => {
   try {
-    serverLog('[OnlyOffice/view-nc] called, query:', req.query);
     const creds = await getNCCreds(req);
     if (!creds) return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
 
@@ -2907,13 +2903,9 @@ app.post('/api/onlyoffice/view-nc', async (req, res) => {
     const payload = decryptSession(token);
     const dlToken = createDownloadToken({ ncPath: filePath, ncUsername: creds.username, ncAppPassword: creds.password, clientKey: payload.clientKey });
     const downloadUrl = `${PUBLIC_URL}/api/onlyoffice/dl-nc?secret=${encodeURIComponent(dlToken)}`;
-    serverLog('[OnlyOffice/view-nc] dlToken created, downloadUrl:', downloadUrl.slice(0, 80));
 
     const userName = creds.username;
     const result = buildViewerConfig({ fileName, userId: creds.username, userName, downloadUrl });
-    const doc = (result.config as Record<string, unknown>).document as Record<string, unknown>;
-    serverLog('[OnlyOffice/view-nc] token len:', (result.config as Record<string, unknown>).token ? String((result.config as Record<string, unknown>).token).length : 0, 'docKey:', doc?.key, 'url:', String(doc?.url ?? '').slice(0, 80));
-    serverLog('[OnlyOffice/view-nc] full config:', JSON.stringify(result.config));
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: errorMessage(err, 'OnlyOffice-Konfiguration fehlgeschlagen') });
@@ -2924,21 +2916,17 @@ app.post('/api/onlyoffice/view-nc', async (req, res) => {
 app.get('/api/onlyoffice/dl-nc', async (req, res) => {
   try {
     const { secret } = req.query as { secret: string };
-    serverLog('[OnlyOffice/dl-nc] called, secret len:', secret ? secret.length : 0, 'secret prefix:', secret ? secret.slice(0, 8) : 'none');
     if (!secret) return res.status(400).json({ error: 'Missing secret' });
 
     const tokenData = validateDownloadToken(secret);
-    serverLog('[OnlyOffice/dl-nc] tokenData:', tokenData ? 'found' : 'NOT FOUND', tokenData ? { ncPath: tokenData.ncPath, ncUsername: tokenData.ncUsername, hasAppPassword: !!tokenData.ncAppPassword } : 'none');
     if (!tokenData) return res.status(403).json({ error: 'Invalid or expired token' });
     if (!tokenData.ncPath || !tokenData.ncUsername || !tokenData.ncAppPassword) {
       return res.status(403).json({ error: 'Not a valid Nextcloud token' });
     }
 
     const baseUrl = process.env.NEXTCLOUD_URL || 'https://cloud.bbz-rd-eck.de';
-    serverLog('[OnlyOffice/dl-nc] downloading from NC, path:', tokenData.ncPath, 'baseUrl:', baseUrl);
     const creds = { baseUrl, username: tokenData.ncUsername, password: tokenData.ncAppPassword };
     const ncResp = await ncDownload(creds, tokenData.ncPath);
-    serverLog('[OnlyOffice/dl-nc] NC response status:', ncResp.status, 'content-type:', ncResp.headers.get('content-type'));
     const buf = Buffer.from(await ncResp.arrayBuffer());
     res.setHeader('Content-Type', ncResp.headers.get('content-type') || 'application/octet-stream');
     res.setHeader('Content-Disposition', 'inline');
