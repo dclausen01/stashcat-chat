@@ -10,7 +10,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { Markdown } from 'tiptap-markdown';
 
 function getMd(editor: Editor): string {
-  return (editor.storage as { markdown: { getMarkdown(): string } }).markdown.getMarkdown();
+  return (editor.storage as unknown as { markdown: { getMarkdown(): string } }).markdown.getMarkdown();
 }
 import {
   Send, Paperclip, Bold, Italic, Strikethrough, Code, List, ListOrdered,
