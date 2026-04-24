@@ -2919,17 +2919,21 @@ app.post('/api/onlyoffice/view-nc', async (req, res) => {
 app.get('/api/onlyoffice/dl-nc', async (req, res) => {
   try {
     const { secret } = req.query as { secret: string };
+    serverLog('[OnlyOffice/dl-nc] called, secret len:', secret ? secret.length : 0, 'secret prefix:', secret ? secret.slice(0, 8) : 'none');
     if (!secret) return res.status(400).json({ error: 'Missing secret' });
 
     const tokenData = validateDownloadToken(secret);
+    serverLog('[OnlyOffice/dl-nc] tokenData:', tokenData ? 'found' : 'NOT FOUND', tokenData ? { ncPath: tokenData.ncPath, ncUsername: tokenData.ncUsername, hasAppPassword: !!tokenData.ncAppPassword } : 'none');
     if (!tokenData) return res.status(403).json({ error: 'Invalid or expired token' });
     if (!tokenData.ncPath || !tokenData.ncUsername || !tokenData.ncAppPassword) {
       return res.status(403).json({ error: 'Not a valid Nextcloud token' });
     }
 
     const baseUrl = process.env.NEXTCLOUD_URL || 'https://cloud.bbz-rd-eck.de';
+    serverLog('[OnlyOffice/dl-nc] downloading from NC, path:', tokenData.ncPath, 'baseUrl:', baseUrl);
     const creds = { baseUrl, username: tokenData.ncUsername, password: tokenData.ncAppPassword };
     const ncResp = await ncDownload(creds, tokenData.ncPath);
+    serverLog('[OnlyOffice/dl-nc] NC response status:', ncResp.status, 'content-type:', ncResp.headers.get('content-type'));
     const buf = Buffer.from(await ncResp.arrayBuffer());
     res.setHeader('Content-Type', ncResp.headers.get('content-type') || 'application/octet-stream');
     res.setHeader('Content-Disposition', 'inline');
