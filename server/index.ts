@@ -2885,7 +2885,7 @@ app.get('/api/onlyoffice/view', async (req, res) => {
 });
 
 /** GET /api/onlyoffice/view-nc — OnlyOffice viewer config for Nextcloud files */
-app.get('/api/onlyoffice/view-nc', async (req, res) => {
+app.post('/api/onlyoffice/view-nc', async (req, res) => {
   try {
     const creds = await getNCCreds(req);
     if (!creds) return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
