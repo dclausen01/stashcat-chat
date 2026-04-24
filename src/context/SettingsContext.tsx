@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 
 interface Settings {
   showImagesInline: boolean;
@@ -12,6 +12,7 @@ interface Settings {
   autoAcceptKeySync: boolean;
   enterSendsMessage: boolean;
   favoriteCardsSortMode: 'sidebar' | 'alphabetical' | 'manual';
+  thickScrollbars: boolean;
 }
 
 interface SettingsContextValue extends Settings {
@@ -26,6 +27,7 @@ interface SettingsContextValue extends Settings {
   setAutoAcceptKeySync: (v: boolean) => void;
   setEnterSendsMessage: (v: boolean) => void;
   setFavoriteCardsSortMode: (v: 'sidebar' | 'alphabetical' | 'manual') => void;
+  setThickScrollbars: (v: boolean) => void;
 }
 
 const STORAGE_KEY = 'schulchat_settings';
@@ -43,6 +45,7 @@ function loadSettings(): Settings {
     autoAcceptKeySync: false,
     enterSendsMessage: true,
     favoriteCardsSortMode: 'sidebar',
+    thickScrollbars: false,
   };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -70,6 +73,7 @@ const SettingsContext = createContext<SettingsContextValue>({
   autoAcceptKeySync: false,
   enterSendsMessage: true,
   favoriteCardsSortMode: 'sidebar',
+  thickScrollbars: false,
   setShowImagesInline: () => {},
   setBubbleView: () => {},
   setOwnBubbleColor: () => {},
@@ -81,6 +85,7 @@ const SettingsContext = createContext<SettingsContextValue>({
   setAutoAcceptKeySync: () => {},
   setEnterSendsMessage: () => {},
   setFavoriteCardsSortMode: () => {},
+  setThickScrollbars: () => {},
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
@@ -93,6 +98,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
   }
+
+  // Apply the thick-scrollbar class on <html> so CSS can target it globally
+  useEffect(() => {
+    document.documentElement.classList.toggle('scrollbars-thick', settings.thickScrollbars);
+  }, [settings.thickScrollbars]);
 
   return (
     <SettingsContext.Provider value={{
@@ -108,6 +118,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setAutoAcceptKeySync: (v) => update({ autoAcceptKeySync: v }),
       setEnterSendsMessage: (v) => update({ enterSendsMessage: v }),
       setFavoriteCardsSortMode: (v) => update({ favoriteCardsSortMode: v }),
+      setThickScrollbars: (v) => update({ thickScrollbars: v }),
     }}>
       {children}
     </SettingsContext.Provider>
