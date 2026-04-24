@@ -214,8 +214,8 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
   const filteredUsers = searchResults.filter((u) => !memberIds.has(String(u.id)));
 
   const filteredGroups = groups.filter((g) => {
-    if (!searchQuery) return true;
-    return g.name.toLowerCase().includes(searchQuery.toLowerCase());
+    if (!groupFilter) return true;
+    return g.name.toLowerCase().includes(groupFilter.toLowerCase());
   });
 
   return (
