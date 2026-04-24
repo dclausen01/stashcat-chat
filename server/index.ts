@@ -2887,6 +2887,7 @@ app.get('/api/onlyoffice/view', async (req, res) => {
 /** POST /api/onlyoffice/view-nc — OnlyOffice viewer config for Nextcloud files */
 app.post('/api/onlyoffice/view-nc', async (req, res) => {
   try {
+    serverLog('[OnlyOffice/view-nc] called, query:', req.query);
     const creds = await getNCCreds(req);
     if (!creds) return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
 
@@ -2903,9 +2904,11 @@ app.post('/api/onlyoffice/view-nc', async (req, res) => {
     const payload = decryptSession(token);
     const dlToken = createDownloadToken({ ncPath: filePath, ncUsername: creds.username, ncAppPassword: creds.password, clientKey: payload.clientKey });
     const downloadUrl = `${PUBLIC_URL}/api/onlyoffice/dl-nc?secret=${encodeURIComponent(dlToken)}`;
+    serverLog('[OnlyOffice/view-nc] dlToken created, downloadUrl:', downloadUrl.slice(0, 80));
 
     const userName = creds.username;
     const result = buildViewerConfig({ fileName, userId: creds.username, userName, downloadUrl });
+    serverLog('[OnlyOffice/view-nc] result keys:', Object.keys(result), 'config.token present:', !!result.config.token, 'config.token len:', (result.config as Record<string,unknown>).token ? String((result.config as Record<string,unknown>).token).length : 0);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: errorMessage(err, 'OnlyOffice-Konfiguration fehlgeschlagen') });
