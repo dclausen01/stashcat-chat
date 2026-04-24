@@ -187,5 +187,6 @@ export {
   ncDownloadUrl,
   ncViewUrl,
   ncSetCredentials,
+  ncOpenInOnlyOffice,
 } from './nextcloud';
 export type { NCEntry, NCQuota, NCStatus } from './nextcloud';

@@ -12,6 +12,7 @@ import { randomBytes } from 'crypto';
 const ONLYOFFICE_URL = process.env.ONLYOFFICE_URL || 'https://office.bbz-rd-eck.de';
 const ONLYOFFICE_JWT_SECRET = process.env.ONLYOFFICE_JWT_SECRET || '';
 const PUBLIC_URL = process.env.PUBLIC_URL || 'https://chat.bbz-rd-eck.com';
+export { PUBLIC_URL };
 
 if (!ONLYOFFICE_JWT_SECRET) {
   console.warn('[OnlyOffice] ONLYOFFICE_JWT_SECRET is not set — JWT signing will fail');
@@ -33,7 +34,14 @@ export function getOfficeDocType(fileName: string): string | null {
 // ── Short-lived download tokens ──────────────────────────────────────────────
 
 interface DownloadToken {
-  fileId: string;
+  /** Stashcat file ID (if Stashcat file) */
+  fileId?: string;
+  /** Nextcloud file path (if Nextcloud file) */
+  ncPath?: string;
+  /** Nextcloud username (required for NC files) */
+  ncUsername?: string;
+  /** Nextcloud app password (only for NC files, stored in short-lived token) */
+  ncAppPassword?: string;
   clientKey: string;
   createdAt: number;
 }
@@ -48,9 +56,9 @@ setInterval(() => {
   }
 }, 60_000);
 
-export function createDownloadToken(fileId: string, clientKey: string): string {
+export function createDownloadToken(opts: { fileId?: string; ncPath?: string; ncUsername?: string; ncAppPassword?: string; clientKey: string }): string {
   const secret = randomBytes(32).toString('hex');
-  downloadTokens.set(secret, { fileId, clientKey, createdAt: Date.now() });
+  downloadTokens.set(secret, { createdAt: Date.now(), clientKey: opts.clientKey, fileId: opts.fileId, ncPath: opts.ncPath, ncUsername: opts.ncUsername, ncAppPassword: opts.ncAppPassword });
   return secret;
 }
 
@@ -67,11 +75,11 @@ export function validateDownloadToken(secret: string): DownloadToken | null {
 // ── Config builder ───────────────────────────────────────────────────────────
 
 interface EditorConfigOptions {
-  fileId: string;
   fileName: string;
   userId: string;
   userName: string;
-  clientKey: string;
+  /** URL that OnlyOffice will fetch to download the file */
+  downloadUrl: string;
 }
 
 export function buildViewerConfig(opts: EditorConfigOptions) {
@@ -79,8 +87,7 @@ export function buildViewerConfig(opts: EditorConfigOptions) {
   const docType = OFFICE_EXTENSIONS[ext];
   if (!docType) throw new Error(`Unsupported file type: .${ext}`);
 
-  const dlToken = createDownloadToken(opts.fileId, opts.clientKey);
-  const docKey = `${opts.fileId}_view_${Date.now()}`;
+  const docKey = `${opts.downloadUrl}_view_${Date.now()}`;
 
   const config: Record<string, unknown> = {
     documentType: docType,
@@ -88,7 +95,7 @@ export function buildViewerConfig(opts: EditorConfigOptions) {
       key: docKey,
       fileType: ext,
       title: opts.fileName,
-      url: `${PUBLIC_URL}/api/onlyoffice/dl?secret=${encodeURIComponent(dlToken)}`,
+      url: opts.downloadUrl,
       permissions: {
         edit: false,
         download: true,

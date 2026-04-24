@@ -230,11 +230,13 @@ interface ViewProps {
   buildViewUrl: (f: FileEntry) => string;
   // Share to chat (Nextcloud only)
   onShare?: (f: FileEntry) => void;
+  // OnlyOffice preview (per-system)
+  onOnlyOfficeClick?: (f: FileEntry) => void;
 }
 
 // ── Grid view ─────────────────────────────────────────────────────────────────
 
-function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, selectedIds, onToggleSelect, buildDownloadUrl, buildViewUrl, onShare }: ViewProps) {
+function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, selectedIds, onToggleSelect, buildDownloadUrl, buildViewUrl, onShare, onOnlyOfficeClick }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   return (
     <div className="grid grid-cols-3 gap-2 p-3">
@@ -340,9 +342,9 @@ function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
               )}
               {/* Hover actions overlay */}
               <div className="absolute inset-0 hidden items-center justify-center gap-1 bg-black/40 group-hover:flex rounded-lg">
-                {api.canViewInOnlyOffice(f.name) && !onShare && (
+                {onOnlyOfficeClick && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); api.openInOnlyOffice(f.id, f.name); }}
+                    onClick={(e) => { e.stopPropagation(); onOnlyOfficeClick(f); }}
                     className="rounded-md bg-white/90 p-1 text-primary-600 hover:bg-white"
                     title="In OnlyOffice ansehen"
                   >
@@ -417,7 +419,7 @@ function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
 
 // ── List view ─────────────────────────────────────────────────────────────────
 
-function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort, selectedIds, onToggleSelect, onSelectAll, buildDownloadUrl, buildViewUrl, onShare }: ViewProps) {
+function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort, selectedIds, onToggleSelect, onSelectAll, buildDownloadUrl, buildViewUrl, onShare, onOnlyOfficeClick }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   function SortHeader({ field, label, className = '' }: { field: SortField; label: string; className?: string }) {
@@ -626,9 +628,9 @@ function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
                 >
                   <ExternalLink size={14} />
                 </a>
-                {api.canViewInOnlyOffice(f.name) && !onShare && (
+                {onOnlyOfficeClick && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); api.openInOnlyOffice(f.id, f.name); }}
+                    onClick={(e) => { e.stopPropagation(); onOnlyOfficeClick(f); }}
                     className="rounded-md p-1.5 text-primary-500 hover:bg-primary-100 hover:text-primary-600 dark:hover:bg-primary-900/30"
                     title="In OnlyOffice ansehen"
                   >
@@ -1193,6 +1195,8 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
       setPdfView({ fileId: f.id, viewUrl, name: f.name });
     } else if (tab !== 'nextcloud' && api.canViewInOnlyOffice(f.name)) {
       api.openInOnlyOffice(f.id, f.name);
+    } else if (tab === 'nextcloud' && api.canViewInOnlyOffice(f.name)) {
+      api.ncOpenInOnlyOffice(f.id, f.name);
     } else {
       window.open(viewUrl, '_blank', 'noopener');
     }
@@ -1232,6 +1236,12 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     buildDownloadUrl,
     buildViewUrl,
     onShare: tab === 'nextcloud' ? (f) => setShareFile(f) : undefined,
+    onOnlyOfficeClick:
+      api.canViewInOnlyOffice('')
+        ? (f) => tab === 'nextcloud'
+          ? api.ncOpenInOnlyOffice(f.id, f.name)
+          : api.openInOnlyOffice(f.id, f.name)
+        : undefined,
   };
 
   return (

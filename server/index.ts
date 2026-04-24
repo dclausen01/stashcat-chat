@@ -50,7 +50,7 @@ function serverLog(...args: unknown[]) {
 import type { RealtimeManager } from 'stashcat-api';
 import type { MessageSyncPayload } from 'stashcat-api';
 import { encryptSession, decryptSession } from './token-crypto';
-import { getOfficeDocType, buildViewerConfig, validateDownloadToken } from './onlyoffice';
+import { getOfficeDocType, buildViewerConfig, validateDownloadToken, createDownloadToken, PUBLIC_URL } from './onlyoffice';
 import { ncListFolder, ncDownload, ncUpload, ncDelete, ncMove, ncMkcol, ncQuota, ncProbe, ncCreateShare, type NCCredentials } from './nextcloud';
 
 /** Extract error message safely from unknown catch values. */
@@ -2874,17 +2874,66 @@ app.get('/api/onlyoffice/view', async (req, res) => {
     const userId = String(me.id);
     const userName = `${me.first_name || ''} ${me.last_name || ''}`.trim() || 'User';
 
-    const result = buildViewerConfig({
-      fileId,
-      fileName,
-      userId,
-      userName,
-      clientKey: payload.clientKey,
-    });
+    const dlToken = createDownloadToken({ fileId, clientKey: payload.clientKey });
+    const downloadUrl = `${PUBLIC_URL}/api/onlyoffice/dl?secret=${encodeURIComponent(dlToken)}`;
 
+    const result = buildViewerConfig({ fileName, userId, userName, downloadUrl });
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: errorMessage(err, 'OnlyOffice-Konfiguration fehlgeschlagen') });
+  }
+});
+
+/** GET /api/onlyoffice/view-nc — OnlyOffice viewer config for Nextcloud files */
+app.get('/api/onlyoffice/view-nc', async (req, res) => {
+  try {
+    const creds = await getNCCreds(req);
+    if (!creds) return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
+
+    const { path: filePath, fileName } = req.query as Record<string, string>;
+    if (!filePath || !fileName) {
+      return res.status(400).json({ error: 'path and fileName required' });
+    }
+
+    if (!getOfficeDocType(fileName)) {
+      return res.status(400).json({ error: 'Dateityp wird nicht unterstützt' });
+    }
+
+    const token = extractToken(req);
+    const payload = decryptSession(token);
+    const dlToken = createDownloadToken({ ncPath: filePath, ncUsername: creds.username, ncAppPassword: creds.password, clientKey: payload.clientKey });
+    const downloadUrl = `${PUBLIC_URL}/api/onlyoffice/dl-nc?secret=${encodeURIComponent(dlToken)}`;
+
+    const userName = creds.username;
+    const result = buildViewerConfig({ fileName, userId: creds.username, userName, downloadUrl });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err, 'OnlyOffice-Konfiguration fehlgeschlagen') });
+  }
+});
+
+/** GET /api/onlyoffice/dl-nc — serve Nextcloud file bytes to OnlyOffice */
+app.get('/api/onlyoffice/dl-nc', async (req, res) => {
+  try {
+    const { secret } = req.query as { secret: string };
+    if (!secret) return res.status(400).json({ error: 'Missing secret' });
+
+    const tokenData = validateDownloadToken(secret);
+    if (!tokenData) return res.status(403).json({ error: 'Invalid or expired token' });
+    if (!tokenData.ncPath || !tokenData.ncUsername || !tokenData.ncAppPassword) {
+      return res.status(403).json({ error: 'Not a valid Nextcloud token' });
+    }
+
+    const baseUrl = process.env.NEXTCLOUD_URL || 'https://cloud.bbz-rd-eck.de';
+    const creds = { baseUrl, username: tokenData.ncUsername, password: tokenData.ncAppPassword };
+    const ncResp = await ncDownload(creds, tokenData.ncPath);
+    const buf = Buffer.from(await ncResp.arrayBuffer());
+    res.setHeader('Content-Type', ncResp.headers.get('content-type') || 'application/octet-stream');
+    res.setHeader('Content-Disposition', 'inline');
+    res.send(buf);
+  } catch (err) {
+    console.error('[OnlyOffice/dl-nc] Error:', err);
+    res.status(500).json({ error: errorMessage(err, 'Download fehlgeschlagen') });
   }
 });
 
@@ -2896,6 +2945,7 @@ app.get('/api/onlyoffice/dl', async (req, res) => {
 
     const tokenData = validateDownloadToken(secret);
     if (!tokenData) return res.status(403).json({ error: 'Invalid or expired token' });
+    if (!tokenData.fileId) return res.status(403).json({ error: 'Not a Stashcat token' });
 
     const cached = clientCache.get(tokenData.clientKey);
     if (!cached) return res.status(403).json({ error: 'Session expired' });
