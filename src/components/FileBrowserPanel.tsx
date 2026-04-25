@@ -1543,18 +1543,25 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
                   <Cloud size={18} className="text-teal-600 dark:text-teal-400" />
                   <h4 className="text-sm font-semibold text-teal-800 dark:text-teal-200">Nextcloud-Zugang einrichten</h4>
                 </div>
-                <p className="text-xs text-teal-700 dark:text-teal-300 mb-3">
-                  Dein Nextcloud-Server nutzt ADFS-Anmeldung. Erstelle ein App-Passwort unter{' '}
-                  <a
-                    href="https://cloud.bbz-rd-eck.de/settings/user/security"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-teal-900 dark:hover:text-teal-100"
-                  >
-                    Einstellungen → Sicherheit
-                  </a>{' '}
-                  und trage es hier ein.
+                <p className="text-xs text-teal-700 dark:text-teal-300 mb-2">
+                  Dein Nextcloud-Server nutzt ADFS-Anmeldung. Erstelle ein App-Passwort und trage es hier ein.
                 </p>
+                <details className="mb-3 text-xs text-teal-700 dark:text-teal-300">
+                  <summary className="cursor-pointer font-medium hover:text-teal-900 dark:hover:text-teal-100 select-none">
+                    Wie erstelle ich ein App-Passwort?
+                  </summary>
+                  <ol className="mt-2 ml-5 list-decimal space-y-1">
+                    <li>Wechsle in der BBZ Cloud in den <strong>"Nextcloud"</strong>-Tab.</li>
+                    <li>Klicke rechts oben auf dein <strong>Profilbild</strong>.</li>
+                    <li>Wähle <strong>"Persönliche Einstellungen"</strong>.</li>
+                    <li>Klicke in der Seitenleiste auf <strong>"Sicherheit"</strong>.</li>
+                    <li>Scrolle ganz nach unten zu <strong>"Geräte & Sitzungen"</strong>.</li>
+                    <li>Gib bei <strong>App-Name</strong> z. B. <em>"BBZ Chat"</em> ein.</li>
+                    <li>Klicke auf <strong>"Neues App-Passwort erstellen"</strong>.</li>
+                    <li>Das <strong>Login-Kürzel</strong> und das <strong>App-Passwort</strong> werden angezeigt. Das Passwort bitte gut sichern – es kann <strong>nicht wieder angezeigt</strong> werden!</li>
+                    <li>Trage das Login-Kürzel und das Passwort unten ein und klicke auf <strong>"Speichern & verbinden"</strong>.</li>
+                  </ol>
+                </details>
                 <div className="space-y-2">
                   <input
                     type="text"
