@@ -1208,14 +1208,14 @@ app.post('/api/channels', async (req, res) => {
     const isPassword  = channel_type === 'password';
 
     // Build channel options
-    const channelOpts: Parameters<typeof client.createChannel>[0] = {
+    const channelOpts: Parameters<typeof client.createChannel>[0] & Record<string, unknown> = {
       channel_name: name,
       company: company_id,
       description: [description, policies ? `\n\nRichtlinien: ${policies}` : ''].filter(Boolean).join(''),
       type: isEncrypted ? 'closed' : 'public',
       visible: !hidden,
-      writable: read_only ? 'manager' : 'all',
-      inviteable: invite_only ? 'manager' : 'all',
+      writable: !read_only,
+      inviteable: !invite_only,
       show_activities: show_activities ?? true,
       show_membership_activities: show_membership_activities ?? true,
       ...(isPassword && password ? { password, password_repeat: password_repeat ?? password } : {}),
@@ -1263,7 +1263,7 @@ app.post('/api/channels/:channelId/keys', async (req, res) => {
     if (!keys || !Array.isArray(keys)) {
       return res.status(400).json({ error: 'keys array required' });
     }
-    await client.setMissingKey('channel', channelId, keys);
+    await (client as unknown as { setMissingKey: (type: string, id: string, keys: unknown[]) => Promise<void> }).setMissingKey('channel', channelId, keys);
     console.log(`[channels/keys] distributed ${keys.length} keys for channel ${channelId}`);
     res.json({ ok: true });
   } catch (err) {
@@ -3148,8 +3148,8 @@ app.post('/api/nextcloud/share', async (req, res) => {
   try {
     const creds = await getNCCreds(req);
     if (!creds) return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
-    const { path: filePath, password } = req.body as { path: string; password?: string };
-    const result = await ncCreateShare(creds, filePath, password);
+    const { path: filePath, password, permissions } = req.body as { path: string; password?: string; permissions?: number };
+    const result = await ncCreateShare(creds, filePath, password, permissions);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });

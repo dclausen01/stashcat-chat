@@ -224,12 +224,17 @@ export async function ncProbe(creds: NCCredentials): Promise<boolean> {
 
 // ── OCS Share API ─────────────────────────────────────────────────────────────
 
-export async function ncCreateShare(creds: NCCredentials, filePath: string, sharePassword?: string): Promise<{ url: string; token: string }> {
+export async function ncCreateShare(
+  creds: NCCredentials,
+  filePath: string,
+  sharePassword?: string,
+  permissions = 1,
+): Promise<{ url: string; token: string }> {
   const ocsUrl = `${creds.baseUrl}/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json`;
   const body = new URLSearchParams({
     path: filePath,  // URLSearchParams encodes the value itself
     shareType: '3',  // public link
-    permissions: '1', // read-only
+    permissions: String(permissions),
   });
   if (sharePassword) body.set('password', sharePassword);
   const res = await fetch(ocsUrl, {

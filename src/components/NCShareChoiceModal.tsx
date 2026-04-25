@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Link2, Paperclip, Loader2, KeyRound, RefreshCw } from 'lucide-react';
+import { X, Link2, Paperclip, Loader2, KeyRound, RefreshCw, Eye, Pencil } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 
@@ -42,6 +42,7 @@ export default function NCShareChoiceModal({
   // Share password state
   const [useAutoPassword, setUseAutoPassword] = useState(true);
   const [sharePassword, setSharePassword] = useState(() => generatePassword());
+  const [linkPermissions, setLinkPermissions] = useState<1 | 3>(1);
 
   async function handleConfirm() {
     setLoading(true);
@@ -49,7 +50,7 @@ export default function NCShareChoiceModal({
     try {
       if (mode === 'link') {
         // Share as public link (with optional password)
-        const { url } = await api.ncShare(ncPath, sharePassword);
+        const { url } = await api.ncShare(ncPath, sharePassword, linkPermissions);
         const passwordLine = sharePassword ? `\n🔑 Passwort: ${sharePassword}` : '';
         await api.sendMessage(chatId, chatType, `📎 ${fileName}\n🔗 ${url}${passwordLine}`);
       } else {
@@ -146,6 +147,42 @@ export default function NCShareChoiceModal({
               <p className="text-xs text-surface-500">Datei wird hochgeladen und angehängt</p>
             </div>
           </label>
+
+          {/* Link permission options — only shown in link mode */}
+          {mode === 'link' && (
+            <div className="space-y-2 rounded-lg border border-surface-200 bg-surface-100 p-3 dark:border-surface-700 dark:bg-surface-800">
+              <div className="flex items-center gap-2">
+                <Eye size={14} className="text-surface-500" />
+                <span className="text-xs font-medium text-surface-600 dark:text-surface-400">Link-Berechtigung</span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setLinkPermissions(1)}
+                  className={clsx(
+                    'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition',
+                    linkPermissions === 1
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-surface-200 text-surface-600 dark:bg-surface-700 dark:text-surface-400 hover:bg-surface-300 dark:hover:bg-surface-600',
+                  )}
+                >
+                  <Eye size={13} />
+                  Nur Ansicht
+                </button>
+                <button
+                  onClick={() => setLinkPermissions(3)}
+                  className={clsx(
+                    'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition',
+                    linkPermissions === 3
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-surface-200 text-surface-600 dark:bg-surface-700 dark:text-surface-400 hover:bg-surface-300 dark:hover:bg-surface-600',
+                  )}
+                >
+                  <Pencil size={13} />
+                  Bearbeiten
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Share password options — only shown in link mode */}
           {mode === 'link' && (

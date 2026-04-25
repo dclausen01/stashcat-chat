@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.PUBLIC_URL = void 0;
 exports.getOfficeDocType = getOfficeDocType;
 exports.createDownloadToken = createDownloadToken;
 exports.validateDownloadToken = validateDownloadToken;
@@ -19,6 +20,7 @@ const crypto_1 = require("crypto");
 const ONLYOFFICE_URL = process.env.ONLYOFFICE_URL || 'https://office.bbz-rd-eck.de';
 const ONLYOFFICE_JWT_SECRET = process.env.ONLYOFFICE_JWT_SECRET || '';
 const PUBLIC_URL = process.env.PUBLIC_URL || 'https://chat.bbz-rd-eck.com';
+exports.PUBLIC_URL = PUBLIC_URL;
 if (!ONLYOFFICE_JWT_SECRET) {
     console.warn('[OnlyOffice] ONLYOFFICE_JWT_SECRET is not set — JWT signing will fail');
 }
@@ -41,9 +43,9 @@ setInterval(() => {
             downloadTokens.delete(key);
     }
 }, 60_000);
-function createDownloadToken(fileId, clientKey) {
+function createDownloadToken(opts) {
     const secret = (0, crypto_1.randomBytes)(32).toString('hex');
-    downloadTokens.set(secret, { fileId, clientKey, createdAt: Date.now() });
+    downloadTokens.set(secret, { createdAt: Date.now(), clientKey: opts.clientKey, fileId: opts.fileId, ncPath: opts.ncPath, ncUsername: opts.ncUsername, ncAppPassword: opts.ncAppPassword });
     return secret;
 }
 function validateDownloadToken(secret) {
@@ -61,15 +63,14 @@ function buildViewerConfig(opts) {
     const docType = OFFICE_EXTENSIONS[ext];
     if (!docType)
         throw new Error(`Unsupported file type: .${ext}`);
-    const dlToken = createDownloadToken(opts.fileId, opts.clientKey);
-    const docKey = `${opts.fileId}_view_${Date.now()}`;
+    const docKey = opts.fileId ? `${opts.fileId}_view` : `nc_${Date.now()}`;
     const config = {
         documentType: docType,
         document: {
             key: docKey,
             fileType: ext,
             title: opts.fileName,
-            url: `${PUBLIC_URL}/api/onlyoffice/dl?secret=${encodeURIComponent(dlToken)}`,
+            url: opts.downloadUrl,
             permissions: {
                 edit: false,
                 download: true,

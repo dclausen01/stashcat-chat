@@ -1135,8 +1135,8 @@ app.post('/api/channels', async (req, res) => {
             description: [description, policies ? `\n\nRichtlinien: ${policies}` : ''].filter(Boolean).join(''),
             type: isEncrypted ? 'closed' : 'public',
             visible: !hidden,
-            writable: read_only ? 'manager' : 'all',
-            inviteable: invite_only ? 'manager' : 'all',
+            writable: !read_only,
+            inviteable: !invite_only,
             show_activities: show_activities ?? true,
             show_membership_activities: show_membership_activities ?? true,
             ...(isPassword && password ? { password, password_repeat: password_repeat ?? password } : {}),
@@ -2710,17 +2710,63 @@ app.get('/api/onlyoffice/view', async (req, res) => {
         const me = await client.getMe();
         const userId = String(me.id);
         const userName = `${me.first_name || ''} ${me.last_name || ''}`.trim() || 'User';
-        const result = (0, onlyoffice_1.buildViewerConfig)({
-            fileId,
-            fileName,
-            userId,
-            userName,
-            clientKey: payload.clientKey,
-        });
+        const dlToken = (0, onlyoffice_1.createDownloadToken)({ fileId, clientKey: payload.clientKey });
+        const downloadUrl = `${onlyoffice_1.PUBLIC_URL}/api/onlyoffice/dl?secret=${encodeURIComponent(dlToken)}`;
+        const result = (0, onlyoffice_1.buildViewerConfig)({ fileId, fileName, userId, userName, downloadUrl });
         res.json(result);
     }
     catch (err) {
         res.status(500).json({ error: errorMessage(err, 'OnlyOffice-Konfiguration fehlgeschlagen') });
+    }
+});
+/** POST /api/onlyoffice/view-nc — OnlyOffice viewer config for Nextcloud files */
+app.post('/api/onlyoffice/view-nc', async (req, res) => {
+    try {
+        const creds = await getNCCreds(req);
+        if (!creds)
+            return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
+        const { path: filePath, fileName } = req.query;
+        if (!filePath || !fileName) {
+            return res.status(400).json({ error: 'path and fileName required' });
+        }
+        if (!(0, onlyoffice_1.getOfficeDocType)(fileName)) {
+            return res.status(400).json({ error: 'Dateityp wird nicht unterstützt' });
+        }
+        const token = extractToken(req);
+        const payload = (0, token_crypto_1.decryptSession)(token);
+        const dlToken = (0, onlyoffice_1.createDownloadToken)({ ncPath: filePath, ncUsername: creds.username, ncAppPassword: creds.password, clientKey: payload.clientKey });
+        const downloadUrl = `${onlyoffice_1.PUBLIC_URL}/api/onlyoffice/dl-nc?secret=${encodeURIComponent(dlToken)}`;
+        const userName = creds.username;
+        const result = (0, onlyoffice_1.buildViewerConfig)({ fileName, userId: creds.username, userName, downloadUrl });
+        res.json(result);
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err, 'OnlyOffice-Konfiguration fehlgeschlagen') });
+    }
+});
+/** GET /api/onlyoffice/dl-nc — serve Nextcloud file bytes to OnlyOffice */
+app.get('/api/onlyoffice/dl-nc', async (req, res) => {
+    try {
+        const { secret } = req.query;
+        if (!secret)
+            return res.status(400).json({ error: 'Missing secret' });
+        const tokenData = (0, onlyoffice_1.validateDownloadToken)(secret);
+        if (!tokenData)
+            return res.status(403).json({ error: 'Invalid or expired token' });
+        if (!tokenData.ncPath || !tokenData.ncUsername || !tokenData.ncAppPassword) {
+            return res.status(403).json({ error: 'Not a valid Nextcloud token' });
+        }
+        const baseUrl = process.env.NEXTCLOUD_URL || 'https://cloud.bbz-rd-eck.de';
+        const creds = { baseUrl, username: tokenData.ncUsername, password: tokenData.ncAppPassword };
+        const ncResp = await (0, nextcloud_1.ncDownload)(creds, tokenData.ncPath);
+        const buf = Buffer.from(await ncResp.arrayBuffer());
+        res.setHeader('Content-Type', ncResp.headers.get('content-type') || 'application/octet-stream');
+        res.setHeader('Content-Disposition', 'inline');
+        res.send(buf);
+    }
+    catch (err) {
+        console.error('[OnlyOffice/dl-nc] Error:', err);
+        res.status(500).json({ error: errorMessage(err, 'Download fehlgeschlagen') });
     }
 });
 /** GET /api/onlyoffice/dl — serve file bytes to OnlyOffice Document Server */
@@ -2732,6 +2778,8 @@ app.get('/api/onlyoffice/dl', async (req, res) => {
         const tokenData = (0, onlyoffice_1.validateDownloadToken)(secret);
         if (!tokenData)
             return res.status(403).json({ error: 'Invalid or expired token' });
+        if (!tokenData.fileId)
+            return res.status(403).json({ error: 'Not a Stashcat token' });
         const cached = clientCache.get(tokenData.clientKey);
         if (!cached)
             return res.status(403).json({ error: 'Session expired' });
@@ -2937,8 +2985,8 @@ app.post('/api/nextcloud/share', async (req, res) => {
         const creds = await getNCCreds(req);
         if (!creds)
             return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
-        const { path: filePath } = req.body;
-        const result = await (0, nextcloud_1.ncCreateShare)(creds, filePath);
+        const { path: filePath, password, permissions } = req.body;
+        const result = await (0, nextcloud_1.ncCreateShare)(creds, filePath, password, permissions);
         res.json(result);
     }
     catch (err) {

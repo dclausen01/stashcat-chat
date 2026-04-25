@@ -163,8 +163,12 @@ export async function ncMkcol(folderPath: string): Promise<void> {
   await ncPost<{ ok: boolean }>('/nextcloud/mkcol', { path: folderPath });
 }
 
-export async function ncShare(filePath: string, sharePassword?: string): Promise<{ url: string; token: string }> {
-  return ncPost<{ url: string; token: string }>('/nextcloud/share', { path: filePath, ...(sharePassword ? { password: sharePassword } : {}) });
+export async function ncShare(filePath: string, sharePassword?: string, permissions?: number): Promise<{ url: string; token: string }> {
+  return ncPost<{ url: string; token: string }>('/nextcloud/share', {
+    path: filePath,
+    ...(sharePassword ? { password: sharePassword } : {}),
+    ...(permissions !== undefined ? { permissions } : {}),
+  });
 }
 
 export async function ncQuota(): Promise<NCQuota> {

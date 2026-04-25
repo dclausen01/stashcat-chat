@@ -35,7 +35,7 @@ function xmlText(block, tag) {
     const m = block.match(new RegExp(`<(?:d|D):${tag}>([\\s\\S]*?)<\\/(?:d|D):${tag}>`, 'i'));
     return m?.[1]?.trim();
 }
-function parseWebDAVListing(xml, creds) {
+function parseWebDAVListing(xml, creds, folderPath) {
     const entries = [];
     const root = userRootDecoded(creds);
     const responseRe = /<(?:d|D):response>([\s\S]*?)<\/(?:d|D):response>/gi;
@@ -52,7 +52,7 @@ function parseWebDAVListing(xml, creds) {
             : decodedHref;
         if (!logicalPath.startsWith('/'))
             logicalPath = '/' + logicalPath;
-        // Skip the root directory entry itself
+        // Skip the root directory and the folder being listed (depth:1 includes the target folder itself)
         if (logicalPath === '/' || logicalPath === '')
             continue;
         const isFolder = /<(?:d|D):collection\s*\/>/.test(block);
@@ -60,6 +60,13 @@ function parseWebDAVListing(xml, creds) {
         const cleanPath = isFolder ? logicalPath.replace(/\/$/, '') : logicalPath;
         if (cleanPath === '')
             continue; // root again after stripping
+        // Skip the folder being listed itself (depth:1 includes the target folder)
+        if (cleanPath === folderPath)
+            continue;
+        // Skip entries outside the requested folder (Depth:1 includes parent dirs)
+        const folderPrefix = folderPath.endsWith('/') ? folderPath : folderPath + '/';
+        if (!cleanPath.startsWith(folderPrefix))
+            continue;
         const nameRaw = xmlText(block, 'displayname');
         const name = nameRaw || cleanPath.split('/').filter(Boolean).pop() || cleanPath;
         const sizeRaw = xmlText(block, 'getcontentlength');
@@ -87,7 +94,7 @@ async function ncListFolder(creds, folderPath) {
     if (res.status !== 207 && !res.ok) {
         throw new Error(`WebDAV PROPFIND failed: ${res.status} ${res.statusText}`);
     }
-    return parseWebDAVListing(await res.text(), creds);
+    return parseWebDAVListing(await res.text(), creds, folderPath);
 }
 async function ncDownload(creds, filePath) {
     const url = davUrl(creds, filePath);
@@ -188,13 +195,15 @@ async function ncProbe(creds) {
     }
 }
 // ── OCS Share API ─────────────────────────────────────────────────────────────
-async function ncCreateShare(creds, filePath) {
+async function ncCreateShare(creds, filePath, sharePassword, permissions = 1) {
     const ocsUrl = `${creds.baseUrl}/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json`;
     const body = new URLSearchParams({
-        path: filePath,
+        path: filePath, // URLSearchParams encodes the value itself
         shareType: '3', // public link
-        permissions: '1', // read-only
+        permissions: String(permissions),
     });
+    if (sharePassword)
+        body.set('password', sharePassword);
     const res = await fetch(ocsUrl, {
         method: 'POST',
         headers: {
@@ -204,8 +213,20 @@ async function ncCreateShare(creds, filePath) {
         },
         body: body.toString(),
     });
-    if (!res.ok)
-        throw new Error(`OCS Share failed: ${res.status}`);
+    if (!res.ok) {
+        // Try to extract OCS error message from response body for better diagnostics
+        const text = await res.text();
+        let hint = text;
+        try {
+            const json = JSON.parse(text);
+            const ocsMsg = json?.ocs?.data?.error ?? json?.ocs?.meta?.message ?? json?.message;
+            if (ocsMsg)
+                hint = ocsMsg;
+        }
+        catch { /* ignore parse errors */ }
+        console.error(`[Nextcloud] OCS Share failed ${res.status}: ${hint}`);
+        throw new Error(`OCS Share failed: ${res.status} — ${hint}`);
+    }
     const json = await res.json();
     return { url: json.ocs.data.url, token: json.ocs.data.token };
 }
