@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   X, FileText, Table2, Presentation, FolderOpen, ChevronRight, Home,
-  Loader2, Search, CheckCircle, AlertCircle, ExternalLink,
+  Loader2, Search, CheckCircle, AlertCircle, Check,
 } from 'lucide-react';
 import * as api from '../api';
 import { DOCX_TEMPLATE, XLSX_TEMPLATE, PPTX_TEMPLATE } from '../utils/documentTemplates';
@@ -430,7 +430,7 @@ export default function CreateNCDocumentModal({ onClose, onCreated }: CreateNCDo
             disabled={creating || !fileName.trim()}
             className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {creating ? <Loader2 size={16} className="animate-spin" /> : <ExternalLink size={15} />}
+            {creating ? <Loader2 size={16} className="animate-spin" /> : <Check size={15} />}
             {creating ? 'Erstelle...' : 'Erstellen & Teilen'}
           </button>
         </div>
