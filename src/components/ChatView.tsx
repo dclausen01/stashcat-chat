@@ -18,6 +18,7 @@ import ChannelImageEditor from './ChannelImageEditor';
 import CreatePollModal from './CreatePollModal';
 import CreateEventModal from './CreateEventModal';
 import CreateWhiteboardModal from './CreateWhiteboardModal';
+import CreateNCDocumentModal from './CreateNCDocumentModal';
 import NCShareChoiceModal from './NCShareChoiceModal';
 import type { ChatTarget, Message } from '../types';
 import type { CallParty } from '../api/calls';
@@ -211,6 +212,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [showPollModal, setShowPollModal] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showWhiteboardModal, setShowWhiteboardModal] = useState(false);
+  const [showNCDocumentModal, setShowNCDocumentModal] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -1862,7 +1864,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           {sendError}
         </div>
       )}
-      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatId={chat.id} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} onCreateWhiteboard={() => setShowWhiteboardModal(true)} droppedFiles={droppedFiles} onDroppedFilesConsumed={() => setDroppedFiles([])} />
+      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatId={chat.id} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} onCreateWhiteboard={() => setShowWhiteboardModal(true)} onCreateNCDocument={() => setShowNCDocumentModal(true)} droppedFiles={droppedFiles} onDroppedFilesConsumed={() => setDroppedFiles([])} />
       {showPollModal && (
         <CreatePollModal
           preselectedChat={chat}
@@ -1882,6 +1884,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         <CreateWhiteboardModal
           onConfirm={handleCreateWhiteboard}
           onClose={() => setShowWhiteboardModal(false)}
+        />
+      )}
+      {showNCDocumentModal && (
+        <CreateNCDocumentModal
+          chatId={chat.id}
+          chatType={chat.type}
+          onClose={() => setShowNCDocumentModal(false)}
+          onCreated={() => setShowNCDocumentModal(false)}
         />
       )}
       </div>{/* end main chat area */}

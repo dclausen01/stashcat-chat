@@ -15,7 +15,7 @@ function getMd(editor: Editor): string {
 import {
   Send, Paperclip, Bold, Italic, Strikethrough, Code, List, ListOrdered,
   Heading2, Quote, Link as LinkIcon, ListTodo, Code2,
-  X, Loader2, Reply, BarChart3, CalendarPlus, Presentation,
+  X, Loader2, Reply, BarChart3, CalendarPlus, Presentation, FilePlus,
 } from 'lucide-react';
 import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react';
 import { clsx } from 'clsx';
@@ -39,6 +39,7 @@ interface MessageInputProps {
   onCreatePoll?: () => void;
   onCreateEvent?: () => void;
   onCreateWhiteboard?: () => void;
+  onCreateNCDocument?: () => void;
   droppedFiles?: File[];
   onDroppedFilesConsumed?: () => void;
 }
@@ -58,7 +59,7 @@ interface LinkDialogState {
 
 export default function MessageInput({
   onSend, onUpload, onTyping, chatId, chatName,
-  replyTo, onCancelReply, onCreatePoll, onCreateEvent, onCreateWhiteboard,
+  replyTo, onCancelReply, onCreatePoll, onCreateEvent, onCreateWhiteboard, onCreateNCDocument,
   droppedFiles, onDroppedFilesConsumed,
 }: MessageInputProps) {
   const { theme } = useTheme();
@@ -568,6 +569,16 @@ export default function MessageInput({
                 >
                   <Presentation size={15} className="text-purple-500" />
                   Kollaboratives Whiteboard erstellen
+                </button>
+              )}
+              {onCreateNCDocument && (
+                <button
+                  type="button"
+                  onClick={() => { setShowAttachMenu(false); onCreateNCDocument(); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
+                >
+                  <FilePlus size={15} className="text-primary-500" />
+                  Neues Dokument
                 </button>
               )}
             </div>
