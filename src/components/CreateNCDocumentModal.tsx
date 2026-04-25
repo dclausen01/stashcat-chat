@@ -21,7 +21,8 @@ interface CreateNCDocumentModalProps {
 }
 
 type OfficeType = 'docx' | 'xlsx' | 'pptx';
-type ShareMode = 'none' | 'link' | 'attach' | 'both';
+/** Share link type: 'edit' = Bearbeiten-Link, 'view' = Nur-Lesen-Link */
+type ShareLinkType = 'edit' | 'view';
 
 const OFFICE_TYPES: { type: OfficeType; label: string; icon: React.FC<{ size: number; className?: string }>; defaultName: string }[] = [
   { type: 'docx', label: 'Dokument', icon: FileText, defaultName: 'Neues Dokument' },
@@ -47,7 +48,7 @@ interface ChatOption {
   name: string;
 }
 
-export default function CreateNCDocumentModal({ onClose, onCreated }: CreateNCDocumentModalProps) {
+export default function CreateNCDocumentModal({ chatId, chatType, onClose, onCreated }: CreateNCDocumentModalProps) {
   const [officeType, setOfficeType] = useState<OfficeType>('docx');
   const [fileName, setFileName] = useState('Neues Dokument');
 
@@ -62,7 +63,7 @@ export default function CreateNCDocumentModal({ onClose, onCreated }: CreateNCDo
   const [chatOptions, setChatOptions] = useState<ChatOption[]>([]);
   const [selectedChat, setSelectedChat] = useState<ChatOption | null>(null);
   const [loadingChats, setLoadingChats] = useState(true);
-  const [shareMode, setShareMode] = useState<ShareMode>('link');
+  const [shareLinkType, setShareLinkType] = useState<ShareLinkType>('edit');
 
   // Share password
   const [sharePassword, setSharePassword] = useState(() => {
@@ -113,12 +114,15 @@ export default function CreateNCDocumentModal({ onClose, onCreated }: CreateNCDo
           ...convs.map((c: Conversation) => ({ type: 'conversation' as const, id: String(c.id), name: c.name ?? '' })),
         ];
         setChatOptions(options);
+        // Pre-select the current chat
+        const current = options.find(o => o.id === chatId && o.type === chatType);
+        if (current) setSelectedChat(current);
       } finally {
         setLoadingChats(false);
       }
     }
     loadChats();
-  }, []);
+  }, [chatId, chatType]);
 
   const navigateInto = (folder: api.NCEntry) => {
     setCrumbs(prev => [...prev, { id: folder.path, name: folder.name }]);
@@ -164,16 +168,11 @@ export default function CreateNCDocumentModal({ onClose, onCreated }: CreateNCDo
       }
 
       // 4. Share to chat if selected
-      if (selectedChat && shareMode !== 'none') {
-        if (shareMode === 'link' || shareMode === 'both') {
-          const share = await api.ncShare(filePath, sharePassword);
-          const url = share.url ?? '';
-          const passwordLine = sharePassword ? `\n🔑 ${sharePassword}` : '';
-          await api.sendMessage(selectedChat.id, selectedChat.type, `📎 ${finalFileName}\n🔗 ${url}${passwordLine}`);
-        }
-        if (shareMode === 'attach' || shareMode === 'both') {
-          await api.uploadFile(selectedChat.type, selectedChat.id, file);
-        }
+      if (selectedChat) {
+        const share = await api.ncShare(filePath, sharePassword, shareLinkType === 'view' ? 1 : 3);
+        const url = share.url ?? '';
+        const passwordLine = sharePassword ? `\n🔑 ${sharePassword}` : '';
+        await api.sendMessage(selectedChat.id, selectedChat.type, `📎 ${finalFileName}\n🔗 ${url}${passwordLine}`);
       }
 
       onCreated(filePath, finalFileName);
@@ -306,20 +305,18 @@ export default function CreateNCDocumentModal({ onClose, onCreated }: CreateNCDo
               Im Chat teilen
             </label>
 
-            {/* Share mode */}
-            <div className="grid grid-cols-4 gap-2 mb-3">
+            {/* Share link type */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
               {([
-                { value: 'none', label: 'Nicht' },
-                { value: 'link', label: 'Nur Link' },
-                { value: 'attach', label: 'Nur Datei' },
-                { value: 'both', label: 'Beides' },
+                { value: 'edit', label: 'Bearbeiten-Link' },
+                { value: 'view', label: 'Nur-Lesen-Link' },
               ] as const).map(({ value, label }) => (
                 <button
                   key={value}
-                  onClick={() => setShareMode(value)}
+                  onClick={() => setShareLinkType(value)}
                   className={clsx(
                     'py-1.5 px-2 rounded-lg border text-xs font-medium transition-all',
-                    shareMode === value
+                    shareLinkType === value
                       ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400'
                       : 'border-surface-200 dark:border-surface-700 text-surface-500 hover:border-surface-300'
                   )}
@@ -329,61 +326,56 @@ export default function CreateNCDocumentModal({ onClose, onCreated }: CreateNCDo
               ))}
             </div>
 
-            {shareMode !== 'none' && (
-              <>
-                {/* Chat search */}
-                <div className="relative mb-2">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
-                  <input
-                    type="text"
-                    value={chatQuery}
-                    onChange={e => setChatQuery(e.target.value)}
-                    placeholder="Chat suchen..."
-                    className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-surface-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
-                  />
-                </div>
+            {/* Chat search */}
+            <div className="relative mb-2">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
+              <input
+                type="text"
+                value={chatQuery}
+                onChange={e => setChatQuery(e.target.value)}
+                placeholder="Chat suchen..."
+                className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-surface-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
+              />
+            </div>
 
-                {/* Chat list */}
-                <div className="border border-surface-300 dark:border-surface-600 rounded-xl max-h-32 overflow-y-auto">
-                  {loadingChats ? (
-                    <div className="flex items-center justify-center py-3">
-                      <Loader2 size={16} className="animate-spin text-surface-400" />
-                    </div>
-                  ) : filteredChats.length === 0 ? (
-                    <div className="text-center py-3 text-surface-400 text-xs">Keine Chats gefunden</div>
-                  ) : (
-                    filteredChats.map(opt => (
-                      <button
-                        key={opt.id}
-                        onClick={() => setSelectedChat(opt)}
-                        className={clsx(
-                          'w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-50 dark:hover:bg-surface-700',
-                          selectedChat?.id === opt.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''
-                        )}
-                      >
-                        <div className={clsx('w-2 h-2 rounded-full shrink-0', opt.type === 'channel' ? 'bg-teal-500' : 'bg-primary-500')} />
-                        <span className="text-sm text-surface-700 dark:text-surface-300 truncate">{opt.name}</span>
-                        {selectedChat?.id === opt.id && <CheckCircle size={14} className="text-primary-500 ml-auto shrink-0" />}
-                      </button>
-                    ))
-                  )}
+            {/* Chat list */}
+            <div className="border border-surface-300 dark:border-surface-600 rounded-xl max-h-32 overflow-y-auto">
+              {loadingChats ? (
+                <div className="flex items-center justify-center py-3">
+                  <Loader2 size={16} className="animate-spin text-surface-400" />
                 </div>
+              ) : filteredChats.length === 0 ? (
+                <div className="text-center py-3 text-surface-400 text-xs">Keine Chats gefunden</div>
+              ) : (
+                filteredChats.map(opt => (
+                  <button
+                    key={opt.id}
+                    onClick={() => setSelectedChat(opt)}
+                    className={clsx(
+                      'w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-50 dark:hover:bg-surface-700',
+                      selectedChat?.id === opt.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''
+                    )}
+                  >
+                    <div className={clsx('w-2 h-2 rounded-full shrink-0', opt.type === 'channel' ? 'bg-teal-500' : 'bg-primary-500')} />
+                    <span className="text-sm text-surface-700 dark:text-surface-300 truncate">{opt.name}</span>
+                    {selectedChat?.id === opt.id && <CheckCircle size={14} className="text-primary-500 ml-auto shrink-0" />}
+                  </button>
+                ))
+              )}
+            </div>
 
-                {shareMode === 'link' || shareMode === 'both' ? (
-                  <div className="mt-2">
-                    <label className="block text-xs text-surface-500 dark:text-surface-400 mb-1">
-                      Link-Passwort <span className="text-surface-400">(optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={sharePassword}
-                      onChange={e => setSharePassword(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-lg border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-surface-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    />
-                  </div>
-                ) : null}
-              </>
-            )}
+            <div className="mt-2">
+              <label className="block text-xs text-surface-500 dark:text-surface-400 mb-1">
+                Link-Passwort <span className="text-surface-400">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={sharePassword}
+                onChange={e => setSharePassword(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-lg border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-surface-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-primary-500"
+              />
+            </div>
+
           </div>
 
           {/* 5. OnlyOffice öffnen */}
