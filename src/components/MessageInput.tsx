@@ -532,7 +532,7 @@ export default function MessageInput({
             <Paperclip size={18} />
           </button>
           {showAttachMenu && (
-            <div className="absolute bottom-10 left-0 z-50 min-w-[180px] overflow-hidden rounded-xl border border-surface-200 bg-white shadow-lg dark:border-surface-700 dark:bg-surface-800">
+            <div className="absolute bottom-10 left-0 z-50 min-w-[240px] whitespace-nowrap overflow-hidden rounded-xl border border-surface-200 bg-white shadow-lg dark:border-surface-700 dark:bg-surface-800">
               <button
                 type="button"
                 onClick={() => { setShowAttachMenu(false); fileInputRef.current?.click(); }}
