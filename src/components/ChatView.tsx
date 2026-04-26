@@ -1269,9 +1269,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 <Bell size={14} />
               )}
             </button>
-            {/* Desktop mute duration menu */}
+            {/* Desktop mute duration menu — only show on desktop */}
             {muteMenuOpen && (
-              <div className="absolute left-0 top-full z-50 mt-1 w-40 rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800">
+              <div className="absolute left-0 top-full z-50 mt-1 hidden w-40 rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 lg:block">
                 {[
                   { label: '2 Stunden', duration: 7200 },
                   { label: '1 Tag', duration: 86400 },
@@ -1485,7 +1485,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         {/* Mobile: More menu dropdown — opens from the title button */}
         {mobileMenuOpen && (
           <>
-            <div className="pointer-events-none fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileMenuOpen(false)} />
+            <div className="pointer-events-none fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => { setMobileMenuOpen(false); setMuteMenuOpen(false); }} />
             <div className="pointer-events-auto fixed left-4 right-4 top-20 z-50 mx-auto w-full max-w-sm rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 lg:hidden">
               {/* Favorite toggle */}
               {onToggleFavorite && (
@@ -1527,6 +1527,36 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 )}
                 {notificationsMuted ? 'Benachrichtigungen aktivieren' : 'Benachrichtigungen stummschalten'}
               </button>
+              {/* Mute duration options — shown inline when not muted */}
+              {!notificationsMuted && muteMenuOpen && (
+                <div className="border-t border-surface-200 dark:border-surface-700">
+                  {[2, 24, 168, -1].map((hours) => {
+                    const label = hours === -1 ? 'Für immer' : hours === 1 ? '1 Stunde' : `${hours} Stunden`;
+                    const duration = hours === -1 ? 2147483647 : hours * 3600;
+                    return (
+                      <button
+                        key={hours}
+                        onClick={async () => {
+                          setMuteMenuOpen(false);
+                          setMobileMenuOpen(false);
+                          setNotificationsLoading(true);
+                          try {
+                            await api.setChannelNotifications(chat.id, false, duration);
+                            setNotificationsMuted(true);
+                          } catch (err) {
+                            alert(err instanceof Error ? err.message : 'Fehler beim Stummschalten');
+                          } finally {
+                            setNotificationsLoading(false);
+                          }
+                        }}
+                        className="flex w-full items-center gap-3 px-4 py-2 pl-10 text-left text-sm text-surface-600 transition hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-700"
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {/* Search */}
               <button
                 onClick={() => { setSearchOpen((o) => !o); setMobileMenuOpen(false); }}
