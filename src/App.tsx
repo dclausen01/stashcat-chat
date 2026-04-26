@@ -194,10 +194,10 @@ export default function App() {
         />
       )}
 
-      {/* Mobile: Hamburger toggle button */}
+      {/* Mobile: Hamburger toggle button - top right, outside content flow */}
       <button
         onClick={() => setSidebarOpen((v) => !v)}
-        className="fixed left-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-white/90 text-surface-700 shadow-md backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white lg:hidden"
+        className="fixed right-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-white/90 text-surface-700 shadow-md backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white lg:hidden"
         aria-label={sidebarOpen ? 'Menü schließen' : 'Menü öffnen'}
       >
         {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
