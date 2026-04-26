@@ -187,7 +187,7 @@ export default function FavoriteCardsView({ channels, onSelectChat, onOpenSideba
 
         {/* Conversations section — separator + same layout */}
         <FavoriteSection
-          title="Favorisierte Konversationen"
+          title="Favorisierte Direktnachrichten"
           channels={favorites.filter((ch) => ch.type === 'conversation')}
           onSelectChat={onSelectChat}
           favoriteCardsSortMode={favoriteCardsSortMode}
