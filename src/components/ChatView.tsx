@@ -1188,7 +1188,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         </div>
       )}
       {/* Header */}
-      <div className="relative flex shrink-0 items-center gap-3 border-b border-surface-200 px-4 py-3 sm:px-6 dark:border-surface-700">
+      <div className="relative flex shrink-0 items-center gap-3 overflow-visible border-b border-surface-200 px-4 py-3 sm:px-6 dark:border-surface-700">
         {/* Mobile: Back button */}
         <button
           onClick={onGoHome}
@@ -1210,7 +1210,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             {/* Mobile: title opens menu, Desktop: just text */}
             <button
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="flex items-center gap-1.5 truncate text-base font-semibold text-surface-900 dark:text-white lg:cursor-default lg:bg-transparent lg:px-0 lg:hover:bg-transparent"
+              className="flex w-full items-center gap-1.5 truncate text-left text-base font-semibold text-surface-900 dark:text-white lg:cursor-default lg:bg-transparent lg:hover:bg-transparent"
               title="Menü öffnen"
             >
               <span className="truncate">{chat.name}</span>
@@ -1486,7 +1486,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         {mobileMenuOpen && (
           <>
             <div className="pointer-events-none fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileMenuOpen(false)} />
-            <div className="pointer-events-auto absolute left-12 top-full z-50 mt-1 w-56 rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 lg:hidden">
+            <div className="pointer-events-auto fixed left-4 right-4 top-20 z-50 mx-auto w-full max-w-sm rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 lg:hidden">
               {/* Favorite toggle */}
               {onToggleFavorite && (
                 <button
