@@ -204,8 +204,8 @@ export default function App() {
         />
       )}
 
-      {/* Mobile: Hamburger toggle button - only show when no chat is active and no panel is open */}
-      {!activeChat && !settingsOpen && !fileBrowserOpen && !broadcastsOpen && !notificationsOpen && (
+      {/* Mobile: Hamburger toggle button - only show when no chat/view and no panel is open */}
+      {!activeChat && !settingsOpen && !fileBrowserOpen && !broadcastsOpen && !notificationsOpen && activeView === 'chat' && (
         <button
           onClick={() => setSidebarOpen((v) => !v)}
           className="fixed right-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-white/90 text-surface-700 shadow-md backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white lg:hidden"
@@ -216,9 +216,9 @@ export default function App() {
       )}
 
       {activeView === 'calendar' ? (
-        <CalendarView eventIdToOpen={eventIdToOpen} onEventOpened={() => setEventIdToOpen(null)} />
+        <CalendarView eventIdToOpen={eventIdToOpen} onEventOpened={() => setEventIdToOpen(null)} onOpenSidebar={() => setSidebarOpen(true)} />
       ) : activeView === 'polls' ? (
-        <PollsView pollIdToOpen={pollIdToOpen} onPollOpened={() => setPollIdToOpen(null)} />
+        <PollsView pollIdToOpen={pollIdToOpen} onPollOpened={() => setPollIdToOpen(null)} onOpenSidebar={() => setSidebarOpen(true)} />
       ) : (
         <>
           {activeChat
@@ -272,8 +272,28 @@ export default function App() {
           )}
         </>
       )}
-      {settingsOpen && !sidebarOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
-      {profileOpen && !sidebarOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
+      {settingsOpen && !sidebarOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 lg:relative lg:inset-auto lg:bg-transparent lg:z-auto">
+          <button
+            onClick={() => setSettingsOpen(false)}
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-surface-700 shadow backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white lg:hidden"
+          >
+            <X size={20} />
+          </button>
+          <SettingsPanel onClose={() => setSettingsOpen(false)} />
+        </div>
+      )}
+      {profileOpen && !sidebarOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 lg:relative lg:inset-auto lg:bg-transparent lg:z-auto">
+          <button
+            onClick={() => setProfileOpen(false)}
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-surface-700 shadow backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white lg:hidden"
+          >
+            <X size={20} />
+          </button>
+          <ProfileModal onClose={() => setProfileOpen(false)} />
+        </div>
+      )}
       {activeCall && (
         <CallModal
           call={activeCall}

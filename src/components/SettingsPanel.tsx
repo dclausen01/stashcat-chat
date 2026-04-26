@@ -124,12 +124,12 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
   const namedPresets = mode === 'light' ? LIGHT_PRESETS : DARK_PRESETS;
 
   return (
-    <div className="flex h-full w-64 shrink-0 flex-col border-l border-surface-200 bg-[var(--theme-panel)] dark:border-surface-700">
+    <div className="flex h-full w-full flex-col border-l border-surface-200 bg-[var(--theme-panel)] dark:border-surface-700 sm:w-64 lg:w-64">
       <div className="flex shrink-0 items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-700">
         <h3 className="text-sm font-semibold text-surface-900 dark:text-white">Einstellungen</h3>
         <button
           onClick={onClose}
-          className="rounded-md p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700"
+          className="hidden rounded-md p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 lg:block"
         >
           <X size={16} />
         </button>

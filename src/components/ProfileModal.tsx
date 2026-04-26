@@ -113,18 +113,17 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
   const userImage = user?.image;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white shadow-xl dark:bg-surface-800">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-700">
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Mein Profil</h2>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700"
-          >
-            <X size={20} />
-          </button>
-        </div>
+    <div className="w-full max-w-md rounded-xl bg-white shadow-xl dark:bg-surface-800">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-700">
+        <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Mein Profil</h2>
+        <button
+          onClick={onClose}
+          className="hidden rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 lg:block"
+        >
+          <X size={20} />
+        </button>
+      </div>
 
         {/* Content */}
         <div className="p-6">
@@ -236,7 +235,6 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
         <div className="rounded-b-xl border-t border-surface-200 bg-surface-50 px-4 py-3 text-center text-xs text-surface-600 dark:border-surface-700 dark:bg-surface-900">
           Name und E-Mail werden über LDAP synchronisiert.
         </div>
-      </div>
     </div>
   );
 }

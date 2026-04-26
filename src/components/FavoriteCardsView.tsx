@@ -169,63 +169,35 @@ export default function FavoriteCardsView({ channels, onSelectChat, onOpenSideba
         </div>
       </div>
       <div className="flex-1 overflow-y-auto p-3 sm:p-6">
-        {/* Mobile: List layout */}
-        <div className="flex flex-col gap-2 lg:hidden">
-          {favorites.map((ch) => (
-            <button
-              key={ch.id}
-              onClick={() => onSelectChat(ch)}
-              draggable={favoriteCardsSortMode === 'manual'}
-              onDragStart={favoriteCardsSortMode === 'manual' ? (e) => handleDragStart(e, ch.id) : undefined}
-              onDragOver={favoriteCardsSortMode === 'manual' ? (e) => handleDragOver(e, ch.id) : undefined}
-              onDragLeave={handleDragLeave}
-              onDrop={favoriteCardsSortMode === 'manual' ? (e) => handleDrop(e, ch.id) : undefined}
-              onDragEnd={handleDragEnd}
-              className="group flex items-center gap-3 rounded-lg bg-surface-50 p-3 text-left transition hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700"
-            >
-              <div className="relative shrink-0">
-                {ch.image ? (
-                  <Avatar name={ch.name} image={ch.image} size="md" />
-                ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400">
-                    <Hash size={18} />
-                  </div>
-                )}
-                {(ch.unread_count ?? 0) > 0 && (
-                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-bold text-white">
-                    {(ch.unread_count ?? 0) > 99 ? '99+' : ch.unread_count}
-                  </span>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-medium text-surface-700 group-hover:text-surface-900 dark:text-surface-300 dark:group-hover:text-white">
-                    {ch.name}
-                  </span>
-                  {ch.encrypted && <span className="shrink-0 text-xs text-surface-500">🔒</span>}
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-        {/* Desktop: Grid layout */}
-        <div className="hidden grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-4 lg:grid">
-          {favorites.map((ch) => (
-            <ChannelCard
-              key={ch.id}
-              channel={ch}
-              onClick={() => onSelectChat(ch)}
-              draggable={favoriteCardsSortMode === 'manual'}
-              isDragging={draggingId === ch.id}
-              isDragOver={dragOverId === ch.id}
-              onDragStart={(e) => handleDragStart(e, ch.id)}
-              onDragOver={(e) => handleDragOver(e, ch.id)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, ch.id)}
-              onDragEnd={handleDragEnd}
-            />
-          ))}
-        </div>
+        {/* Channels section */}
+        <FavoriteSection
+          title="Favorisierte Channels"
+          channels={channels.filter((ch) => ch.type === 'channel')}
+          onSelectChat={onSelectChat}
+          favoriteCardsSortMode={favoriteCardsSortMode}
+          draggingId={draggingId}
+          dragOverId={dragOverId}
+          handleDragStart={handleDragStart}
+          handleDragOver={handleDragOver}
+          handleDragLeave={handleDragLeave}
+          handleDrop={handleDrop}
+          handleDragEnd={handleDragEnd}
+        />
+
+        {/* Conversations section — separator + same layout */}
+        <FavoriteSection
+          title="Favorisierte Konversationen"
+          channels={channels.filter((ch) => ch.type === 'conversation')}
+          onSelectChat={onSelectChat}
+          favoriteCardsSortMode={favoriteCardsSortMode}
+          draggingId={draggingId}
+          dragOverId={dragOverId}
+          handleDragStart={handleDragStart}
+          handleDragOver={handleDragOver}
+          handleDragLeave={handleDragLeave}
+          handleDrop={handleDrop}
+          handleDragEnd={handleDragEnd}
+        />
       </div>
     </div>
   );
@@ -254,6 +226,111 @@ function SortModeButton({ active, onClick, icon, label }: {
   );
 }
 
+interface FavoriteSectionProps {
+  title: string;
+  channels: ChatTarget[];
+  onSelectChat: (target: ChatTarget) => void;
+  favoriteCardsSortMode: 'sidebar' | 'alphabetical' | 'manual';
+  draggingId: string | null;
+  dragOverId: string | null;
+  handleDragStart: (e: React.DragEvent, id: string) => void;
+  handleDragOver: (e: React.DragEvent, id: string) => void;
+  handleDragLeave: (e: React.DragEvent) => void;
+  handleDrop: (e: React.DragEvent, id: string) => void;
+  handleDragEnd: () => void;
+}
+
+function FavoriteSection({
+  title,
+  channels,
+  onSelectChat,
+  favoriteCardsSortMode,
+  draggingId,
+  dragOverId,
+  handleDragStart,
+  handleDragOver,
+  handleDragLeave,
+  handleDrop,
+  handleDragEnd,
+}: FavoriteSectionProps) {
+  if (channels.length === 0) return null;
+
+  const isConversation = title.includes('Konversation');
+
+  return (
+    <div className="mb-6">
+      {/* Section title */}
+      <h3 className="mb-3 px-1 text-xs font-semibold uppercase tracking-wider text-surface-500">
+        {title}
+      </h3>
+
+      {/* Mobile: List layout */}
+      <div className="flex flex-col gap-2 lg:hidden">
+        {channels.map((ch) => (
+          <button
+            key={ch.id}
+            onClick={() => onSelectChat(ch)}
+            draggable={favoriteCardsSortMode === 'manual'}
+            onDragStart={favoriteCardsSortMode === 'manual' ? (e) => handleDragStart(e, ch.id) : undefined}
+            onDragOver={favoriteCardsSortMode === 'manual' ? (e) => handleDragOver(e, ch.id) : undefined}
+            onDragLeave={handleDragLeave}
+            onDrop={favoriteCardsSortMode === 'manual' ? (e) => handleDrop(e, ch.id) : undefined}
+            onDragEnd={handleDragEnd}
+            className="group flex items-center gap-3 rounded-lg bg-surface-50 p-3 text-left transition hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700"
+          >
+            <div className="relative shrink-0">
+              {ch.image ? (
+                <Avatar name={ch.name} image={ch.image} size="md" />
+              ) : isConversation ? (
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-200 text-surface-600 dark:bg-surface-700 dark:text-surface-300">
+                  <span className="text-sm font-medium">{ch.name.charAt(0).toUpperCase()}</span>
+                </div>
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400">
+                  <Hash size={18} />
+                </div>
+              )}
+              {(ch.unread_count ?? 0) > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-bold text-white">
+                  {(ch.unread_count ?? 0) > 99 ? '99+' : ch.unread_count}
+                </span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-sm font-medium text-surface-700 group-hover:text-surface-900 dark:text-surface-300 dark:group-hover:text-white">
+                  {ch.name}
+                </span>
+                {ch.encrypted && <span className="shrink-0 text-xs text-surface-500">🔒</span>}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Desktop: Grid layout */}
+      <div className="hidden grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-4 lg:grid">
+        {channels.map((ch) => (
+          <ChannelCard
+            key={ch.id}
+            channel={ch}
+            onClick={() => onSelectChat(ch)}
+            draggable={favoriteCardsSortMode === 'manual'}
+            isDragging={draggingId === ch.id}
+            isDragOver={dragOverId === ch.id}
+            onDragStart={(e) => handleDragStart(e, ch.id)}
+            onDragOver={(e) => handleDragOver(e, ch.id)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, ch.id)}
+            onDragEnd={handleDragEnd}
+            isConversation={isConversation}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface ChannelCardProps {
   channel: ChatTarget;
   onClick: () => void;
@@ -265,6 +342,7 @@ interface ChannelCardProps {
   onDragLeave: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent) => void;
   onDragEnd: () => void;
+  isConversation?: boolean;
 }
 
 function ChannelCard({
@@ -278,6 +356,7 @@ function ChannelCard({
   onDragLeave,
   onDrop,
   onDragEnd,
+  isConversation = false,
 }: ChannelCardProps) {
   return (
     <button
@@ -304,6 +383,10 @@ function ChannelCard({
       <div className="relative">
         {channel.image ? (
           <Avatar name={channel.name} image={channel.image} size="lg" />
+        ) : isConversation ? (
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-200 text-lg font-medium text-surface-600 dark:bg-surface-700 dark:text-surface-300">
+            {channel.name.charAt(0).toUpperCase()}
+          </div>
         ) : (
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400">
             <Hash size={24} />

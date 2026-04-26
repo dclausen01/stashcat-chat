@@ -313,6 +313,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh, onDelete }: { poll: Po
 interface PollsViewProps {
   pollIdToOpen?: string | null;
   onPollOpened?: () => void;
+  onOpenSidebar?: () => void;
 }
 
 export default function PollsView({ pollIdToOpen, onPollOpened }: PollsViewProps) {
