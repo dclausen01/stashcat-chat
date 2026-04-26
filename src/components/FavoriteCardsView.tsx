@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Hash, Star, ArrowUpDown, ArrowDownAZ, Hand } from 'lucide-react';
+import { Hash, Star, ArrowUpDown, ArrowDownAZ, Hand, ChevronDown } from 'lucide-react';
 import Avatar from './Avatar';
 import { useSettings } from '../context/SettingsContext';
 import type { ChatTarget } from '../types';
@@ -7,6 +7,7 @@ import type { ChatTarget } from '../types';
 interface FavoriteCardsViewProps {
   channels: ChatTarget[];
   onSelectChat: (target: ChatTarget) => void;
+  onOpenSidebar?: () => void;
 }
 
 const MANUAL_ORDER_KEY = 'schulchat_favorite_manual_order';
@@ -23,7 +24,7 @@ function saveManualOrder(order: string[]) {
   localStorage.setItem(MANUAL_ORDER_KEY, JSON.stringify(order));
 }
 
-export default function FavoriteCardsView({ channels, onSelectChat }: FavoriteCardsViewProps) {
+export default function FavoriteCardsView({ channels, onSelectChat, onOpenSidebar }: FavoriteCardsViewProps) {
   const { favoriteCardsSortMode, setFavoriteCardsSortMode } = useSettings();
   const [manualOrder, setManualOrder] = useState<string[]>(loadManualOrder);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -131,9 +132,16 @@ export default function FavoriteCardsView({ channels, onSelectChat }: FavoriteCa
       <div className="shrink-0 border-b border-surface-200 px-6 py-4 dark:border-surface-700">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-surface-900 dark:text-white">
-              Favorisierte Channels
-            </h2>
+            <button
+              onClick={onOpenSidebar}
+              className="flex items-center gap-1.5 text-left lg:cursor-default"
+              title="Menü öffnen"
+            >
+              <h2 className="text-lg font-semibold text-surface-900 dark:text-white">
+                Favorisierte Channels
+              </h2>
+              <ChevronDown size={14} className="shrink-0 text-surface-400 lg:hidden" />
+            </button>
             <p className="text-sm text-surface-500">
               {favorites.length} Channel{favorites.length !== 1 ? 's' : ''} als Favorit markiert
             </p>

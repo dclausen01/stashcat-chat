@@ -194,14 +194,16 @@ export default function App() {
         />
       )}
 
-      {/* Mobile: Hamburger toggle button - top right, outside content flow */}
-      <button
-        onClick={() => setSidebarOpen((v) => !v)}
-        className="fixed right-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-white/90 text-surface-700 shadow-md backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white lg:hidden"
-        aria-label={sidebarOpen ? 'Menü schließen' : 'Menü öffnen'}
-      >
-        {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-      </button>
+      {/* Mobile: Hamburger toggle button - only show when no chat is active (title acts as menu button in chat view) */}
+      {!activeChat && (
+        <button
+          onClick={() => setSidebarOpen((v) => !v)}
+          className="fixed right-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-white/90 text-surface-700 shadow-md backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white lg:hidden"
+          aria-label={sidebarOpen ? 'Menü schließen' : 'Menü öffnen'}
+        >
+          {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      )}
 
       {activeView === 'calendar' ? (
         <CalendarView eventIdToOpen={eventIdToOpen} onEventOpened={() => setEventIdToOpen(null)} />
@@ -231,7 +233,7 @@ export default function App() {
                 onToggleFavorite={handleToggleFavoriteFromChatView}
               />
             : homeView === 'cards'
-              ? <FavoriteCardsView channels={channels} onSelectChat={handleSelectChat} />
+              ? <FavoriteCardsView channels={channels} onSelectChat={handleSelectChat} onOpenSidebar={() => setSidebarOpen(true)} />
               : <EmptyState />}
           {fileBrowserOpen && (
             <div className="fixed inset-0 z-40 flex lg:relative lg:inset-auto lg:z-auto">

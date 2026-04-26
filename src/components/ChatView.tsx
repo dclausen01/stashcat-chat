@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, MoreVertical } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, ChevronDown } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -1205,9 +1205,18 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         ) : (
           <Avatar name={chat.name} image={chat.image} size="md" />
         )}
-        <div className="min-w-0 flex-1 pr-2 sm:pr-0">
+        <div className="min-w-0 flex-1">
           <div className="relative flex items-center gap-2">
-            <h2 className="truncate text-base font-semibold text-surface-900 dark:text-white">{chat.name}</h2>
+            {/* Mobile: title opens menu, Desktop: just text */}
+            <button
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              className="flex items-center gap-1.5 truncate text-base font-semibold text-surface-900 dark:text-white lg:cursor-default lg:bg-transparent lg:px-0 lg:hover:bg-transparent"
+              title="Menü öffnen"
+            >
+              <span className="truncate">{chat.name}</span>
+              {/* Mobile: small chevron indicator */}
+              <ChevronDown size={14} className="shrink-0 text-surface-400 lg:hidden" />
+            </button>
             {/* Favorite toggle — desktop only (mobile has it in the more menu) */}
             {onToggleFavorite && (
               <button
@@ -1473,26 +1482,11 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           <Search size={20} />
         </button>
 
-        {/* Mobile: Home button (redundant with hamburger, remove) */}
-
-        {/* Mobile: More menu button — the only visible action on mobile */}
-        <button
-          onClick={() => setMobileMenuOpen((v) => !v)}
-          className={clsx(
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-700',
-            // On desktop, hide (desktop has all buttons inline)
-            'lg:hidden',
-          )}
-          aria-label="Weitere Aktionen"
-        >
-          {mobileMenuOpen ? <X size={20} /> : <MoreVertical size={20} />}
-        </button>
-
-        {/* Mobile: More menu dropdown */}
+        {/* Mobile: More menu dropdown — opens from the title button */}
         {mobileMenuOpen && (
           <>
             <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setMobileMenuOpen(false)} />
-            <div className="absolute right-2 top-full z-50 mt-1 w-56 rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 lg:hidden">
+            <div className="absolute left-12 top-full z-50 mt-1 w-56 rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 lg:hidden">
               {/* Favorite toggle */}
               {onToggleFavorite && (
                 <button
