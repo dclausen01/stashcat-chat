@@ -1539,8 +1539,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 )}
                 {notificationsMuted ? 'Benachrichtigungen aktivieren' : 'Benachrichtigungen stummschalten'}
               </button>
-              {/* Mute duration options — shown inline when not muted */}
-              {!notificationsMuted && muteMenuOpen && (
+              {/* Mute duration options — shown inline on mobile only when not muted */}
+              {!notificationsMuted && muteMenuOpen && !isDesktop && (
                 <div className="border-t border-surface-200 dark:border-surface-700">
                   {[2, 24, 168, -1].map((hours) => {
                     const label = hours === -1 ? 'Für immer' : hours === 1 ? '1 Stunde' : `${hours} Stunden`;
