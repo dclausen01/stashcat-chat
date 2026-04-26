@@ -182,6 +182,7 @@ export default function FavoriteCardsView({ channels, onSelectChat, onOpenSideba
           handleDragLeave={handleDragLeave}
           handleDrop={handleDrop}
           handleDragEnd={handleDragEnd}
+          isConversation={false}
         />
 
         {/* Conversations section — separator + same layout */}
@@ -197,6 +198,7 @@ export default function FavoriteCardsView({ channels, onSelectChat, onOpenSideba
           handleDragLeave={handleDragLeave}
           handleDrop={handleDrop}
           handleDragEnd={handleDragEnd}
+          isConversation={true}
         />
       </div>
     </div>
@@ -238,6 +240,7 @@ interface FavoriteSectionProps {
   handleDragLeave: (e: React.DragEvent) => void;
   handleDrop: (e: React.DragEvent, id: string) => void;
   handleDragEnd: () => void;
+  isConversation?: boolean;
 }
 
 function FavoriteSection({
@@ -252,10 +255,9 @@ function FavoriteSection({
   handleDragLeave,
   handleDrop,
   handleDragEnd,
+  isConversation = false,
 }: FavoriteSectionProps) {
   if (channels.length === 0) return null;
-
-  const isConversation = title.includes('Konversation');
 
   return (
     <div className="mb-6">
