@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, MoreVertical } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -208,7 +208,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [notificationsMuted, setNotificationsMuted] = useState(chat.muted === true);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [muteMenuOpen, setMuteMenuOpen] = useState(false);
-  const muteMenuRef = useRef<HTMLDivElement>(null);
   const [showPollModal, setShowPollModal] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showWhiteboardModal, setShowWhiteboardModal] = useState(false);
@@ -216,6 +215,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMatchIdx, setSearchMatchIdx] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -282,18 +282,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   useEffect(() => {
     setChatImage(chat.image || '');
   }, [chat.image, chat.id]);
-
-  // Close mute menu when clicking outside
-  useEffect(() => {
-    if (!muteMenuOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (muteMenuRef.current && !muteMenuRef.current.contains(e.target as Node)) {
-        setMuteMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [muteMenuOpen]);
 
   // Clear pending message indicators when switching chats
   useEffect(() => {
@@ -1218,14 +1206,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           <Avatar name={chat.name} image={chat.image} size="md" />
         )}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="relative flex items-center gap-2">
             <h2 className="truncate text-base font-semibold text-surface-900 dark:text-white">{chat.name}</h2>
-            {/* Favorite toggle button */}
+            {/* Favorite toggle — desktop only (mobile has it in the more menu) */}
             {onToggleFavorite && (
               <button
                 onClick={() => onToggleFavorite(chat)}
                 className={clsx(
-                  'rounded p-0.5 transition',
+                  'hidden rounded p-0.5 transition lg:block',
                   chat.favorite
                     ? 'text-yellow-400 hover:text-yellow-500'
                     : 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300',
@@ -1235,75 +1223,74 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 <Star size={14} className={chat.favorite ? 'fill-yellow-400' : ''} />
               </button>
             )}
-            {/* Notifications mute toggle with duration options */}
-            <div className="relative" ref={muteMenuRef}>
-              <button
-                onClick={async () => {
-                  if (notificationsLoading) return;
-                  if (notificationsMuted) {
-                    setNotificationsLoading(true);
-                    try {
-                      await api.setChannelNotifications(chat.id, true);
-                      setNotificationsMuted(false);
-                    } catch (err) {
-                      console.error('Failed to enable notifications:', err);
-                      alert(err instanceof Error ? err.message : 'Fehler beim Aktivieren der Benachrichtigungen');
-                    } finally {
-                      setNotificationsLoading(false);
-                    }
-                  } else {
-                    setMuteMenuOpen((v) => !v);
+            {/* Notifications bell — desktop only (mobile has it in the more menu) */}
+            <button
+              onClick={async () => {
+                if (notificationsLoading) return;
+                if (notificationsMuted) {
+                  setNotificationsLoading(true);
+                  try {
+                    await api.setChannelNotifications(chat.id, true);
+                    setNotificationsMuted(false);
+                  } catch (err) {
+                    console.error('Failed to enable notifications:', err);
+                    alert(err instanceof Error ? err.message : 'Fehler beim Aktivieren der Benachrichtigungen');
+                  } finally {
+                    setNotificationsLoading(false);
                   }
-                }}
-                disabled={notificationsLoading}
-                className={clsx(
-                  'rounded p-0.5 transition',
-                  notificationsLoading && 'opacity-50 cursor-not-allowed',
-                  notificationsMuted
-                    ? 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300'
-                    : 'text-primary-500 hover:text-primary-600',
-                )}
-                title={notificationsMuted ? 'Benachrichtigungen aktivieren' : 'Benachrichtigungen stummschalten'}
-              >
-                {notificationsLoading ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : notificationsMuted ? (
-                  <BellOff size={14} />
-                ) : (
-                  <Bell size={14} />
-                )}
-              </button>
-              {muteMenuOpen && !notificationsMuted && (
-                <div className="absolute left-0 top-full z-50 mt-1 w-40 rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800">
-                  {[
-                    { label: '2 Stunden', duration: 7200 },
-                    { label: '1 Tag', duration: 86400 },
-                    { label: '7 Tage', duration: 604800 },
-                    { label: 'Für immer', duration: 2147483647 },
-                  ].map((opt) => (
-                    <button
-                      key={opt.duration}
-                      onClick={async () => {
-                        setMuteMenuOpen(false);
-                        setNotificationsLoading(true);
-                        try {
-                          await api.setChannelNotifications(chat.id, false, opt.duration);
-                          setNotificationsMuted(true);
-                        } catch (err) {
-                          console.error('Failed to mute notifications:', err);
-                          alert(err instanceof Error ? err.message : 'Fehler beim Stummschalten');
-                        } finally {
-                          setNotificationsLoading(false);
-                        }
-                      }}
-                      className="block w-full px-3 py-1.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
+                } else {
+                  setMuteMenuOpen((v) => !v);
+                }
+              }}
+              disabled={notificationsLoading}
+              className={clsx(
+                'hidden rounded p-0.5 transition lg:block',
+                notificationsLoading && 'opacity-50 cursor-not-allowed',
+                notificationsMuted
+                  ? 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300'
+                  : 'text-primary-500 hover:text-primary-600',
               )}
-            </div>
+              title={notificationsMuted ? 'Benachrichtigungen aktivieren' : 'Benachrichtigungen stummschalten'}
+            >
+              {notificationsLoading ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : notificationsMuted ? (
+                <BellOff size={14} />
+              ) : (
+                <Bell size={14} />
+              )}
+            </button>
+            {/* Desktop mute duration menu */}
+            {muteMenuOpen && (
+              <div className="absolute left-0 top-full z-50 mt-1 w-40 rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800">
+                {[
+                  { label: '2 Stunden', duration: 7200 },
+                  { label: '1 Tag', duration: 86400 },
+                  { label: '7 Tage', duration: 604800 },
+                  { label: 'Für immer', duration: 2147483647 },
+                ].map((opt) => (
+                  <button
+                    key={opt.duration}
+                    onClick={async () => {
+                      setMuteMenuOpen(false);
+                      setNotificationsLoading(true);
+                      try {
+                        await api.setChannelNotifications(chat.id, false, opt.duration);
+                        setNotificationsMuted(true);
+                      } catch (err) {
+                        console.error('Failed to mute notifications:', err);
+                        alert(err instanceof Error ? err.message : 'Fehler beim Stummschalten');
+                      } finally {
+                        setNotificationsLoading(false);
+                      }
+                    }}
+                    className="block w-full px-3 py-1.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           {cleanDescription ? (
             <div className="flex items-center gap-1">
@@ -1329,123 +1316,122 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             </button>
           ) : null}
         </div>
-        {/* Video meeting button */}
-        <button
-          onClick={async () => {
-            if (meetingLoading) return;
-            setMeetingLoading(true);
-            // Open blank tab NOW (direct user gesture) — browsers block window.open() after async awaits
-            const moderatorTab = window.open('', '_blank');
-            if (moderatorTab) {
-              moderatorTab.document.write(`<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>Videokonferenz wird geladen…</title><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#1e293b;font-family:system-ui,sans-serif;color:#e2e8f0}.card{text-align:center;padding:2.5rem 3rem;background:#0f172a;border-radius:1.5rem;border:1px solid #334155;box-shadow:0 25px 50px #0006}.spinner{width:48px;height:48px;border:4px solid #334155;border-top-color:#6366f1;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1.5rem}.emoji{font-size:3rem;margin-bottom:1rem}h1{font-size:1.25rem;font-weight:600;color:#f1f5f9;margin-bottom:.5rem}p{font-size:.9rem;color:#94a3b8}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="card"><div class="emoji">📹</div><div class="spinner"></div><h1>Videokonferenz wird geladen…</h1><p>Bitte einen Moment warten.</p></div></body></html>`);
-              moderatorTab.document.close();
-            }
-            try {
-              const result = await api.startVideoMeeting(chat.id, chat.type);
-              // Navigate the pre-opened tab to the moderator link (fallback: invite link)
-              const tabLink = result.moderatorLink ?? result.inviteLink;
-              if (tabLink && moderatorTab) {
-                moderatorTab.location.href = tabLink;
-              } else if (moderatorTab) {
-                moderatorTab.close();
-              }
-              // Post invite link as formatted message in current chat
-              if (result.inviteLink) {
-                const now = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-                const text = `📹 Videokonferenz gestartet um ${now} Uhr\nJetzt beitreten: ${result.inviteLink}`;
-                await api.sendMessage(chat.id, chat.type, text);
-                await loadMessages();
-              }
-            } catch (err) {
-              moderatorTab?.close();
-              console.error('Failed to start meeting:', err);
-              alert(err instanceof Error ? err.message : 'Videokonferenz konnte nicht erstellt werden');
-            } finally {
-              setMeetingLoading(false);
-            }
-          }}
-          disabled={meetingLoading}
-          className={clsx(
-            'rounded-lg p-2 transition',
-            meetingLoading
-              ? 'animate-pulse text-primary-500'
-              : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
-          )}
-          title="Videokonferenz starten"
-        >
-          {meetingLoading ? <Loader2 size={20} className="animate-spin" /> : <TvMinimalPlay size={20} />}
-        </button>
-        {/* Audio call button — only for 1:1 conversations */}
-        {chat.type === 'conversation' && chat.userId && onStartCall && (
+        {/* Desktop: Action buttons inline */}
+        <div className="hidden lg:flex lg:items-center lg:gap-1">
+          {/* Video meeting button */}
           <button
-            onClick={() => {
-              const callee = {
-                id: chat.userId!,
-                first_name: chat.name.split(' ')[0] ?? chat.name,
-                last_name: chat.name.split(' ').slice(1).join(' '),
-                image: chat.image,
-              };
-              onStartCall(chat.userId!, chat.id, callee);
+            onClick={async () => {
+              if (meetingLoading) return;
+              setMeetingLoading(true);
+              const moderatorTab = window.open('', '_blank');
+              if (moderatorTab) {
+                moderatorTab.document.write(`<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>Videokonferenz wird geladen…</title><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#1e293b;font-family:system-ui,sans-serif;color:#e2e8f0}.card{text-align:center;padding:2.5rem 3rem;background:#0f172a;border-radius:1.5rem;border:1px solid #334155;box-shadow:0 25px 50px #0006}.spinner{width:48px;height:48px;border:4px solid #334155;border-top-color:#6366f1;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1.5rem}.emoji{font-size:3rem;margin-bottom:1rem}h1{font-size:1.25rem;font-weight:600;color:#f1f5f9;margin-bottom:.5rem}p{font-size:.9rem;color:#94a3b8}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="card"><div class="emoji">📹</div><div class="spinner"></div><h1>Videokonferenz wird geladen…</h1><p>Bitte einen Moment warten.</p></div></body></html>`);
+                moderatorTab.document.close();
+              }
+              try {
+                const result = await api.startVideoMeeting(chat.id, chat.type);
+                const tabLink = result.moderatorLink ?? result.inviteLink;
+                if (tabLink && moderatorTab) {
+                  moderatorTab.location.href = tabLink;
+                } else if (moderatorTab) {
+                  moderatorTab.close();
+                }
+                if (result.inviteLink) {
+                  const now = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                  const text = `📹 Videokonferenz gestartet um ${now} Uhr\nJetzt beitreten: ${result.inviteLink}`;
+                  await api.sendMessage(chat.id, chat.type, text);
+                  await loadMessages();
+                }
+              } catch (err) {
+                moderatorTab?.close();
+                console.error('Failed to start meeting:', err);
+                alert(err instanceof Error ? err.message : 'Videokonferenz konnte nicht erstellt werden');
+              } finally {
+                setMeetingLoading(false);
+              }
             }}
+            disabled={meetingLoading}
             className={clsx(
               'rounded-lg p-2 transition',
-              'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
-            )}
-            title="Audioanruf starten"
-          >
-            <Phone size={20} />
-          </button>
-        )}
-        {/* Service link buttons extracted from channel description */}
-        {serviceLinks.map((link, i) => (
-          <a
-            key={`${link.type}-${i}`}
-            href={link.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={`${link.label || SERVICE_LINK_DEFAULTS[link.type]} öffnen`}
-            className={clsx(
-              'flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90',
-              link.type === 'moodle' && 'bg-orange-500 hover:bg-orange-600',
-              link.type === 'bbb' && 'bg-blue-500 hover:bg-blue-600',
-              link.type === 'taskcards' && 'bg-teal-500 hover:bg-teal-600',
-              link.type === 'nextcloud' && 'bg-indigo-500 hover:bg-indigo-600',
-              link.type === 'onenote' && 'bg-purple-500 hover:bg-purple-600',
-              link.type === 'link' && 'bg-surface-600 hover:bg-surface-700',
-            )}
-          >
-            {link.type === 'moodle' && <GraduationCap size={14} />}
-            {link.type === 'bbb' && <Video size={14} />}
-            {link.type === 'taskcards' && <span className="font-bold leading-none">T</span>}
-            {link.type === 'nextcloud' && <Cloud size={14} />}
-            {link.type === 'onenote' && <BookOpen size={14} />}
-            {link.type === 'link' && <ExternalLink size={14} />}
-            {link.label || SERVICE_LINK_DEFAULTS[link.type]}
-          </a>
-        ))}
-        {chat.type === 'channel' && isManager && (
-          <ChannelDropdownMenu
-            chat={chat}
-            isManager={isManager}
-            onOpenMembers={() => setMembersOpen(true)}
-            onOpenDescriptionEditor={() => setDescEditorOpen(true)}
-            onOpenImageEditor={() => setImageEditorOpen(true)}
-          />
-        )}
-        {chat.type === 'channel' && (
-          <button
-            onClick={() => setMembersOpen((o) => !o)}
-            className={clsx(
-              'rounded-lg p-2 transition',
-              membersOpen
-                ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+              meetingLoading
+                ? 'animate-pulse text-primary-500'
                 : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
             )}
-            title="Mitglieder"
+            title="Videokonferenz starten"
           >
-            <Users size={20} />
+            {meetingLoading ? <Loader2 size={20} className="animate-spin" /> : <TvMinimalPlay size={20} />}
           </button>
-        )}
+          {/* Audio call button — only for 1:1 conversations */}
+          {chat.type === 'conversation' && chat.userId && onStartCall && (
+            <button
+              onClick={() => {
+                const callee = {
+                  id: chat.userId!,
+                  first_name: chat.name.split(' ')[0] ?? chat.name,
+                  last_name: chat.name.split(' ').slice(1).join(' '),
+                  image: chat.image,
+                };
+                onStartCall(chat.userId!, chat.id, callee);
+              }}
+              className="rounded-lg p-2 text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800"
+              title="Audioanruf starten"
+            >
+              <Phone size={20} />
+            </button>
+          )}
+          {/* Service link buttons */}
+          {serviceLinks.map((link, i) => (
+            <a
+              key={`${link.type}-${i}`}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`${link.label || SERVICE_LINK_DEFAULTS[link.type]} öffnen`}
+              className={clsx(
+                'flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90',
+                link.type === 'moodle' && 'bg-orange-500 hover:bg-orange-600',
+                link.type === 'bbb' && 'bg-blue-500 hover:bg-blue-600',
+                link.type === 'taskcards' && 'bg-teal-500 hover:bg-teal-600',
+                link.type === 'nextcloud' && 'bg-indigo-500 hover:bg-indigo-600',
+                link.type === 'onenote' && 'bg-purple-500 hover:bg-purple-600',
+                link.type === 'link' && 'bg-surface-600 hover:bg-surface-700',
+              )}
+            >
+              {link.type === 'moodle' && <GraduationCap size={14} />}
+              {link.type === 'bbb' && <Video size={14} />}
+              {link.type === 'taskcards' && <span className="font-bold leading-none">T</span>}
+              {link.type === 'nextcloud' && <Cloud size={14} />}
+              {link.type === 'onenote' && <BookOpen size={14} />}
+              {link.type === 'link' && <ExternalLink size={14} />}
+              {link.label || SERVICE_LINK_DEFAULTS[link.type]}
+            </a>
+          ))}
+          {chat.type === 'channel' && isManager && (
+            <ChannelDropdownMenu
+              chat={chat}
+              isManager={isManager}
+              onOpenMembers={() => setMembersOpen(true)}
+              onOpenDescriptionEditor={() => setDescEditorOpen(true)}
+              onOpenImageEditor={() => setImageEditorOpen(true)}
+            />
+          )}
+          {chat.type === 'channel' && (
+            <button
+              onClick={() => setMembersOpen((o) => !o)}
+              className={clsx(
+                'rounded-lg p-2 transition',
+                membersOpen
+                  ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+                  : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
+              )}
+              title="Mitglieder"
+            >
+              <Users size={20} />
+            </button>
+          )}
+        </div>
+
+        {/* Always visible action buttons */}
         <button
           onClick={onToggleFileBrowser}
           className={clsx(
@@ -1486,11 +1472,191 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         </button>
         <button
           onClick={onGoHome}
-          className="rounded-lg p-2 text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800"
+          className="rounded-lg p-2 text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800 lg:hidden"
           title="Zur Startseite"
         >
           <Home size={20} />
         </button>
+
+        {/* Mobile: More menu button */}
+        <button
+          onClick={() => setMobileMenuOpen((v) => !v)}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-700 lg:hidden"
+          aria-label="Weitere Aktionen"
+        >
+          <MoreVertical size={20} />
+        </button>
+
+        {/* Mobile: More menu dropdown */}
+        {mobileMenuOpen && (
+          <>
+            <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setMobileMenuOpen(false)} />
+            <div className="absolute right-2 top-full z-50 mt-1 w-56 rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 lg:hidden">
+              {/* Favorite toggle */}
+              {onToggleFavorite && (
+                <button
+                  onClick={() => { onToggleFavorite(chat); setMobileMenuOpen(false); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+                >
+                  <Star size={18} className={chat.favorite ? 'fill-yellow-400 text-yellow-400' : 'text-surface-400'} />
+                  {chat.favorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}
+                </button>
+              )}
+              {/* Notifications */}
+              <button
+                onClick={async () => {
+                  if (notificationsLoading) return;
+                  if (notificationsMuted) {
+                    setNotificationsLoading(true);
+                    try {
+                      await api.setChannelNotifications(chat.id, true);
+                      setNotificationsMuted(false);
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : 'Fehler');
+                    } finally {
+                      setNotificationsLoading(false);
+                    }
+                  } else {
+                    // Open mute options in a sub-menu
+                    setMuteMenuOpen((v) => !v);
+                  }
+                }}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+              >
+                {notificationsLoading ? (
+                  <Loader2 size={18} className="animate-spin text-surface-400" />
+                ) : notificationsMuted ? (
+                  <BellOff size={18} className="text-surface-400" />
+                ) : (
+                  <Bell size={18} className="text-primary-500" />
+                )}
+                {notificationsMuted ? 'Benachrichtigungen aktivieren' : 'Benachrichtigungen stummschalten'}
+              </button>
+              {/* Video meeting */}
+              <button
+                onClick={async () => {
+                  setMobileMenuOpen(false);
+                  if (meetingLoading) return;
+                  setMeetingLoading(true);
+                  const moderatorTab = window.open('', '_blank');
+                  if (moderatorTab) {
+                    moderatorTab.document.write(`<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>Videokonferenz wird geladen…</title><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#1e293b;font-family:system-ui,sans-serif;color:#e2e8f0}.card{text-align:center;padding:2.5rem 3rem;background:#0f172a;border-radius:1.5rem;border:1px solid #334155;box-shadow:0 25px 50px #0006}.spinner{width:48px;height:48px;border:4px solid #334155;border-top-color:#6366f1;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1.5rem}.emoji{font-size:3rem;margin-bottom:1rem}h1{font-size:1.25rem;font-weight:600;color:#f1f5f9;margin-bottom:.5rem}p{font-size:.9rem;color:#94a3b8}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="card"><div class="emoji">📹</div><div class="spinner"></div><h1>Videokonferenz wird geladen…</h1><p>Bitte einen Moment warten.</p></div></body></html>`);
+                    moderatorTab.document.close();
+                  }
+                  try {
+                    const result = await api.startVideoMeeting(chat.id, chat.type);
+                    const tabLink = result.moderatorLink ?? result.inviteLink;
+                    if (tabLink && moderatorTab) moderatorTab.location.href = tabLink;
+                    else if (moderatorTab) moderatorTab.close();
+                    if (result.inviteLink) {
+                      const now = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                      await api.sendMessage(chat.id, chat.type, `📹 Videokonferenz gestartet um ${now} Uhr\nJetzt beitreten: ${result.inviteLink}`);
+                      await loadMessages();
+                    }
+                  } catch (err) {
+                    moderatorTab?.close();
+                    alert(err instanceof Error ? err.message : 'Fehler');
+                  } finally {
+                    setMeetingLoading(false);
+                  }
+                }}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+              >
+                <TvMinimalPlay size={18} className="text-surface-400" />
+                Videokonferenz starten
+              </button>
+              {/* Phone (conversations only) */}
+              {chat.type === 'conversation' && chat.userId && onStartCall && (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    const callee = {
+                      id: chat.userId!,
+                      first_name: chat.name.split(' ')[0] ?? chat.name,
+                      last_name: chat.name.split(' ').slice(1).join(' '),
+                      image: chat.image,
+                    };
+                    onStartCall(chat.userId!, chat.id, callee);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+                >
+                  <Phone size={18} className="text-surface-400" />
+                  Audioanruf starten
+                </button>
+              )}
+              {/* Service links */}
+              {serviceLinks.map((link, i) => (
+                <a
+                  key={`${link.type}-${i}`}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {link.type === 'moodle' && <GraduationCap size={18} className="text-orange-500" />}
+                  {link.type === 'bbb' && <Video size={18} className="text-blue-500" />}
+                  {link.type === 'taskcards' && <span className="font-bold text-teal-500">T</span>}
+                  {link.type === 'nextcloud' && <Cloud size={18} className="text-indigo-500" />}
+                  {link.type === 'onenote' && <BookOpen size={18} className="text-purple-500" />}
+                  {link.type === 'link' && <ExternalLink size={18} className="text-surface-400" />}
+                  {link.label || SERVICE_LINK_DEFAULTS[link.type]}
+                </a>
+              ))}
+              {/* Members (channels) */}
+              {chat.type === 'channel' && (
+                <button
+                  onClick={() => { setMembersOpen(true); setMobileMenuOpen(false); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+                >
+                  <Users size={18} className="text-surface-400" />
+                  Mitglieder
+                </button>
+              )}
+              {/* Channel settings (managers) */}
+              {chat.type === 'channel' && isManager && (
+                <button
+                  onClick={() => { setDescEditorOpen(true); setMobileMenuOpen(false); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+                >
+                  <Pencil size={18} className="text-surface-400" />
+                  Kanal bearbeiten
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Mobile mute duration sub-menu */}
+        {muteMenuOpen && (
+          <div className="absolute right-16 top-full z-50 mt-1 w-40 rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800">
+            {[
+              { label: '2 Stunden', duration: 7200 },
+              { label: '1 Tag', duration: 86400 },
+              { label: '7 Tage', duration: 604800 },
+              { label: 'Für immer', duration: 2147483647 },
+            ].map((opt) => (
+              <button
+                key={opt.duration}
+                onClick={async () => {
+                  setMuteMenuOpen(false);
+                  setNotificationsLoading(true);
+                  try {
+                    await api.setChannelNotifications(chat.id, false, opt.duration);
+                    setNotificationsMuted(true);
+                  } catch (err) {
+                    alert(err instanceof Error ? err.message : 'Fehler');
+                  } finally {
+                    setNotificationsLoading(false);
+                  }
+                }}
+                className="block w-full px-3 py-1.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* In-chat search bar */}
@@ -2749,7 +2915,7 @@ function FileList({
                 />
               </button>
             )}
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               <a
                 href={downloadUrl}
                 download={f.name}
@@ -2762,8 +2928,8 @@ function FileList({
                 )}
               >
                 <span>{fileIcon(f.mime, f.ext)}</span>
-                <span className="max-w-[160px] truncate">{f.name}</span>
-                {f.size_string && <span className="opacity-60">({f.size_string})</span>}
+                <span className="max-w-[120px] truncate sm:max-w-[160px]">{f.name}</span>
+                {f.size_string && <span className="hidden opacity-60 sm:inline">({f.size_string})</span>}
               </a>
               {isPdf && onPdfClick && (
                 <button
@@ -2776,7 +2942,7 @@ function FileList({
                       : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-surface-600',
                   )}
                 >
-                  <FileText size={12} /> Vorschau
+                  <FileText size={12} /> <span className="hidden sm:inline">Vorschau</span>
                 </button>
               )}
               {api.canViewInOnlyOffice(f.name) && (
@@ -2790,7 +2956,7 @@ function FileList({
                       : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-surface-600',
                   )}
                 >
-                  <Eye size={12} /> Ansehen
+                  <Eye size={12} /> <span className="hidden sm:inline">Ansehen</span>
                 </button>
               )}
             </div>

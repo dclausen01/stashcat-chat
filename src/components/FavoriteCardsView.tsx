@@ -160,8 +160,48 @@ export default function FavoriteCardsView({ channels, onSelectChat }: FavoriteCa
           </div>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6">
+        {/* Mobile: List layout */}
+        <div className="flex flex-col gap-2 lg:hidden">
+          {favorites.map((ch) => (
+            <button
+              key={ch.id}
+              onClick={() => onSelectChat(ch)}
+              draggable={favoriteCardsSortMode === 'manual'}
+              onDragStart={favoriteCardsSortMode === 'manual' ? (e) => handleDragStart(e, ch.id) : undefined}
+              onDragOver={favoriteCardsSortMode === 'manual' ? (e) => handleDragOver(e, ch.id) : undefined}
+              onDragLeave={handleDragLeave}
+              onDrop={favoriteCardsSortMode === 'manual' ? (e) => handleDrop(e, ch.id) : undefined}
+              onDragEnd={handleDragEnd}
+              className="group flex items-center gap-3 rounded-lg bg-surface-50 p-3 text-left transition hover:bg-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700"
+            >
+              <div className="relative shrink-0">
+                {ch.image ? (
+                  <Avatar name={ch.name} image={ch.image} size="md" />
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400">
+                    <Hash size={18} />
+                  </div>
+                )}
+                {(ch.unread_count ?? 0) > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-bold text-white">
+                    {(ch.unread_count ?? 0) > 99 ? '99+' : ch.unread_count}
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-sm font-medium text-surface-700 group-hover:text-surface-900 dark:text-surface-300 dark:group-hover:text-white">
+                    {ch.name}
+                  </span>
+                  {ch.encrypted && <span className="shrink-0 text-xs text-surface-500">🔒</span>}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+        {/* Desktop: Grid layout */}
+        <div className="hidden grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-4 lg:grid">
           {favorites.map((ch) => (
             <ChannelCard
               key={ch.id}

@@ -73,18 +73,21 @@ export default function App() {
   const toggleSettings = () => {
     const wasOpen = settingsOpen;
     closeAllPanels();
+    setSidebarOpen(false);
     if (!wasOpen) setSettingsOpen(true);
   };
 
   const toggleFileBrowser = () => {
     const wasOpen = fileBrowserOpen;
     closeAllPanels();
+    setSidebarOpen(false);
     if (!wasOpen) setFileBrowserOpen(true);
   };
 
   const toggleFlagged = () => {
     const wasOpen = flaggedOpen;
     closeAllPanels();
+    setSidebarOpen(false);
     if (!wasOpen) setFlaggedOpen(true);
   };
 
@@ -92,6 +95,7 @@ export default function App() {
     const wasOpen = broadcastsOpen;
     closeAllPanels();
     setActiveView('chat');
+    setSidebarOpen(false);
     if (!wasOpen) setBroadcastsOpen(true);
   };
 
@@ -169,9 +173,9 @@ export default function App() {
           onOpenBroadcasts={toggleBroadcasts}
           onOpenCalendar={openCalendar}
           onOpenPolls={openPolls}
-          onOpenNotifications={() => { const wasOpen = notificationsOpen; closeAllPanels(); if (!wasOpen) setNotificationsOpen(true); }}
+          onOpenNotifications={() => { const wasOpen = notificationsOpen; closeAllPanels(); setSidebarOpen(false); if (!wasOpen) setNotificationsOpen(true); }}
           onOpenSettings={toggleSettings}
-          onOpenProfile={() => { const wasOpen = profileOpen; closeAllPanels(); if (!wasOpen) setProfileOpen(true); }}
+          onOpenProfile={() => { const wasOpen = profileOpen; closeAllPanels(); setSidebarOpen(false); if (!wasOpen) setProfileOpen(true); }}
           broadcastsOpen={broadcastsOpen}
           calendarOpen={activeView === 'calendar'}
           pollsOpen={activeView === 'polls'}
