@@ -208,14 +208,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [notificationsMuted, setNotificationsMuted] = useState(chat.muted === true);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [muteMenuOpen, setMuteMenuOpen] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
-
-  // Track desktop/mobile for mute menu visibility
-  useEffect(() => {
-    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   const [showPollModal, setShowPollModal] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
@@ -1257,10 +1249,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                     setNotificationsLoading(false);
                   }
                 } else {
-                  // Only open desktop mute menu on large screens
-                  if (window.innerWidth >= 1024) {
-                    setMuteMenuOpen((v) => !v);
-                  }
+                  setMuteMenuOpen((v) => !v);
                 }
               }}
               disabled={notificationsLoading}
@@ -1281,8 +1270,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 <Bell size={14} />
               )}
             </button>
-            {/* Desktop mute duration menu — only show on desktop */}
-            {muteMenuOpen && isDesktop && (
+            {/* Desktop mute duration menu */}
+            {muteMenuOpen && (
               <div className="absolute left-0 top-full z-50 mt-1 w-40 rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800">
                 {[
                   { label: '2 Stunden', duration: 7200 },
@@ -1539,8 +1528,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 )}
                 {notificationsMuted ? 'Benachrichtigungen aktivieren' : 'Benachrichtigungen stummschalten'}
               </button>
-              {/* Mute duration options — shown inline on mobile only when not muted */}
-              {!notificationsMuted && muteMenuOpen && !isDesktop && (
+              {/* Mute duration options — shown inline when not muted */}
+              {!notificationsMuted && muteMenuOpen && (
                 <div className="border-t border-surface-200 dark:border-surface-700">
                   {[2, 24, 168, -1].map((hours) => {
                     const label = hours === -1 ? 'Für immer' : hours === 1 ? '1 Stunde' : `${hours} Stunden`;
@@ -1703,37 +1692,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               )}
             </div>
           </>
-        )}
-
-        {/* Mobile mute duration sub-menu */}
-        {muteMenuOpen && (
-          <div className="absolute right-16 top-full z-50 mt-1 w-40 rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800">
-            {[
-              { label: '2 Stunden', duration: 7200 },
-              { label: '1 Tag', duration: 86400 },
-              { label: '7 Tage', duration: 604800 },
-              { label: 'Für immer', duration: 2147483647 },
-            ].map((opt) => (
-              <button
-                key={opt.duration}
-                onClick={async () => {
-                  setMuteMenuOpen(false);
-                  setNotificationsLoading(true);
-                  try {
-                    await api.setChannelNotifications(chat.id, false, opt.duration);
-                    setNotificationsMuted(true);
-                  } catch (err) {
-                    alert(err instanceof Error ? err.message : 'Fehler');
-                  } finally {
-                    setNotificationsLoading(false);
-                  }
-                }}
-                className="block w-full px-3 py-1.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
         )}
       </div>
 
