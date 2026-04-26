@@ -31,9 +31,7 @@ export default function FavoriteCardsView({ channels, conversations, onSelectCha
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
-  const favorites = useMemo(() => {
-    const favs = channels.filter((ch) => ch.favorite);
-
+  const sortFavs = (favs: ChatTarget[]) => {
     switch (favoriteCardsSortMode) {
       case 'alphabetical':
         return [...favs].sort((a, b) => a.name.localeCompare(b.name));
@@ -49,35 +47,13 @@ export default function FavoriteCardsView({ channels, conversations, onSelectCha
           return a.name.localeCompare(b.name);
         });
       }
-      case 'sidebar':
       default:
         return favs;
     }
-  }, [channels, favoriteCardsSortMode, manualOrder]);
+  };
 
-  const favoritesConvs = useMemo(() => {
-    const favs = conversations.filter((ch) => ch.favorite);
-
-    switch (favoriteCardsSortMode) {
-      case 'alphabetical':
-        return [...favs].sort((a, b) => a.name.localeCompare(b.name));
-      case 'manual': {
-        const orderMap = new Map<string, number>();
-        manualOrder.forEach((id, idx) => orderMap.set(id, idx));
-        return [...favs].sort((a, b) => {
-          const ai = orderMap.get(a.id);
-          const bi = orderMap.get(b.id);
-          if (ai !== undefined && bi !== undefined) return ai - bi;
-          if (ai !== undefined) return -1;
-          if (bi !== undefined) return 1;
-          return a.name.localeCompare(b.name);
-        });
-      }
-      case 'sidebar':
-      default:
-        return favs;
-    }
-  }, [conversations, favoriteCardsSortMode, manualOrder]);
+  const favorites = useMemo(() => sortFavs(channels.filter((ch) => ch.favorite)), [channels, favoriteCardsSortMode, manualOrder]);
+  const favoritesConvs = useMemo(() => sortFavs(conversations.filter((ch) => ch.favorite)), [conversations, favoriteCardsSortMode, manualOrder]);
 
   const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
     if (favoriteCardsSortMode !== 'manual') {
@@ -207,7 +183,6 @@ export default function FavoriteCardsView({ channels, conversations, onSelectCha
           handleDragLeave={handleDragLeave}
           handleDrop={handleDrop}
           handleDragEnd={handleDragEnd}
-          isConversation={false}
         />
 
         {/* Conversations section — separator + same layout */}
@@ -223,7 +198,6 @@ export default function FavoriteCardsView({ channels, conversations, onSelectCha
           handleDragLeave={handleDragLeave}
           handleDrop={handleDrop}
           handleDragEnd={handleDragEnd}
-          isConversation={true}
         />
       </div>
     </div>
@@ -265,7 +239,6 @@ interface FavoriteSectionProps {
   handleDragLeave: (e: React.DragEvent) => void;
   handleDrop: (e: React.DragEvent, id: string) => void;
   handleDragEnd: () => void;
-  isConversation?: boolean;
 }
 
 function FavoriteSection({
@@ -280,9 +253,10 @@ function FavoriteSection({
   handleDragLeave,
   handleDrop,
   handleDragEnd,
-  isConversation = false,
 }: FavoriteSectionProps) {
   if (channels.length === 0) return null;
+
+  const isConversation = channels[0]?.type === 'conversation';
 
   return (
     <div className="mb-6">
@@ -350,7 +324,6 @@ function FavoriteSection({
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, ch.id)}
             onDragEnd={handleDragEnd}
-            isConversation={isConversation}
           />
         ))}
       </div>
@@ -369,7 +342,6 @@ interface ChannelCardProps {
   onDragLeave: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent) => void;
   onDragEnd: () => void;
-  isConversation?: boolean;
 }
 
 function ChannelCard({
@@ -383,8 +355,8 @@ function ChannelCard({
   onDragLeave,
   onDrop,
   onDragEnd,
-  isConversation = false,
 }: ChannelCardProps) {
+  const isConversation = channel.type === 'conversation';
   return (
     <button
       onClick={onClick}
