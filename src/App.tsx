@@ -194,8 +194,8 @@ export default function App() {
         />
       )}
 
-      {/* Mobile: Hamburger toggle button - only show when no chat is active (title acts as menu button in chat view) */}
-      {!activeChat && (
+      {/* Mobile: Hamburger toggle button - only show when no chat is active and no panel is open */}
+      {!activeChat && !settingsOpen && !fileBrowserOpen && !broadcastsOpen && !notificationsOpen && (
         <button
           onClick={() => setSidebarOpen((v) => !v)}
           className="fixed right-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-white/90 text-surface-700 shadow-md backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white lg:hidden"
