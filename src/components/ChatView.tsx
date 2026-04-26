@@ -1205,7 +1205,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         ) : (
           <Avatar name={chat.name} image={chat.image} size="md" />
         )}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 pr-2 sm:pr-0">
           <div className="relative flex items-center gap-2">
             <h2 className="truncate text-base font-semibold text-surface-900 dark:text-white">{chat.name}</h2>
             {/* Favorite toggle — desktop only (mobile has it in the more menu) */}
