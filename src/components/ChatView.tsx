@@ -1188,7 +1188,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         </div>
       )}
       {/* Header */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 px-4 py-3 sm:px-6 dark:border-surface-700">
+      <div className="relative flex shrink-0 items-center gap-3 border-b border-surface-200 px-4 py-3 sm:px-6 dark:border-surface-700">
         {/* Mobile: Back button */}
         <button
           onClick={onGoHome}
@@ -1485,8 +1485,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         {/* Mobile: More menu dropdown — opens from the title button */}
         {mobileMenuOpen && (
           <>
-            <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setMobileMenuOpen(false)} />
-            <div className="absolute left-12 top-full z-50 mt-1 w-56 rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 lg:hidden">
+            <div className="pointer-events-none fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileMenuOpen(false)} />
+            <div className="pointer-events-auto absolute left-12 top-full z-50 mt-1 w-56 rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 lg:hidden">
               {/* Favorite toggle */}
               {onToggleFavorite && (
                 <button
