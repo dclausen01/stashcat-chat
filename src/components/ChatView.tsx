@@ -2362,14 +2362,14 @@ function MessageGroup({
             >
               {/* Action buttons — above the bubble; ::before extends hover zone so buttons don't vanish */}
               <div className={clsx(
-                'absolute bottom-full mb-1 z-10 hidden group-hover/msg:flex items-center gap-0.5 rounded-lg bg-white/90 p-0.5 shadow-sm ring-1 ring-surface-200 backdrop-blur dark:bg-surface-800/90 dark:ring-surface-700',
+                'absolute bottom-full mb-1 z-10 hidden group-hover/msg:flex items-center gap-0.5 rounded-lg bg-white/90 p-1 shadow-sm ring-1 ring-surface-200 backdrop-blur dark:bg-surface-800/90 dark:ring-surface-700',
                 isOwn ? 'right-0' : 'left-0',
               )}>
                 <button
                   onClick={() => onLike(String(msg.id), Boolean(msg.liked))}
                   title={msg.liked ? 'Like entfernen' : 'Gefällt mir'}
                   className={clsx(
-                    'flex items-center justify-center rounded-md p-1 transition',
+                    'flex items-center justify-center rounded-md p-1.5 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1',
                     msg.liked
                       ? 'text-amber-500 dark:text-amber-400'
                       : 'text-surface-600 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700 dark:hover:text-amber-400',
@@ -2380,21 +2380,21 @@ function MessageGroup({
                 <button
                   onClick={() => onReply(msg)}
                   title="Antworten"
-                  className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 hover:text-primary-600 dark:hover:bg-surface-700 dark:hover:text-primary-400 transition"
+                  className="flex items-center justify-center rounded-md p-1.5 text-surface-600 hover:bg-surface-200 hover:text-primary-600 dark:hover:bg-surface-700 dark:hover:text-primary-400 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1"
                 >
                   <Reply size={13} />
                 </button>
                 <button
                   onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }}
                   title="Kopieren"
-                  className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200 transition"
+                  className="flex items-center justify-center rounded-md p-1.5 text-surface-600 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1"
                 >
                   <Copy size={13} />
                 </button>
                 <button
                   onClick={() => onForward(msg)}
                   title="Weiterleiten"
-                  className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200 transition"
+                  className="flex items-center justify-center rounded-md p-1.5 text-surface-600 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1"
                 >
                   <Forward size={13} />
                 </button>
@@ -2402,7 +2402,7 @@ function MessageGroup({
                   onClick={() => onFlag(String(msg.id), Boolean(msg.flagged))}
                   title={msg.flagged ? 'Markierung entfernen' : 'Markieren'}
                   className={clsx(
-                    'flex items-center justify-center rounded-md p-1 transition',
+                    'flex items-center justify-center rounded-md p-1.5 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1',
                     msg.flagged
                       ? 'text-amber-500 dark:text-amber-400'
                       : 'text-surface-600 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700 dark:hover:text-amber-400',
@@ -2414,7 +2414,7 @@ function MessageGroup({
                   <button
                     onClick={() => onDelete(String(msg.id))}
                     title="Löschen"
-                    className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition"
+                    className="flex items-center justify-center rounded-md p-1.5 text-surface-600 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1"
                   >
                     <Trash2 size={13} />
                   </button>
