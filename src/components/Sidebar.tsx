@@ -414,10 +414,10 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       className="relative flex h-full shrink-0 flex-col bg-[var(--theme-panel)]"
       style={{ width: sidebarWidth }}
     >
-      {/* Horizontal resize handle */}
+      {/* Horizontal resize handle — desktop only */}
       <div
         onMouseDown={onWidthMouseDown}
-        className="absolute right-0 top-0 z-20 h-full w-1 cursor-col-resize border-r border-surface-200 transition-colors hover:border-primary-400 hover:border-r-2 dark:border-surface-700 dark:hover:border-primary-600"
+        className="absolute right-0 top-0 z-20 hidden h-full w-1 cursor-col-resize border-r border-surface-200 transition-colors hover:border-primary-400 hover:border-r-2 dark:border-surface-700 dark:hover:border-primary-600 lg:block"
         title="Breite anpassen"
       />
       <SidebarHeader
@@ -488,10 +488,10 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           </div>
         </div>
 
-        {/* Drag handle */}
+        {/* Drag handle — desktop only */}
         <div
           onMouseDown={onMouseDown}
-          className="group flex shrink-0 cursor-row-resize items-center justify-center border-y border-surface-200 py-0.5 hover:bg-surface-200 dark:border-surface-700 dark:hover:bg-surface-800"
+          className="group hidden cursor-row-resize items-center justify-center border-y border-surface-200 py-0.5 hover:bg-surface-200 dark:border-surface-700 dark:hover:bg-surface-800 lg:flex"
         >
           <GripHorizontal size={16} className="text-surface-300 group-hover:text-surface-500 dark:text-surface-400 dark:group-hover:text-surface-500" />
         </div>

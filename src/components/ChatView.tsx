@@ -1200,7 +1200,16 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         </div>
       )}
       {/* Header */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 px-6 py-3 dark:border-surface-700">
+      <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 px-4 py-3 sm:px-6 dark:border-surface-700">
+        {/* Mobile: Back button */}
+        <button
+          onClick={onGoHome}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-700 lg:hidden"
+          aria-label="Zurück zur Übersicht"
+        >
+          <ArrowLeft size={20} />
+        </button>
+
         {chat.type === 'channel' ? (
           chatImage
             ? <Avatar name={chat.name} image={chatImage} size="md" />

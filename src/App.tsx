@@ -18,6 +18,7 @@ import FlaggedMessagesPanel from './components/FlaggedMessagesPanel';
 import CallModal from './components/CallModal';
 import type { ChatTarget } from './types';
 import type { CallParty } from './api/calls';
+import { Menu, X } from 'lucide-react';
 
 type ActiveView = 'chat' | 'calendar' | 'polls';
 
@@ -42,6 +43,17 @@ export default function App() {
   const [jumpSearching, setJumpSearching] = useState(false);
   const refreshSidebarRef = useRef<(() => void) | null>(null);
   const toggleFavoriteRef = useRef<((target: ChatTarget) => void) | null>(null);
+
+  // Mobile sidebar state
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Close sidebar on route change (chat selected on mobile)
+  const handleSelectChat = useCallback((chat: ChatTarget) => {
+    setActiveView('chat');
+    closeAllPanels();
+    setActiveChat(chat);
+    setSidebarOpen(false);
+  }, []);
 
   const handleToggleFavoriteFromChatView = useCallback((chat: ChatTarget) => {
     setActiveChat((prev) => prev?.id === chat.id ? { ...prev, favorite: !prev.favorite } : prev);
@@ -109,15 +121,10 @@ export default function App() {
     setActiveView('polls');
   };
 
-  const handleSelectChat = (chat: ChatTarget) => {
-    setActiveView('chat');
-    closeAllPanels();
-    setActiveChat(chat);
-  };
-
   const handleGoHome = () => {
     closeAllPanels();
     setActiveChat(null);
+    setSidebarOpen(false);
   };
 
   const handleChannelsLoaded = useCallback((loadedChannels: ChatTarget[]) => {
@@ -146,25 +153,51 @@ export default function App() {
 
   return (
     <div className="flex h-full">
-      <Sidebar
-        activeChat={activeChat}
-        onSelectChat={handleSelectChat}
-        loggedIn={loggedIn}
-        onOpenFileBrowser={toggleFileBrowser}
-        onOpenBroadcasts={toggleBroadcasts}
-        onOpenCalendar={openCalendar}
-        onOpenPolls={openPolls}
-        onOpenNotifications={() => { const wasOpen = notificationsOpen; closeAllPanels(); if (!wasOpen) setNotificationsOpen(true); }}
-        onOpenSettings={toggleSettings}
-        onOpenProfile={() => { const wasOpen = profileOpen; closeAllPanels(); if (!wasOpen) setProfileOpen(true); }}
-        broadcastsOpen={broadcastsOpen}
-        calendarOpen={activeView === 'calendar'}
-        pollsOpen={activeView === 'polls'}
-        notificationsOpen={notificationsOpen}
-        onChannelsLoaded={handleChannelsLoaded}
-        onRegisterRefresh={(fn) => { refreshSidebarRef.current = fn; }}
-        onRegisterToggleFavorite={(fn) => { toggleFavoriteRef.current = fn; }}
-      />
+      {/* Mobile: Sidebar as overlay drawer */}
+      {/* Desktop (lg+): Sidebar always visible */}
+      <div
+        className={`
+          fixed inset-0 z-40 shrink-0 lg:relative
+          ${sidebarOpen ? 'flex' : 'hidden lg:flex'}
+        `}
+      >
+        <Sidebar
+          activeChat={activeChat}
+          onSelectChat={handleSelectChat}
+          loggedIn={loggedIn}
+          onOpenFileBrowser={toggleFileBrowser}
+          onOpenBroadcasts={toggleBroadcasts}
+          onOpenCalendar={openCalendar}
+          onOpenPolls={openPolls}
+          onOpenNotifications={() => { const wasOpen = notificationsOpen; closeAllPanels(); if (!wasOpen) setNotificationsOpen(true); }}
+          onOpenSettings={toggleSettings}
+          onOpenProfile={() => { const wasOpen = profileOpen; closeAllPanels(); if (!wasOpen) setProfileOpen(true); }}
+          broadcastsOpen={broadcastsOpen}
+          calendarOpen={activeView === 'calendar'}
+          pollsOpen={activeView === 'polls'}
+          notificationsOpen={notificationsOpen}
+          onChannelsLoaded={handleChannelsLoaded}
+          onRegisterRefresh={(fn) => { refreshSidebarRef.current = fn; }}
+          onRegisterToggleFavorite={(fn) => { toggleFavoriteRef.current = fn; }}
+        />
+      </div>
+
+      {/* Mobile: Sidebar backdrop overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Mobile: Hamburger toggle button */}
+      <button
+        onClick={() => setSidebarOpen((v) => !v)}
+        className="fixed left-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-white/90 text-surface-700 shadow-md backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white lg:hidden"
+        aria-label={sidebarOpen ? 'Menü schließen' : 'Menü öffnen'}
+      >
+        {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+      </button>
 
       {activeView === 'calendar' ? (
         <CalendarView eventIdToOpen={eventIdToOpen} onEventOpened={() => setEventIdToOpen(null)} />
@@ -197,21 +230,29 @@ export default function App() {
               ? <FavoriteCardsView channels={channels} onSelectChat={handleSelectChat} />
               : <EmptyState />}
           {fileBrowserOpen && (
-            <FileBrowserPanel chat={activeChat} onClose={() => setFileBrowserOpen(false)} />
+            <div className="fixed inset-0 z-40 flex lg:relative lg:inset-auto lg:z-auto">
+              <FileBrowserPanel chat={activeChat} onClose={() => setFileBrowserOpen(false)} />
+            </div>
           )}
           {broadcastsOpen && (
-            <BroadcastsPanel onClose={() => setBroadcastsOpen(false)} />
+            <div className="fixed inset-0 z-40 flex lg:relative lg:inset-auto lg:z-auto">
+              <BroadcastsPanel onClose={() => setBroadcastsOpen(false)} />
+            </div>
           )}
           {flaggedOpen && (
-            <FlaggedMessagesPanel
-              chat={activeChat}
-              onClose={() => setFlaggedOpen(false)}
-              onMessageClick={handleFlaggedMessageClick}
-              jumpSearching={jumpSearching}
-            />
+            <div className="fixed inset-0 z-40 flex lg:relative lg:inset-auto lg:z-auto">
+              <FlaggedMessagesPanel
+                chat={activeChat}
+                onClose={() => setFlaggedOpen(false)}
+                onMessageClick={handleFlaggedMessageClick}
+                jumpSearching={jumpSearching}
+              />
+            </div>
           )}
           {notificationsOpen && (
-            <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} onOpenPoll={openPoll} onOpenCalendar={openCalendar} onOpenEvent={openEvent} onChannelJoined={() => refreshSidebarRef.current?.()} />
+            <div className="fixed inset-0 z-40 flex lg:relative lg:inset-auto lg:z-auto">
+              <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} onOpenPoll={openPoll} onOpenCalendar={openCalendar} onOpenEvent={openEvent} onChannelJoined={() => refreshSidebarRef.current?.()} />
+            </div>
           )}
         </>
       )}
