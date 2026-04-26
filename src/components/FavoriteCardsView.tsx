@@ -6,6 +6,7 @@ import type { ChatTarget } from '../types';
 
 interface FavoriteCardsViewProps {
   channels: ChatTarget[];
+  conversations: ChatTarget[];
   onSelectChat: (target: ChatTarget) => void;
   onOpenSidebar?: () => void;
 }
@@ -24,7 +25,7 @@ function saveManualOrder(order: string[]) {
   localStorage.setItem(MANUAL_ORDER_KEY, JSON.stringify(order));
 }
 
-export default function FavoriteCardsView({ channels, onSelectChat, onOpenSidebar }: FavoriteCardsViewProps) {
+export default function FavoriteCardsView({ channels, conversations, onSelectChat, onOpenSidebar }: FavoriteCardsViewProps) {
   const { favoriteCardsSortMode, setFavoriteCardsSortMode } = useSettings();
   const [manualOrder, setManualOrder] = useState<string[]>(loadManualOrder);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -53,6 +54,30 @@ export default function FavoriteCardsView({ channels, onSelectChat, onOpenSideba
         return favs;
     }
   }, [channels, favoriteCardsSortMode, manualOrder]);
+
+  const favoritesConvs = useMemo(() => {
+    const favs = conversations.filter((ch) => ch.favorite);
+
+    switch (favoriteCardsSortMode) {
+      case 'alphabetical':
+        return [...favs].sort((a, b) => a.name.localeCompare(b.name));
+      case 'manual': {
+        const orderMap = new Map<string, number>();
+        manualOrder.forEach((id, idx) => orderMap.set(id, idx));
+        return [...favs].sort((a, b) => {
+          const ai = orderMap.get(a.id);
+          const bi = orderMap.get(b.id);
+          if (ai !== undefined && bi !== undefined) return ai - bi;
+          if (ai !== undefined) return -1;
+          if (bi !== undefined) return 1;
+          return a.name.localeCompare(b.name);
+        });
+      }
+      case 'sidebar':
+      default:
+        return favs;
+    }
+  }, [conversations, favoriteCardsSortMode, manualOrder]);
 
   const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
     if (favoriteCardsSortMode !== 'manual') {
@@ -87,7 +112,7 @@ export default function FavoriteCardsView({ channels, onSelectChat, onOpenSideba
     }
 
     setManualOrder((prev) => {
-      const favIds = favorites.map((f) => f.id);
+      const favIds = [...favorites.map((f) => f.id), ...favoritesConvs.map((f) => f.id)];
       const currentOrder = prev.filter((id) => favIds.includes(id));
       // Ensure all favorites are in the order list
       for (const id of favIds) {
@@ -106,14 +131,14 @@ export default function FavoriteCardsView({ channels, onSelectChat, onOpenSideba
       return newOrder;
     });
     setDraggingId(null);
-  }, [draggingId, favorites]);
+  }, [draggingId, favorites, favoritesConvs]);
 
   const handleDragEnd = useCallback(() => {
     setDraggingId(null);
     setDragOverId(null);
   }, []);
 
-  if (favorites.length === 0) {
+  if (favorites.length === 0 && favoritesConvs.length === 0) {
     return (
       <div className="flex h-full flex-1 flex-col items-center justify-center bg-white text-surface-500 dark:bg-surface-950">
         <Star size={64} className="mb-4 text-surface-300 dark:text-surface-400" />
@@ -121,7 +146,7 @@ export default function FavoriteCardsView({ channels, onSelectChat, onOpenSideba
           Keine Favoriten
         </h2>
         <p className="mt-2 max-w-md text-center text-sm text-surface-500">
-          Markiere Channels als Favorit, um sie hier als Kacheln zu sehen.
+          Markiere Channels oder Konversationen als Favorit, um sie hier als Kacheln zu sehen.
         </p>
       </div>
     );
@@ -143,7 +168,7 @@ export default function FavoriteCardsView({ channels, onSelectChat, onOpenSideba
               <ChevronDown size={14} className="shrink-0 text-surface-400 lg:hidden" />
             </button>
             <p className="text-sm text-surface-500">
-              {favorites.length} {favorites.length !== 1 ? 'Favoriten' : 'Favorit'}
+              {favorites.length + favoritesConvs.length} {favorites.length + favoritesConvs.length !== 1 ? 'Favoriten' : 'Favorit'}
             </p>
           </div>
           <div className="flex items-center gap-1 rounded-lg bg-surface-100 p-1 dark:bg-surface-800">
@@ -188,7 +213,7 @@ export default function FavoriteCardsView({ channels, onSelectChat, onOpenSideba
         {/* Conversations section — separator + same layout */}
         <FavoriteSection
           title="Favorisierte Direktnachrichten"
-          channels={favorites.filter((ch) => ch.type === 'conversation')}
+          channels={favoritesConvs}
           onSelectChat={onSelectChat}
           favoriteCardsSortMode={favoriteCardsSortMode}
           draggingId={draggingId}

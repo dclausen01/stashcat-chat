@@ -39,11 +39,12 @@ interface SidebarProps {
   pollsOpen: boolean;
   notificationsOpen: boolean;
   onChannelsLoaded?: (channels: ChatTarget[]) => void;
+  onConversationsLoaded?: (conversations: ChatTarget[]) => void;
   onRegisterRefresh?: (refresh: () => void) => void;
   onRegisterToggleFavorite?: (toggle: (target: ChatTarget) => void) => void;
 }
 
-export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, onOpenSettings, onOpenProfile, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen, onChannelsLoaded, onRegisterRefresh, onRegisterToggleFavorite }: SidebarProps) {
+export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, onOpenSettings, onOpenProfile, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen, onChannelsLoaded, onConversationsLoaded, onRegisterRefresh, onRegisterToggleFavorite }: SidebarProps) {
   const { user } = useAuth();
   const { notify } = useNotifications();
   const [channels, setChannels] = useState<ChatTarget[]>([]);
@@ -213,6 +214,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       setChannels(sortedChannels);
       onChannelsLoaded?.(sortedChannels);
       setConversations(sortedConvs);
+      onConversationsLoaded?.(sortedConvs);
     } catch (err) {
       console.error('Failed to load sidebar data:', err);
     }

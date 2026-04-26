@@ -33,6 +33,7 @@ export default function App() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [activeView, setActiveView] = useState<ActiveView>('chat');
   const [channels, setChannels] = useState<ChatTarget[]>([]);
+  const [conversations, setConversations] = useState<ChatTarget[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
   const [flaggedOpen, setFlaggedOpen] = useState(false);
   const [pollIdToOpen, setPollIdToOpen] = useState<string | null>(null);
@@ -145,6 +146,10 @@ export default function App() {
     setChannels(loadedChannels);
   }, []);
 
+  const handleConversationsLoaded = useCallback((loadedConversations: ChatTarget[]) => {
+    setConversations(loadedConversations);
+  }, []);
+
   const handleFlaggedMessageClick = useCallback((messageId: string, chat: ChatTarget, messageTime?: number) => {
     if (activeChat?.id !== chat.id || activeChat?.type !== chat.type) {
       setActiveChat(chat);
@@ -191,6 +196,7 @@ export default function App() {
           pollsOpen={activeView === 'polls'}
           notificationsOpen={notificationsOpen}
           onChannelsLoaded={handleChannelsLoaded}
+          onConversationsLoaded={handleConversationsLoaded}
           onRegisterRefresh={(fn) => { refreshSidebarRef.current = fn; }}
           onRegisterToggleFavorite={(fn) => { toggleFavoriteRef.current = fn; }}
         />
@@ -243,7 +249,7 @@ export default function App() {
                 onToggleFavorite={handleToggleFavoriteFromChatView}
               />
             : homeView === 'cards'
-              ? <FavoriteCardsView channels={channels} onSelectChat={handleSelectChat} onOpenSidebar={() => setSidebarOpen(true)} />
+              ? <FavoriteCardsView channels={channels} conversations={conversations} onSelectChat={handleSelectChat} onOpenSidebar={() => setSidebarOpen(true)} />
               : <EmptyState />}
           {fileBrowserOpen && !sidebarOpen && (
             <div className="fixed inset-0 z-40 flex lg:relative lg:inset-auto lg:z-auto">
