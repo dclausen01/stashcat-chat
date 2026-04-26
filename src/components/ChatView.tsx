@@ -1210,7 +1210,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             {/* Mobile: title opens menu, Desktop: just text */}
             <button
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="flex w-full items-center gap-1.5 truncate text-left text-base font-semibold text-surface-900 dark:text-white lg:cursor-default lg:bg-transparent lg:hover:bg-transparent"
+              className="flex w-full items-center gap-1.5 truncate text-left text-base font-semibold text-surface-900 dark:text-white lg:w-auto lg:cursor-default lg:bg-transparent lg:hover:bg-transparent"
               title="Menü öffnen"
             >
               <span className="truncate">{chat.name}</span>
