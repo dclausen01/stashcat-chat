@@ -44,6 +44,16 @@ export default function App() {
   const refreshSidebarRef = useRef<(() => void) | null>(null);
   const toggleFavoriteRef = useRef<((target: ChatTarget) => void) | null>(null);
 
+  // Close all side panels — defined before use to avoid forward reference
+  const closeAllPanels = useCallback(() => {
+    setSettingsOpen(false);
+    setFileBrowserOpen(false);
+    setBroadcastsOpen(false);
+    setNotificationsOpen(false);
+    setProfileOpen(false);
+    setFlaggedOpen(false);
+  }, []);
+
   // Mobile sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -69,16 +79,6 @@ export default function App() {
     setActiveChat((prev) => prev?.id === chat.id ? { ...prev, favorite: !prev.favorite } : prev);
     toggleFavoriteRef.current?.(chat);
   }, []);
-
-  // Close all side panels
-  const closeAllPanels = () => {
-    setSettingsOpen(false);
-    setFileBrowserOpen(false);
-    setBroadcastsOpen(false);
-    setNotificationsOpen(false);
-    setProfileOpen(false);
-    setFlaggedOpen(false);
-  };
 
   const toggleSettings = () => {
     const wasOpen = settingsOpen;
