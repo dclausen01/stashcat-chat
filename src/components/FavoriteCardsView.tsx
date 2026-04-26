@@ -138,12 +138,12 @@ export default function FavoriteCardsView({ channels, onSelectChat, onOpenSideba
               title="Menü öffnen"
             >
               <h2 className="text-lg font-semibold text-surface-900 dark:text-white">
-                Favorisierte Channels
+                Favoriten
               </h2>
               <ChevronDown size={14} className="shrink-0 text-surface-400 lg:hidden" />
             </button>
             <p className="text-sm text-surface-500">
-              {favorites.length} Channel{favorites.length !== 1 ? 's' : ''} als Favorit markiert
+              {favorites.length} {favorites.length !== 1 ? 'Favoriten' : 'Favorit'}
             </p>
           </div>
           <div className="flex items-center gap-1 rounded-lg bg-surface-100 p-1 dark:bg-surface-800">
