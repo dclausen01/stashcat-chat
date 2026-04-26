@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useSettings } from './context/SettingsContext';
 import { useCallManager } from './hooks/useCallManager';
@@ -46,6 +46,16 @@ export default function App() {
 
   // Mobile sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Prevent body scroll when mobile sidebar is open
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [sidebarOpen]);
 
   // Close sidebar on route change (chat selected on mobile)
   const handleSelectChat = useCallback((chat: ChatTarget) => {
@@ -235,17 +245,17 @@ export default function App() {
             : homeView === 'cards'
               ? <FavoriteCardsView channels={channels} onSelectChat={handleSelectChat} onOpenSidebar={() => setSidebarOpen(true)} />
               : <EmptyState />}
-          {fileBrowserOpen && (
+          {fileBrowserOpen && !sidebarOpen && (
             <div className="fixed inset-0 z-40 flex lg:relative lg:inset-auto lg:z-auto">
               <FileBrowserPanel chat={activeChat} onClose={() => setFileBrowserOpen(false)} />
             </div>
           )}
-          {broadcastsOpen && (
+          {broadcastsOpen && !sidebarOpen && (
             <div className="fixed inset-0 z-40 flex lg:relative lg:inset-auto lg:z-auto">
               <BroadcastsPanel onClose={() => setBroadcastsOpen(false)} />
             </div>
           )}
-          {flaggedOpen && (
+          {flaggedOpen && !sidebarOpen && (
             <div className="fixed inset-0 z-40 flex lg:relative lg:inset-auto lg:z-auto">
               <FlaggedMessagesPanel
                 chat={activeChat}
@@ -255,15 +265,15 @@ export default function App() {
               />
             </div>
           )}
-          {notificationsOpen && (
+          {notificationsOpen && !sidebarOpen && (
             <div className="fixed inset-0 z-40 flex lg:relative lg:inset-auto lg:z-auto">
               <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} onOpenPoll={openPoll} onOpenCalendar={openCalendar} onOpenEvent={openEvent} onChannelJoined={() => refreshSidebarRef.current?.()} />
             </div>
           )}
         </>
       )}
-      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
-      {profileOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
+      {settingsOpen && !sidebarOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
+      {profileOpen && !sidebarOpen && <ProfileModal onClose={() => setProfileOpen(false)} />}
       {activeCall && (
         <CallModal
           call={activeCall}
