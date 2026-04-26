@@ -31,7 +31,7 @@ export default function FavoriteCardsView({ channels, onSelectChat, onOpenSideba
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const favorites = useMemo(() => {
-    const favs = channels.filter((ch) => ch.type === 'channel' && ch.favorite);
+    const favs = channels.filter((ch) => ch.favorite);
 
     switch (favoriteCardsSortMode) {
       case 'alphabetical':
@@ -172,7 +172,7 @@ export default function FavoriteCardsView({ channels, onSelectChat, onOpenSideba
         {/* Channels section */}
         <FavoriteSection
           title="Favorisierte Channels"
-          channels={channels.filter((ch) => ch.type === 'channel')}
+          channels={favorites.filter((ch) => ch.type === 'channel')}
           onSelectChat={onSelectChat}
           favoriteCardsSortMode={favoriteCardsSortMode}
           draggingId={draggingId}
@@ -187,7 +187,7 @@ export default function FavoriteCardsView({ channels, onSelectChat, onOpenSideba
         {/* Conversations section — separator + same layout */}
         <FavoriteSection
           title="Favorisierte Konversationen"
-          channels={channels.filter((ch) => ch.type === 'conversation')}
+          channels={favorites.filter((ch) => ch.type === 'conversation')}
           onSelectChat={onSelectChat}
           favoriteCardsSortMode={favoriteCardsSortMode}
           draggingId={draggingId}
