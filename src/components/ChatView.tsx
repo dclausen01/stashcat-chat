@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, Home, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, MoreVertical } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, MoreVertical } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -1431,11 +1431,11 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           )}
         </div>
 
-        {/* Always visible action buttons */}
+        {/* Desktop-only: File browser */}
         <button
           onClick={onToggleFileBrowser}
           className={clsx(
-            'rounded-lg p-2 transition',
+            'hidden rounded-lg p-2 transition lg:inline-flex',
             fileBrowserOpen
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
               : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
@@ -1444,11 +1444,12 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         >
           <FolderOpen size={20} />
         </button>
+        {/* Desktop-only: Flagged */}
         {onToggleFlagged && (
           <button
             onClick={onToggleFlagged}
             className={clsx(
-              'rounded-lg p-2 transition',
+              'hidden rounded-lg p-2 transition lg:inline-flex',
               flaggedOpen
                 ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
                 : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
@@ -1458,10 +1459,11 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             <Bookmark size={20} />
           </button>
         )}
+        {/* Desktop-only: Search */}
         <button
           onClick={() => setSearchOpen((o) => !o)}
           className={clsx(
-            'rounded-lg p-2 transition',
+            'hidden rounded-lg p-2 transition lg:inline-flex',
             searchOpen
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
               : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
@@ -1470,21 +1472,20 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         >
           <Search size={20} />
         </button>
-        <button
-          onClick={onGoHome}
-          className="rounded-lg p-2 text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800 lg:hidden"
-          title="Zur Startseite"
-        >
-          <Home size={20} />
-        </button>
 
-        {/* Mobile: More menu button */}
+        {/* Mobile: Home button (redundant with hamburger, remove) */}
+
+        {/* Mobile: More menu button — the only visible action on mobile */}
         <button
           onClick={() => setMobileMenuOpen((v) => !v)}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-700 lg:hidden"
+          className={clsx(
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-700',
+            // On desktop, hide (desktop has all buttons inline)
+            'lg:hidden',
+          )}
           aria-label="Weitere Aktionen"
         >
-          <MoreVertical size={20} />
+          {mobileMenuOpen ? <X size={20} /> : <MoreVertical size={20} />}
         </button>
 
         {/* Mobile: More menu dropdown */}
@@ -1532,6 +1533,47 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 )}
                 {notificationsMuted ? 'Benachrichtigungen aktivieren' : 'Benachrichtigungen stummschalten'}
               </button>
+              {/* Search */}
+              <button
+                onClick={() => { setSearchOpen((o) => !o); setMobileMenuOpen(false); }}
+                className={clsx(
+                  'flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition',
+                  searchOpen
+                    ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+                    : 'text-surface-700 hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700',
+                )}
+              >
+                <Search size={18} className={searchOpen ? 'text-primary-500' : 'text-surface-400'} />
+                Suche
+              </button>
+              {/* File browser */}
+              <button
+                onClick={() => { onToggleFileBrowser(); setMobileMenuOpen(false); }}
+                className={clsx(
+                  'flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition',
+                  fileBrowserOpen
+                    ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+                    : 'text-surface-700 hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700',
+                )}
+              >
+                <FolderOpen size={18} className={fileBrowserOpen ? 'text-primary-500' : 'text-surface-400'} />
+                Dateiablage
+              </button>
+              {/* Flagged messages */}
+              {onToggleFlagged && (
+                <button
+                  onClick={() => { onToggleFlagged(); setMobileMenuOpen(false); }}
+                  className={clsx(
+                    'flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition',
+                    flaggedOpen
+                      ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+                      : 'text-surface-700 hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700',
+                  )}
+                >
+                  <Bookmark size={18} className={flaggedOpen ? 'text-primary-500' : 'text-surface-400'} />
+                  Markierte Nachrichten
+                </button>
+              )}
               {/* Video meeting */}
               <button
                 onClick={async () => {
