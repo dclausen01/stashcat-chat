@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { BarChart3, Plus, Trash2, Archive, RefreshCw, Loader2, ChevronRight, ChevronLeft, Check, PieChart, ChevronDown, StopCircle } from 'lucide-react';
+import { BarChart3, Plus, Trash2, Archive, RefreshCw, Loader2, ChevronRight, ChevronLeft, Check, PieChart, ChevronDown, StopCircle, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { Poll, PollQuestion } from '../api';
@@ -326,9 +326,10 @@ interface PollsViewProps {
   pollIdToOpen?: string | null;
   onPollOpened?: () => void;
   onOpenSidebar?: () => void;
+  onClose?: () => void;
 }
 
-export default function PollsView({ pollIdToOpen, onPollOpened }: PollsViewProps) {
+export default function PollsView({ pollIdToOpen, onPollOpened, onClose }: PollsViewProps) {
   const confirmAsync = useConfirm();
   const [tab, setTab] = useState<Tab>('mine');
   const [polls, setPolls] = useState<Poll[]>([]);
@@ -422,6 +423,16 @@ export default function PollsView({ pollIdToOpen, onPollOpened }: PollsViewProps
         >
           <Plus size={15} /> Neue Umfrage
         </button>
+        {onClose && (
+          <button
+            onClick={onClose}
+            aria-label="Schließen"
+            title="Schließen"
+            className="shrink-0 rounded-lg p-1.5 text-surface-700 hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-surface-700"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
