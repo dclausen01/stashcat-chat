@@ -667,7 +667,6 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   const settings = useSettings();
   const { user } = useAuth();
   const confirmAsync = useConfirm();
-  const tab = settings.fileBrowserTab;
   const setTab = settings.setFileBrowserTab;
   const viewMode = settings.fileBrowserViewMode;
   const setViewMode = settings.setFileBrowserViewMode;
@@ -705,18 +704,13 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
 
   const [crumbs, setCrumbs] = useState<Crumb[]>([{ id: null, name: 'Alle Dateien' }]);
 
-  // Reset tab to 'context' when chat changes — done synchronously during render
-  // to avoid a stale-tab race where loadFolder runs with the old tab before
-  // a useEffect-based setTab takes effect.
-  const prevChatIdRef = useRef<string | undefined>(undefined);
-  if (chat?.id !== prevChatIdRef.current) {
-    prevChatIdRef.current = chat?.id;
-    if (chat) {
-      setTab('context');
-      setCrumbs([{ id: null, name: 'Alle Dateien' }]);
-    } else if (prevChatIdRef.current === undefined) {
-      setTab('personal');
-    }
+  // Compute tab immediately from chat state to avoid stale tab values.
+  // When a chat is open, always show 'context' tab; otherwise use saved preference.
+  const tab = chat ? 'context' : settings.fileBrowserTab;
+
+  // Sync settings when opened without chat (user's saved tab preference)
+  if (!chat && settings.fileBrowserTab !== 'personal') {
+    setTab('personal');
   }
   const [folders, setFolders] = useState<FolderEntry[]>([]);
   const [files, setFiles] = useState<FileEntry[]>([]);
