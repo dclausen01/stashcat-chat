@@ -30,18 +30,21 @@ export default function ChatItem({ target, active, onSelect, onToggleFavorite }:
       )}
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{target.name}</span>
       {onToggleFavorite && (
-        <span
+        <button
+          type="button"
           onClick={(e) => { e.stopPropagation(); onToggleFavorite(target); }}
           title={target.favorite ? 'Favorit entfernen' : 'Als Favorit markieren'}
+          aria-label={target.favorite ? 'Favorit entfernen' : 'Als Favorit markieren'}
+          aria-pressed={target.favorite}
           className={clsx(
-            'shrink-0 cursor-pointer transition',
+            'shrink-0 rounded transition min-h-[44px] min-w-[44px] flex items-center justify-center md:min-h-0 md:min-w-0',
             target.favorite
               ? 'text-yellow-400'
               : 'text-transparent group-hover/item:text-surface-400 dark:group-hover/item:text-surface-600',
           )}
         >
           <Star size={13} className={target.favorite ? 'fill-yellow-400' : ''} />
-        </span>
+        </button>
       )}
       {(target.unread_count ?? 0) > 0 && (
         <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-ci-red-500 px-1.5 text-xs font-bold text-white">

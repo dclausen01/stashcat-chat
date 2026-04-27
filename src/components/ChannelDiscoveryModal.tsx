@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Hash, Search, X, Loader2, Users, LogIn } from 'lucide-react';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
@@ -22,6 +23,7 @@ interface VisibleChannel {
 }
 
 export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClose, onJoined }: ChannelDiscoveryModalProps) {
+  useEscapeKey(onClose);
   const [channels, setChannels] = useState<VisibleChannel[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');

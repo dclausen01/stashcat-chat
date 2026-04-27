@@ -6,6 +6,7 @@ import {
 import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
+import { useConfirm } from '../context/ConfirmContext';
 
 interface Broadcast {
   id: number;
@@ -54,6 +55,7 @@ const formatTime = (ts?: number) => {
 };
 
 export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
+  const confirmAsync = useConfirm();
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeBroadcast, setActiveBroadcast] = useState<Broadcast | null>(null);
@@ -267,7 +269,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
   };
 
   const handleDelete = async (b: Broadcast) => {
-    if (!confirm(`Broadcast "${b.name}" wirklich löschen?`)) return;
+    if (!await confirmAsync(`Broadcast "${b.name}" wirklich löschen?`)) return;
     try {
       await api.deleteBroadcast(String(b.id));
       if (activeBroadcast?.id === b.id) setActiveBroadcast(null);
@@ -312,7 +314,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
 
   const handleInviteGroup = async (group: { id: string; name: string; count: number }) => {
     if (!activeBroadcast || !companyIdRef.current) return;
-    if (!confirm(`Alle ${group.count} Mitglieder der Gruppe "${group.name}" hinzufügen?`)) return;
+    if (!await confirmAsync(`Alle ${group.count} Mitglieder der Gruppe "${group.name}" hinzufügen?`, 'Hinzufügen')) return;
     setInvitingGroup(group.id);
     try {
       const result = await api.getGroupMembers(companyIdRef.current, group.id);
@@ -352,7 +354,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
   // ═══════════════════════════════════════════════════════════════════════════
 
   return (
-    <div className="flex h-full w-96 shrink-0 flex-col border-l border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900">
+    <div className="flex h-full w-full shrink-0 flex-col border-l border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900 md:w-96">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex shrink-0 items-center gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
         {activeBroadcast ? (
@@ -380,8 +382,13 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
             </button>
           </>
         )}
-        <button onClick={onClose} className="rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700">
-          <X size={16} />
+        <button
+          onClick={onClose}
+          aria-label="Schließen"
+          title="Schließen"
+          className="shrink-0 rounded-lg p-1.5 text-surface-700 hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-surface-700"
+        >
+          <X size={18} />
         </button>
       </div>
 

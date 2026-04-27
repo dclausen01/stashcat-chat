@@ -113,12 +113,14 @@ export default function App() {
   const openCalendar = () => {
     const wasOpen = activeView === 'calendar';
     closeAllPanels();
+    setSidebarOpen(false);
     setEventIdToOpen(null);
     setActiveView(wasOpen ? 'chat' : 'calendar');
   };
 
   const openEvent = (eventId: string) => {
     closeAllPanels();
+    setSidebarOpen(false);
     setEventIdToOpen(eventId);
     setActiveView('calendar');
   };
@@ -126,12 +128,14 @@ export default function App() {
   const openPolls = () => {
     const wasOpen = activeView === 'polls';
     closeAllPanels();
+    setSidebarOpen(false);
     setPollIdToOpen(null);
     setActiveView(wasOpen ? 'chat' : 'polls');
   };
 
   const openPoll = (pollId: string) => {
     closeAllPanels();
+    setSidebarOpen(false);
     setPollIdToOpen(pollId);
     setActiveView('polls');
   };
@@ -171,13 +175,13 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full overflow-hidden">
       {/* Mobile: Sidebar as overlay drawer */}
-      {/* Desktop (lg+): Sidebar always visible */}
+      {/* Desktop (md+): Sidebar always visible */}
       <div
         className={`
-          fixed inset-0 z-40 shrink-0 lg:relative
-          ${sidebarOpen ? 'flex' : 'hidden lg:flex'}
+          fixed inset-y-0 left-0 z-40 shrink-0 md:relative md:inset-auto
+          ${sidebarOpen ? 'flex w-full max-w-[85vw] md:w-auto md:max-w-none' : 'hidden md:flex'}
         `}
       >
         <Sidebar
@@ -205,16 +209,16 @@ export default function App() {
       {/* Mobile: Sidebar backdrop overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Mobile: Hamburger toggle button - only show when no chat/view and no panel is open */}
-      {!activeChat && !settingsOpen && !fileBrowserOpen && !broadcastsOpen && !notificationsOpen && activeView === 'chat' && (
+      {/* Mobile: Hamburger toggle button - show on home/cards/calendar/polls views (not when ChatView is showing) */}
+      {(activeView !== 'chat' || !activeChat) && !settingsOpen && !fileBrowserOpen && !broadcastsOpen && !notificationsOpen && !flaggedOpen && !profileOpen && (
         <button
           onClick={() => setSidebarOpen((v) => !v)}
-          className="fixed right-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-white/90 text-surface-700 shadow-md backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white lg:hidden"
+          className="fixed right-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-white/90 text-surface-700 shadow-md backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white md:hidden"
           aria-label={sidebarOpen ? 'Menü schließen' : 'Menü öffnen'}
         >
           {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
@@ -252,17 +256,17 @@ export default function App() {
               ? <FavoriteCardsView channels={channels} conversations={conversations} onSelectChat={handleSelectChat} onOpenSidebar={() => setSidebarOpen(true)} />
               : <EmptyState />}
           {fileBrowserOpen && !sidebarOpen && (
-            <div className="fixed inset-0 z-40 flex lg:relative lg:inset-auto lg:z-auto">
+            <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
               <FileBrowserPanel chat={activeChat} onClose={() => setFileBrowserOpen(false)} />
             </div>
           )}
           {broadcastsOpen && !sidebarOpen && (
-            <div className="fixed inset-0 z-40 flex lg:relative lg:inset-auto lg:z-auto">
+            <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
               <BroadcastsPanel onClose={() => setBroadcastsOpen(false)} />
             </div>
           )}
           {flaggedOpen && !sidebarOpen && (
-            <div className="fixed inset-0 z-40 flex lg:relative lg:inset-auto lg:z-auto">
+            <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
               <FlaggedMessagesPanel
                 chat={activeChat}
                 onClose={() => setFlaggedOpen(false)}
@@ -272,17 +276,17 @@ export default function App() {
             </div>
           )}
           {notificationsOpen && !sidebarOpen && (
-            <div className="fixed inset-0 z-40 flex lg:relative lg:inset-auto lg:z-auto">
+            <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
               <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} onOpenPoll={openPoll} onOpenCalendar={openCalendar} onOpenEvent={openEvent} onChannelJoined={() => refreshSidebarRef.current?.()} />
             </div>
           )}
         </>
       )}
       {settingsOpen && !sidebarOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 lg:relative lg:inset-auto lg:bg-transparent lg:z-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 md:relative md:inset-auto md:bg-transparent md:z-auto">
           <button
             onClick={() => setSettingsOpen(false)}
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-surface-700 shadow backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white lg:hidden"
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-surface-700 shadow backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white md:hidden"
           >
             <X size={20} />
           </button>
@@ -290,10 +294,10 @@ export default function App() {
         </div>
       )}
       {profileOpen && !sidebarOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 lg:relative lg:inset-auto lg:bg-transparent lg:z-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 md:relative md:inset-auto md:bg-transparent md:z-auto">
           <button
             onClick={() => setProfileOpen(false)}
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-surface-700 shadow backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white lg:hidden"
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-surface-700 shadow backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white md:hidden"
           >
             <X size={20} />
           </button>

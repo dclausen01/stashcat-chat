@@ -64,7 +64,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   // Sidebar width (horizontal resize)
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem('schulchat_sidebar_width');
-    return saved ? Number(saved) : 360;
+    return saved ? Number(saved) : 280;
   });
   const sidebarWidthRef = useRef(sidebarWidth);
   const resizingWidth = useRef(false);
@@ -75,7 +75,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     const startX = e.clientX;
     const startW = sidebarWidthRef.current;
     const onMove = (ev: MouseEvent) => {
-      const newW = Math.max(200, Math.min(480, startW + ev.clientX - startX));
+      const newW = Math.max(200, Math.min(420, startW + ev.clientX - startX));
       setSidebarWidth(newW);
       sidebarWidthRef.current = newW;
     };
@@ -419,7 +419,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       {/* Horizontal resize handle — desktop only */}
       <div
         onMouseDown={onWidthMouseDown}
-        className="absolute right-0 top-0 z-20 hidden h-full w-1 cursor-col-resize border-r border-surface-200 transition-colors hover:border-primary-400 hover:border-r-2 dark:border-surface-700 dark:hover:border-primary-600 lg:block"
+        className="absolute right-0 top-0 z-20 hidden h-full w-1 cursor-col-resize border-r border-surface-200 transition-colors hover:border-primary-400 hover:border-r-2 dark:border-surface-700 dark:hover:border-primary-600 md:block"
         title="Breite anpassen"
       />
       <SidebarHeader
@@ -493,7 +493,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         {/* Drag handle — desktop only */}
         <div
           onMouseDown={onMouseDown}
-          className="group hidden cursor-row-resize items-center justify-center border-y border-surface-200 py-0.5 hover:bg-surface-200 dark:border-surface-700 dark:hover:bg-surface-800 lg:flex"
+          className="group hidden cursor-row-resize items-center justify-center border-y border-surface-200 py-0.5 hover:bg-surface-200 dark:border-surface-700 dark:hover:bg-surface-800 md:flex"
         >
           <GripHorizontal size={16} className="text-surface-300 group-hover:text-surface-500 dark:text-surface-400 dark:group-hover:text-surface-500" />
         </div>

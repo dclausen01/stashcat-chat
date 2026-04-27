@@ -112,7 +112,7 @@ export default function FlaggedMessagesPanel({ chat, onClose, onMessageClick, ju
     return (
       <div style={{ width }} className="relative flex shrink-0 flex-col border-l border-surface-200 bg-white dark:border-surface-700 dark:bg-surface-900">
         <div className="flex items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-700">
-          <h2 className="text-sm font-semibold">Markierte Nachrichten</h2>
+          <h2 className="text-sm font-semibold text-surface-900 dark:text-white">Markierte Nachrichten</h2>
           <button onClick={onClose} className="rounded-lg p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300"><X size={18} /></button>
         </div>
         <div className="flex flex-1 items-center justify-center text-sm text-surface-500">
@@ -134,7 +134,7 @@ export default function FlaggedMessagesPanel({ chat, onClose, onMessageClick, ju
       <div className="flex items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-700">
         <div className="flex items-center gap-2 overflow-hidden">
           <Bookmark size={16} className="shrink-0 text-amber-500" fill="currentColor" />
-          <h2 className="truncate text-sm font-semibold">
+          <h2 className="truncate text-sm font-semibold text-surface-900 dark:text-white">
             Markiert in {chatName}
           </h2>
         </div>

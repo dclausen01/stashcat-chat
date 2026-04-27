@@ -4,6 +4,7 @@ import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
 import { useAuth } from '../context/AuthContext';
+import { useConfirm } from '../context/ConfirmContext';
 import type { ChatTarget } from '../types';
 
 interface RawMember {
@@ -42,6 +43,7 @@ interface ChannelMembersPanelProps {
 
 export default function ChannelMembersPanel({ chat, isManager: isManagerProp, onClose }: ChannelMembersPanelProps) {
   const { user } = useAuth();
+  const confirmAsync = useConfirm();
   const myId = user?.id ?? '';
   const [members, setMembers] = useState<RawMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
@@ -134,7 +136,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
     const userId = m.user_id ?? m.id;
     const isPending = m.membership_pending === true || m.pending === true;
     const actionText = isPending ? 'Einladung zurückziehen' : 'aus dem Channel entfernen';
-    if (!userId || !confirm(`${memberName(m)} ${actionText}?`)) return;
+    if (!userId || !await confirmAsync(`${memberName(m)} ${actionText}?`, isPending ? 'Zurückziehen' : 'Entfernen')) return;
     setRemoving(userId);
     try {
       await api.removeFromChannel(chat.id, userId);
@@ -155,7 +157,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
     if (!userId) return;
     const isMod = m.manager === true || m.role === 'moderator';
     const action = isMod ? 'Moderator-Rechte entziehen' : 'Zum Moderator befördern';
-    if (!confirm(`${memberName(m)}: ${action}?`)) return;
+    if (!await confirmAsync(`${memberName(m)}: ${action}?`, 'Bestätigen')) return;
     setTogglingMod(userId);
     try {
       if (isMod) {
@@ -191,7 +193,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
 
   const handleInviteGroup = async (group: { id: string; name: string; count: number }) => {
     if (!chat.company_id) return;
-    if (!confirm(`Alle ${group.count} Mitglieder der Gruppe "${group.name}" einladen?`)) return;
+    if (!await confirmAsync(`Alle ${group.count} Mitglieder der Gruppe "${group.name}" einladen?`, 'Einladen')) return;
     setInvitingGroup(group.id);
     try {
       // Get group members

@@ -135,13 +135,13 @@ export default function FavoriteCardsView({ channels, conversations, onSelectCha
           <div>
             <button
               onClick={onOpenSidebar}
-              className="flex items-center gap-1.5 text-left lg:cursor-default"
+              className="flex items-center gap-1.5 text-left md:cursor-default"
               title="Menü öffnen"
             >
               <h2 className="text-lg font-semibold text-surface-900 dark:text-white">
                 Favoriten
               </h2>
-              <ChevronDown size={14} className="shrink-0 text-surface-400 lg:hidden" />
+              <ChevronDown size={14} className="shrink-0 text-surface-400 md:hidden" />
             </button>
             <p className="text-sm text-surface-500">
               {favorites.length + favoritesConvs.length} {favorites.length + favoritesConvs.length !== 1 ? 'Favoriten' : 'Favorit'}
@@ -266,7 +266,7 @@ function FavoriteSection({
       </h3>
 
       {/* Mobile: List layout */}
-      <div className="flex flex-col gap-2 lg:hidden">
+      <div className="flex flex-col gap-2 md:hidden">
         {channels.map((ch) => (
           <button
             key={ch.id}
@@ -310,7 +310,7 @@ function FavoriteSection({
       </div>
 
       {/* Desktop: Grid layout */}
-      <div className="hidden grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-4 lg:grid">
+      <div className="hidden grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-4 md:grid">
         {channels.map((ch) => (
           <ChannelCard
             key={ch.id}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Loader2, ChevronDown, ChevronUp, BarChart3, Search } from 'lucide-react';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -39,6 +40,7 @@ function dateToTs(dateStr: string): number {
 }
 
 export default function CreatePollModal({ preselectedChat, onClose, onCreated }: Props) {
+  useEscapeKey(onClose);
   const { user } = useAuth();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');

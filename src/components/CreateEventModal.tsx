@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   X, Loader2, Check, Users, Hash, Search,
 } from 'lucide-react';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { CalendarEvent } from '../api';
@@ -32,6 +33,7 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
   onClose: () => void;
   onCreated: () => void;
 }) {
+  useEscapeKey(onClose);
   const isEdit = !!editingEvent;
 
   const [name, setName] = useState(editingEvent?.name ?? '');

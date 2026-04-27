@@ -1,7 +1,9 @@
 import { useState, useRef } from 'react';
 import { X, Camera, Loader2 } from 'lucide-react';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';
 import { useAuth } from '../context/AuthContext';
+import { useConfirm } from '../context/ConfirmContext';
 import * as api from '../api';
 import Avatar from './Avatar';
 
@@ -10,7 +12,9 @@ interface ProfileModalProps {
 }
 
 export default function ProfileModal({ onClose }: ProfileModalProps) {
+  useEscapeKey(onClose);
   const { user, setUser } = useAuth();
+  const confirmAsync = useConfirm();
   const [status, setStatus] = useState(user?.status || '');
   const [availability, setAvailability] = useState<'available' | 'do_not_disturb'>(
     user?.availability === 'do_not_disturb' ? 'do_not_disturb' : 'available'
@@ -95,7 +99,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
   };
 
   const handleRemoveImage = async () => {
-    if (!confirm('Profilbild wirklich entfernen?')) return;
+    if (!await confirmAsync('Profilbild wirklich entfernen?', 'Entfernen')) return;
     setUploading(true);
     try {
       await api.resetProfileImage();
@@ -119,7 +123,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
         <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Mein Profil</h2>
         <button
           onClick={onClose}
-          className="hidden rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 lg:block"
+          className="hidden rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 md:block"
         >
           <X size={20} />
         </button>

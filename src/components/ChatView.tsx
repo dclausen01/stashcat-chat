@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, ChevronDown } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, ChevronDown, MoreHorizontal } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import { fileIcon } from '../utils/fileIcon';
 import Avatar from './Avatar';
@@ -185,6 +186,7 @@ interface PendingMessage { text: string; replyTo: Message | null; time: number }
 export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onOpenEvent, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall, onToggleFavorite }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
+  const confirmAsync = useConfirm();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -981,7 +983,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   }, [loadOlder]);
 
   const handleDelete = useCallback(async (messageId: string) => {
-    if (!confirm('Nachricht wirklich löschen?')) return;
+    if (!await confirmAsync('Nachricht wirklich löschen?')) return;
     try {
       await api.deleteMessage(messageId);
       setMessages((prev) => prev.filter((m) => String(m.id) !== messageId));
@@ -1193,7 +1195,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         {/* Mobile: Back button */}
         <button
           onClick={onGoHome}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-700 lg:hidden"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-700 md:hidden"
           aria-label="Zurück zur Übersicht"
         >
           <ArrowLeft size={20} />
@@ -1207,23 +1209,23 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           <Avatar name={chat.name} image={chat.image} size="md" />
         )}
         <div className="min-w-0 flex-1">
-          <div className="relative flex items-center gap-2">
+          <div className="relative flex min-w-0 items-center gap-2">
             {/* Mobile: title opens menu, Desktop: just text */}
             <button
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="flex w-full items-center gap-1.5 truncate text-left text-base font-semibold text-surface-900 dark:text-white lg:w-auto lg:cursor-default lg:bg-transparent lg:hover:bg-transparent"
+              className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-base font-semibold text-surface-900 dark:text-white md:cursor-default md:bg-transparent md:hover:bg-transparent"
               title="Menü öffnen"
             >
-              <span className="truncate">{chat.name}</span>
+              <span className="min-w-0 flex-1 truncate">{chat.name}</span>
               {/* Mobile: small chevron indicator */}
-              <ChevronDown size={14} className="shrink-0 text-surface-400 lg:hidden" />
+              <ChevronDown size={14} className="shrink-0 text-surface-400 md:hidden" />
             </button>
             {/* Favorite toggle — desktop only (mobile has it in the more menu) */}
             {onToggleFavorite && (
               <button
                 onClick={() => onToggleFavorite(chat)}
                 className={clsx(
-                  'hidden rounded p-0.5 transition lg:block',
+                  'hidden rounded p-0.5 transition md:block',
                   chat.favorite
                     ? 'text-yellow-400 hover:text-yellow-500'
                     : 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300',
@@ -1254,7 +1256,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               }}
               disabled={notificationsLoading}
               className={clsx(
-                'hidden rounded p-0.5 transition lg:block',
+                'hidden rounded p-0.5 transition md:block',
                 notificationsLoading && 'opacity-50 cursor-not-allowed',
                 notificationsMuted
                   ? 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300'
@@ -1327,7 +1329,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           ) : null}
         </div>
         {/* Desktop: Action buttons inline */}
-        <div className="hidden lg:flex lg:items-center lg:gap-1">
+        <div className="hidden md:flex md:items-center md:gap-1">
           {/* Video meeting button */}
           <button
             onClick={async () => {
@@ -1445,7 +1447,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         <button
           onClick={onToggleFileBrowser}
           className={clsx(
-            'hidden rounded-lg p-2 transition lg:inline-flex',
+            'hidden rounded-lg p-2 transition md:inline-flex',
             fileBrowserOpen
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
               : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
@@ -1459,7 +1461,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           <button
             onClick={onToggleFlagged}
             className={clsx(
-              'hidden rounded-lg p-2 transition lg:inline-flex',
+              'hidden rounded-lg p-2 transition md:inline-flex',
               flaggedOpen
                 ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
                 : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
@@ -1473,7 +1475,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         <button
           onClick={() => setSearchOpen((o) => !o)}
           className={clsx(
-            'hidden rounded-lg p-2 transition lg:inline-flex',
+            'hidden rounded-lg p-2 transition md:inline-flex',
             searchOpen
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
               : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
@@ -1486,8 +1488,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         {/* Mobile: More menu dropdown — opens from the title button */}
         {mobileMenuOpen && (
           <>
-            <div className="pointer-events-none fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => { setMobileMenuOpen(false); setMuteMenuOpen(false); }} />
-            <div className="pointer-events-auto fixed left-4 right-4 top-20 z-50 mx-auto w-full max-w-sm rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 lg:hidden">
+            <div className="pointer-events-none fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => { setMobileMenuOpen(false); setMuteMenuOpen(false); }} />
+            <div className="pointer-events-auto fixed left-4 right-4 top-20 z-50 mx-auto w-full max-w-sm rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 md:hidden">
               {/* Favorite toggle */}
               {onToggleFavorite && (
                 <button
@@ -2261,8 +2263,14 @@ function MessageGroup({
 }) {
   const { sender, isOwn, messages } = group;
   const senderName = sender ? `${sender.first_name ?? ''} ${sender.last_name ?? ''}`.trim() || 'Unbekannt' : 'Unbekannt';
+  const [mobileActionMsgId, setMobileActionMsgId] = useState<string | null>(null);
 
   return (
+    <>
+    {/* Backdrop: tap anywhere outside to close mobile action menu */}
+    {mobileActionMsgId !== null && (
+      <div className="fixed inset-0 z-[9] md:hidden" onClick={() => setMobileActionMsgId(null)} />
+    )}
     <div className={clsx('flex gap-2', isOwn ? 'flex-row-reverse' : 'flex-row')}>
       {!isOwn && (
         <div className="shrink-0 pt-0.5">
@@ -2330,10 +2338,11 @@ function MessageGroup({
                 isBubbleCurrent ? 'ring-yellow-400 dark:ring-yellow-500' : isBubbleMatch ? 'ring-yellow-200 dark:ring-yellow-800' : undefined,
               )}
             >
-              {/* Action buttons — above the bubble; ::before extends hover zone so buttons don't vanish */}
+              {/* Action buttons — above the bubble on desktop (hover), inline panel on mobile */}
               <div className={clsx(
-                'absolute bottom-full mb-1 z-10 hidden group-hover/msg:flex items-center gap-0.5 rounded-lg bg-white/90 p-1 shadow-sm ring-1 ring-surface-200 backdrop-blur dark:bg-surface-800/90 dark:ring-surface-700',
+                'absolute bottom-full mb-1 z-10 items-center gap-0.5 rounded-lg bg-white/90 p-1 shadow-sm ring-1 ring-surface-200 backdrop-blur dark:bg-surface-800/90 dark:ring-surface-700',
                 isOwn ? 'right-0' : 'left-0',
+                mobileActionMsgId === String(msg.id) ? 'flex' : 'hidden group-hover/msg:flex',
               )}>
                 <button
                   onClick={() => onLike(String(msg.id), Boolean(msg.liked))}
@@ -2399,33 +2408,44 @@ function MessageGroup({
                 </div>
               )}
 
-              <div
-                className={clsx(
-                  'relative max-w-full rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed select-text',
-                  isOwn && !isFirst && 'rounded-tr-md',
-                  isOwn && !isLast && 'rounded-br-md',
-                  !isOwn && !isFirst && 'rounded-tl-md',
-                  !isOwn && !isLast && 'rounded-bl-md',
-                  msg.flagged && (isOwn ? 'ring-2 ring-amber-400/40 dark:ring-amber-500/30' : 'ring-2 ring-amber-400/40 dark:ring-amber-500/30'),
-                )}
-                style={{
-                  backgroundColor: isOwn ? ownBubbleColor : otherBubbleColor,
-                  color: isOwn ? '#fff' : undefined,
-                }}
-              >
-                {replyTo && <ReplyQuote msg={replyTo} isOwn={isOwn} />}
-                {msg.is_forwarded && (
-                  <div className={clsx('mb-1 flex items-center gap-1 text-[11px] italic', isOwn ? 'text-primary-200' : 'text-surface-600')}>
-                    <Forward size={10} /> Weitergeleitet
+              {/* Bubble row: bubble + mobile ⋯ trigger */}
+              <div className={clsx('flex items-end gap-1', isOwn ? 'flex-row-reverse' : 'flex-row')}>
+                <div
+                  className={clsx(
+                    'relative max-w-full rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed select-text',
+                    isOwn && !isFirst && 'rounded-tr-md',
+                    isOwn && !isLast && 'rounded-br-md',
+                    !isOwn && !isFirst && 'rounded-tl-md',
+                    !isOwn && !isLast && 'rounded-bl-md',
+                    msg.flagged && (isOwn ? 'ring-2 ring-amber-400/40 dark:ring-amber-500/30' : 'ring-2 ring-amber-400/40 dark:ring-amber-500/30'),
+                  )}
+                  style={{
+                    backgroundColor: isOwn ? ownBubbleColor : otherBubbleColor,
+                    color: isOwn ? '#fff' : undefined,
+                  }}
+                >
+                  {replyTo && <ReplyQuote msg={replyTo} isOwn={isOwn} />}
+                  {msg.is_forwarded && (
+                    <div className={clsx('mb-1 flex items-center gap-1 text-[11px] italic', isOwn ? 'text-primary-200' : 'text-surface-600')}>
+                      <Forward size={10} /> Weitergeleitet
+                    </div>
+                  )}
+                  {/* Scrollable content area for long text without spaces */}
+                  <div className="min-w-0 overflow-x-auto">
+                    {searchQuery && content.toLowerCase().includes(searchQuery.toLowerCase())
+                      ? <p className="whitespace-pre-wrap break-words"><HighlightedText text={content} query={searchQuery} /></p>
+                      : <MarkdownContent content={content} isOwn={isOwn} isEmojiOnly={msgIsEmojiOnly} />}
+                    <FileList files={msg.files} isOwn={isOwn} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
                   </div>
-                )}
-                {/* Scrollable content area for long text without spaces */}
-                <div className="min-w-0 overflow-x-auto">
-                  {searchQuery && content.toLowerCase().includes(searchQuery.toLowerCase())
-                    ? <p className="whitespace-pre-wrap break-words"><HighlightedText text={content} query={searchQuery} /></p>
-                    : <MarkdownContent content={content} isOwn={isOwn} isEmojiOnly={msgIsEmojiOnly} />}
-                  <FileList files={msg.files} isOwn={isOwn} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
                 </div>
+                {/* Mobile-only ⋯ button — toggles action panel */}
+                <button
+                  className="relative z-10 flex shrink-0 items-center justify-center rounded-full p-2 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 md:hidden"
+                  onClick={() => setMobileActionMsgId(mobileActionMsgId === String(msg.id) ? null : String(msg.id))}
+                  aria-label="Nachrichtenaktionen"
+                >
+                  <MoreHorizontal size={16} />
+                </button>
               </div>
 
               {(isLast || (msg.likes ?? 0) > 0) && (
@@ -2456,6 +2476,7 @@ function MessageGroup({
         })}
       </div>
     </div>
+    </>
   );
 }
 
@@ -2513,8 +2534,11 @@ function PlainTextMessage({
     !msg.encrypted && !replyTo && !msg.is_forwarded &&
     !msg.files?.length && isOnlyEmoji(msg.text)
   );
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
 
   return (
+    <>
+    {mobileActionsOpen && <div className="fixed inset-0 z-[9] md:hidden" onClick={() => setMobileActionsOpen(false)} />}
     <div className="group/msg flex gap-3 px-2 py-2 hover:bg-surface-50 dark:hover:bg-surface-900/50">
       <Avatar name={senderName} image={msg.sender?.image} size="sm" />
       <div className="min-w-0 flex-1 select-text">
@@ -2558,61 +2582,67 @@ function PlainTextMessage({
           <FileList files={msg.files} isOwn={false} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
         </div>
       </div>
-      <div className="hidden shrink-0 group-hover/msg:flex items-center gap-0.5">
-        <button
-          onClick={() => onLike(String(msg.id), Boolean(msg.liked))}
-          title={msg.liked ? 'Like entfernen' : 'Gefällt mir'}
-          className={clsx(
-            'flex items-center justify-center rounded-md p-1 transition',
-            msg.liked ? 'text-amber-500' : 'text-surface-600 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700',
-          )}
-        >
+      {/* Desktop: hover-revealed action panel */}
+      <div className="hidden shrink-0 items-center gap-0.5 group-hover/msg:flex">
+        <button onClick={() => onLike(String(msg.id), Boolean(msg.liked))} title={msg.liked ? 'Like entfernen' : 'Gefällt mir'}
+          className={clsx('flex items-center justify-center rounded-md p-1 transition', msg.liked ? 'text-amber-500' : 'text-surface-600 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700')}>
           <ThumbsUp size={13} />
         </button>
-        <button
-          onClick={() => onReply(msg)}
-          title="Antworten"
-          className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 hover:text-primary-600 dark:hover:bg-surface-700 dark:hover:text-primary-400 transition"
-        >
+        <button onClick={() => onReply(msg)} title="Antworten" className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 hover:text-primary-600 dark:hover:bg-surface-700 dark:hover:text-primary-400 transition">
           <Reply size={13} />
         </button>
-        <button
-          onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }}
-          title="Kopieren"
-          className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 transition"
-        >
+        <button onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }} title="Kopieren" className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 transition">
           <Copy size={13} />
         </button>
-        <button
-          onClick={() => onForward(msg)}
-          title="Weiterleiten"
-          className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 transition"
-        >
+        <button onClick={() => onForward(msg)} title="Weiterleiten" className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 transition">
           <Forward size={13} />
         </button>
-        <button
-          onClick={() => onFlag(String(msg.id), Boolean(msg.flagged))}
-          title={msg.flagged ? 'Markierung entfernen' : 'Markieren'}
-          className={clsx(
-            'flex items-center justify-center rounded-md p-1 transition',
-            msg.flagged
-              ? 'text-amber-500 dark:text-amber-400'
-              : 'text-surface-600 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700 dark:hover:text-amber-400',
-          )}
-        >
+        <button onClick={() => onFlag(String(msg.id), Boolean(msg.flagged))} title={msg.flagged ? 'Markierung entfernen' : 'Markieren'}
+          className={clsx('flex items-center justify-center rounded-md p-1 transition', msg.flagged ? 'text-amber-500 dark:text-amber-400' : 'text-surface-600 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700 dark:hover:text-amber-400')}>
           <Bookmark size={13} fill={msg.flagged ? 'currentColor' : 'none'} />
         </button>
         {canDelete && (
-          <button
-            onClick={() => onDelete(String(msg.id))}
-            title="Löschen"
-            className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition"
-          >
+          <button onClick={() => onDelete(String(msg.id))} title="Löschen" className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition">
             <Trash2 size={13} />
           </button>
         )}
       </div>
+      {/* Mobile: permanent ⋯ button + popup */}
+      <div className="relative shrink-0 md:hidden">
+        <button
+          onClick={() => setMobileActionsOpen((v) => !v)}
+          aria-label="Nachrichtenaktionen"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
+        >
+          <MoreHorizontal size={16} />
+        </button>
+        {mobileActionsOpen && (
+          <div className="absolute right-0 top-10 z-20 flex flex-col rounded-lg bg-white py-1 shadow-lg ring-1 ring-surface-200 dark:bg-surface-800 dark:ring-surface-700">
+            <button onClick={() => { onLike(String(msg.id), Boolean(msg.liked)); setMobileActionsOpen(false); }} className={clsx('flex items-center gap-2 px-4 py-2.5 text-sm', msg.liked ? 'text-amber-500' : 'text-surface-700 dark:text-surface-300')}>
+              <ThumbsUp size={15} /> {msg.liked ? 'Like entfernen' : 'Gefällt mir'}
+            </button>
+            <button onClick={() => { onReply(msg); setMobileActionsOpen(false); }} className="flex items-center gap-2 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300">
+              <Reply size={15} /> Antworten
+            </button>
+            <button onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); setMobileActionsOpen(false); }} className="flex items-center gap-2 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300">
+              <Copy size={15} /> Kopieren
+            </button>
+            <button onClick={() => { onForward(msg); setMobileActionsOpen(false); }} className="flex items-center gap-2 px-4 py-2.5 text-sm text-surface-700 dark:text-surface-300">
+              <Forward size={15} /> Weiterleiten
+            </button>
+            <button onClick={() => { onFlag(String(msg.id), Boolean(msg.flagged)); setMobileActionsOpen(false); }} className={clsx('flex items-center gap-2 px-4 py-2.5 text-sm', msg.flagged ? 'text-amber-500' : 'text-surface-700 dark:text-surface-300')}>
+              <Bookmark size={15} fill={msg.flagged ? 'currentColor' : 'none'} /> {msg.flagged ? 'Markierung entfernen' : 'Markieren'}
+            </button>
+            {canDelete && (
+              <button onClick={() => { onDelete(String(msg.id)); setMobileActionsOpen(false); }} className="flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 dark:text-red-400">
+                <Trash2 size={15} /> Löschen
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
+    </>
   );
 }
 

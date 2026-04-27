@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { X, Hash, Lock, KeyRound, Loader2, ChevronDown, Upload, ImageIcon, Trash2 } from 'lucide-react';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { Channel } from '../types';
@@ -71,6 +72,7 @@ function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: b
 }
 
 export default function NewChannelModal({ companyId, onClose, onCreate }: NewChannelModalProps) {
+  useEscapeKey(onClose);
   const [name, setName]             = useState('');
   const [description, setDescription] = useState('');
   const [policies, setPolicies]     = useState('');
