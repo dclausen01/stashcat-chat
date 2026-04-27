@@ -180,8 +180,8 @@ export default function App() {
       {/* Desktop (md+): Sidebar always visible */}
       <div
         className={`
-          fixed inset-0 z-40 shrink-0 md:relative
-          ${sidebarOpen ? 'flex' : 'hidden md:flex'}
+          fixed inset-y-0 left-0 z-40 shrink-0 md:relative md:inset-auto
+          ${sidebarOpen ? 'flex w-full max-w-[85vw] md:w-auto md:max-w-none' : 'hidden md:flex'}
         `}
       >
         <Sidebar

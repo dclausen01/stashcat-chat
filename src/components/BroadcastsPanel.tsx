@@ -6,6 +6,7 @@ import {
 import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
+import { useConfirm } from '../context/ConfirmContext';
 
 interface Broadcast {
   id: number;
@@ -54,6 +55,7 @@ const formatTime = (ts?: number) => {
 };
 
 export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
+  const confirmAsync = useConfirm();
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeBroadcast, setActiveBroadcast] = useState<Broadcast | null>(null);
@@ -267,7 +269,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
   };
 
   const handleDelete = async (b: Broadcast) => {
-    if (!confirm(`Broadcast "${b.name}" wirklich löschen?`)) return;
+    if (!await confirmAsync(`Broadcast "${b.name}" wirklich löschen?`)) return;
     try {
       await api.deleteBroadcast(String(b.id));
       if (activeBroadcast?.id === b.id) setActiveBroadcast(null);
@@ -312,7 +314,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
 
   const handleInviteGroup = async (group: { id: string; name: string; count: number }) => {
     if (!activeBroadcast || !companyIdRef.current) return;
-    if (!confirm(`Alle ${group.count} Mitglieder der Gruppe "${group.name}" hinzufügen?`)) return;
+    if (!await confirmAsync(`Alle ${group.count} Mitglieder der Gruppe "${group.name}" hinzufügen?`, 'Hinzufügen')) return;
     setInvitingGroup(group.id);
     try {
       const result = await api.getGroupMembers(companyIdRef.current, group.id);

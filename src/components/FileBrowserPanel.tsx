@@ -11,6 +11,7 @@ import * as api from '../api';
 import { fileIcon } from '../utils/fileIcon';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
+import { useConfirm } from '../context/ConfirmContext';
 import type { ChatTarget } from '../types';
 import ShareToChatModal from './ShareToChatModal';
 
@@ -665,6 +666,7 @@ function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
 export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProps) {
   const settings = useSettings();
   const { user } = useAuth();
+  const confirmAsync = useConfirm();
   const tab = settings.fileBrowserTab;
   const setTab = settings.setFileBrowserTab;
   const viewMode = settings.fileBrowserViewMode;
@@ -839,7 +841,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   };
 
   const handleDelete = async (f: FileEntry) => {
-    if (!confirm(`"${f.name}" wirklich löschen?`)) return;
+    if (!await confirmAsync(`"${f.name}" wirklich löschen?`)) return;
     try {
       if (tab === 'nextcloud') {
         await api.ncDelete([f.id]);
@@ -853,7 +855,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   };
 
   const handleDeleteFolder = async (f: FolderEntry) => {
-    if (!confirm(`Ordner "${f.name}" und alle Inhalte wirklich löschen?`)) return;
+    if (!await confirmAsync(`Ordner "${f.name}" und alle Inhalte wirklich löschen?`)) return;
     try {
       if (tab === 'nextcloud') {
         await api.ncDelete([f.id]);
@@ -925,7 +927,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     const selFiles = sortedFiles.filter(f => selectedIds.has(f.id));
     const selFolders = sortedFolders.filter(f => selectedIds.has(f.id));
     const total = selFiles.length + selFolders.length;
-    if (!confirm(`${total} Item(s) wirklich löschen?`)) return;
+    if (!await confirmAsync(`${total} Item(s) wirklich löschen?`)) return;
     try {
       if (tab === 'nextcloud') {
         const allPaths = [...selFiles.map(f => f.id), ...selFolders.map(f => f.id)];

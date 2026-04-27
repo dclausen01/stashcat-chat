@@ -449,7 +449,7 @@ export default function MessageInput({
               if (editor) btn.command(editor);
             }}
             className={clsx(
-              'rounded p-1.5 text-surface-500 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-800 dark:hover:text-surface-300',
+              'flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1.5 text-surface-500 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-800 dark:hover:text-surface-300 sm:min-h-7 sm:min-w-7',
               editor && btn.isActive?.(editor) && 'bg-surface-200 text-surface-800 dark:bg-surface-700 dark:text-surface-100',
             )}
           >
@@ -616,7 +616,8 @@ export default function MessageInput({
           onClick={handleSend}
           disabled={!canSend}
           title="Senden"
-          className="shrink-0 rounded-lg bg-ci-red-500 p-1.5 text-white transition hover:bg-ci-red-600 disabled:opacity-40"
+          aria-label="Senden"
+          className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg bg-ci-red-500 p-1.5 text-white transition hover:bg-ci-red-600 disabled:opacity-40 sm:min-h-[34px] sm:min-w-[34px]"
         >
           {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
         </button>

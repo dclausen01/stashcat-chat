@@ -51,6 +51,7 @@ export default function SidebarHeader({ totalUnread, notificationsOpen, onOpenNo
               : 'text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700',
           )}
           title="Benachrichtigungen"
+          aria-label="Benachrichtigungen"
         >
           <Bell size={16} />
           {totalUnread > 0 && (
@@ -63,20 +64,22 @@ export default function SidebarHeader({ totalUnread, notificationsOpen, onOpenNo
           onClick={onOpenFileBrowser}
           className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
           title="Meine Dateien"
+          aria-label="Meine Dateien"
         >
           <FolderOpen size={16} />
         </button>
-        <button onClick={toggle} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
+        <button onClick={toggle} aria-label={theme === 'dark' ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren'} title={theme === 'dark' ? 'Helles Design' : 'Dunkles Design'} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
         </button>
         <button
           onClick={onOpenSettings}
           className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
           title="Einstellungen"
+          aria-label="Einstellungen"
         >
           <Settings size={16} />
         </button>
-        <button onClick={logout} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
+        <button onClick={logout} aria-label="Abmelden" title="Abmelden" className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
           <LogOut size={16} />
         </button>
       </div>

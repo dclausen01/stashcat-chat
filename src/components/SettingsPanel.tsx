@@ -1,3 +1,4 @@
+import { useState, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useTheme, LIGHT_PRESETS, DARK_PRESETS, type PresetId } from '../context/ThemeContext';
@@ -123,8 +124,42 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
 
   const namedPresets = mode === 'light' ? LIGHT_PRESETS : DARK_PRESETS;
 
+  // Persistent panel width (desktop only — mobile uses full screen overlay)
+  const [panelWidth, setPanelWidth] = useState(() => {
+    const saved = localStorage.getItem('schulchat_settings_width');
+    return saved ? Number(saved) : 256;
+  });
+  const panelWidthRef = useRef(panelWidth);
+
+  const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = panelWidthRef.current;
+    const onMove = (ev: MouseEvent) => {
+      const newW = Math.max(220, Math.min(480, startW - (ev.clientX - startX)));
+      setPanelWidth(newW);
+      panelWidthRef.current = newW;
+    };
+    const onUp = () => {
+      localStorage.setItem('schulchat_settings_width', String(panelWidthRef.current));
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, []);
+
   return (
-    <div className="flex h-full w-64 shrink-0 flex-col border-l border-surface-200 bg-[var(--theme-panel)] dark:border-surface-700 dark:bg-surface-800">
+    <div
+      className="relative flex h-full max-w-full shrink-0 flex-col border-l border-surface-200 bg-[var(--theme-panel)] dark:border-surface-700 dark:bg-surface-800"
+      style={{ width: panelWidth }}
+    >
+      {/* Resize handle — desktop only */}
+      <div
+        onMouseDown={onResizeMouseDown}
+        className="absolute left-0 top-0 z-20 hidden h-full w-1 cursor-col-resize border-l border-surface-200 transition-colors hover:border-primary-400 hover:border-l-2 dark:border-surface-700 dark:hover:border-primary-600 md:block"
+        title="Breite anpassen"
+      />
       <div className="flex shrink-0 items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-700">
         <h3 className="text-sm font-semibold text-surface-900 dark:text-white">Einstellungen</h3>
         <button

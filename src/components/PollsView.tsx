@@ -5,6 +5,7 @@ import { clsx } from 'clsx';
 import * as api from '../api';
 import type { Poll, PollQuestion } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { useConfirm } from '../context/ConfirmContext';
 import Avatar from './Avatar';
 import CreatePollModal from './CreatePollModal';
 
@@ -33,6 +34,7 @@ function isActive(poll: Poll): boolean {
 
 function PollDetail({ poll, companyId, onBack, onRefresh, onDelete }: { poll: Poll; companyId: string; onBack: () => void; onRefresh: () => void; onDelete: () => void }) {
   const { user } = useAuth();
+  const confirmAsync = useConfirm();
   const [detail, setDetail] = useState<Poll | null>(null);
   const [loading, setLoading] = useState(true);
   // questionId → set of chosen answerIds
@@ -48,7 +50,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh, onDelete }: { poll: Po
     api.getPoll(poll.id, companyId).then((d) => { setDetail(d); setLoading(false); }).catch(() => setLoading(false));
   }, [poll.id, companyId]);
 
-  // Close voter dropdown on click outside
+  // Close voter dropdown on click outside or Escape
   useEffect(() => {
     if (!openVoterDropdown) return;
     const handleClick = (e: MouseEvent) => {
@@ -57,8 +59,18 @@ function PollDetail({ poll, companyId, onBack, onRefresh, onDelete }: { poll: Po
         setDropdownPos(null);
       }
     };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpenVoterDropdown(null);
+        setDropdownPos(null);
+      }
+    };
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
   }, [openVoterDropdown]);
 
   function toggleAnswer(q: PollQuestion, answerId: string) {
@@ -126,7 +138,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh, onDelete }: { poll: Po
         {isCreator && active && (
           <button
             onClick={async () => {
-              if (!confirm('Umfrage jetzt beenden? (Abstimmen wird nicht mehr möglich sein)')) return;
+              if (!await confirmAsync('Umfrage jetzt beenden? (Abstimmen wird nicht mehr möglich sein)', 'Beenden')) return;
               try {
                 await api.closePoll(String(d.id), d.name, companyId, d.start_time ?? 0);
                 onRefresh();
@@ -141,8 +153,8 @@ function PollDetail({ poll, companyId, onBack, onRefresh, onDelete }: { poll: Po
         )}
         {isCreator && (
           <button
-            onClick={() => {
-              if (!confirm('Umfrage wirklich löschen?')) return;
+            onClick={async () => {
+              if (!await confirmAsync('Umfrage wirklich löschen?')) return;
               onDelete();
             }}
             className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
@@ -289,7 +301,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh, onDelete }: { poll: Po
         return createPortal(
           <div
             ref={dropdownRef}
-            className="fixed z-[9999] w-56 rounded-lg border border-surface-200 bg-white py-1.5 shadow-lg dark:border-surface-600 dark:bg-surface-800"
+            className="fixed z-50 w-56 max-h-[60vh] overflow-y-auto rounded-lg border border-surface-200 bg-white py-1.5 shadow-lg dark:border-surface-600 dark:bg-surface-800"
             style={{ top: dropdownPos.top, left: dropdownPos.left - 224 }}
           >
             {openAnswer.users.map((u) => (
@@ -317,6 +329,7 @@ interface PollsViewProps {
 }
 
 export default function PollsView({ pollIdToOpen, onPollOpened }: PollsViewProps) {
+  const confirmAsync = useConfirm();
   const [tab, setTab] = useState<Tab>('mine');
   const [polls, setPolls] = useState<Poll[]>([]);
   const [loading, setLoading] = useState(true);
@@ -359,7 +372,7 @@ export default function PollsView({ pollIdToOpen, onPollOpened }: PollsViewProps
   }, [pollIdToOpen, companyId, onPollOpened]);
 
   async function handleDelete(id: string) {
-    if (!confirm('Umfrage wirklich löschen?')) return;
+    if (!await confirmAsync('Umfrage wirklich löschen?')) return;
     await api.deletePoll(id).catch(() => {});
     setPolls((p) => p.filter((x) => x.id !== id));
   }

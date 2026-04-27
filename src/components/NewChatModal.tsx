@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Search, MessageSquarePlus, Loader2, Check } from 'lucide-react';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 import * as api from '../api';
 import type { Conversation } from '../types';
 import Avatar from './Avatar';
@@ -27,6 +28,7 @@ function userName(u: RawUser): string {
 const MAX_MEMBERS = 9;
 
 export default function NewChatModal({ companyId, myUserId, onClose, onCreate }: NewChatModalProps) {
+  useEscapeKey(onClose);
   const [query, setQuery] = useState('');
   const [allUsers, setAllUsers] = useState<RawUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);

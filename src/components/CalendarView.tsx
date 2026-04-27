@@ -8,6 +8,7 @@ import { clsx } from 'clsx';
 import * as api from '../api';
 import type { CalendarEvent } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { useConfirm } from '../context/ConfirmContext';
 import CreateEventModal from './CreateEventModal';
 
 type ViewMode = 'month' | 'week';
@@ -71,12 +72,22 @@ interface CalendarViewProps {
 
 export default function CalendarView({ eventIdToOpen, onEventOpened }: CalendarViewProps) {
   const { user } = useAuth();
+  const confirmAsync = useConfirm();
   const userId = user?.id ?? '';
 
-  const [viewMode, setViewMode] = useState<ViewMode>('month');
+  const isMobile = () => window.innerWidth < 768;
+  const [viewMode, setViewMode] = useState<ViewMode>(() => isMobile() ? 'week' : 'month');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Force week view when viewport goes below md breakpoint
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const handler = (e: MediaQueryListEvent) => { if (e.matches) setViewMode('week'); };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   // Calendar sources (filters)
   const [sources, setSources] = useState<CalendarSource[]>([
@@ -95,8 +106,8 @@ export default function CalendarView({ eventIdToOpen, onEventOpened }: CalendarV
   // Edit modal
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null);
 
-  // Agenda sidebar
-  const [agendaOpen, setAgendaOpen] = useState(true);
+  // Agenda sidebar — closed by default on mobile
+  const [agendaOpen, setAgendaOpen] = useState(() => !isMobile());
   const [agendaEvents, setAgendaEvents] = useState<CalendarEvent[]>([]);
   const [agendaLoading, setAgendaLoading] = useState(false);
   const [agendaFocusDate, setAgendaFocusDate] = useState<Date | null>(null);
@@ -308,7 +319,7 @@ export default function CalendarView({ eventIdToOpen, onEventOpened }: CalendarV
 
   // Delete
   const handleDelete = async (eventId: number) => {
-    if (!confirm('Termin wirklich löschen?')) return;
+    if (!await confirmAsync('Termin wirklich löschen?')) return;
     try {
       await api.deleteCalendarEvent(String(eventId));
       setSelectedEvent(null);
@@ -429,8 +440,8 @@ export default function CalendarView({ eventIdToOpen, onEventOpened }: CalendarV
 
           <div className="flex-1" />
 
-          {/* View toggle */}
-          <div className="flex rounded-lg bg-surface-100 p-0.5 dark:bg-surface-800">
+          {/* View toggle — desktop only */}
+          <div className="hidden rounded-lg bg-surface-100 p-0.5 dark:bg-surface-800 md:flex">
             <button
               onClick={() => setViewMode('month')}
               className={clsx(
@@ -459,14 +470,15 @@ export default function CalendarView({ eventIdToOpen, onEventOpened }: CalendarV
             onClick={() => { setCreateDate(new Date()); setShowCreate(true); }}
             className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700"
           >
-            <Plus size={14} /> Termin
+            <Plus size={14} /> <span className="hidden sm:inline">Termin</span>
           </button>
 
           <button
             onClick={() => setAgendaOpen((o) => !o)}
             title="Agenda ein-/ausblenden"
+            aria-label="Agenda ein-/ausblenden"
             className={clsx(
-              'rounded-lg p-1.5 transition',
+              'hidden rounded-lg p-1.5 transition md:block',
               agendaOpen
                 ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
                 : 'text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800',
@@ -541,8 +553,9 @@ export default function CalendarView({ eventIdToOpen, onEventOpened }: CalendarV
             </div>
           </div>
         ) : (
-          /* Week view — time grid */
-          <div className="flex min-h-0 flex-1 flex-col">
+          /* Week view — time grid; horizontally scrollable on mobile */
+          <div className="flex min-h-0 flex-1 flex-col overflow-x-auto">
+            <div className="min-w-[480px]">
             {/* Day headers */}
             <div className="grid shrink-0 grid-cols-[60px_repeat(7,1fr)] border-b border-surface-200 dark:border-surface-700">
               <div className="border-r border-surface-200 dark:border-surface-800" /> {/* time column header */}
@@ -613,13 +626,14 @@ export default function CalendarView({ eventIdToOpen, onEventOpened }: CalendarV
                 ))}
               </div>
             </div>
+            </div>{/* end min-w wrapper */}
           </div>
         )}
       </div>
 
-      {/* Agenda Sidebar */}
+      {/* Agenda Sidebar — hidden on mobile */}
       {agendaOpen && (
-        <div className="flex w-72 shrink-0 flex-col border-l border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900">
+        <div className="hidden w-72 shrink-0 flex-col border-l border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900 md:flex">
           <div className="flex shrink-0 items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-700">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-600">Agenda · nächste 30 Tage</h3>
             <button

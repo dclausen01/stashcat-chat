@@ -1,7 +1,9 @@
 import { useState, useRef } from 'react';
 import { X, Camera, Loader2 } from 'lucide-react';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';
 import { useAuth } from '../context/AuthContext';
+import { useConfirm } from '../context/ConfirmContext';
 import * as api from '../api';
 import Avatar from './Avatar';
 
@@ -10,7 +12,9 @@ interface ProfileModalProps {
 }
 
 export default function ProfileModal({ onClose }: ProfileModalProps) {
+  useEscapeKey(onClose);
   const { user, setUser } = useAuth();
+  const confirmAsync = useConfirm();
   const [status, setStatus] = useState(user?.status || '');
   const [availability, setAvailability] = useState<'available' | 'do_not_disturb'>(
     user?.availability === 'do_not_disturb' ? 'do_not_disturb' : 'available'
@@ -95,7 +99,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
   };
 
   const handleRemoveImage = async () => {
-    if (!confirm('Profilbild wirklich entfernen?')) return;
+    if (!await confirmAsync('Profilbild wirklich entfernen?', 'Entfernen')) return;
     setUploading(true);
     try {
       await api.resetProfileImage();

@@ -64,7 +64,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   // Sidebar width (horizontal resize)
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem('schulchat_sidebar_width');
-    return saved ? Number(saved) : 360;
+    return saved ? Number(saved) : 280;
   });
   const sidebarWidthRef = useRef(sidebarWidth);
   const resizingWidth = useRef(false);
@@ -75,7 +75,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     const startX = e.clientX;
     const startW = sidebarWidthRef.current;
     const onMove = (ev: MouseEvent) => {
-      const newW = Math.max(200, Math.min(480, startW + ev.clientX - startX));
+      const newW = Math.max(200, Math.min(420, startW + ev.clientX - startX));
       setSidebarWidth(newW);
       sidebarWidthRef.current = newW;
     };
