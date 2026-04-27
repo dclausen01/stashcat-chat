@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Hash, Search, X, Loader2, Users, LogIn } from 'lucide-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';
 import * as api from '../api';
@@ -71,6 +72,7 @@ export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClos
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true }}>
       <div
         className="relative flex max-h-[80vh] w-full max-w-lg flex-col rounded-2xl bg-white shadow-2xl dark:bg-surface-900"
         onClick={(e) => e.stopPropagation()}
@@ -164,6 +166,7 @@ export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClos
           )}
         </div>
       </div>
+      </FocusTrap>
     </div>
   );
 }

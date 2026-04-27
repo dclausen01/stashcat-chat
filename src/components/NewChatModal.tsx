@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Search, MessageSquarePlus, Loader2, Check } from 'lucide-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import * as api from '../api';
 import type { Conversation } from '../types';
@@ -90,6 +91,7 @@ export default function NewChatModal({ companyId, myUserId, onClose, onCreate }:
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true }}>
       <div
         className="flex w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl dark:bg-surface-900"
         style={{ maxHeight: '80vh' }}
@@ -198,6 +200,7 @@ export default function NewChatModal({ companyId, myUserId, onClose, onCreate }:
           </button>
         </div>
       </div>
+      </FocusTrap>
     </div>
   );
 }

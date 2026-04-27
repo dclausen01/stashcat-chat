@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Loader2, ChevronDown, ChevronUp, BarChart3, Search } from 'lucide-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';
 import * as api from '../api';
@@ -210,6 +211,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true }}>
       <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-surface-900">
 
         {/* Header */}
@@ -411,6 +413,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
           </div>
         </form>
       </div>
+      </FocusTrap>
     </div>
   );
 }

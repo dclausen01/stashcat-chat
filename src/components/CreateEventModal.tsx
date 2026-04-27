@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   X, Loader2, Check, Users, Hash, Search,
 } from 'lucide-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';
 import * as api from '../api';
@@ -244,6 +245,7 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true }}>
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl dark:bg-surface-900">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-surface-900 dark:text-white">
@@ -522,6 +524,7 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
           </button>
         </div>
       </div>
+      </FocusTrap>
     </div>
   );
 }

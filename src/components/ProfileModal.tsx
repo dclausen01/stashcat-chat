@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { X, Camera, Loader2 } from 'lucide-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';
 import { useAuth } from '../context/AuthContext';
@@ -117,6 +118,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
   const userImage = user?.image;
 
   return (
+    <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true }}>
     <div className="w-full max-w-md rounded-xl bg-white shadow-xl dark:bg-surface-800">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-700">
@@ -240,5 +242,6 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
           Name und E-Mail werden über LDAP synchronisiert.
         </div>
     </div>
+    </FocusTrap>
   );
 }
