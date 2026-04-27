@@ -65,12 +65,13 @@ interface CalendarSource {
 }
 
 interface CalendarViewProps {
+  onClose?: () => void;
   eventIdToOpen?: string | null;
   onEventOpened?: () => void;
   onOpenSidebar?: () => void;
 }
 
-export default function CalendarView({ eventIdToOpen, onEventOpened }: CalendarViewProps) {
+export default function CalendarView({ eventIdToOpen, onEventOpened, onClose }: CalendarViewProps) {
   const { user } = useAuth();
   const confirmAsync = useConfirm();
   const userId = user?.id ?? '';
@@ -488,6 +489,17 @@ export default function CalendarView({ eventIdToOpen, onEventOpened }: CalendarV
           </button>
 
           {loading && <Loader2 size={16} className="animate-spin text-primary-400" />}
+
+          {onClose && (
+            <button
+              onClick={onClose}
+              aria-label="Schließen"
+              title="Schließen"
+              className="shrink-0 rounded-lg p-1.5 text-surface-700 hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-surface-700"
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
 
         {/* Grid */}

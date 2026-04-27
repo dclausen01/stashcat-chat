@@ -242,9 +242,9 @@ export default function App() {
       )}
 
       {activeView === 'calendar' ? (
-        <CalendarView eventIdToOpen={eventIdToOpen} onEventOpened={() => setEventIdToOpen(null)} onOpenSidebar={() => setSidebarOpen(true)} />
+        <CalendarView eventIdToOpen={eventIdToOpen} onEventOpened={() => setEventIdToOpen(null)} onOpenSidebar={() => setSidebarOpen(true)} onClose={() => setActiveView('chat')} />
       ) : activeView === 'polls' ? (
-        <PollsView pollIdToOpen={pollIdToOpen} onPollOpened={() => setPollIdToOpen(null)} onOpenSidebar={() => setSidebarOpen(true)} />
+        <PollsView pollIdToOpen={pollIdToOpen} onPollOpened={() => setPollIdToOpen(null)} onOpenSidebar={() => setSidebarOpen(true)} onClose={() => setActiveView('chat')} />
       ) : (
         <>
           {activeChat
