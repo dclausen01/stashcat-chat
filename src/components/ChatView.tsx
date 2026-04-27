@@ -7,6 +7,7 @@ import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { useConfirm } from '../context/ConfirmContext';
+import { useAnnouncer } from '../context/AnnouncerContext';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import { fileIcon } from '../utils/fileIcon';
 import Avatar from './Avatar';
@@ -187,6 +188,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const { user } = useAuth();
   const settings = useSettings();
   const confirmAsync = useConfirm();
+  const announce = useAnnouncer();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -238,6 +240,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const containerRef = useRef<HTMLDivElement>(null);
   const chatRef = useRef(chat);
   chatRef.current = chat;
+  const announceRef = useRef(announce);
+  announceRef.current = announce;
   const paginationOffsetRef = useRef(0);
   const loadingMoreRef = useRef(false);
   const hasMoreRef = useRef(true);
@@ -931,6 +935,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         return updated;
       }
 
+      // Announce only foreign incoming messages (own ones are announced by handleSend)
+      if (senderId && senderId !== userId) {
+        const senderObj = newMsg.sender as { first_name?: string; last_name?: string } | undefined;
+        const name = senderObj
+          ? `${senderObj.first_name ?? ''} ${senderObj.last_name ?? ''}`.trim() || 'Unbekannt'
+          : 'Unbekannt';
+        announceRef.current(`Neue Nachricht von ${name}`);
+      }
       // No match — new message, just add it
       return [...prev, newMsg].sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
     });
@@ -1053,6 +1065,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
     try {
       await api.sendMessage(chat.id, chat.type, text, opts);
+      announce('Nachricht gesendet');
     } catch {
       clearTimeout(fastFallbackId);
       clearTimeout(midFallbackId);

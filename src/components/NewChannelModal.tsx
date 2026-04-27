@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { X, Hash, Lock, KeyRound, Loader2, ChevronDown, Upload, ImageIcon, Trash2 } from 'lucide-react';
+import { FocusTrap } from 'focus-trap-react';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';
 import * as api from '../api';
@@ -170,6 +171,7 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
+      <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true }}>
       <div
         className="flex w-full max-w-lg flex-col rounded-2xl bg-white shadow-2xl dark:bg-surface-900"
         style={{ maxHeight: '90vh' }}
@@ -398,6 +400,7 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
           </div>
         </form>
       </div>
+      </FocusTrap>
     </div>
   );
 }

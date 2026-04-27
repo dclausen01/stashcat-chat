@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useSettings } from './context/SettingsContext';
 import { useCallManager } from './hooks/useCallManager';
+import { useHotkeys } from './hooks/useHotkeys';
 import LoginPage from './pages/LoginPage';
 import Sidebar from './components/Sidebar';
 import ChatView from './components/ChatView';
@@ -16,6 +17,8 @@ import FavoriteCardsView from './components/FavoriteCardsView';
 import ProfileModal from './components/ProfileModal';
 import FlaggedMessagesPanel from './components/FlaggedMessagesPanel';
 import CallModal from './components/CallModal';
+import QuickSwitcher from './components/QuickSwitcher';
+import ShortcutsModal from './components/ShortcutsModal';
 import type { ChatTarget } from './types';
 import type { CallParty } from './api/calls';
 import { Menu, X } from 'lucide-react';
@@ -36,6 +39,8 @@ export default function App() {
   const [conversations, setConversations] = useState<ChatTarget[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
   const [flaggedOpen, setFlaggedOpen] = useState(false);
+  const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [pollIdToOpen, setPollIdToOpen] = useState<string | null>(null);
   const [eventIdToOpen, setEventIdToOpen] = useState<string | null>(null);
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
@@ -169,6 +174,17 @@ export default function App() {
     setJumpToMessageTime(null);
     setJumpSearching(false);
   }, []);
+
+  // Keyboard shortcuts (only when logged in)
+  const hotkeys = useMemo(() => loggedIn ? [
+    { key: 'k', mod: true, handler: (e: KeyboardEvent) => { e.preventDefault(); setQuickSwitcherOpen(true); } },
+    { key: ',', mod: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setSidebarOpen(false); setSettingsOpen(true); } },
+    { key: 'c', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setSidebarOpen(false); setEventIdToOpen(null); setActiveView('calendar'); } },
+    { key: 'b', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setActiveView('chat'); setSidebarOpen(false); setBroadcastsOpen(true); } },
+    { key: 'u', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setSidebarOpen(false); setPollIdToOpen(null); setActiveView('polls'); } },
+    { key: '?', shift: true, handler: (e: KeyboardEvent) => { e.preventDefault(); setShortcutsOpen(true); } },
+  ] : [], [loggedIn, closeAllPanels]);
+  useHotkeys(hotkeys, loggedIn);
 
   if (!loggedIn) {
     return <LoginPage />;
@@ -313,6 +329,17 @@ export default function App() {
           isMuted={isMuted}
           onToggleMute={toggleMute}
         />
+      )}
+      {quickSwitcherOpen && (
+        <QuickSwitcher
+          channels={channels}
+          conversations={conversations}
+          onSelect={handleSelectChat}
+          onClose={() => setQuickSwitcherOpen(false)}
+        />
+      )}
+      {shortcutsOpen && (
+        <ShortcutsModal onClose={() => setShortcutsOpen(false)} />
       )}
     </div>
   );
