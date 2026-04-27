@@ -1213,10 +1213,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             {/* Mobile: title opens menu, Desktop: just text */}
             <button
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-base font-semibold text-surface-900 dark:text-white md:cursor-default md:bg-transparent md:hover:bg-transparent"
+              className="flex min-w-0 items-center gap-1.5 text-left text-base font-semibold text-surface-900 dark:text-white md:cursor-default md:bg-transparent md:hover:bg-transparent"
               title="Menü öffnen"
             >
-              <span className="min-w-0 flex-1 truncate">{chat.name}</span>
+              <span className="min-w-0 truncate">{chat.name}</span>
               {/* Mobile: small chevron indicator */}
               <ChevronDown size={14} className="shrink-0 text-surface-400 md:hidden" />
             </button>
@@ -1225,12 +1225,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               <button
                 onClick={() => onToggleFavorite(chat)}
                 className={clsx(
-                  'hidden rounded p-0.5 transition md:block',
+                  'hidden shrink-0 rounded p-0.5 transition md:block',
                   chat.favorite
                     ? 'text-yellow-400 hover:text-yellow-500'
                     : 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300',
                 )}
                 title={chat.favorite ? 'Favorit entfernen' : 'Als Favorit markieren'}
+                aria-label={chat.favorite ? 'Favorit entfernen' : 'Als Favorit markieren'}
+                aria-pressed={chat.favorite}
               >
                 <Star size={14} className={chat.favorite ? 'fill-yellow-400' : ''} />
               </button>
@@ -1256,13 +1258,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               }}
               disabled={notificationsLoading}
               className={clsx(
-                'hidden rounded p-0.5 transition md:block',
+                'hidden shrink-0 rounded p-0.5 transition md:block',
                 notificationsLoading && 'opacity-50 cursor-not-allowed',
                 notificationsMuted
                   ? 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300'
                   : 'text-primary-500 hover:text-primary-600',
               )}
               title={notificationsMuted ? 'Benachrichtigungen aktivieren' : 'Benachrichtigungen stummschalten'}
+              aria-label={notificationsMuted ? 'Benachrichtigungen aktivieren' : 'Benachrichtigungen stummschalten'}
             >
               {notificationsLoading ? (
                 <Loader2 size={14} className="animate-spin" />
