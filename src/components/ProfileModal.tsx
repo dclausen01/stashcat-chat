@@ -119,7 +119,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
         <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Mein Profil</h2>
         <button
           onClick={onClose}
-          className="hidden rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 lg:block"
+          className="hidden rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 md:block"
         >
           <X size={20} />
         </button>

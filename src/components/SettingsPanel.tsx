@@ -129,7 +129,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         <h3 className="text-sm font-semibold text-surface-900 dark:text-white">Einstellungen</h3>
         <button
           onClick={onClose}
-          className="hidden rounded-md p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 lg:block"
+          className="hidden rounded-md p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 md:block"
         >
           <X size={16} />
         </button>

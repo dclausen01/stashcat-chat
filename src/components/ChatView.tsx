@@ -1193,7 +1193,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         {/* Mobile: Back button */}
         <button
           onClick={onGoHome}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-700 lg:hidden"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-700 md:hidden"
           aria-label="Zurück zur Übersicht"
         >
           <ArrowLeft size={20} />
@@ -1207,23 +1207,23 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           <Avatar name={chat.name} image={chat.image} size="md" />
         )}
         <div className="min-w-0 flex-1">
-          <div className="relative flex items-center gap-2">
+          <div className="relative flex min-w-0 items-center gap-2">
             {/* Mobile: title opens menu, Desktop: just text */}
             <button
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="flex w-full items-center gap-1.5 truncate text-left text-base font-semibold text-surface-900 dark:text-white lg:w-auto lg:cursor-default lg:bg-transparent lg:hover:bg-transparent"
+              className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-base font-semibold text-surface-900 dark:text-white md:cursor-default md:bg-transparent md:hover:bg-transparent"
               title="Menü öffnen"
             >
-              <span className="truncate">{chat.name}</span>
+              <span className="min-w-0 flex-1 truncate">{chat.name}</span>
               {/* Mobile: small chevron indicator */}
-              <ChevronDown size={14} className="shrink-0 text-surface-400 lg:hidden" />
+              <ChevronDown size={14} className="shrink-0 text-surface-400 md:hidden" />
             </button>
             {/* Favorite toggle — desktop only (mobile has it in the more menu) */}
             {onToggleFavorite && (
               <button
                 onClick={() => onToggleFavorite(chat)}
                 className={clsx(
-                  'hidden rounded p-0.5 transition lg:block',
+                  'hidden rounded p-0.5 transition md:block',
                   chat.favorite
                     ? 'text-yellow-400 hover:text-yellow-500'
                     : 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300',
@@ -1254,7 +1254,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               }}
               disabled={notificationsLoading}
               className={clsx(
-                'hidden rounded p-0.5 transition lg:block',
+                'hidden rounded p-0.5 transition md:block',
                 notificationsLoading && 'opacity-50 cursor-not-allowed',
                 notificationsMuted
                   ? 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300'
@@ -1327,7 +1327,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           ) : null}
         </div>
         {/* Desktop: Action buttons inline */}
-        <div className="hidden lg:flex lg:items-center lg:gap-1">
+        <div className="hidden md:flex md:items-center md:gap-1">
           {/* Video meeting button */}
           <button
             onClick={async () => {
@@ -1445,7 +1445,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         <button
           onClick={onToggleFileBrowser}
           className={clsx(
-            'hidden rounded-lg p-2 transition lg:inline-flex',
+            'hidden rounded-lg p-2 transition md:inline-flex',
             fileBrowserOpen
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
               : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
@@ -1459,7 +1459,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           <button
             onClick={onToggleFlagged}
             className={clsx(
-              'hidden rounded-lg p-2 transition lg:inline-flex',
+              'hidden rounded-lg p-2 transition md:inline-flex',
               flaggedOpen
                 ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
                 : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
@@ -1473,7 +1473,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         <button
           onClick={() => setSearchOpen((o) => !o)}
           className={clsx(
-            'hidden rounded-lg p-2 transition lg:inline-flex',
+            'hidden rounded-lg p-2 transition md:inline-flex',
             searchOpen
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
               : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
@@ -1486,8 +1486,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         {/* Mobile: More menu dropdown — opens from the title button */}
         {mobileMenuOpen && (
           <>
-            <div className="pointer-events-none fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => { setMobileMenuOpen(false); setMuteMenuOpen(false); }} />
-            <div className="pointer-events-auto fixed left-4 right-4 top-20 z-50 mx-auto w-full max-w-sm rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 lg:hidden">
+            <div className="pointer-events-none fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => { setMobileMenuOpen(false); setMuteMenuOpen(false); }} />
+            <div className="pointer-events-auto fixed left-4 right-4 top-20 z-50 mx-auto w-full max-w-sm rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 md:hidden">
               {/* Favorite toggle */}
               {onToggleFavorite && (
                 <button

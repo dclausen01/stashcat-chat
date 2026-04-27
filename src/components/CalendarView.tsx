@@ -330,7 +330,7 @@ export default function CalendarView({ eventIdToOpen, onEventOpened }: CalendarV
   return (
     <div className="flex h-full flex-1 overflow-hidden">
       {/* Sidebar — Calendar filters — hidden on mobile */}
-      <div className="hidden w-56 shrink-0 flex-col border-r border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900 lg:flex">
+      <div className="hidden w-56 shrink-0 flex-col border-r border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900 md:flex">
         <div className="shrink-0 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-surface-600">Kalender</h3>
         </div>

@@ -590,8 +590,8 @@ export default function MessageInput({
           <EditorContent editor={editor} />
         </div>
 
-        {/* Emoji picker */}
-        <div ref={emojiRef} className="relative shrink-0">
+        {/* Emoji picker — desktop only; on mobile, the OS keyboard provides emojis */}
+        <div ref={emojiRef} className="relative hidden shrink-0 md:block">
           <button
             type="button"
             title="Emoji"
