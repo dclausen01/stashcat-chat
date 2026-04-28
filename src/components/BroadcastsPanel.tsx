@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  X, Radio, Send, Plus, Trash2, Users, Loader2, ArrowLeft,
+  X, Radio, Plus, Trash2, Users, Loader2, ArrowLeft,
   Pencil, Check, Search, UserMinus, UserPlus, UsersRound,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
+import MessageInput from './MessageInput';
 import { useConfirm } from '../context/ConfirmContext';
 
 interface Broadcast {
@@ -64,8 +65,6 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
   // Messages
   const [messages, setMessages] = useState<BroadcastMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [newMessage, setNewMessage] = useState('');
-  const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Create
@@ -238,20 +237,12 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
 
   // ── CRUD helpers ───────────────────────────────────────────────────────────
 
-  const handleSend = async () => {
-    if (!newMessage.trim() || !activeBroadcast) return;
-    setSending(true);
-    try {
-      await api.sendBroadcastMessage(String(activeBroadcast.id), newMessage.trim());
-      setNewMessage('');
-      const msgs = await api.getBroadcastMessages(String(activeBroadcast.id));
-      setMessages(msgs as unknown as BroadcastMessage[]);
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-    } catch (err) {
-      alert(`Fehler: ${err instanceof Error ? err.message : err}`);
-    } finally {
-      setSending(false);
-    }
+  const handleSend = async (text: string) => {
+    if (!activeBroadcast) return;
+    await api.sendBroadcastMessage(String(activeBroadcast.id), text);
+    const msgs = await api.getBroadcastMessages(String(activeBroadcast.id));
+    setMessages(msgs as unknown as BroadcastMessage[]);
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
   const handleCreate = async () => {
@@ -490,18 +481,12 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
               )}
               <div ref={messagesEndRef} />
             </div>
-            <div className="shrink-0 border-t border-surface-200 p-3 dark:border-surface-700">
-              <div className="flex items-center gap-2">
-                <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                  placeholder="Nachricht an alle Empfänger..."
-                  className="flex-1 rounded-lg bg-surface-100 px-3 py-2 text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:bg-surface-800 dark:text-white" />
-                <button onClick={handleSend} disabled={sending || !newMessage.trim()}
-                  className="rounded-lg bg-primary-600 p-2 text-white hover:bg-primary-700 disabled:opacity-50">
-                  {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                </button>
-              </div>
-            </div>
+            <MessageInput
+              onSend={handleSend}
+              onUpload={async () => {}}
+              chatId={String(activeBroadcast.id)}
+              chatName={activeBroadcast.name}
+            />
           </div>
         ) : (
           /* ── Members tab ──────────────────────────────────────────────── */
