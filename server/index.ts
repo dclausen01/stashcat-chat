@@ -969,16 +969,23 @@ app.get('/api/channels/:channelId/members', async (req, res) => {
     const channelId = req.params.channelId;
     // Paginate until all members are fetched (channels can have 500+ members)
     // Note: Stashcat API has a hard cap of ~100 per request regardless of limit param
+    // IMPORTANT: Exclude pending members (filter out membership_pending=true) to avoid
+    // duplicate display in the frontend where members appear as both "joined" and "pending"
     const all: unknown[] = [];
     const PAGE = 100;
     let offset = 0;
     while (true) {
       const batch = await client.getChannelMembers(channelId, { limit: PAGE, offset });
-      all.push(...batch);
+      // Filter out pending members - they should only appear in the pending-members endpoint
+      const nonPending = batch.filter((m: Record<string, unknown>) => {
+        const pending = m.membership_pending === true || m.pending === true;
+        return !pending;
+      });
+      all.push(...nonPending);
       if (batch.length < PAGE) break;
       offset += PAGE;
     }
-    console.log(`[channels/members] channelId=${channelId} → ${all.length} members`);
+    console.log(`[channels/members] channelId=${channelId} → ${all.length} members (excluding pending)`);
     if (all.length > 0) console.log('[channels/members] first member:', JSON.stringify(all[0]));
     res.json(all);
   } catch (err) {
@@ -1238,10 +1245,12 @@ app.post('/api/channels', async (req, res) => {
 
       // Encrypt AES key with own RSA public key (RSA-OAEP)
       const encryptedKey = StashcatClient.encryptWithPublicKey(me.public_key, aesKey);
-      channelOpts.encryption_key = encryptedKey.toString('base64');
+      const keyBase64 = encryptedKey.toString('base64');
+      channelOpts.encryption_key = keyBase64;
 
-      // Sign the encrypted key with own private signing key
-      const signature = client.signData(encryptedKey);
+      // Sign the BASE64 STRING (not the raw bytes!) with own private signing key
+      // This matches the original app's behavior
+      const signature = client.signData(Buffer.from(keyBase64));
       channelOpts.encryption_key_signature = signature.toString('hex');
     }
 
