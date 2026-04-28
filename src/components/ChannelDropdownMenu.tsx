@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { MoreVertical, Users, Pencil, Download, Trash2, Loader2, Info, X, Lock, UsersRound, Clock, ImageIcon } from 'lucide-react';
+import { MoreVertical, Users, Pencil, Download, Trash2, Loader2, Info, X, Lock, UsersRound, Clock, ImageIcon, LogOut } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { ChatTarget, Channel } from '../types';
@@ -212,6 +212,68 @@ function ChannelInfoModal({ chat, onClose }: { chat: ChatTarget; onClose: () => 
   );
 }
 
+function LeaveConfirmModal({ chat, onClose, onLeft }: {
+  chat: ChatTarget;
+  onClose: () => void;
+  onLeft: () => void;
+}) {
+  const [leaving, setLeaving] = useState(false);
+
+  const handleLeave = async () => {
+    setLeaving(true);
+    try {
+      await api.quitChannel(chat.id);
+      onLeft();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Verlassen fehlgeschlagen');
+      setLeaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl dark:bg-surface-900"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex flex-col items-center px-6 pt-6 pb-2 text-center">
+          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+            <LogOut size={28} className="text-amber-500" />
+          </div>
+          <h3 className="text-lg font-semibold text-surface-900 dark:text-white">Channel verlassen</h3>
+          <p className="mt-2 text-sm text-surface-500">
+            Möchtest du den Channel <strong>"{chat.name}"</strong> wirklich verlassen? Du kannst später wieder beitreten.
+          </p>
+        </div>
+        <div className="flex gap-2 px-6 pb-6 pt-2">
+          <button
+            onClick={onClose}
+            className="flex-1 rounded-lg border border-surface-300 px-4 py-2 text-sm font-medium text-surface-700 transition hover:bg-surface-200 dark:border-surface-600 dark:text-surface-300 dark:hover:bg-surface-800"
+          >
+            Abbrechen
+          </button>
+          <button
+            onClick={handleLeave}
+            disabled={leaving}
+            className={clsx(
+              'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium text-white transition',
+              leaving
+                ? 'cursor-not-allowed bg-amber-300'
+                : 'bg-amber-500 hover:bg-amber-600',
+            )}
+          >
+            {leaving ? <Loader2 size={16} className="animate-spin" /> : null}
+            Verlassen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DeleteConfirmModal({ chat, onClose, onDeleted }: {
   chat: ChatTarget;
   onClose: () => void;
@@ -291,6 +353,7 @@ export default function ChannelDropdownMenu({
 }: ChannelDropdownMenuProps) {
   const [open, setOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [exporting, setExporting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -323,6 +386,11 @@ export default function ChannelDropdownMenu({
   const handleDelete = () => {
     setOpen(false);
     setShowDeleteModal(true);
+  };
+
+  const handleLeave = () => {
+    setOpen(false);
+    setShowLeaveModal(true);
   };
 
   return (
@@ -383,6 +451,14 @@ export default function ChannelDropdownMenu({
             </button>
             <div className="my-1 border-t border-surface-200 dark:border-surface-700" />
             <button
+              onClick={handleLeave}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-surface-700 transition hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-surface-700"
+            >
+              <LogOut size={16} className="text-surface-500" />
+              Channel verlassen
+            </button>
+            <div className="my-1 border-t border-surface-200 dark:border-surface-700" />
+            <button
               onClick={handleDelete}
               className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-red-500 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
             >
@@ -393,6 +469,16 @@ export default function ChannelDropdownMenu({
         )}
       </div>
 
+      {showLeaveModal && (
+        <LeaveConfirmModal
+          chat={chat}
+          onClose={() => setShowLeaveModal(false)}
+          onLeft={() => {
+            setShowLeaveModal(false);
+            onDeleted?.();
+          }}
+        />
+      )}
       {showDeleteModal && (
         <DeleteConfirmModal
           chat={chat}

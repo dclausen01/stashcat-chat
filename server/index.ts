@@ -888,6 +888,14 @@ app.post('/api/channels/:channelId/join', async (req, res) => {
   } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
 });
 
+app.post('/api/channels/:channelId/quit', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    await client.quitChannel(req.params.channelId);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
+});
+
 // ── Channel Invitations (accept / decline) ────────────────────────────────────
 // The invite_id comes from the notification's content.id field (NOT the
 // notification_id and NOT the channel_id). These endpoints call the

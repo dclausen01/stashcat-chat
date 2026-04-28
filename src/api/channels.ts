@@ -114,6 +114,10 @@ export async function joinChannel(channelId: string): Promise<void> {
   await post(`/channels/${channelId}/join`);
 }
 
+export async function quitChannel(channelId: string): Promise<void> {
+  await post(`/channels/${channelId}/quit`);
+}
+
 export async function acceptChannelInvite(inviteId: string, notificationId?: string): Promise<void> {
   await post(`/channels/invites/${inviteId}/accept`, notificationId ? { notificationId } : {});
 }

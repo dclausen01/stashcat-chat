@@ -55,6 +55,7 @@ export {
   setFavorite,
   getVisibleChannels,
   joinChannel,
+  quitChannel,
   acceptChannelInvite,
   declineChannelInvite,
   searchCompanyMembers,
