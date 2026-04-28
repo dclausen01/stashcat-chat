@@ -1248,35 +1248,35 @@ app.post('/api/channels', async (req, res) => {
         return res.status(500).json({ error: 'Own public key not available' });
       }
 
-      console.log(`[channels/create] aesKey length=${aesKey.length} E2E_unlocked=${client.isE2EUnlocked()}`);
-      console.log(`[channels/create] public_key prefix="${me.public_key.slice(0, 40).replace(/\n/g, '\\n')}"`);
+      debugLog(`[channels/create] aesKey length=${aesKey.length} E2E_unlocked=${client.isE2EUnlocked()}`);
+      debugLog(`[channels/create] public_key prefix="${me.public_key.slice(0, 40).replace(/\n/g, '\\n')}"`);
 
       // Encrypt AES key with own RSA public key (RSA-OAEP)
       const encryptedKey = StashcatClient.encryptWithPublicKey(me.public_key, aesKey);
       const keyBase64 = encryptedKey.toString('base64');
       channelOpts.encryption_key = keyBase64;
 
-      console.log(`[channels/create] encryptedKey length=${encryptedKey.length} keyBase64 length=${keyBase64.length}`);
+      debugLog(`[channels/create] encryptedKey length=${encryptedKey.length} keyBase64 length=${keyBase64.length}`);
 
       // Sign the base64 string (UTF-8 bytes), consistent with key-sync endpoint behavior
       const signature = client.signData(Buffer.from(keyBase64));
       channelOpts.encryption_key_signature = signature.toString('hex');
 
-      console.log(`[channels/create] signature length=${signature.length} (hex chars: ${signature.toString('hex').length})`);
+      debugLog(`[channels/create] signature length=${signature.length} (hex chars: ${signature.toString('hex').length})`);
     }
 
     const channel = await client.createChannel(channelOpts);
     const channelId = String((channel as unknown as Record<string,unknown>).id ?? '');
-    console.log(`[channels/create] created channel id=${channelId} name=${(channel as unknown as Record<string,unknown>).name ?? name} encrypted=${(channel as unknown as Record<string,unknown>).encrypted}`);
-    console.log(`[channels/create] response key length=${String((channel as unknown as Record<string,unknown>).key ?? '').length} key_sender=${(channel as unknown as Record<string,unknown>).key_sender}`);
+    debugLog(`[channels/create] created channel id=${channelId} name=${(channel as unknown as Record<string,unknown>).name ?? name} encrypted=${(channel as unknown as Record<string,unknown>).encrypted}`);
+    debugLog(`[channels/create] response key length=${String((channel as unknown as Record<string,unknown>).key ?? '').length} key_sender=${(channel as unknown as Record<string,unknown>).key_sender}`);
 
     // Self-test: immediately verify we can decrypt the stored key
     if (isEncrypted && channelId) {
       try {
         const aesKeyFromServer = await client.getChannelAesKey(channelId);
-        console.log(`[channels/create] SELF-TEST getChannelAesKey: SUCCESS aesKey length=${aesKeyFromServer?.length}`);
+        debugLog(`[channels/create] SELF-TEST getChannelAesKey: SUCCESS aesKey length=${aesKeyFromServer?.length}`);
       } catch (selfTestErr) {
-        console.error(`[channels/create] SELF-TEST getChannelAesKey: FAILED — ${errorMessage(selfTestErr, '')}`);
+        debugLog(`[channels/create] SELF-TEST getChannelAesKey: FAILED — ${errorMessage(selfTestErr, '')}`);
       }
     }
 
