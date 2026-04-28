@@ -1258,8 +1258,8 @@ app.post('/api/channels', async (req, res) => {
 
       debugLog(`[channels/create] encryptedKey length=${encryptedKey.length} keyBase64 length=${keyBase64.length}`);
 
-      // Sign the base64 string (UTF-8 bytes), consistent with key-sync endpoint behavior
-      const signature = client.signData(Buffer.from(keyBase64));
+      // Sign the raw AES key (32 bytes) — the server verifies against the decrypted key
+      const signature = client.signData(aesKey);
       channelOpts.encryption_key_signature = signature.toString('hex');
 
       debugLog(`[channels/create] signature length=${signature.length} (hex chars: ${signature.toString('hex').length})`);

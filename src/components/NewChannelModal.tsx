@@ -77,7 +77,7 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
   const [name, setName]             = useState('');
   const [description, setDescription] = useState('');
   const [policies, setPolicies]     = useState('');
-  const [channelType, setChannelType] = useState<ChannelType>('public');
+  const [channelType, setChannelType] = useState<ChannelType>('encrypted');
   const [typeOpen, setTypeOpen]     = useState(false);
   const [password, setPassword]     = useState('');
   const [password2, setPassword2]   = useState('');
