@@ -1221,10 +1221,11 @@ app.post('/api/channels', async (req, res) => {
       description: [description, policies ? `\n\nRichtlinien: ${policies}` : ''].filter(Boolean).join(''),
       type: isEncrypted ? 'closed' : 'public',
       visible: !hidden,
-      writable: !read_only,
-      inviteable: !invite_only,
+      writable: read_only ? 'manager' : 'all',
+      inviteable: invite_only ? 'manager' : 'all',
       show_activities: show_activities ?? true,
       show_membership_activities: show_membership_activities ?? true,
+      message_ttl: 0,  // Must be explicitly set to 0 for signature to match
       ...(isPassword && password ? { password, password_repeat: password_repeat ?? password } : {}),
     };
 
