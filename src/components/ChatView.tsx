@@ -3112,9 +3112,22 @@ function extractUrls(text: string): string[] {
 function autoLinkify(text: string): string {
   // Don't touch URLs that are already inside markdown link syntax [text](url) or <url>
   return text.replace(
-    /(?<!\]\()(?<!\()(?<!<)(https?:\/\/[^\s)>\]]+)/g,
+    /(?<!\]\()(?<!\()(?<!\<)(https?:\/\/[^\s)>\]]+)/g,
     (url) => `[${url}](${url})`
   );
+}
+
+/**
+ * Remove artifact backslashes that the original Stashcat app inserts at line
+ * boundaries (e.g. a line that contains only a backslash). react-markdown
+ * treats a trailing backslash as a hard line-break escape and hides it,
+ * whereas the original app renders it as a literal character. We strip these
+ * artifacts so empty lines render cleanly as paragraph breaks instead.
+ */
+function normalizeBackslashArtifacts(text: string): string {
+  // Match a backslash that sits on its own line (surrounded by newlines or
+  // string boundaries) and remove it, preserving the surrounding line breaks.
+  return text.replace(/(^|\n)\\(\n|$)/g, '$1$2');
 }
 
 /** Returns true if the text consists solely of emoji characters (no letters, numbers, or punctuation) */
@@ -3136,6 +3149,8 @@ function MarkdownContent({ content, isOwn, isEmojiOnly = false }: { content: str
   const urls = extractUrls(content);
   // Auto-linkify plain URLs in the content
   const linkedContent = autoLinkify(content);
+  // Remove artifact backslashes the original app inserts at line boundaries
+  const processedContent = normalizeBackslashArtifacts(linkedContent);
 
   return (
     <>
@@ -3186,7 +3201,7 @@ function MarkdownContent({ content, isOwn, isEmojiOnly = false }: { content: str
           pre: ({ children }) => <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-words">{children}</pre>,
         }}
       >
-        {linkedContent}
+        {processedContent}
       </ReactMarkdown>
       {/* Link preview cards */}
       {urls.map((url) => (
