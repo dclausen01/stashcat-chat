@@ -2100,12 +2100,12 @@ app.get('/api/broadcasts/:id/members', async (req, res) => {
   try {
     const client = await getClient(req);
     const PAGE = 200;
-    const all: Array<Record<string, unknown>> = [];
+    const all: unknown[] = [];
     let offset = 0;
     while (true) {
       const page = await client.listBroadcastMembers(req.params.id, { limit: PAGE, offset });
-      all.push(...(page as Array<Record<string, unknown>>));
-      if ((page as unknown[]).length < PAGE) break;
+      all.push(...page);
+      if (page.length < PAGE) break;
       offset += PAGE;
     }
     res.json(all);
