@@ -170,12 +170,21 @@ html.scrollbars-thick.dark ::-webkit-scrollbar-thumb:hover {
   color: var(--color-surface-500);
 }
 
+/* Headings — explicit re-declaration so Tailwind Preflight cannot zero them out.
+   NOTE: In Tiptap headings are block-level nodes. When a user "marks" text as
+   a heading, the entire paragraph block becomes a heading. This is standard
+   behaviour in every rich-text editor (Word, Google Docs, etc.). The heading
+   toolbar button therefore always affects the whole line, not just the
+   selected word. */
 .ProseMirror h1,
 .ProseMirror h2,
 .ProseMirror h3 {
   font-weight: 700;
   line-height: 1.25;
+  margin-left: 0;
+  margin-right: 0;
 }
+
 .ProseMirror h1 {
   font-size: 1.5rem;
   margin-top: 0.75rem;
@@ -190,6 +199,14 @@ html.scrollbars-thick.dark ::-webkit-scrollbar-thumb:hover {
   font-size: 1.1rem;
   margin-top: 0.4rem;
   margin-bottom: 0.15rem;
+}
+
+/* Ensure paragraphs inside the editor stay normal-sized even when sandwiched
+   between headings (paranoia rule against inherited styles). */
+.ProseMirror p {
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.5;
 }
 
 .ProseMirror strong { font-weight: 700; }
