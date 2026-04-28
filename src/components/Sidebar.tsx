@@ -552,7 +552,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
               description: ch.description ? String(ch.description) : undefined,
               image: ch.image ? String(ch.image) : undefined,
               company_id: primaryCompanyId,
-              encrypted: false,
+              encrypted: Boolean(ch.encrypted),
               unread_count: 0,
               favorite: false,
               lastActivity: Date.now() / 1000,

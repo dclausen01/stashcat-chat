@@ -1253,9 +1253,9 @@ app.post('/api/channels', async (req, res) => {
       const keyBase64 = encryptedKey.toString('base64');
       channelOpts.encryption_key = keyBase64;
 
-      // Sign the RAW BUFFER (not the base64 string!) with own private signing key
-      // This matches the original app's behavior - it signs the raw encrypted bytes
-      const signature = client.signData(encryptedKey);
+      // Sign the base64 string (UTF-8 bytes), consistent with key-sync endpoint behavior
+      // The original app sends encryption_key as base64 and signs that same base64 string
+      const signature = client.signData(Buffer.from(keyBase64));
       channelOpts.encryption_key_signature = signature.toString('hex');
     }
 
