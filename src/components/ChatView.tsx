@@ -1441,6 +1441,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               onOpenMembers={() => setMembersOpen(true)}
               onOpenDescriptionEditor={() => setDescEditorOpen(true)}
               onOpenImageEditor={() => setImageEditorOpen(true)}
+              onDeleted={onGoHome}
             />
           )}
           {chat.type === 'channel' && (

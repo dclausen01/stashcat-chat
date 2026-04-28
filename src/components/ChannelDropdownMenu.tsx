@@ -10,6 +10,7 @@ interface ChannelDropdownMenuProps {
   onOpenMembers: () => void;
   onOpenDescriptionEditor: () => void;
   onOpenImageEditor?: () => void;
+  onDeleted?: () => void;
 }
 
 function formatDateLabel(ts: number): string {
@@ -286,6 +287,7 @@ export default function ChannelDropdownMenu({
   onOpenMembers,
   onOpenDescriptionEditor,
   onOpenImageEditor,
+  onDeleted,
 }: ChannelDropdownMenuProps) {
   const [open, setOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -397,7 +399,7 @@ export default function ChannelDropdownMenu({
           onClose={() => setShowDeleteModal(false)}
           onDeleted={() => {
             setShowDeleteModal(false);
-            window.location.reload();
+            onDeleted?.();
           }}
         />
       )}
