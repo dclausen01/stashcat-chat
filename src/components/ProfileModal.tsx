@@ -32,7 +32,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
       await api.changeStatus(status);
       setUser(user ? { ...user, status } : null);
     } catch (err) {
-      console.error('Failed to save status:', err);
+      // console.error('Failed to save status:', err);
     } finally {
       setLoading(false);
     }
@@ -48,7 +48,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
       await api.setOnlineStatus(newVal);
       setUser(user ? { ...user, availability: newVal, status: statusText } : null);
     } catch (err) {
-      console.error('Failed to set online status:', err);
+      // console.error('Failed to set online status:', err);
       setAvailability(availability); // revert on error
       setStatus(status);
     } finally {
@@ -86,7 +86,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
           const newImage = `data:${file.type};base64,${imgBase64}`;
           setUser(user ? { ...user, image: newImage } : null);
         } catch (err) {
-          console.error('Failed to upload image:', err);
+          // console.error('Failed to upload image:', err);
           alert('Fehler beim Hochladen des Bildes.');
         } finally {
           setUploading(false);
@@ -94,7 +94,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
       };
       reader.readAsDataURL(file);
     } catch (err) {
-      console.error('Failed to read file:', err);
+      // console.error('Failed to read file:', err);
       setUploading(false);
     }
   };
@@ -106,7 +106,7 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
       await api.resetProfileImage();
       setUser(user ? { ...user, image: undefined } : null);
     } catch (err) {
-      console.error('Failed to remove image:', err);
+      // console.error('Failed to remove image:', err);
       alert('Fehler beim Entfernen des Bildes.');
     } finally {
       setUploading(false);

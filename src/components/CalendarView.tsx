@@ -190,7 +190,7 @@ export default function CalendarView({ eventIdToOpen, onEventOpened, onClose }: 
     setLoading(true);
     api.listCalendarEvents(rangeStart, rangeEnd)
       .then((evts) => setEvents(evts))
-      .catch((err) => console.error('Failed to load events:', err))
+      .catch((err) => // console.error('Failed to load events:', err))
       .finally(() => setLoading(false));
   }, [rangeStart, rangeEnd]);
 
@@ -204,7 +204,7 @@ export default function CalendarView({ eventIdToOpen, onEventOpened, onClose }: 
     setAgendaLoading(true);
     api.listCalendarEvents(start, end)
       .then((evts) => setAgendaEvents(evts))
-      .catch((err) => console.error('Failed to load agenda:', err))
+      .catch((err) => // console.error('Failed to load agenda:', err))
       .finally(() => setAgendaLoading(false));
   }, []);
 

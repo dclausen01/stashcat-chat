@@ -154,7 +154,7 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
             channel = { ...channel, image: imgResult.channel.image };
           }
         } catch (imgErr) {
-          console.error('Channel image upload failed:', imgErr);
+          // console.error('Channel image upload failed:', imgErr);
         }
       }
       onCreate(channel);

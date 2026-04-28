@@ -791,7 +791,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
         setFiles(result.files as unknown as FileEntry[]);
       }
     } catch (err) {
-      console.error('Failed to load folder:', err);
+      // console.error('Failed to load folder:', err);
     } finally {
       setLoading(false);
     }
@@ -1148,7 +1148,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
             await new Promise(resolve => setTimeout(resolve, 500));
           }
         } catch (err) {
-          console.warn('Failed to create folder, might exist:', folderPath, err);
+          // console.warn('Failed to create folder, might exist:', folderPath, err);
         }
 
         const targetFolderId = createdFolderId ?? folderIdMap.get(folderPath) ?? parentId;

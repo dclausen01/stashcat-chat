@@ -76,12 +76,12 @@ function dispatchToHandlers(event: MessageEvent, eventName: string) {
         try {
           handler(data);
         } catch (err) {
-          console.error(`[useRealtimeEvents] Handler error for ${eventName}:`, err);
+          // console.error(`[useRealtimeEvents] Handler error for ${eventName}:`, err);
         }
       }
     }
   } catch (err) {
-    console.error(`[useRealtimeEvents] Failed to parse ${eventName} event:`, err);
+    // console.error(`[useRealtimeEvents] Failed to parse ${eventName} event:`, err);
   }
 }
 
@@ -93,7 +93,7 @@ function dispatchNamedEvent(eventName: string, data: unknown) {
       try {
         handler(data);
       } catch (err) {
-        console.error(`[useRealtimeEvents] Handler error for ${eventName}:`, err);
+        // console.error(`[useRealtimeEvents] Handler error for ${eventName}:`, err);
       }
     }
   }
@@ -203,7 +203,7 @@ function startWatchdog() {
     }
     const elapsed = Date.now() - lastEventTime;
     if (elapsed > WATCHDOG_TIMEOUT) {
-      console.warn(`[useRealtimeEvents] No SSE event received for ${Math.round(elapsed / 1000)}s — reconnecting`);
+      // console.warn(`[useRealtimeEvents] No SSE event received for ${Math.round(elapsed / 1000)}s — reconnecting`);
       // Connection is likely dead — tear down and recreate
       destroyEventSource();
       sharedWasDisconnected = true;
@@ -228,7 +228,7 @@ function ensureSharedEventSource() {
       return; // Connection is alive or reconnecting — nothing to do
     }
     // readyState is CLOSED — the old EventSource is dead, tear it down
-    console.warn('[useRealtimeEvents] EventSource is CLOSED, recreating connection');
+    // console.warn('[useRealtimeEvents] EventSource is CLOSED, recreating connection');
     destroyEventSource();
     // Mark as reconnect so onopen knows to dispatch 'reconnect' event
     sharedIsReconnect = true;
@@ -239,11 +239,11 @@ function ensureSharedEventSource() {
 
   const url = getSseUrl();
   if (!url) {
-    console.log('[useRealtimeEvents] No token found, skipping connection');
+    // console.log('[useRealtimeEvents] No token found, skipping connection');
     return;
   }
 
-  console.log('[useRealtimeEvents] Connecting to SSE:', url);
+  // console.log('[useRealtimeEvents] Connecting to SSE:', url);
   sharedEs = new EventSource(url);
 
   sharedEs.addEventListener('message_sync', (e) => dispatchToHandlers(e, 'message_sync'));
@@ -272,7 +272,7 @@ function ensureSharedEventSource() {
   sharedEs.onopen = () => {
     lastEventTime = Date.now();
     if (sharedIsReconnect || sharedWasDisconnected) {
-      console.log('[useRealtimeEvents] SSE reconnected after standby/disconnect');
+      // console.log('[useRealtimeEvents] SSE reconnected after standby/disconnect');
       sharedIsReconnect = false;
       // Clear sharedWasDisconnected here so the 'connected' event handler
       // below does not dispatch a second 'reconnect' event for the same reconnect.
@@ -290,12 +290,12 @@ function ensureSharedEventSource() {
   };
 
   sharedEs.onerror = () => {
-    console.error('[useRealtimeEvents] SSE error, readyState:', sharedEs?.readyState);
+    // console.error('[useRealtimeEvents] SSE error, readyState:', sharedEs?.readyState);
     sharedWasDisconnected = true;
     // If the EventSource has transitioned to CLOSED, auto-reconnect has given up.
     // Tear down and schedule a manual reconnect.
     if (sharedEs && sharedEs.readyState === EventSource.CLOSED) {
-      console.warn('[useRealtimeEvents] EventSource CLOSED — will retry via watchdog');
+      // console.warn('[useRealtimeEvents] EventSource CLOSED — will retry via watchdog');
       destroyEventSource();
       // The watchdog will recreate the connection on its next check
     }
@@ -314,7 +314,7 @@ function checkAndReconnect() {
   }
 
   if (sharedEs.readyState === EventSource.CLOSED) {
-    console.warn('[useRealtimeEvents] Tab woke up with CLOSED EventSource — reconnecting');
+    // console.warn('[useRealtimeEvents] Tab woke up with CLOSED EventSource — reconnecting');
     destroyEventSource();
     sharedWasDisconnected = true;
     sharedIsReconnect = true;
@@ -325,7 +325,7 @@ function checkAndReconnect() {
   // If OPEN, check if we've been receiving events
   const elapsed = Date.now() - lastEventTime;
   if (elapsed > WATCHDOG_TIMEOUT) {
-    console.warn(`[useRealtimeEvents] Tab woke up, no SSE events for ${Math.round(elapsed / 1000)}s — reconnecting`);
+    // console.warn(`[useRealtimeEvents] Tab woke up, no SSE events for ${Math.round(elapsed / 1000)}s — reconnecting`);
     destroyEventSource();
     sharedWasDisconnected = true;
     sharedIsReconnect = true;
@@ -405,7 +405,7 @@ export function useRealtimeEvents(
 /** Close the shared SSE connection. Call this when the app logs out. */
 export function closeRealtimeConnection() {
   if (sharedEs) {
-    console.log('[useRealtimeEvents] Closing SSE connection');
+    // console.log('[useRealtimeEvents] Closing SSE connection');
     sharedEs.close();
     sharedEs = null;
   }

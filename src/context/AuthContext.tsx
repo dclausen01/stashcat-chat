@@ -40,12 +40,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                            error?.message?.includes('Unauthorized') ||
                            error?.message?.includes('Forbidden');
         if (isAuthError) {
-          console.log('[Auth] Authentication failed, clearing session');
+          // console.log('[Auth] Authentication failed, clearing session');
           api.clearSession();
         } else {
           // For temporary errors, keep the token but show logged out state
           // The user can refresh to try again
-          console.log('[Auth] Temporary error, keeping token for retry:', error?.message);
+          // console.log('[Auth] Temporary error, keeping token for retry:', error?.message);
         }
       });
     }

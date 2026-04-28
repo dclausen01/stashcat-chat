@@ -332,7 +332,7 @@ export function useCallManager(enabled: boolean) {
               setActiveCall(connected);
               activeCallRef.current = connected;
             })
-            .catch(console.error);
+            .catch(() => { /* silently ignore connection errors */ });
         }
         break;
 

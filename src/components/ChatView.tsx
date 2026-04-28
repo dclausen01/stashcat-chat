@@ -362,9 +362,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       const last = msgs[msgs.length - 1];
       if (last) api.markAsRead(chat.id, chat.type, String(last.id)).catch(() => {});
     } catch (err) {
-      console.error('Failed to load messages:', err);
+      // // console.error('Failed to load messages:', err);
       const debug = (err as unknown as Record<string, unknown>)?.debug;
-      if (debug) console.error('Debug info:', debug);
+      if (debug) // console.error('Debug info:', debug);
     } finally {
       setLoading(false);
     }
@@ -412,7 +412,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         });
       }
     } catch (err) {
-      console.error('Failed to load older messages:', err);
+      // // console.error('Failed to load older messages:', err);
     } finally {
       loadingMoreRef.current = false;
       setLoadingMore(false);
@@ -430,7 +430,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       const res = await api.searchMessages(chat.id, chat.type, startTs, endTs, searchQuery || undefined);
       setDateSearchResults(res.messages as unknown as Message[]);
     } catch (err) {
-      console.error('Date search failed:', err);
+      // // console.error('Date search failed:', err);
       setDateSearchResults([]);
     } finally {
       setDateSearchLoading(false);
@@ -1017,7 +1017,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           : m
       ));
     } catch (err) {
-      console.error('Like failed:', err);
+      // // console.error('Like failed:', err);
     }
   }, []);
 
@@ -1260,7 +1260,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                     await api.setChannelNotifications(chat.id, true);
                     setNotificationsMuted(false);
                   } catch (err) {
-                    console.error('Failed to enable notifications:', err);
+                    // // console.error('Failed to enable notifications:', err);
                     alert(err instanceof Error ? err.message : 'Fehler beim Aktivieren der Benachrichtigungen');
                   } finally {
                     setNotificationsLoading(false);
@@ -1306,7 +1306,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                         await api.setChannelNotifications(chat.id, false, opt.duration);
                         setNotificationsMuted(true);
                       } catch (err) {
-                        console.error('Failed to mute notifications:', err);
+                        // // console.error('Failed to mute notifications:', err);
                         alert(err instanceof Error ? err.message : 'Fehler beim Stummschalten');
                       } finally {
                         setNotificationsLoading(false);
@@ -1372,7 +1372,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 }
               } catch (err) {
                 moderatorTab?.close();
-                console.error('Failed to start meeting:', err);
+                // // console.error('Failed to start meeting:', err);
                 alert(err instanceof Error ? err.message : 'Videokonferenz konnte nicht erstellt werden');
               } finally {
                 setMeetingLoading(false);
@@ -3236,7 +3236,7 @@ function LikeBadge({ count, liked, onToggle, messageId }: { count: number; liked
       }
       setLikers(data.map((l) => ({ name: `${l.user.first_name ?? ''} ${l.user.last_name ?? ''}`.trim() || 'Unbekannt', image: l.user.image })));
     } catch (err) {
-      console.error('Failed to load likers:', err);
+      // // console.error('Failed to load likers:', err);
       setLikeError(err instanceof Error ? err.message : 'Fehler beim Laden');
       setLikers([]);
     } finally {
@@ -3333,7 +3333,7 @@ function ForwardDialog({ message, onClose }: { message: Message; onClose: () => 
         }
         setTargets(all);
       } catch (err) {
-        console.error('Failed to load forward targets:', err);
+        // // console.error('Failed to load forward targets:', err);
       } finally {
         setLoading(false);
       }

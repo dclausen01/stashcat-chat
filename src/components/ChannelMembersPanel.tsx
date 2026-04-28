@@ -84,7 +84,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
       const isManager = me?.manager === true || (me?.role !== undefined && me?.role !== 'member');
       setIsManagerDetected(isManager);
     } catch (err) {
-      console.error('Failed to load members:', err);
+      // console.error('Failed to load members:', err);
     } finally {
       setLoadingMembers(false);
     }
@@ -103,7 +103,7 @@ export default function ChannelMembersPanel({ chat, isManager: isManagerProp, on
       setSearchResults(result.users as unknown as RawUser[]);
       setSearchTotal(result.total);
     } catch (err) {
-      console.error('Failed to search users:', err);
+      // console.error('Failed to search users:', err);
     } finally {
       setLoadingUsers(false);
     }

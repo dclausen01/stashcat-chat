@@ -107,7 +107,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
       const data = await api.listBroadcasts();
       setBroadcasts(data as unknown as Broadcast[]);
     } catch (err) {
-      console.error('Failed to load broadcasts:', err);
+      // console.error('Failed to load broadcasts:', err);
     } finally {
       setLoading(false);
     }
@@ -131,7 +131,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
       setMessages(msgs as unknown as BroadcastMessage[]);
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch (err) {
-      console.error('Failed to load broadcast messages:', err);
+      // console.error('Failed to load broadcast messages:', err);
     } finally {
       setLoadingMessages(false);
     }
@@ -143,7 +143,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
       const data = await api.getBroadcastMembers(String(b.id));
       setMembers(data as unknown as RawUser[]);
     } catch (err) {
-      console.error('Failed to load broadcast members:', err);
+      // console.error('Failed to load broadcast members:', err);
     } finally {
       setLoadingMembers(false);
     }
@@ -180,7 +180,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
         image: ch.image ? String(ch.image) : undefined,
       })));
     } catch (err) {
-      console.error('Failed to load contacts:', err);
+      // console.error('Failed to load contacts:', err);
     } finally {
       setLoadingContacts(false);
     }
@@ -304,7 +304,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
         const result = await api.searchCompanyMembers(companyIdRef.current, { search: searchQuery || undefined, limit: 50 });
         setCompanyUsers(result.users as unknown as RawUser[]);
       } catch (err) {
-        console.error('Search failed:', err);
+        // console.error('Search failed:', err);
       }
     }, 300);
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };

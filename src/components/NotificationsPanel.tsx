@@ -279,7 +279,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
         }));
         setNotifications(safeItems as api.AppNotification[]);
       })
-      .catch((err) => console.error('Failed to load notifications:', err))
+      .catch((err) => // console.error('Failed to load notifications:', err))
       .finally(() => setLoading(false));
   }, []);
 
@@ -288,7 +288,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
       await api.deleteNotification(id);
       setNotifications((prev) => prev.filter((n) => n.id !== id));
     } catch (err) {
-      console.error('Failed to delete notification:', err);
+      // // console.error('Failed to delete notification:', err);
     }
   };
 
@@ -297,7 +297,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
       await api.deleteAllNotifications();
       setNotifications([]);
     } catch (err) {
-      console.error('Failed to delete all notifications:', err);
+      // // console.error('Failed to delete all notifications:', err);
     }
   };
 
@@ -309,7 +309,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
       setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
       onChannelJoined?.();
     } catch (err) {
-      console.error('Failed to accept channel invite:', err);
+      // // console.error('Failed to accept channel invite:', err);
       setInviteState((prev) => ({ ...prev, [notificationId]: 'error' }));
     }
   };
@@ -321,7 +321,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
       setInviteState((prev) => ({ ...prev, [notificationId]: 'declined' }));
       setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
     } catch (err) {
-      console.error('Failed to decline channel invite:', err);
+      // // console.error('Failed to decline channel invite:', err);
       setInviteState((prev) => ({ ...prev, [notificationId]: 'error' }));
     }
   };
@@ -333,7 +333,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
       setKeySyncState((prev) => ({ ...prev, [notificationId]: 'accepted' }));
       setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
     } catch (err) {
-      console.error('Failed to accept key sync:', err);
+      // // console.error('Failed to accept key sync:', err);
       setKeySyncState((prev) => ({ ...prev, [notificationId]: 'error' }));
     }
   };
