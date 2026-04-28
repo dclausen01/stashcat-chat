@@ -1181,11 +1181,22 @@ app.get('/api/companies/:companyId/groups', async (req, res) => {
 app.get('/api/companies/:companyId/groups/:groupId/members', async (req, res) => {
   try {
     const client = await getClient(req);
-    const result = await client.listManagedUsers(req.params.companyId, {
-      groupIds: [req.params.groupId],
-      limit: 200,
-    });
-    res.json({ users: result.users, total: result.total });
+    const PAGE = 200;
+    const allUsers: unknown[] = [];
+    let offset = 0;
+    let total = 0;
+    while (true) {
+      const result = await client.listManagedUsers(req.params.companyId, {
+        groupIds: [req.params.groupId],
+        limit: PAGE,
+        offset,
+      });
+      allUsers.push(...(result.users as unknown[]));
+      total = result.total ?? allUsers.length;
+      if ((result.users as unknown[]).length < PAGE) break;
+      offset += PAGE;
+    }
+    res.json({ users: allUsers, total });
   } catch (err) {
     console.error('[group-members] Error:', err);
     res.status(500).json({ error: errorMessage(err) });
