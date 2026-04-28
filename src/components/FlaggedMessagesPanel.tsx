@@ -51,7 +51,7 @@ export default function FlaggedMessagesPanel({ chat, onClose, onMessageClick, ju
       offsetRef.current = (reset ? 0 : offsetRef.current) + msgs.length;
       setHasMore(msgs.length >= PAGE_SIZE);
     } catch (err) {
-      // console.error('Failed to load flagged messages:', err);
+      console.error('Failed to load flagged messages:', err);
     } finally {
       setLoading(false);
     }

@@ -76,12 +76,12 @@ function dispatchToHandlers(event: MessageEvent, eventName: string) {
         try {
           handler(data);
         } catch (err) {
-          // console.error(`[useRealtimeEvents] Handler error for ${eventName}:`, err);
+          console.error(`[useRealtimeEvents] Handler error for ${eventName}:`, err);
         }
       }
     }
   } catch (err) {
-    // console.error(`[useRealtimeEvents] Failed to parse ${eventName} event:`, err);
+    console.error(`[useRealtimeEvents] Failed to parse ${eventName} event:`, err);
   }
 }
 
@@ -93,7 +93,7 @@ function dispatchNamedEvent(eventName: string, data: unknown) {
       try {
         handler(data);
       } catch (err) {
-        // console.error(`[useRealtimeEvents] Handler error for ${eventName}:`, err);
+        console.error(`[useRealtimeEvents] Handler error for ${eventName}:`, err);
       }
     }
   }
@@ -290,7 +290,7 @@ function ensureSharedEventSource() {
   };
 
   sharedEs.onerror = () => {
-    // console.error('[useRealtimeEvents] SSE error, readyState:', sharedEs?.readyState);
+    console.error('[useRealtimeEvents] SSE error, readyState:', sharedEs?.readyState);
     sharedWasDisconnected = true;
     // If the EventSource has transitioned to CLOSED, auto-reconnect has given up.
     // Tear down and schedule a manual reconnect.

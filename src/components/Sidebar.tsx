@@ -216,7 +216,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       setConversations(sortedConvs);
       onConversationsLoaded?.(sortedConvs);
     } catch (err) {
-      // console.error('Failed to load sidebar data:', err);
+      console.error('Failed to load sidebar data:', err);
     }
   }
 
@@ -359,7 +359,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     try {
       await api.setFavorite(target.type, target.id, newFav);
     } catch (err) {
-      // console.error('Failed to toggle favorite:', err);
+      console.error('Failed to toggle favorite:', err);
       // Revert on error
       if (target.type === 'channel') {
         setChannels((prev) => sortChats(prev.map((ch) => ch.id === target.id ? { ...ch, favorite: !newFav } : ch)));

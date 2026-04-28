@@ -791,7 +791,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
         setFiles(result.files as unknown as FileEntry[]);
       }
     } catch (err) {
-      // console.error('Failed to load folder:', err);
+      console.error('Failed to load folder:', err);
     } finally {
       setLoading(false);
     }

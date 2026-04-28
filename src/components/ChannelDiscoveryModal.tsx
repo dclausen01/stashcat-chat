@@ -45,7 +45,7 @@ export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClos
           })),
         );
       } catch (err) {
-        // console.error('Failed to load visible channels:', err);
+        console.error('Failed to load visible channels:', err);
       } finally {
         setLoading(false);
       }
@@ -64,7 +64,7 @@ export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClos
       await api.joinChannel(ch.id);
       onJoined({ id: ch.id, name: ch.name, description: ch.description, image: ch.image, encrypted: ch.encrypted });
     } catch (err) {
-      // console.error('Failed to join channel:', err);
+      console.error('Failed to join channel:', err);
     } finally {
       setJoining(null);
     }
