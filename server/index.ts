@@ -1215,7 +1215,12 @@ app.post('/api/channels', async (req, res) => {
     const isPassword  = channel_type === 'password';
 
     // Build channel options
+    // Generate unique identifier for this channel creation request (required by API)
+    const cryptoGen = await import('crypto');
+    const uniqueIdentifier = cryptoGen.randomBytes(16).toString('hex');
+    
     const channelOpts: Parameters<typeof client.createChannel>[0] & Record<string, unknown> = {
+      unique_identifier: uniqueIdentifier,
       channel_name: name,
       company: company_id,
       description: [description, policies ? `\n\nRichtlinien: ${policies}` : ''].filter(Boolean).join(''),
@@ -1231,8 +1236,7 @@ app.post('/api/channels', async (req, res) => {
 
     // For encrypted channels: generate AES key, encrypt with own public key, sign
     if (isEncrypted) {
-      const crypto = await import('crypto');
-      const aesKey = crypto.randomBytes(32);
+      const aesKey = cryptoGen.randomBytes(32);
 
       if (!client.isE2EUnlocked()) {
         return res.status(400).json({ error: 'E2E not unlocked — encrypted channels require E2E. Please re-login with your security password.' });
@@ -1249,9 +1253,9 @@ app.post('/api/channels', async (req, res) => {
       const keyBase64 = encryptedKey.toString('base64');
       channelOpts.encryption_key = keyBase64;
 
-      // Sign the BASE64 STRING (not the raw bytes!) with own private signing key
-      // This matches the original app's behavior
-      const signature = client.signData(Buffer.from(keyBase64));
+      // Sign the RAW BUFFER (not the base64 string!) with own private signing key
+      // This matches the original app's behavior - it signs the raw encrypted bytes
+      const signature = client.signData(encryptedKey);
       channelOpts.encryption_key_signature = signature.toString('hex');
     }
 
