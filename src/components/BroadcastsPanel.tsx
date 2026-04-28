@@ -98,6 +98,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
   const [showGroupsTab, setShowGroupsTab] = useState(false);
   const [groupFilter, setGroupFilter] = useState('');
   const [invitingGroup, setInvitingGroup] = useState<string | null>(null);
+  const [addingProgress, setAddingProgress] = useState<{ done: number; total: number } | null>(null);
 
   // ── Broadcast list ──────────────────────────────────────────────────────────
 
@@ -325,20 +326,52 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
     setInvitingGroup(group.id);
     try {
       const result = await api.getGroupMembers(companyIdRef.current, group.id);
-      const userIds = result.users.map((u) => String(u.id)).filter((uid) => !memberIds.has(uid));
-      if (userIds.length === 0) { alert('Alle Gruppenmitglieder sind bereits Empfänger.'); return; }
+      const usersToAdd = (result.users as unknown as RawUser[]).filter((u) => !memberIds.has(String(u.id)));
+      if (usersToAdd.length === 0) { alert('Alle Gruppenmitglieder sind bereits Empfänger.'); return; }
+
+      const nameLookup = new Map(usersToAdd.map((u) => [String(u.id), userName(u)]));
+      const userIds = usersToAdd.map((u) => String(u.id));
+      const failedIds: string[] = [];
+      let addedCount = 0;
+
+      setAddingProgress({ done: 0, total: userIds.length });
       for (let i = 0; i < userIds.length; i += 50) {
-        await api.addBroadcastMembers(String(activeBroadcast.id), userIds.slice(i, i + 50));
+        const batch = userIds.slice(i, i + 50);
+        try {
+          await api.addBroadcastMembers(String(activeBroadcast.id), batch);
+          addedCount += batch.length;
+        } catch {
+          for (const uid of batch) {
+            try {
+              await api.addBroadcastMembers(String(activeBroadcast.id), [uid]);
+              addedCount++;
+            } catch {
+              failedIds.push(uid);
+            }
+          }
+        }
+        setAddingProgress({ done: Math.min(i + 50, userIds.length), total: userIds.length });
       }
+
       await loadMembers(activeBroadcast);
       setBroadcasts((prev) => prev.map((b) =>
-        b.id === activeBroadcast.id ? { ...b, member_count: b.member_count + userIds.length } : b
+        b.id === activeBroadcast.id ? { ...b, member_count: b.member_count + addedCount } : b
       ));
-      setActiveBroadcast((prev) => prev ? { ...prev, member_count: prev.member_count + userIds.length } : prev);
+      setActiveBroadcast((prev) => prev ? { ...prev, member_count: prev.member_count + addedCount } : prev);
+
+      if (failedIds.length > 0) {
+        if (failedIds.length > 20) {
+          alert(`${addedCount} Empfänger hinzugefügt.\n${failedIds.length} Konten konnten nicht hinzugefügt werden (keine Berechtigung).`);
+        } else {
+          const names = failedIds.map((id) => nameLookup.get(id) ?? id).join('\n');
+          alert(`${addedCount} Empfänger hinzugefügt.\nFolgende Konten konnten nicht hinzugefügt werden:\n${names}`);
+        }
+      }
     } catch (err) {
       alert(`Fehler: ${err instanceof Error ? err.message : err}`);
     } finally {
       setInvitingGroup(null);
+      setAddingProgress(null);
     }
   };
 
@@ -482,6 +515,22 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
                     <X size={14} />
                   </button>
                 </div>
+                {addingProgress && (
+                  <div className="mb-2 rounded-lg bg-primary-50 px-3 py-2 dark:bg-primary-900/20">
+                    <div className="mb-1 flex items-center gap-2">
+                      <Loader2 size={13} className="shrink-0 animate-spin text-primary-500" />
+                      <span className="text-xs text-primary-700 dark:text-primary-300">
+                        Füge Empfänger hinzu… {addingProgress.done} / {addingProgress.total}
+                      </span>
+                    </div>
+                    <div className="h-1 w-full overflow-hidden rounded-full bg-primary-200 dark:bg-primary-800">
+                      <div
+                        className="h-full rounded-full bg-primary-500 transition-all duration-300"
+                        style={{ width: `${Math.round((addingProgress.done / addingProgress.total) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
                 {/* Nutzer / Gruppen tabs */}
                 <div className="mt-2 flex rounded-lg bg-surface-100 p-0.5 dark:bg-surface-800">
                   <button
