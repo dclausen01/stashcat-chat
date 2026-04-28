@@ -977,8 +977,8 @@ app.get('/api/channels/:channelId/members', async (req, res) => {
     while (true) {
       const batch = await client.getChannelMembers(channelId, { limit: PAGE, offset });
       // Filter out pending members - they should only appear in the pending-members endpoint
-      const nonPending = batch.filter((m: Record<string, unknown>) => {
-        const pending = m.membership_pending === true || m.pending === true;
+      const nonPending = batch.filter((m) => {
+        const pending = (m as any).membership_pending === true || (m as any).pending === true;
         return !pending;
       });
       all.push(...nonPending);
