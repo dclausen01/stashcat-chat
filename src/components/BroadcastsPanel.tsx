@@ -257,10 +257,17 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      await api.createBroadcast(newName.trim(), []);
+      const created = await api.createBroadcast(newName.trim(), []);
       setNewName('');
       setShowCreate(false);
       await loadBroadcasts();
+      const newBroadcast = created as unknown as Broadcast;
+      setActiveBroadcast(newBroadcast);
+      setActiveTab('members');
+      setMembers([]);
+      setShowAddMembers(true);
+      setSearchQuery('');
+      loadContacts();
     } catch (err) {
       alert(`Fehler: ${err instanceof Error ? err.message : err}`);
     } finally {
