@@ -292,6 +292,10 @@ function DeleteConfirmModal({ chat, onClose, onDeleted }: {
     setDeleting(true);
     try {
       await api.deleteChannel(chat.id);
+      // Notify sidebar to refresh channel list immediately
+      window.dispatchEvent(new CustomEvent('channel-deleted', {
+        detail: { channelId: chat.id }
+      }));
       onDeleted();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Löschen fehlgeschlagen');

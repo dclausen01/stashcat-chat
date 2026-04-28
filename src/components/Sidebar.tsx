@@ -338,6 +338,15 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     return () => window.removeEventListener('chat-mark-read', handler as EventListener);
   }, [handleMarkRead]);
 
+  // Listen for channel-deleted events to refresh sidebar immediately
+  useEffect(() => {
+    const handler = () => {
+      loadData();
+    };
+    window.addEventListener('channel-deleted', handler as EventListener);
+    return () => window.removeEventListener('channel-deleted', handler as EventListener);
+  }, []);
+
   const handleSelect = useCallback((target: ChatTarget) => {
     // Clear unread for selected chat immediately in sidebar
     if (target.type === 'channel') {
