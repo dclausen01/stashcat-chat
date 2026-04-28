@@ -124,6 +124,17 @@ export default function MessageInput({
             }
             return false; // default: HardBreak extension inserts <br>
           },
+          'Ctrl-Enter': ({ editor }) => {
+            // Always insert a new paragraph block, regardless of the Enter-sends setting.
+            // This lets users exit a heading and continue with normal text.
+            editor.chain().focus().splitBlock().run();
+            return true;
+          },
+          'Cmd-Enter': ({ editor }) => {
+            // macOS variant of Ctrl+Enter
+            editor.chain().focus().splitBlock().run();
+            return true;
+          },
         };
       },
     })
@@ -460,12 +471,14 @@ export default function MessageInput({
           {enterSendsMessage ? (
             <>
               <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Enter</kbd>{' '}Senden{' · '}
-              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Shift+Enter</kbd>{' '}Neue Zeile
+              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Shift+Enter</kbd>{' '}Zeilenumbruch{' · '}
+              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Ctrl+Enter</kbd>{' '}Neuer Absatz
             </>
           ) : (
             <>
               <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Shift+Enter</kbd>{' '}Senden{' · '}
-              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Enter</kbd>{' '}Neue Zeile
+              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Enter</kbd>{' '}Neue Zeile{' · '}
+              <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Ctrl+Enter</kbd>{' '}Neuer Absatz
             </>
           )}
         </div>
