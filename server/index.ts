@@ -2099,7 +2099,16 @@ app.post('/api/broadcasts/:id/messages', async (req, res) => {
 app.get('/api/broadcasts/:id/members', async (req, res) => {
   try {
     const client = await getClient(req);
-    res.json(await client.listBroadcastMembers(req.params.id));
+    const PAGE = 200;
+    const all: Array<Record<string, unknown>> = [];
+    let offset = 0;
+    while (true) {
+      const page = await client.listBroadcastMembers(req.params.id, { limit: PAGE, offset });
+      all.push(...(page as Array<Record<string, unknown>>));
+      if ((page as unknown[]).length < PAGE) break;
+      offset += PAGE;
+    }
+    res.json(all);
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }
