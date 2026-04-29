@@ -5,6 +5,7 @@ interface Settings {
   bubbleView: boolean;
   ownBubbleColor: string;
   otherBubbleColor: string;
+  otherBubbleColorDark: string;
   homeView: 'info' | 'cards';
   fileBrowserViewMode: 'grid' | 'list';
   fileBrowserTab: 'context' | 'personal' | 'nextcloud';
@@ -13,6 +14,7 @@ interface Settings {
   enterSendsMessage: boolean;
   favoriteCardsSortMode: 'sidebar' | 'alphabetical' | 'manual';
   thickScrollbars: boolean;
+  spellcheckLang: 'off' | 'de' | 'en' | 'de,en';
 }
 
 interface SettingsContextValue extends Settings {
@@ -20,6 +22,7 @@ interface SettingsContextValue extends Settings {
   setBubbleView: (v: boolean) => void;
   setOwnBubbleColor: (v: string) => void;
   setOtherBubbleColor: (v: string) => void;
+  setOtherBubbleColorDark: (v: string) => void;
   setHomeView: (v: 'info' | 'cards') => void;
   setFileBrowserViewMode: (v: 'grid' | 'list') => void;
   setFileBrowserTab: (v: 'context' | 'personal' | 'nextcloud') => void;
@@ -28,6 +31,7 @@ interface SettingsContextValue extends Settings {
   setEnterSendsMessage: (v: boolean) => void;
   setFavoriteCardsSortMode: (v: 'sidebar' | 'alphabetical' | 'manual') => void;
   setThickScrollbars: (v: boolean) => void;
+  setSpellcheckLang: (v: 'off' | 'de' | 'en' | 'de,en') => void;
 }
 
 const STORAGE_KEY = 'schulchat_settings';
@@ -38,6 +42,7 @@ function loadSettings(): Settings {
     bubbleView: true,
     ownBubbleColor: '#4f46e5',
     otherBubbleColor: '#f3f4f6',
+    otherBubbleColorDark: '#374151',
     homeView: 'cards',
     fileBrowserViewMode: 'grid',
     fileBrowserTab: 'context',
@@ -46,6 +51,7 @@ function loadSettings(): Settings {
     enterSendsMessage: true,
     favoriteCardsSortMode: 'sidebar',
     thickScrollbars: false,
+    spellcheckLang: 'de',
   };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -66,6 +72,7 @@ const SettingsContext = createContext<SettingsContextValue>({
   bubbleView: true,
   ownBubbleColor: '#4f46e5',
   otherBubbleColor: '#f3f4f6',
+  otherBubbleColorDark: '#374151',
   homeView: 'cards',
   fileBrowserViewMode: 'grid',
   fileBrowserTab: 'context',
@@ -74,10 +81,12 @@ const SettingsContext = createContext<SettingsContextValue>({
   enterSendsMessage: true,
   favoriteCardsSortMode: 'sidebar',
   thickScrollbars: false,
+  spellcheckLang: 'de',
   setShowImagesInline: () => {},
   setBubbleView: () => {},
   setOwnBubbleColor: () => {},
   setOtherBubbleColor: () => {},
+  setOtherBubbleColorDark: () => {},
   setHomeView: () => {},
   setFileBrowserViewMode: () => {},
   setFileBrowserTab: () => {},
@@ -86,6 +95,7 @@ const SettingsContext = createContext<SettingsContextValue>({
   setEnterSendsMessage: () => {},
   setFavoriteCardsSortMode: () => {},
   setThickScrollbars: () => {},
+  setSpellcheckLang: () => {},
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
@@ -111,6 +121,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setBubbleView: (v) => update({ bubbleView: v }),
       setOwnBubbleColor: (v) => update({ ownBubbleColor: v }),
       setOtherBubbleColor: (v) => update({ otherBubbleColor: v }),
+      setOtherBubbleColorDark: (v) => update({ otherBubbleColorDark: v }),
       setHomeView: (v) => update({ homeView: v }),
       setFileBrowserViewMode: (v) => update({ fileBrowserViewMode: v }),
       setFileBrowserTab: (v) => update({ fileBrowserTab: v }),
@@ -119,6 +130,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setEnterSendsMessage: (v) => update({ enterSendsMessage: v }),
       setFavoriteCardsSortMode: (v) => update({ favoriteCardsSortMode: v }),
       setThickScrollbars: (v) => update({ thickScrollbars: v }),
+      setSpellcheckLang: (v) => update({ spellcheckLang: v }),
     }}>
       {children}
     </SettingsContext.Provider>
