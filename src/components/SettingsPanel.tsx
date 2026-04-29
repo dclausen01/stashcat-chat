@@ -105,6 +105,8 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     setOwnBubbleColor,
     otherBubbleColor,
     setOtherBubbleColor,
+    otherBubbleColorDark,
+    setOtherBubbleColorDark,
     homeView,
     setHomeView,
     notificationsEnabled,
@@ -115,6 +117,8 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     setEnterSendsMessage,
     thickScrollbars,
     setThickScrollbars,
+    spellcheckLang,
+    setSpellcheckLang,
   } = useSettings();
 
   const { mode, activePreset, activeColors, setPreset, setCustomColor } = useTheme();
@@ -225,6 +229,25 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
           />
         </div>
 
+        <div className="mt-1 rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
+          <label className="flex items-center gap-3">
+            <div className="flex-1">
+              <div className="text-sm font-medium text-surface-900 dark:text-surface-100">Rechtschreibprüfung</div>
+              <div className="mt-0.5 text-xs text-surface-600">Browser-Wörterbuch für die Texteingabe</div>
+            </div>
+            <select
+              value={spellcheckLang}
+              onChange={(e) => setSpellcheckLang(e.target.value as 'off' | 'de' | 'en' | 'de,en')}
+              className="rounded border border-surface-300 bg-white px-2 py-1 text-xs text-surface-800 dark:border-surface-600 dark:bg-surface-700 dark:text-surface-100"
+            >
+              <option value="off">Aus</option>
+              <option value="de">Deutsch</option>
+              <option value="en">Englisch</option>
+              <option value="de,en">DE + EN</option>
+            </select>
+          </label>
+        </div>
+
         <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-surface-600">Anzeige</p>
 
         <div className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
@@ -307,11 +330,18 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         </div>
 
         <div className="mt-1 rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
-          <ColorRow
-            label="Andere Nachrichten"
-            value={otherBubbleColor}
-            onChange={setOtherBubbleColor}
-          />
+          <div className="flex flex-col gap-2">
+            <ColorRow
+              label="Andere Nachrichten (Hell)"
+              value={otherBubbleColor}
+              onChange={setOtherBubbleColor}
+            />
+            <ColorRow
+              label="Andere Nachrichten (Dunkel)"
+              value={otherBubbleColorDark}
+              onChange={setOtherBubbleColorDark}
+            />
+          </div>
         </div>
       </div>
     </div>

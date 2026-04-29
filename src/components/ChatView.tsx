@@ -4,6 +4,7 @@ import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
+import { useTheme } from '../context/ThemeContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { useAnnouncer } from '../context/AnnouncerContext';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
@@ -185,6 +186,7 @@ interface PendingMessage { text: string; replyTo: Message | null; time: number }
 export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onOpenEvent, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall, onToggleFavorite }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
+  const { theme } = useTheme();
   const confirmAsync = useConfirm();
   const announce = useAnnouncer();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -1940,7 +1942,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                       canDeleteAll={isManager && chat.type === 'channel'}
                       showImagesInline={settings.showImagesInline}
                       ownBubbleColor={settings.ownBubbleColor}
-                      otherBubbleColor={settings.otherBubbleColor}
+                      otherBubbleColor={theme === 'dark' ? settings.otherBubbleColorDark : settings.otherBubbleColor}
                       messageMap={messageMap}
                       onDelete={handleDelete}
                       onLike={handleLike}

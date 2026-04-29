@@ -63,7 +63,7 @@ export default function MessageInput({
   droppedFiles, onDroppedFilesConsumed,
 }: MessageInputProps) {
   const { theme } = useTheme();
-  const { enterSendsMessage } = useSettings();
+  const { enterSendsMessage, spellcheckLang } = useSettings();
 
   const [sending, setSending] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -250,6 +250,19 @@ export default function MessageInput({
     if (replyTo) editor?.commands.focus();
   }, [replyTo, editor]);
 
+  // Apply spellcheck lang to the editor DOM element
+  useEffect(() => {
+    const el = editor?.view.dom as HTMLElement | null;
+    if (!el) return;
+    if (spellcheckLang === 'off') {
+      el.removeAttribute('spellcheck');
+      el.removeAttribute('lang');
+    } else {
+      el.setAttribute('spellcheck', 'true');
+      el.setAttribute('lang', spellcheckLang);
+    }
+  }, [editor, spellcheckLang]);
+
   // Consume files dropped from parent
   useEffect(() => {
     if (droppedFiles && droppedFiles.length > 0) {
@@ -281,6 +294,18 @@ export default function MessageInput({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showEmoji]);
+
+  // Ctrl+Space toggles emoji picker (desktop only)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        setShowEmoji((v) => !v);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
 
   // Focus URL input when link dialog opens
   useEffect(() => {
@@ -598,11 +623,6 @@ export default function MessageInput({
           )}
         </div>
 
-        {/* Tiptap WYSIWYG editor */}
-        <div className="max-h-[200px] min-h-[1.5rem] flex-1 overflow-y-auto py-1">
-          <EditorContent editor={editor} />
-        </div>
-
         {/* Emoji picker — desktop only; on mobile, the OS keyboard provides emojis */}
         <div ref={emojiRef} className="relative hidden shrink-0 md:block">
           <button
@@ -614,7 +634,7 @@ export default function MessageInput({
             😊
           </button>
           {showEmoji && (
-            <div className="absolute bottom-10 right-0 z-50">
+            <div className="absolute bottom-10 left-0 z-50">
               <EmojiPicker
                 onEmojiClick={onEmojiClick}
                 theme={theme === 'dark' ? Theme.DARK : Theme.LIGHT}
@@ -623,6 +643,11 @@ export default function MessageInput({
               />
             </div>
           )}
+        </div>
+
+        {/* Tiptap WYSIWYG editor */}
+        <div className="max-h-[200px] min-h-[1.5rem] flex-1 overflow-y-auto py-1">
+          <EditorContent editor={editor} />
         </div>
 
         <button
