@@ -2280,6 +2280,7 @@ function MessageGroup({
   firstUnreadMsgId?: string | null;
 }) {
   const { sender, isOwn, messages } = group;
+  const { theme } = useTheme();
   const senderName = sender ? `${sender.first_name ?? ''} ${sender.last_name ?? ''}`.trim() || 'Unbekannt' : 'Unbekannt';
   const [mobileActionMsgId, setMobileActionMsgId] = useState<string | null>(null);
 
@@ -2439,7 +2440,7 @@ function MessageGroup({
                   )}
                   style={{
                     backgroundColor: isOwn ? ownBubbleColor : otherBubbleColor,
-                    color: isOwn ? '#fff' : undefined,
+                    color: isOwn || theme === 'dark' ? '#fff' : undefined,
                   }}
                 >
                   {replyTo && <ReplyQuote msg={replyTo} isOwn={isOwn} />}

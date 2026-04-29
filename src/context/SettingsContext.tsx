@@ -42,7 +42,7 @@ function loadSettings(): Settings {
     bubbleView: true,
     ownBubbleColor: '#4f46e5',
     otherBubbleColor: '#f3f4f6',
-    otherBubbleColorDark: '#3730a3',
+    otherBubbleColorDark: '#0d9488',
     homeView: 'cards',
     fileBrowserViewMode: 'grid',
     fileBrowserTab: 'context',
@@ -57,12 +57,17 @@ function loadSettings(): Settings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Settings>;
+      // Migrate old defaults of otherBubbleColorDark to the current default
+      // so users still on a former auto-default see the new one.
+      const OLD_DARK_DEFAULTS = new Set(['#374151', '#3730a3', '#92dcda']);
+      const migratedDarkBubble = parsed.otherBubbleColorDark && OLD_DARK_DEFAULTS.has(parsed.otherBubbleColorDark.toLowerCase())
+        ? defaults.otherBubbleColorDark
+        : (parsed.otherBubbleColorDark ?? defaults.otherBubbleColorDark);
       return {
         ...defaults,
         ...parsed,
         favoriteCardsSortMode: parsed.favoriteCardsSortMode ?? defaults.favoriteCardsSortMode,
-        // Reset old gray default to new indigo default on upgrade
-        otherBubbleColorDark: parsed.otherBubbleColorDark === '#374151' ? defaults.otherBubbleColorDark : (parsed.otherBubbleColorDark ?? defaults.otherBubbleColorDark),
+        otherBubbleColorDark: migratedDarkBubble,
       };
     }
   } catch { /* ignore */ }
