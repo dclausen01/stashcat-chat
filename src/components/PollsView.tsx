@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { BarChart3, Plus, Trash2, Archive, RefreshCw, Loader2, ChevronRight, ChevronLeft, Check, PieChart, ChevronDown, StopCircle, X } from 'lucide-react';
+import { BarChart3, Plus, Trash2, Archive, RefreshCw, Loader2, ChevronRight, ChevronLeft, Check, PieChart, ChevronDown, StopCircle, X, ArrowLeft } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { Poll, PollQuestion } from '../api';
@@ -414,21 +414,30 @@ export default function PollsView({ pollIdToOpen, onPollOpened, onClose }: Polls
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-white dark:bg-surface-900">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-surface-200 px-6 py-4 dark:border-surface-700">
-        <BarChart3 size={22} className="text-primary-500" />
+      <div className="flex items-center gap-3 border-b border-surface-200 px-4 py-4 sm:px-6 dark:border-surface-700">
+        {onClose && (
+          <button
+            onClick={onClose}
+            aria-label="Zurück"
+            className="-ml-1 rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800 md:hidden"
+          >
+            <ArrowLeft size={20} />
+          </button>
+        )}
+        <BarChart3 size={22} className="hidden text-primary-500 md:block" />
         <h1 className="flex-1 text-lg font-semibold text-surface-900 dark:text-white">Umfragen</h1>
         <button
           onClick={() => setShowCreate(true)}
           className="flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700"
         >
-          <Plus size={15} /> Neue Umfrage
+          <Plus size={15} /> <span className="hidden sm:inline">Neue Umfrage</span>
         </button>
         {onClose && (
           <button
             onClick={onClose}
             aria-label="Schließen"
             title="Schließen"
-            className="shrink-0 rounded-lg p-1.5 text-surface-700 hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-surface-700"
+            className="hidden shrink-0 rounded-lg p-1.5 text-surface-700 hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-surface-700 md:block"
           >
             <X size={18} />
           </button>

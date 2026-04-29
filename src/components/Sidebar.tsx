@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type CSSProperties } from 'react';
 import { Hash, Search, Users, GripHorizontal, Plus, X } from 'lucide-react';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -457,8 +457,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
   return (
     <div
-      className="relative flex h-full shrink-0 flex-col bg-[var(--theme-panel)]"
-      style={{ width: sidebarWidth }}
+      className="relative flex h-full w-full shrink-0 flex-col bg-[var(--theme-panel)] md:w-[var(--sidebar-w)]"
+      style={{ '--sidebar-w': `${sidebarWidth}px` } as CSSProperties}
     >
       {/* Horizontal resize handle — desktop only */}
       <div

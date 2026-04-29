@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bell, X, Loader2, Hash, CalendarDays, Smartphone, Shield, UserPlus, MessageSquare, Trash2, BarChart3, Key, Check, Ban } from 'lucide-react';
+import { Bell, X, Loader2, Hash, CalendarDays, Smartphone, Shield, UserPlus, MessageSquare, Trash2, BarChart3, Key, Check, Ban, ArrowLeft } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
@@ -339,10 +339,17 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
   };
 
   return (
-    <div className="flex h-full w-80 shrink-0 flex-col border-l border-surface-200 bg-white dark:border-surface-700 dark:bg-surface-900">
+    <div className="flex h-full w-full shrink-0 flex-col border-l border-surface-200 bg-white md:w-80 dark:border-surface-700 dark:bg-surface-900">
       {/* Header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
-        <Bell size={18} className="text-primary-500" />
+        <button
+          onClick={onClose}
+          aria-label="Zurück"
+          className="-ml-1 rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 md:hidden"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <Bell size={18} className="hidden text-primary-500 md:block" />
         <h2 className="flex-1 text-sm font-semibold text-surface-900 dark:text-white">Benachrichtigungen</h2>
         {notifications.length > 0 && (
           <button
@@ -353,7 +360,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
             <Trash2 size={13} />
           </button>
         )}
-        <button onClick={onClose} className="rounded-lg p-1.5 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-800">
+        <button onClick={onClose} className="hidden rounded-lg p-1.5 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-800 md:block">
           <X size={16} />
         </button>
       </div>

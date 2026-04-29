@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, type CSSProperties } from 'react';
 import {
   X, Grid3x3, List, Upload, Folder, ChevronRight, Home,
   Trash2, Pencil, Check, Loader2, Send, ArrowUp, ArrowDown, Plus,
-  Square, HardDrive, Eye, Cloud, ExternalLink,
+  Square, HardDrive, Eye, Cloud, ExternalLink, ArrowLeft,
 } from 'lucide-react';
 import { useFileSorting, type SortField, type SortDirection } from '../hooks/useFileSorting';
 import { FolderUploadProgress, type FolderUploadProgressData } from './FolderUploadProgress';
@@ -1250,8 +1250,8 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
 
   return (
     <div
-      className="relative flex h-full shrink-0 flex-col border-l border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900"
-      style={{ width: panelWidth }}
+      className="relative flex h-full w-full shrink-0 flex-col border-l border-surface-200 bg-surface-50 md:w-[var(--filebrowser-w)] dark:border-surface-700 dark:bg-surface-900"
+      style={{ '--filebrowser-w': `${panelWidth}px` } as CSSProperties}
       onDragOver={(e) => {
         e.preventDefault();
         // Only show drop overlay for external files, not internal drag
@@ -1345,8 +1345,15 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
       {/* Header */}
       <div className="shrink-0 border-b border-surface-200 dark:border-surface-700">
         <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+          <button
+            onClick={onClose}
+            aria-label="Zurück"
+            className="-ml-1 rounded-md p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 md:hidden"
+          >
+            <ArrowLeft size={20} />
+          </button>
           <h3 className="flex-1 text-sm font-semibold text-surface-900 dark:text-white">Dateiablage</h3>
-          <button onClick={onClose} className="rounded-md p-1.5 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700">
+          <button onClick={onClose} className="hidden rounded-md p-1.5 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700 md:block">
             <X size={16} />
           </button>
         </div>

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useSettings } from './context/SettingsContext';
 import { useCallManager } from './hooks/useCallManager';
@@ -21,7 +21,6 @@ import QuickSwitcher from './components/QuickSwitcher';
 import ShortcutsModal from './components/ShortcutsModal';
 import type { ChatTarget } from './types';
 import type { CallParty } from './api/calls';
-import { Menu, X } from 'lucide-react';
 
 type ActiveView = 'chat' | 'calendar' | 'polls';
 
@@ -60,26 +59,11 @@ export default function App() {
     setFlaggedOpen(false);
   }, []);
 
-  // Mobile sidebar state
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  // Prevent body scroll when mobile sidebar is open
-  useEffect(() => {
-    if (sidebarOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
-  }, [sidebarOpen]);
-
-  // Close sidebar on route change (chat selected on mobile)
   const handleSelectChat = useCallback((chat: ChatTarget) => {
     setActiveView('chat');
     closeAllPanels();
     setActiveChat(chat);
-    setSidebarOpen(false);
-  }, []);
+  }, [closeAllPanels]);
 
   const handleToggleFavoriteFromChatView = useCallback((chat: ChatTarget) => {
     setActiveChat((prev) => prev?.id === chat.id ? { ...prev, favorite: !prev.favorite } : prev);
@@ -89,21 +73,18 @@ export default function App() {
   const toggleSettings = () => {
     const wasOpen = settingsOpen;
     closeAllPanels();
-    setSidebarOpen(false);
     if (!wasOpen) setSettingsOpen(true);
   };
 
   const toggleFileBrowser = () => {
     const wasOpen = fileBrowserOpen;
     closeAllPanels();
-    setSidebarOpen(false);
     if (!wasOpen) setFileBrowserOpen(true);
   };
 
   const toggleFlagged = () => {
     const wasOpen = flaggedOpen;
     closeAllPanels();
-    setSidebarOpen(false);
     if (!wasOpen) setFlaggedOpen(true);
   };
 
@@ -111,21 +92,18 @@ export default function App() {
     const wasOpen = broadcastsOpen;
     closeAllPanels();
     setActiveView('chat');
-    setSidebarOpen(false);
     if (!wasOpen) setBroadcastsOpen(true);
   };
 
   const openCalendar = () => {
     const wasOpen = activeView === 'calendar';
     closeAllPanels();
-    setSidebarOpen(false);
     setEventIdToOpen(null);
     setActiveView(wasOpen ? 'chat' : 'calendar');
   };
 
   const openEvent = (eventId: string) => {
     closeAllPanels();
-    setSidebarOpen(false);
     setEventIdToOpen(eventId);
     setActiveView('calendar');
   };
@@ -133,14 +111,12 @@ export default function App() {
   const openPolls = () => {
     const wasOpen = activeView === 'polls';
     closeAllPanels();
-    setSidebarOpen(false);
     setPollIdToOpen(null);
     setActiveView(wasOpen ? 'chat' : 'polls');
   };
 
   const openPoll = (pollId: string) => {
     closeAllPanels();
-    setSidebarOpen(false);
     setPollIdToOpen(pollId);
     setActiveView('polls');
   };
@@ -148,7 +124,6 @@ export default function App() {
   const handleGoHome = () => {
     closeAllPanels();
     setActiveChat(null);
-    setSidebarOpen(false);
   };
 
   const handleChannelsLoaded = useCallback((loadedChannels: ChatTarget[]) => {
@@ -178,13 +153,20 @@ export default function App() {
   // Keyboard shortcuts (only when logged in)
   const hotkeys = useMemo(() => loggedIn ? [
     { key: 'k', mod: true, handler: (e: KeyboardEvent) => { e.preventDefault(); setQuickSwitcherOpen(true); } },
-    { key: ',', mod: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setSidebarOpen(false); setSettingsOpen(true); } },
-    { key: 'c', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setSidebarOpen(false); setEventIdToOpen(null); setActiveView('calendar'); } },
-    { key: 'b', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setActiveView('chat'); setSidebarOpen(false); setBroadcastsOpen(true); } },
-    { key: 'u', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setSidebarOpen(false); setPollIdToOpen(null); setActiveView('polls'); } },
+    { key: ',', mod: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setSettingsOpen(true); } },
+    { key: 'c', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setEventIdToOpen(null); setActiveView('calendar'); } },
+    { key: 'b', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setActiveView('chat'); setBroadcastsOpen(true); } },
+    { key: 'u', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setPollIdToOpen(null); setActiveView('polls'); } },
     { key: '?', shift: true, handler: (e: KeyboardEvent) => { e.preventDefault(); setShortcutsOpen(true); } },
   ] : [], [loggedIn, closeAllPanels]);
   useHotkeys(hotkeys, loggedIn);
+
+  // On mobile: when nothing else is open, the Sidebar is the home screen (fullscreen).
+  // When activeChat or any panel/view is open, the Sidebar is hidden and that takes over.
+  // On desktop: Sidebar is always visible (md:flex).
+  const nothingElseOpen =
+    !activeChat && !settingsOpen && !fileBrowserOpen && !broadcastsOpen &&
+    !notificationsOpen && !flaggedOpen && !profileOpen && activeView === 'chat';
 
   if (!loggedIn) {
     return <LoginPage />;
@@ -192,13 +174,9 @@ export default function App() {
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* Mobile: Sidebar as overlay drawer */}
-      {/* Desktop (md+): Sidebar always visible */}
+      {/* Sidebar: fullscreen home on mobile when nothing else is open; always visible on desktop */}
       <div
-        className={`
-          fixed inset-y-0 left-0 z-40 shrink-0 md:relative md:inset-auto
-          ${sidebarOpen ? 'flex w-full max-w-[85vw] md:w-auto md:max-w-none' : 'hidden md:flex'}
-        `}
+        className={`shrink-0 ${nothingElseOpen ? 'flex w-full' : 'hidden'} md:flex md:w-auto`}
       >
         <Sidebar
           activeChat={activeChat}
@@ -208,9 +186,9 @@ export default function App() {
           onOpenBroadcasts={toggleBroadcasts}
           onOpenCalendar={openCalendar}
           onOpenPolls={openPolls}
-          onOpenNotifications={() => { const wasOpen = notificationsOpen; closeAllPanels(); setSidebarOpen(false); if (!wasOpen) setNotificationsOpen(true); }}
+          onOpenNotifications={() => { const wasOpen = notificationsOpen; closeAllPanels(); if (!wasOpen) setNotificationsOpen(true); }}
           onOpenSettings={toggleSettings}
-          onOpenProfile={() => { const wasOpen = profileOpen; closeAllPanels(); setSidebarOpen(false); if (!wasOpen) setProfileOpen(true); }}
+          onOpenProfile={() => { const wasOpen = profileOpen; closeAllPanels(); if (!wasOpen) setProfileOpen(true); }}
           broadcastsOpen={broadcastsOpen}
           calendarOpen={activeView === 'calendar'}
           pollsOpen={activeView === 'polls'}
@@ -222,29 +200,10 @@ export default function App() {
         />
       </div>
 
-      {/* Mobile: Sidebar backdrop overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-black/50 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Mobile: Hamburger toggle button - show on home/cards/calendar/polls views (not when ChatView is showing) */}
-      {(activeView !== 'chat' || !activeChat) && !settingsOpen && !fileBrowserOpen && !broadcastsOpen && !notificationsOpen && !flaggedOpen && !profileOpen && (
-        <button
-          onClick={() => setSidebarOpen((v) => !v)}
-          className="fixed right-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-white/90 text-surface-700 shadow-md backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white md:hidden"
-          aria-label={sidebarOpen ? 'Menü schließen' : 'Menü öffnen'}
-        >
-          {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-      )}
-
       {activeView === 'calendar' ? (
-        <CalendarView eventIdToOpen={eventIdToOpen} onEventOpened={() => setEventIdToOpen(null)} onOpenSidebar={() => setSidebarOpen(true)} onClose={() => setActiveView('chat')} />
+        <CalendarView eventIdToOpen={eventIdToOpen} onEventOpened={() => setEventIdToOpen(null)} onClose={() => setActiveView('chat')} />
       ) : activeView === 'polls' ? (
-        <PollsView pollIdToOpen={pollIdToOpen} onPollOpened={() => setPollIdToOpen(null)} onOpenSidebar={() => setSidebarOpen(true)} onClose={() => setActiveView('chat')} />
+        <PollsView pollIdToOpen={pollIdToOpen} onPollOpened={() => setPollIdToOpen(null)} onClose={() => setActiveView('chat')} />
       ) : (
         <>
           {activeChat
@@ -269,19 +228,20 @@ export default function App() {
                 onToggleFavorite={handleToggleFavoriteFromChatView}
               />
             : homeView === 'cards'
-              ? <FavoriteCardsView channels={channels} conversations={conversations} onSelectChat={handleSelectChat} onOpenSidebar={() => setSidebarOpen(true)} />
-              : <EmptyState />}
-          {fileBrowserOpen && !sidebarOpen && (
+              // FavoriteCardsView is hidden on mobile — Sidebar is the mobile home screen.
+              ? <div className="hidden flex-1 md:flex"><FavoriteCardsView channels={channels} conversations={conversations} onSelectChat={handleSelectChat} /></div>
+              : <div className="hidden flex-1 md:flex"><EmptyState /></div>}
+          {fileBrowserOpen && (
             <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
               <FileBrowserPanel chat={activeChat} onClose={() => setFileBrowserOpen(false)} />
             </div>
           )}
-          {broadcastsOpen && !sidebarOpen && (
+          {broadcastsOpen && (
             <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
               <BroadcastsPanel onClose={() => setBroadcastsOpen(false)} />
             </div>
           )}
-          {flaggedOpen && !sidebarOpen && (
+          {flaggedOpen && (
             <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
               <FlaggedMessagesPanel
                 chat={activeChat}
@@ -291,32 +251,20 @@ export default function App() {
               />
             </div>
           )}
-          {notificationsOpen && !sidebarOpen && (
+          {notificationsOpen && (
             <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
               <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} onOpenPoll={openPoll} onOpenCalendar={openCalendar} onOpenEvent={openEvent} onChannelJoined={() => refreshSidebarRef.current?.()} />
             </div>
           )}
         </>
       )}
-      {settingsOpen && !sidebarOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 md:relative md:inset-auto md:bg-transparent md:z-auto">
-          <button
-            onClick={() => setSettingsOpen(false)}
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-surface-700 shadow backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white md:hidden"
-          >
-            <X size={20} />
-          </button>
+      {settingsOpen && (
+        <div className="fixed inset-0 z-50 flex md:relative md:inset-auto md:z-auto">
           <SettingsPanel onClose={() => setSettingsOpen(false)} />
         </div>
       )}
-      {profileOpen && !sidebarOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <button
-            onClick={() => setProfileOpen(false)}
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-surface-700 shadow backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white md:hidden"
-          >
-            <X size={20} />
-          </button>
+      {profileOpen && (
+        <div className="fixed inset-0 z-50 flex md:items-center md:justify-center md:bg-black/50">
           <ProfileModal onClose={() => setProfileOpen(false)} />
         </div>
       )}

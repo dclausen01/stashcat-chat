@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   ChevronLeft, ChevronRight, Plus, X, Loader2,
   MapPin, Clock, Repeat, Check, XCircle, HelpCircle,
-  Eye, EyeOff, ChevronDown, Pencil, Trash2, Users, Hash, PanelRight,
+  Eye, EyeOff, ChevronDown, Pencil, Trash2, Users, Hash, PanelRight, ArrowLeft,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
@@ -428,6 +428,15 @@ export default function CalendarView({ eventIdToOpen, onEventOpened, onClose }: 
       <div className="flex min-w-0 flex-1 flex-col bg-white dark:bg-surface-950">
         {/* Toolbar */}
         <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 px-4 py-2.5 dark:border-surface-700">
+          {onClose && (
+            <button
+              onClick={onClose}
+              aria-label="Zurück"
+              className="-ml-1 rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800 md:hidden"
+            >
+              <ArrowLeft size={20} />
+            </button>
+          )}
           <div className="flex items-center gap-1">
             <button onClick={() => navigate(-1)} className="rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800">
               <ChevronLeft size={18} />
@@ -495,7 +504,7 @@ export default function CalendarView({ eventIdToOpen, onEventOpened, onClose }: 
               onClick={onClose}
               aria-label="Schließen"
               title="Schließen"
-              className="shrink-0 rounded-lg p-1.5 text-surface-700 hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-surface-700"
+              className="hidden shrink-0 rounded-lg p-1.5 text-surface-700 hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-surface-700 md:block"
             >
               <X size={18} />
             </button>

@@ -392,6 +392,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
         {activeBroadcast ? (
           <>
             <button onClick={() => { setActiveBroadcast(null); setShowAddMembers(false); }}
+              aria-label="Zurück"
               className="rounded-lg p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700">
               <ArrowLeft size={16} />
             </button>
@@ -405,7 +406,14 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
           </>
         ) : (
           <>
-            <Radio size={16} className="shrink-0 text-primary-500" />
+            <button
+              onClick={onClose}
+              aria-label="Zurück"
+              className="-ml-1 rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 md:hidden"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <Radio size={16} className="hidden shrink-0 text-primary-500 md:block" />
             <h3 className="flex-1 text-sm font-semibold text-surface-900 dark:text-white">Broadcasts</h3>
             <button onClick={() => setShowCreate(true)}
               className="rounded-lg p-1.5 text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20"
@@ -418,7 +426,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
           onClick={onClose}
           aria-label="Schließen"
           title="Schließen"
-          className="shrink-0 rounded-lg p-1.5 text-surface-700 hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-surface-700"
+          className="hidden shrink-0 rounded-lg p-1.5 text-surface-700 hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-surface-700 md:block"
         >
           <X size={18} />
         </button>
