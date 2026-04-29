@@ -129,7 +129,7 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof Info; label: strin
   );
 }
 
-function ChannelInfoModal({ chat, onClose }: { chat: ChatTarget; onClose: () => void }) {
+export function ChannelInfoModal({ chat, onClose }: { chat: ChatTarget; onClose: () => void }) {
   const [info, setInfo] = useState<Channel | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -212,7 +212,7 @@ function ChannelInfoModal({ chat, onClose }: { chat: ChatTarget; onClose: () => 
   );
 }
 
-function LeaveConfirmModal({ chat, onClose, onLeft }: {
+export function LeaveConfirmModal({ chat, onClose, onLeft }: {
   chat: ChatTarget;
   onClose: () => void;
   onLeft: () => void;
@@ -274,7 +274,7 @@ function LeaveConfirmModal({ chat, onClose, onLeft }: {
   );
 }
 
-function DeleteConfirmModal({ chat, onClose, onDeleted }: {
+export function DeleteConfirmModal({ chat, onClose, onDeleted }: {
   chat: ChatTarget;
   onClose: () => void;
   onDeleted: () => void;

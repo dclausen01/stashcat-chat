@@ -20,3 +20,7 @@ export async function getConversations(limit?: number, offset?: number): Promise
   const qs = params.toString();
   return get<Conversation[]>(`/conversations${qs ? `?${qs}` : ''}`);
 }
+
+export async function archiveConversation(id: string): Promise<void> {
+  await post(`/conversations/${id}/archive`);
+}

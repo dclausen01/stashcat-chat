@@ -70,6 +70,7 @@ export {
   createConversation,
   getConversation,
   getConversations,
+  archiveConversation,
 } from './conversations';
 
 // Messages

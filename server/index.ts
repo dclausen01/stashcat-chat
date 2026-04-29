@@ -1637,11 +1637,18 @@ app.post('/api/messages/:type/:targetId/unread', async (req, res) => {
   try {
     const client = await getClient(req);
     const { type, targetId } = req.params;
-    const data = client.api.createAuthenticatedRequestData({
-      chat_type: type,
-      chat_id: targetId,
-    });
-    await client.api.post('/message/mark_chat_as_unread', data);
+    await client.markChatAsUnread(type as 'channel' | 'conversation', targetId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+app.post('/api/conversations/:id/archive', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const { id } = req.params;
+    await client.archiveConversation(id);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
