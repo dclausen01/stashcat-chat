@@ -310,7 +310,7 @@ export default function App() {
         </div>
       )}
       {profileOpen && !sidebarOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 md:relative md:inset-auto md:bg-transparent md:z-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <button
             onClick={() => setProfileOpen(false)}
             className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-surface-700 shadow backdrop-blur hover:bg-white dark:bg-surface-800/90 dark:text-white md:hidden"
