@@ -12,6 +12,7 @@ const MOD = isMac ? '⌘' : 'Strg';
 const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: [MOD, 'K'], label: 'Schnell zwischen Chats wechseln' },
   { keys: [MOD, ','], label: 'Einstellungen öffnen' },
+  { keys: ['Strg', '␣'], label: 'Emoji-Picker öffnen / schließen' },
   { keys: ['Alt', 'C'], label: 'Kalender öffnen' },
   { keys: ['Alt', 'B'], label: 'Broadcasts öffnen' },
   { keys: ['Alt', 'U'], label: 'Umfragen öffnen' },
