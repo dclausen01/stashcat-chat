@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from 'react';
-import { X } from 'lucide-react';
+import { useState, useRef, useCallback, type CSSProperties } from 'react';
+import { X, ArrowLeft } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useTheme, LIGHT_PRESETS, DARK_PRESETS, type PresetId } from '../context/ThemeContext';
 
@@ -155,8 +155,8 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
 
   return (
     <div
-      className="relative flex h-full max-w-full shrink-0 flex-col border-l border-surface-200 bg-[var(--theme-panel)] dark:border-surface-700 dark:bg-surface-800"
-      style={{ width: panelWidth }}
+      className="relative flex h-full w-full max-w-full shrink-0 flex-col border-l border-surface-200 bg-[var(--theme-panel)] md:w-[var(--settings-w)] dark:border-surface-700 dark:bg-surface-800"
+      style={{ '--settings-w': `${panelWidth}px` } as CSSProperties}
     >
       {/* Resize handle — desktop only */}
       <div
@@ -164,8 +164,15 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         className="absolute left-0 top-0 z-20 hidden h-full w-1 cursor-col-resize border-l border-surface-200 transition-colors hover:border-primary-400 hover:border-l-2 dark:border-surface-700 dark:hover:border-primary-600 md:block"
         title="Breite anpassen"
       />
-      <div className="flex shrink-0 items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-700">
-        <h3 className="text-sm font-semibold text-surface-900 dark:text-white">Einstellungen</h3>
+      <div className="flex shrink-0 items-center gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
+        <button
+          onClick={onClose}
+          aria-label="Zurück"
+          className="-ml-1 rounded-md p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 md:hidden"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <h3 className="flex-1 text-sm font-semibold text-surface-900 dark:text-white">Einstellungen</h3>
         <button
           onClick={onClose}
           className="hidden rounded-md p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 md:block"

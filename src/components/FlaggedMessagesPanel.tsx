@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { X, Bookmark, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react';
+import { X, Bookmark, Loader2, ArrowLeft } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
@@ -110,10 +110,17 @@ export default function FlaggedMessagesPanel({ chat, onClose, onMessageClick, ju
 
   if (!chat) {
     return (
-      <div style={{ width }} className="relative flex shrink-0 flex-col border-l border-surface-200 bg-white dark:border-surface-700 dark:bg-surface-900">
-        <div className="flex items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-700">
-          <h2 className="text-sm font-semibold text-surface-900 dark:text-white">Markierte Nachrichten</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300"><X size={18} /></button>
+      <div style={{ '--flagged-w': `${width}px` } as CSSProperties} className="relative flex h-full w-full shrink-0 flex-col border-l border-surface-200 bg-white md:w-[var(--flagged-w)] dark:border-surface-700 dark:bg-surface-900">
+        <div className="flex items-center gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
+          <button
+            onClick={onClose}
+            aria-label="Zurück"
+            className="-ml-1 rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 md:hidden"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <h2 className="flex-1 text-sm font-semibold text-surface-900 dark:text-white">Markierte Nachrichten</h2>
+          <button onClick={onClose} className="hidden rounded-lg p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300 md:block"><X size={18} /></button>
         </div>
         <div className="flex flex-1 items-center justify-center text-sm text-surface-500">
           Kein Chat ausgewählt
@@ -123,22 +130,29 @@ export default function FlaggedMessagesPanel({ chat, onClose, onMessageClick, ju
   }
 
   return (
-    <div style={{ width }} className="relative flex shrink-0 flex-col border-l border-surface-200 bg-white dark:border-surface-700 dark:bg-surface-900">
+    <div style={{ '--flagged-w': `${width}px` } as CSSProperties} className="relative flex h-full w-full shrink-0 flex-col border-l border-surface-200 bg-white md:w-[var(--flagged-w)] dark:border-surface-700 dark:bg-surface-900">
       {/* Resize handle */}
       <div
         onMouseDown={onMouseDown}
-        className="absolute inset-y-0 left-0 z-20 w-1 cursor-col-resize hover:bg-primary-400/50"
+        className="absolute inset-y-0 left-0 z-20 hidden w-1 cursor-col-resize hover:bg-primary-400/50 md:block"
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-700">
-        <div className="flex items-center gap-2 overflow-hidden">
+      <div className="flex items-center gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
+        <button
+          onClick={onClose}
+          aria-label="Zurück"
+          className="-ml-1 shrink-0 rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 md:hidden"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <div className="flex flex-1 items-center gap-2 overflow-hidden">
           <Bookmark size={16} className="shrink-0 text-amber-500" fill="currentColor" />
           <h2 className="truncate text-sm font-semibold text-surface-900 dark:text-white">
             Markiert in {chatName}
           </h2>
         </div>
-        <button onClick={onClose} className="shrink-0 rounded-lg p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300">
+        <button onClick={onClose} className="hidden shrink-0 rounded-lg p-1 text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300 md:block">
           <X size={18} />
         </button>
       </div>

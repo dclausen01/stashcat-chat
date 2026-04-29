@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { X, Camera, Loader2 } from 'lucide-react';
+import { X, Camera, Loader2, ArrowLeft } from 'lucide-react';
 import { FocusTrap } from 'focus-trap-react';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';
@@ -119,10 +119,17 @@ export default function ProfileModal({ onClose }: ProfileModalProps) {
 
   return (
     <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true }}>
-    <div className="w-full max-w-md rounded-xl bg-white shadow-xl dark:bg-surface-800">
+    <div className="flex h-full w-full flex-col bg-white shadow-xl md:h-auto md:max-w-md md:rounded-xl dark:bg-surface-800">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-surface-200 px-4 py-3 dark:border-surface-700">
-        <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Mein Profil</h2>
+      <div className="flex shrink-0 items-center gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
+        <button
+          onClick={onClose}
+          aria-label="Zurück"
+          className="-ml-1 rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 md:hidden"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <h2 className="flex-1 text-lg font-semibold text-surface-900 dark:text-white">Mein Profil</h2>
         <button
           onClick={onClose}
           className="hidden rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 md:block"
