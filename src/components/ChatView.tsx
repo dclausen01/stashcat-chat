@@ -3116,17 +3116,19 @@ function autoLinkify(text: string): string {
 }
 
 /**
- * Remove artifact backslashes that the original Stashcat app inserts at line
- * boundaries. The original app shows these backslashes literally; our
- * react-markdown either hides them (trailing backslash before newline = hard
- * break escape) or renders them as stray characters. We strip them completely.
+ * Normalize backslashes that the original Stashcat app inserts at line
+ * boundaries as hard-break markers (e.g. "text\\\nmore text").
+ * We convert them to Markdown hard line breaks (two trailing spaces before \n)
+ * so react-markdown renders an actual <br> instead of collapsing the newline.
+ * Lines that consist of only a backslash are stripped (no visible content).
  */
 function normalizeBackslashArtifacts(text: string): string {
-  // 1. Backslash at the very end of a line (followed by newline or EOF)
-  // 2. A line that contains only a backslash (and optional whitespace)
+  // 1. Trailing backslash before a newline → two spaces (Markdown hard break)
+  // 2. A line containing only a backslash → remove it
   return text
-    .replace(/\\(?=\n|$)/g, '')
-    .replace(/(\n)\s*\\\s*(?=\n|$)/g, '$1');
+    .replace(/\\(\n)/g, '  $1')
+    .replace(/(\n)\s*\\\s*(?=\n|$)/g, '$1')
+    .replace(/\\$/g, '');
 }
 
 /** Returns true if the text consists solely of emoji characters (no letters, numbers, or punctuation) */
