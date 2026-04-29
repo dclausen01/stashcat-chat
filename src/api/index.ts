@@ -83,6 +83,7 @@ export {
   unlikeMessage,
   deleteMessage,
   markAsRead,
+  markChatAsUnread,
   flagMessage,
   unflagMessage,
   getFlaggedMessages,

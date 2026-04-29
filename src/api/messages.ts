@@ -85,6 +85,13 @@ export async function markAsRead(
   await post(`/messages/${type}/${targetId}/read`, messageId ? { messageId } : {});
 }
 
+export async function markChatAsUnread(
+  targetId: string,
+  type: 'channel' | 'conversation'
+): Promise<void> {
+  await post(`/messages/${type}/${targetId}/unread`);
+}
+
 // --- Message Flagging (Bookmarks) ---
 
 export async function flagMessage(messageId: string): Promise<void> {

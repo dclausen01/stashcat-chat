@@ -1633,6 +1633,21 @@ app.post('/api/messages/:type/:targetId/read', async (req, res) => {
   }
 });
 
+app.post('/api/messages/:type/:targetId/unread', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const { type, targetId } = req.params;
+    const data = client.api.createAuthenticatedRequestData({
+      chat_type: type,
+      chat_id: targetId,
+    });
+    await client.api.post('/message/mark_chat_as_unread', data);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
 // ── File Browser ─────────────────────────────────────────────────────────────
 
 /** List folder contents for channel, conversation, or personal storage */

@@ -329,6 +329,23 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     prevUnreadsRef.current?.set(chatId, 0);
   }, []);
 
+  // Mark chat as unread (triggered from ChatItem three-dot menu)
+  const handleMarkUnread = useCallback(async (target: ChatTarget) => {
+    try {
+      await api.markChatAsUnread(target.id, target.type);
+    } catch (err) {
+      console.error('markChatAsUnread failed:', err);
+      return;
+    }
+    // Optimistic local update; next sidebar poll will sync the real count
+    if (target.type === 'channel') {
+      setChannels((prev) => prev.map((ch) => ch.id === target.id ? { ...ch, unread_count: Math.max(1, ch.unread_count ?? 0) } : ch));
+    } else {
+      setConversations((prev) => prev.map((c) => c.id === target.id ? { ...c, unread_count: Math.max(1, c.unread_count ?? 0) } : c));
+    }
+    prevUnreadsRef.current?.set(target.id, Math.max(1, prevUnreadsRef.current.get(target.id) ?? 0));
+  }, []);
+
   // Listen for mark-read events from ChatView
   useEffect(() => {
     const handler = (e: CustomEvent<{ chatId: string; chatType: 'channel' | 'conversation' }>) => {
@@ -494,6 +511,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
                 active={activeChat?.id === ch.id && activeChat?.type === 'channel'}
                 onSelect={handleSelect}
                 onToggleFavorite={handleToggleFavorite}
+                onMarkUnread={handleMarkUnread}
               />
             ))}
           </div>
@@ -532,6 +550,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
                 active={activeChat?.id === conv.id && activeChat?.type === 'conversation'}
                 onSelect={handleSelect}
                 onToggleFavorite={handleToggleFavorite}
+                onMarkUnread={handleMarkUnread}
               />
             ))}
           </div>
