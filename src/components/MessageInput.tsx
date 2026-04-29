@@ -295,6 +295,18 @@ export default function MessageInput({
     return () => document.removeEventListener('mousedown', handler);
   }, [showEmoji]);
 
+  // Ctrl+Space toggles emoji picker (desktop only)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        setShowEmoji((v) => !v);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
+
   // Focus URL input when link dialog opens
   useEffect(() => {
     if (linkDialog !== null) requestAnimationFrame(() => linkUrlInputRef.current?.focus());
