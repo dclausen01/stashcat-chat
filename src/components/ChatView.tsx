@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, ChevronDown, MoreHorizontal } from 'lucide-react';
 import { clsx } from 'clsx';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
@@ -14,7 +12,7 @@ import Avatar from './Avatar';
 import MessageInput from './MessageInput';
 import ChannelMembersPanel from './ChannelMembersPanel';
 import ChannelDropdownMenu from './ChannelDropdownMenu';
-import LinkPreviewCard from './LinkPreviewCard';
+import MarkdownContent from './MarkdownContent';
 import ChannelDescriptionEditor from './ChannelDescriptionEditor';
 import ChannelImageEditor from './ChannelImageEditor';
 import CreatePollModal from './CreatePollModal';
@@ -3095,45 +3093,6 @@ function LinkifiedText({ text }: { text: string }) {
   return <>{parts}</>;
 }
 
-/** Extract all http(s) URLs from a text string */
-function extractUrls(text: string): string[] {
-  const re = /https?:\/\/[^\s)>\]]+/g;
-  const matches: string[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
-    // Strip trailing punctuation that's likely not part of the URL
-    let url = m[0];
-    while (/[.,;:!?)>\]'"]$/.test(url)) url = url.slice(0, -1);
-    if (!matches.includes(url)) matches.push(url);
-  }
-  return matches;
-}
-
-/** Convert plain URLs in text to markdown links so ReactMarkdown renders them */
-function autoLinkify(text: string): string {
-  // Don't touch URLs that are already inside markdown link syntax [text](url) or <url>
-  return text.replace(
-    /(?<!\]\()(?<!\()(?<!\<)(https?:\/\/[^\s)>\]]+)/g,
-    (url) => `[${url}](${url})`
-  );
-}
-
-/**
- * Normalize backslashes that the original Stashcat app inserts at line
- * boundaries as hard-break markers (e.g. "text\\\nmore text").
- * We convert them to Markdown hard line breaks (two trailing spaces before \n)
- * so react-markdown renders an actual <br> instead of collapsing the newline.
- * Lines that consist of only a backslash are stripped (no visible content).
- */
-function normalizeBackslashArtifacts(text: string): string {
-  // 1. Trailing backslash before a newline → two spaces (Markdown hard break)
-  // 2. A line containing only a backslash → remove it
-  return text
-    .replace(/\\(\n)/g, '  $1')
-    .replace(/(\n)\s*\\\s*(?=\n|$)/g, '$1')
-    .replace(/\\$/g, '');
-}
-
 /** Returns true if the text consists solely of emoji characters (no letters, numbers, or punctuation) */
 function isOnlyEmoji(text: string): boolean {
   if (!text || text.trim().length === 0) return false;
@@ -3146,73 +3105,6 @@ function isOnlyEmoji(text: string): boolean {
   if (!emojiRegex.test(trimmed)) return false;
   // Additional check: ensure there are actual emoji (not just empty string)
   return trimmed.length > 0;
-}
-
-function MarkdownContent({ content, isOwn, isEmojiOnly = false }: { content: string; isOwn: boolean; isEmojiOnly?: boolean }) {
-  // Extract URLs for preview cards
-  const urls = extractUrls(content);
-  // Auto-linkify plain URLs in the content
-  const linkedContent = autoLinkify(content);
-  // Remove artifact backslashes the original app inserts at line boundaries
-  const processedContent = normalizeBackslashArtifacts(linkedContent);
-
-  return (
-    <>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          p: ({ children }) => <p className={clsx('m-0 break-words', isEmojiOnly && 'text-5xl leading-tight')}>{children}</p>,
-          strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-          em: ({ children }) => <em className="italic">{children}</em>,
-          del: ({ children }) => <del className="line-through opacity-75">{children}</del>,
-          code: ({ children, className }) => {
-            const isBlock = className?.includes('language-');
-            return isBlock ? (
-              <code className={clsx(
-                'block overflow-x-auto rounded-lg px-3 py-2 font-mono text-xs my-1',
-                isOwn ? 'bg-primary-700 text-primary-100' : 'bg-surface-200 text-surface-800 dark:bg-surface-700 dark:text-surface-200',
-              )}>{children}</code>
-            ) : (
-              <code className={clsx(
-                'rounded px-1 py-0.5 font-mono text-xs',
-                isOwn ? 'bg-primary-700 text-primary-100' : 'bg-surface-200 text-surface-800 dark:bg-surface-700 dark:text-surface-200',
-              )}>{children}</code>
-            );
-          },
-          h1: ({ children }) => <h1 className="text-lg font-bold mb-1 mt-0">{children}</h1>,
-          h2: ({ children }) => <h2 className="text-base font-bold mb-1 mt-0">{children}</h2>,
-          h3: ({ children }) => <h3 className="text-sm font-bold mb-0.5 mt-0">{children}</h3>,
-          ul: ({ children }) => <ul className="my-1 ml-4 list-disc space-y-0.5">{children}</ul>,
-          ol: ({ children }) => <ol className="my-1 ml-4 list-decimal space-y-0.5">{children}</ol>,
-          li: ({ children }) => <li className="text-sm">{children}</li>,
-          blockquote: ({ children }) => (
-            <blockquote className={clsx(
-              'my-1 border-l-2 pl-3 italic',
-              isOwn ? 'border-primary-300 opacity-80' : 'border-surface-400',
-            )}>{children}</blockquote>
-          ),
-          a: ({ href, children }) => (
-            <a href={href} target="_blank" rel="noopener noreferrer"
-              className={clsx(
-                'underline break-all',
-                isOwn ? 'text-primary-200 hover:text-white' : 'text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200',
-              )}>
-              <ExternalLink size={11} className="inline align-text-bottom mr-0.5 shrink-0" />
-              {children}
-            </a>
-          ),
-          hr: () => <hr className={clsx('my-1 border-t', isOwn ? 'border-primary-400' : 'border-surface-300 dark:border-surface-600')} />,
-          pre: ({ children }) => <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-words">{children}</pre>,
-        }}
-      >
-        {processedContent}
-      </ReactMarkdown>
-      {/* Link preview cards */}
-      {urls.map((url) => (
-        <LinkPreviewCard key={url} url={url} isOwn={isOwn} />
-      ))}
-    </>
-  );
 }
 
 // ── Like badge with tooltip ────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ import {
   X, Radio, Plus, Trash2, Users, Loader2, ArrowLeft,
   Pencil, Check, Search, UserMinus, UserPlus, UsersRound,
 } from 'lucide-react';
+import MarkdownContent from './MarkdownContent';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
@@ -474,7 +475,9 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
               ) : (
                 messages.map((msg) => (
                   <div key={msg.id} className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
-                    <div className="whitespace-pre-wrap text-sm text-surface-900 dark:text-surface-100">{msg.text}</div>
+                    <div className="text-sm text-surface-900 dark:text-surface-100">
+                      <MarkdownContent content={msg.text} />
+                    </div>
                     <div className="mt-1 text-xs text-surface-600">{formatTime(msg.time)}</div>
                   </div>
                 ))
