@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, ChevronDown, MoreHorizontal } from 'lucide-react';
 import { clsx } from 'clsx';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
@@ -14,7 +12,7 @@ import Avatar from './Avatar';
 import MessageInput from './MessageInput';
 import ChannelMembersPanel from './ChannelMembersPanel';
 import ChannelDropdownMenu from './ChannelDropdownMenu';
-import LinkPreviewCard from './LinkPreviewCard';
+import MarkdownContent from './MarkdownContent';
 import ChannelDescriptionEditor from './ChannelDescriptionEditor';
 import ChannelImageEditor from './ChannelImageEditor';
 import CreatePollModal from './CreatePollModal';
@@ -866,14 +864,17 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     };
   }, []); // Empty deps — uses ref to always call latest silentRefresh
 
-  // Periodic polling fallback: every 30 seconds, silently check for new
+  // Periodic polling fallback: every 5 seconds, silently check for new
   // messages when the tab is visible. This catches messages that were
   // silently dropped by SSE (browser may drop events while keeping the
   // connection technically "open" with heartbeats still arriving).
+  // Short interval ensures the message appears quickly if SSE misses it,
+  // keeping it in sync with the sidebar badge which can update via API poll.
+  // silentRefresh is a no-op when no new messages are found, so overhead is low.
   useEffect(() => {
-    const POLL_INTERVAL = 30_000;
-    // Add random jitter (0–10 s) to prevent thundering-herd when many tabs are open
-    const jitter = Math.random() * 10_000;
+    const POLL_INTERVAL = 5_000;
+    // Add random jitter (0–2 s) to prevent thundering-herd when many tabs are open
+    const jitter = Math.random() * 2_000;
     const intervalId = setInterval(() => {
       if (!document.hidden) {
         silentRefreshRef.current();
@@ -3092,43 +3093,6 @@ function LinkifiedText({ text }: { text: string }) {
   return <>{parts}</>;
 }
 
-/** Extract all http(s) URLs from a text string */
-function extractUrls(text: string): string[] {
-  const re = /https?:\/\/[^\s)>\]]+/g;
-  const matches: string[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
-    // Strip trailing punctuation that's likely not part of the URL
-    let url = m[0];
-    while (/[.,;:!?)>\]'"]$/.test(url)) url = url.slice(0, -1);
-    if (!matches.includes(url)) matches.push(url);
-  }
-  return matches;
-}
-
-/** Convert plain URLs in text to markdown links so ReactMarkdown renders them */
-function autoLinkify(text: string): string {
-  // Don't touch URLs that are already inside markdown link syntax [text](url) or <url>
-  return text.replace(
-    /(?<!\]\()(?<!\()(?<!\<)(https?:\/\/[^\s)>\]]+)/g,
-    (url) => `[${url}](${url})`
-  );
-}
-
-/**
- * Remove artifact backslashes that the original Stashcat app inserts at line
- * boundaries. The original app shows these backslashes literally; our
- * react-markdown either hides them (trailing backslash before newline = hard
- * break escape) or renders them as stray characters. We strip them completely.
- */
-function normalizeBackslashArtifacts(text: string): string {
-  // 1. Backslash at the very end of a line (followed by newline or EOF)
-  // 2. A line that contains only a backslash (and optional whitespace)
-  return text
-    .replace(/\\(?=\n|$)/g, '')
-    .replace(/(\n)\s*\\\s*(?=\n|$)/g, '$1');
-}
-
 /** Returns true if the text consists solely of emoji characters (no letters, numbers, or punctuation) */
 function isOnlyEmoji(text: string): boolean {
   if (!text || text.trim().length === 0) return false;
@@ -3141,73 +3105,6 @@ function isOnlyEmoji(text: string): boolean {
   if (!emojiRegex.test(trimmed)) return false;
   // Additional check: ensure there are actual emoji (not just empty string)
   return trimmed.length > 0;
-}
-
-function MarkdownContent({ content, isOwn, isEmojiOnly = false }: { content: string; isOwn: boolean; isEmojiOnly?: boolean }) {
-  // Extract URLs for preview cards
-  const urls = extractUrls(content);
-  // Auto-linkify plain URLs in the content
-  const linkedContent = autoLinkify(content);
-  // Remove artifact backslashes the original app inserts at line boundaries
-  const processedContent = normalizeBackslashArtifacts(linkedContent);
-
-  return (
-    <>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          p: ({ children }) => <p className={clsx('m-0 break-words', isEmojiOnly && 'text-5xl leading-tight')}>{children}</p>,
-          strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-          em: ({ children }) => <em className="italic">{children}</em>,
-          del: ({ children }) => <del className="line-through opacity-75">{children}</del>,
-          code: ({ children, className }) => {
-            const isBlock = className?.includes('language-');
-            return isBlock ? (
-              <code className={clsx(
-                'block overflow-x-auto rounded-lg px-3 py-2 font-mono text-xs my-1',
-                isOwn ? 'bg-primary-700 text-primary-100' : 'bg-surface-200 text-surface-800 dark:bg-surface-700 dark:text-surface-200',
-              )}>{children}</code>
-            ) : (
-              <code className={clsx(
-                'rounded px-1 py-0.5 font-mono text-xs',
-                isOwn ? 'bg-primary-700 text-primary-100' : 'bg-surface-200 text-surface-800 dark:bg-surface-700 dark:text-surface-200',
-              )}>{children}</code>
-            );
-          },
-          h1: ({ children }) => <h1 className="text-lg font-bold mb-1 mt-0">{children}</h1>,
-          h2: ({ children }) => <h2 className="text-base font-bold mb-1 mt-0">{children}</h2>,
-          h3: ({ children }) => <h3 className="text-sm font-bold mb-0.5 mt-0">{children}</h3>,
-          ul: ({ children }) => <ul className="my-1 ml-4 list-disc space-y-0.5">{children}</ul>,
-          ol: ({ children }) => <ol className="my-1 ml-4 list-decimal space-y-0.5">{children}</ol>,
-          li: ({ children }) => <li className="text-sm">{children}</li>,
-          blockquote: ({ children }) => (
-            <blockquote className={clsx(
-              'my-1 border-l-2 pl-3 italic',
-              isOwn ? 'border-primary-300 opacity-80' : 'border-surface-400',
-            )}>{children}</blockquote>
-          ),
-          a: ({ href, children }) => (
-            <a href={href} target="_blank" rel="noopener noreferrer"
-              className={clsx(
-                'underline break-all',
-                isOwn ? 'text-primary-200 hover:text-white' : 'text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200',
-              )}>
-              <ExternalLink size={11} className="inline align-text-bottom mr-0.5 shrink-0" />
-              {children}
-            </a>
-          ),
-          hr: () => <hr className={clsx('my-1 border-t', isOwn ? 'border-primary-400' : 'border-surface-300 dark:border-surface-600')} />,
-          pre: ({ children }) => <pre className="max-w-full overflow-x-auto whitespace-pre-wrap break-words">{children}</pre>,
-        }}
-      >
-        {processedContent}
-      </ReactMarkdown>
-      {/* Link preview cards */}
-      {urls.map((url) => (
-        <LinkPreviewCard key={url} url={url} isOwn={isOwn} />
-      ))}
-    </>
-  );
 }
 
 // ── Like badge with tooltip ────────────────────────────────────────────────────
