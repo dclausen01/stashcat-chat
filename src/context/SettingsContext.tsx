@@ -42,7 +42,7 @@ function loadSettings(): Settings {
     bubbleView: true,
     ownBubbleColor: '#4f46e5',
     otherBubbleColor: '#f3f4f6',
-    otherBubbleColorDark: '#374151',
+    otherBubbleColorDark: '#3730a3',
     homeView: 'cards',
     fileBrowserViewMode: 'grid',
     fileBrowserTab: 'context',
@@ -61,6 +61,8 @@ function loadSettings(): Settings {
         ...defaults,
         ...parsed,
         favoriteCardsSortMode: parsed.favoriteCardsSortMode ?? defaults.favoriteCardsSortMode,
+        // Reset old gray default to new indigo default on upgrade
+        otherBubbleColorDark: parsed.otherBubbleColorDark === '#374151' ? defaults.otherBubbleColorDark : (parsed.otherBubbleColorDark ?? defaults.otherBubbleColorDark),
       };
     }
   } catch { /* ignore */ }
