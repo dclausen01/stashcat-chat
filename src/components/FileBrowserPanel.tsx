@@ -704,22 +704,19 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
 
   const [crumbs, setCrumbs] = useState<Crumb[]>([{ id: null, name: 'Alle Dateien' }]);
 
-  // Track initial tab reset per chat to avoid stale tab on panel open.
-  // Only force 'context' on first render with a chat; after that, use saved preference.
-  const prevChatIdRef = useRef<string | undefined>(undefined);
-  const isInitialTabReset = useRef(false);
-  if (chat?.id !== prevChatIdRef.current) {
-    prevChatIdRef.current = chat?.id;
-    isInitialTabReset.current = false;
-  }
+  // Local tab state. Initialized to 'context' when opening with a chat,
+  // else to the persisted preference. Resets to 'context' whenever the
+  // active chat changes (different chat id).
+  const [tab, setTabState] = useState<Tab>(() => chat ? 'context' : settings.fileBrowserTab);
 
-  const tab = useMemo(() => {
-    if (chat && !isInitialTabReset.current) {
-      isInitialTabReset.current = true;
-      return 'context';
+  const prevChatIdRef = useRef<string | undefined>(chat?.id);
+  useEffect(() => {
+    const newId = chat?.id;
+    if (newId !== prevChatIdRef.current) {
+      prevChatIdRef.current = newId;
+      if (chat) setTabState('context');
     }
-    return settings.fileBrowserTab;
-  }, [chat, settings.fileBrowserTab]);
+  }, [chat]);
   const [folders, setFolders] = useState<FolderEntry[]>([]);
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -826,6 +823,7 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
   }, [selectedIds.size]);
 
   const handleTabChange = (t: Tab) => {
+    setTabState(t);
     setTab(t);
     setCrumbs([{ id: null, name: 'Alle Dateien' }]);
   };
