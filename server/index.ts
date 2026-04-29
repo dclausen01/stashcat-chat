@@ -1648,6 +1648,20 @@ app.post('/api/messages/:type/:targetId/unread', async (req, res) => {
   }
 });
 
+app.post('/api/conversations/:id/archive', async (req, res) => {
+  try {
+    const client = await getClient(req);
+    const { id } = req.params;
+    const data = client.api.createAuthenticatedRequestData({
+      conversation_id: id,
+    });
+    await client.api.post('/message/archiveConversation', data);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
 // ── File Browser ─────────────────────────────────────────────────────────────
 
 /** List folder contents for channel, conversation, or personal storage */

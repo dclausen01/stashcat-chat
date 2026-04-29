@@ -346,6 +346,24 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     prevUnreadsRef.current?.set(target.id, Math.max(1, prevUnreadsRef.current.get(target.id) ?? 0));
   }, []);
 
+  // Channel deleted from ChatItem three-dot menu (DeleteConfirmModal also dispatches 'channel-deleted' event which triggers loadData)
+  const handleChannelDeleted = useCallback((target: ChatTarget) => {
+    setChannels((prev) => prev.filter((ch) => ch.id !== target.id));
+    prevUnreadsRef.current?.delete(target.id);
+  }, []);
+
+  // Channel left from ChatItem three-dot menu
+  const handleChannelLeft = useCallback((target: ChatTarget) => {
+    setChannels((prev) => prev.filter((ch) => ch.id !== target.id));
+    prevUnreadsRef.current?.delete(target.id);
+  }, []);
+
+  // Conversation archived from ChatItem three-dot menu
+  const handleConversationArchived = useCallback((target: ChatTarget) => {
+    setConversations((prev) => prev.filter((c) => c.id !== target.id));
+    prevUnreadsRef.current?.delete(target.id);
+  }, []);
+
   // Listen for mark-read events from ChatView
   useEffect(() => {
     const handler = (e: CustomEvent<{ chatId: string; chatType: 'channel' | 'conversation' }>) => {
@@ -512,6 +530,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
                 onSelect={handleSelect}
                 onToggleFavorite={handleToggleFavorite}
                 onMarkUnread={handleMarkUnread}
+                onChannelDeleted={handleChannelDeleted}
+                onChannelLeft={handleChannelLeft}
               />
             ))}
           </div>
@@ -551,6 +571,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
                 onSelect={handleSelect}
                 onToggleFavorite={handleToggleFavorite}
                 onMarkUnread={handleMarkUnread}
+                onConversationArchived={handleConversationArchived}
               />
             ))}
           </div>
