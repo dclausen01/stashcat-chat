@@ -866,14 +866,17 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     };
   }, []); // Empty deps — uses ref to always call latest silentRefresh
 
-  // Periodic polling fallback: every 30 seconds, silently check for new
+  // Periodic polling fallback: every 5 seconds, silently check for new
   // messages when the tab is visible. This catches messages that were
   // silently dropped by SSE (browser may drop events while keeping the
   // connection technically "open" with heartbeats still arriving).
+  // Short interval ensures the message appears quickly if SSE misses it,
+  // keeping it in sync with the sidebar badge which can update via API poll.
+  // silentRefresh is a no-op when no new messages are found, so overhead is low.
   useEffect(() => {
-    const POLL_INTERVAL = 30_000;
-    // Add random jitter (0–10 s) to prevent thundering-herd when many tabs are open
-    const jitter = Math.random() * 10_000;
+    const POLL_INTERVAL = 5_000;
+    // Add random jitter (0–2 s) to prevent thundering-herd when many tabs are open
+    const jitter = Math.random() * 2_000;
     const intervalId = setInterval(() => {
       if (!document.hidden) {
         silentRefreshRef.current();

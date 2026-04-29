@@ -171,28 +171,13 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       // ── Merge API unread_count with current state ───────────────────────
       // Preserve SSE-tracked unread_count if higher than API (handles live case).
       // Only markAsRead/handleSelect can reset unread_count to 0.
-      // Exception: the currently open chat in the foreground is always unread=0.
-      // Otherwise the periodic API poll can flash a badge on the active chat
-      // during the brief window before the IntersectionObserver markAsRead fires.
-      const active = activeChatRef.current;
-      const isInForeground = !document.hidden;
       for (const ch of allChannels) {
-        const isActive = isInForeground && active?.type === 'channel' && active.id === ch.id;
-        if (isActive) {
-          ch.unread_count = 0;
-          continue;
-        }
         const prev = channelsRef.current.find((c) => c.id === ch.id);
         const apiUnread = ch.unread_count ?? 0;
         const sseUnread = prev?.unread_count ?? 0;
         ch.unread_count = Math.max(apiUnread, sseUnread);
       }
       for (const cv of convTargets) {
-        const isActive = isInForeground && active?.type === 'conversation' && active.id === cv.id;
-        if (isActive) {
-          cv.unread_count = 0;
-          continue;
-        }
         const prev = conversationsRef.current.find((c) => c.id === cv.id);
         const apiUnread = cv.unread_count ?? 0;
         const sseUnread = prev?.unread_count ?? 0;
