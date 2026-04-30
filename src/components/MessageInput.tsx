@@ -16,6 +16,7 @@ import {
   Send, Paperclip, Bold, Italic, Strikethrough, Code, List, ListOrdered,
   Heading2, Quote, Link as LinkIcon, ListTodo, Code2,
   X, Loader2, Reply, BarChart3, CalendarPlus, Presentation, FilePlus,
+  Mic, StopCircle,
 } from 'lucide-react';
 import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react';
 import { clsx } from 'clsx';
@@ -70,6 +71,8 @@ export default function MessageInput({
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [linkDialog, setLinkDialog] = useState<LinkDialogState | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attachMenuRef = useRef<HTMLDivElement>(null);
@@ -78,6 +81,10 @@ export default function MessageInput({
   const typingThrottle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftsRef = useRef<Map<string, string>>(new Map());
   const prevChatIdRef = useRef(chatId);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const shouldSaveRecordingRef = useRef(false);
 
   // Refs read inside Tiptap extension — capture latest values without recreating the extension
   const enterSendsRef = useRef(enterSendsMessage);
@@ -233,6 +240,70 @@ export default function MessageInput({
 
   // Keep handleSendRef current so the Tiptap extension always calls the latest version
   handleSendRef.current = handleSend;
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : '';
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (!shouldSaveRecordingRef.current) return;
+        const actualMime = recorder.mimeType || 'audio/webm';
+        const ext = actualMime.includes('mp4') ? 'm4a' : 'webm';
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const blob = new Blob(audioChunksRef.current, { type: actualMime });
+        const file = new File([blob], `VoiceMessage_${timestamp}.${ext}`, { type: actualMime });
+        setPendingFiles((prev) => [...prev, file]);
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      setRecordingSeconds(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((s) => s + 1);
+      }, 1000);
+    } catch {
+      alert('Mikrofon-Zugriff nicht möglich. Bitte Berechtigung in den Browser-Einstellungen erteilen.');
+    }
+  };
+
+  const stopRecording = (save: boolean) => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    shouldSaveRecordingRef.current = save;
+    setIsRecording(false);
+    setRecordingSeconds(0);
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+  };
+
+  // Cancel recording on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      if (mediaRecorderRef.current) {
+        shouldSaveRecordingRef.current = false;
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, []);
+
+  // Cancel recording on chat switch
+  useEffect(() => {
+    if (isRecording) stopRecording(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId]);
 
   // Save/restore draft on chat switch
   useEffect(() => {
@@ -423,7 +494,7 @@ export default function MessageInput({
   ];
 
   const isEmpty = editor?.isEmpty ?? true;
-  const canSend = !sending && (pendingFiles.length > 0 || !isEmpty);
+  const canSend = !sending && !isRecording && (pendingFiles.length > 0 || !isEmpty);
 
   return (
     <div className="shrink-0 border-t border-surface-200 p-3 dark:border-surface-700">
@@ -618,6 +689,14 @@ export default function MessageInput({
                   Neues Dokument
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => { setShowAttachMenu(false); void startRecording(); }}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
+              >
+                <Mic size={15} className="text-red-500" />
+                Sprachnachricht aufnehmen
+              </button>
             </div>
           )}
         </div>
@@ -644,10 +723,37 @@ export default function MessageInput({
           )}
         </div>
 
-        {/* Tiptap WYSIWYG editor */}
-        <div className="max-h-[200px] min-h-[1.5rem] flex-1 overflow-y-auto py-1">
-          <EditorContent editor={editor} />
-        </div>
+        {/* Recording indicator OR Tiptap editor */}
+        {isRecording ? (
+          <div className="flex flex-1 items-center gap-3 py-1">
+            <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500 shrink-0" />
+            <span className="flex-1 text-sm text-surface-700 dark:text-surface-200">
+              Aufnehmen…{' '}
+              <span className="font-mono">
+                {String(Math.floor(recordingSeconds / 60)).padStart(2, '0')}:{String(recordingSeconds % 60).padStart(2, '0')}
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={() => stopRecording(false)}
+              className="shrink-0 rounded-lg px-3 py-1 text-xs text-surface-500 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 dark:hover:text-surface-300"
+            >
+              Abbrechen
+            </button>
+            <button
+              type="button"
+              onClick={() => stopRecording(true)}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-red-500 px-3 py-1 text-xs text-white transition hover:bg-red-600"
+            >
+              <StopCircle size={13} />
+              Stopp
+            </button>
+          </div>
+        ) : (
+          <div className="max-h-[200px] min-h-[1.5rem] flex-1 overflow-y-auto py-1">
+            <EditorContent editor={editor} />
+          </div>
+        )}
 
         <button
           onClick={handleSend}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, ChevronDown, MoreHorizontal } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, ChevronDown, MoreHorizontal, Mic, Play, Pause } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -1388,7 +1388,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             )}
             title="Videokonferenz starten"
           >
-            {meetingLoading ? <Loader2 size={20} className="animate-spin" /> : <TvMinimalPlay size={20} />}
+            {meetingLoading ? <Loader2 size={22} className="animate-spin" /> : <TvMinimalPlay size={22} />}
           </button>
           {/* Audio call button — only for 1:1 conversations */}
           {chat.type === 'conversation' && chat.userId && onStartCall && (
@@ -1405,7 +1405,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               className="rounded-lg p-2 text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800"
               title="Audioanruf starten"
             >
-              <Phone size={20} />
+              <Phone size={22} />
             </button>
           )}
           {/* Service link buttons */}
@@ -1456,7 +1456,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               )}
               title="Mitglieder"
             >
-              <Users size={20} />
+              <Users size={22} />
             </button>
           )}
         </div>
@@ -1472,7 +1472,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           )}
           title="Dateiablage"
         >
-          <FolderOpen size={20} />
+          <FolderOpen size={22} />
         </button>
         {/* Desktop-only: Flagged */}
         {onToggleFlagged && (
@@ -1486,7 +1486,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             )}
             title="Markierte Nachrichten"
           >
-            <Bookmark size={20} />
+            <Bookmark size={22} />
           </button>
         )}
         {/* Desktop-only: Search */}
@@ -1500,7 +1500,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           )}
           title="Suche (Ctrl+F)"
         >
-          <Search size={20} />
+          <Search size={22} />
         </button>
 
         {/* Mobile: More menu dropdown — opens from the title button */}
@@ -2961,6 +2961,85 @@ function ReplyQuote({ msg, isOwn }: { msg: Message; isOwn: boolean }) {
 
 // ── Shared sub-components ──────────────────────────────────────────────────────
 
+function VoiceMessagePlayer({
+  file,
+  isOwn,
+}: {
+  file: NonNullable<Message['files']>[number];
+  isOwn: boolean;
+}) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const viewUrl = api.fileViewUrl(file.id, file.name);
+
+  const fmt = (secs: number) => {
+    if (!isFinite(secs) || isNaN(secs)) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const togglePlay = () => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (isPlaying) { a.pause(); } else { void a.play(); }
+  };
+
+  return (
+    <div className={clsx(
+      'flex items-center gap-2.5 rounded-xl px-3 py-2.5 min-w-[180px] max-w-[280px]',
+      isOwn
+        ? 'bg-primary-700 text-primary-100'
+        : 'bg-surface-200 text-surface-700 dark:bg-surface-700 dark:text-surface-200',
+    )}>
+      <audio
+        ref={audioRef}
+        src={viewUrl}
+        onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
+        onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => {
+          setIsPlaying(false);
+          setCurrentTime(0);
+          if (audioRef.current) audioRef.current.currentTime = 0;
+        }}
+        preload="metadata"
+      />
+      <Mic size={13} className="shrink-0 opacity-60" />
+      <button
+        onClick={togglePlay}
+        aria-label={isPlaying ? 'Pause' : 'Abspielen'}
+        className={clsx(
+          'flex shrink-0 items-center justify-center rounded-full p-1 transition',
+          isOwn ? 'hover:bg-primary-600' : 'hover:bg-surface-300 dark:hover:bg-surface-600',
+        )}
+      >
+        {isPlaying ? <Pause size={16} className="fill-current" /> : <Play size={16} className="fill-current" />}
+      </button>
+      <input
+        type="range"
+        min={0}
+        max={duration > 0 ? duration : 100}
+        value={currentTime}
+        step={0.1}
+        onChange={(e) => {
+          const t = Number(e.target.value);
+          setCurrentTime(t);
+          if (audioRef.current) audioRef.current.currentTime = t;
+        }}
+        className="h-1.5 min-w-[60px] flex-1 cursor-pointer appearance-none rounded-full"
+        style={{ accentColor: isOwn ? 'rgba(255,255,255,0.9)' : undefined }}
+      />
+      <span className="shrink-0 tabular-nums font-mono text-xs opacity-75">
+        {fmt(isPlaying || currentTime > 0 ? currentTime : duration)}
+      </span>
+    </div>
+  );
+}
+
 function FileList({
   files,
   isOwn,
@@ -2984,9 +3063,17 @@ function FileList({
         const downloadUrl = api.fileDownloadUrl(f.id, f.name);
         const viewUrl = api.fileViewUrl(f.id, f.name);
 
+        const isVoiceMessage =
+          f.name.startsWith('VoiceMessage') &&
+          (f.mime?.startsWith('audio/') ||
+            ['m4a', 'webm', 'ogg', 'mp3', 'wav', 'aac', 'opus'].includes((f.ext ?? '').toLowerCase()));
+
         return (
           <div key={f.id}>
-            {isImage && showImagesInline && (
+            {isVoiceMessage && (
+              <VoiceMessagePlayer file={f} isOwn={isOwn} />
+            )}
+            {!isVoiceMessage && isImage && showImagesInline && (
               <button
                 className="mb-1 block cursor-zoom-in"
                 onClick={() => onImageClick?.(downloadUrl)}
@@ -3000,51 +3087,53 @@ function FileList({
                 />
               </button>
             )}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <a
-                href={downloadUrl}
-                download={f.name}
-                title={`${f.name} herunterladen`}
-                className={clsx(
-                  'inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition',
-                  isOwn
-                    ? 'bg-primary-700 text-primary-100 hover:bg-primary-800'
-                    : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-surface-600',
+            {!isVoiceMessage && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <a
+                  href={downloadUrl}
+                  download={f.name}
+                  title={`${f.name} herunterladen`}
+                  className={clsx(
+                    'inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition',
+                    isOwn
+                      ? 'bg-primary-700 text-primary-100 hover:bg-primary-800'
+                      : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-surface-600',
+                  )}
+                >
+                  <span>{fileIcon(f.mime, f.ext)}</span>
+                  <span className="max-w-[120px] truncate sm:max-w-[160px]">{f.name}</span>
+                  {f.size_string && <span className="hidden opacity-60 sm:inline">({f.size_string})</span>}
+                </a>
+                {isPdf && onPdfClick && (
+                  <button
+                    onClick={() => onPdfClick(f.id, viewUrl, f.name)}
+                    title="PDF-Vorschau"
+                    className={clsx(
+                      'inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition',
+                      isOwn
+                        ? 'bg-primary-700 text-primary-100 hover:bg-primary-800'
+                        : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-surface-600',
+                    )}
+                  >
+                    <FileText size={12} /> <span className="hidden sm:inline">Vorschau</span>
+                  </button>
                 )}
-              >
-                <span>{fileIcon(f.mime, f.ext)}</span>
-                <span className="max-w-[120px] truncate sm:max-w-[160px]">{f.name}</span>
-                {f.size_string && <span className="hidden opacity-60 sm:inline">({f.size_string})</span>}
-              </a>
-              {isPdf && onPdfClick && (
-                <button
-                  onClick={() => onPdfClick(f.id, viewUrl, f.name)}
-                  title="PDF-Vorschau"
-                  className={clsx(
-                    'inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition',
-                    isOwn
-                      ? 'bg-primary-700 text-primary-100 hover:bg-primary-800'
-                      : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-surface-600',
-                  )}
-                >
-                  <FileText size={12} /> <span className="hidden sm:inline">Vorschau</span>
-                </button>
-              )}
-              {api.canViewInOnlyOffice(f.name) && (
-                <button
-                  onClick={() => api.openInOnlyOffice(f.id, f.name)}
-                  title="In OnlyOffice ansehen"
-                  className={clsx(
-                    'inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition',
-                    isOwn
-                      ? 'bg-primary-700 text-primary-100 hover:bg-primary-800'
-                      : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-surface-600',
-                  )}
-                >
-                  <Eye size={12} /> <span className="hidden sm:inline">Ansehen</span>
-                </button>
-              )}
-            </div>
+                {api.canViewInOnlyOffice(f.name) && (
+                  <button
+                    onClick={() => api.openInOnlyOffice(f.id, f.name)}
+                    title="In OnlyOffice ansehen"
+                    className={clsx(
+                      'inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition',
+                      isOwn
+                        ? 'bg-primary-700 text-primary-100 hover:bg-primary-800'
+                        : 'bg-surface-200 text-surface-600 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-400 dark:hover:bg-surface-600',
+                    )}
+                  >
+                    <Eye size={12} /> <span className="hidden sm:inline">Ansehen</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         );
       })}
