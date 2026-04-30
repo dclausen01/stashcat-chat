@@ -48,6 +48,7 @@ export default function App() {
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
   const [jumpToMessageTime, setJumpToMessageTime] = useState<number | null>(null);
   const [jumpKey, setJumpKey] = useState(0);
+  const [focusSearchKey, setFocusSearchKey] = useState(0);
   const [jumpSearching, setJumpSearching] = useState(false);
   const refreshSidebarRef = useRef<(() => void) | null>(null);
   const toggleFavoriteRef = useRef<((target: ChatTarget) => void) | null>(null);
@@ -173,6 +174,7 @@ export default function App() {
     { key: 'b', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setActiveView('chat'); setBroadcastsOpen(true); } },
     { key: 'u', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setPollIdToOpen(null); setActiveView('polls'); } },
     { key: '?', shift: true, handler: (e: KeyboardEvent) => { e.preventDefault(); setShortcutsOpen(true); } },
+    { key: '/', handler: (e: KeyboardEvent) => { if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return; e.preventDefault(); setFocusSearchKey(k => k + 1); } },
   ] : [], [loggedIn, closeAllPanels]);
   useHotkeys(hotkeys, loggedIn);
 
@@ -225,6 +227,7 @@ export default function App() {
             onOpenNotifications={() => { const wasOpen = notificationsOpen; closeAllPanels(); if (!wasOpen) setNotificationsOpen(true); }}
             onOpenSettings={toggleSettings}
             onOpenProfile={() => { const wasOpen = profileOpen; closeAllPanels(); if (!wasOpen) setProfileOpen(true); }}
+            triggerFocusKey={focusSearchKey}
             broadcastsOpen={broadcastsOpen}
             calendarOpen={activeView === 'calendar'}
             pollsOpen={activeView === 'polls'}
