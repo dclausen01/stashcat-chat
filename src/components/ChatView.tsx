@@ -3019,20 +3019,36 @@ function VoiceMessagePlayer({
       >
         {isPlaying ? <Pause size={16} className="fill-current" /> : <Play size={16} className="fill-current" />}
       </button>
-      <input
-        type="range"
-        min={0}
-        max={duration > 0 ? duration : 100}
-        value={currentTime}
-        step={0.1}
-        onChange={(e) => {
-          const t = Number(e.target.value);
-          setCurrentTime(t);
-          if (audioRef.current) audioRef.current.currentTime = t;
-        }}
-        className="h-1.5 min-w-[60px] flex-1 cursor-pointer appearance-none rounded-full"
-        style={{ accentColor: isOwn ? 'rgba(255,255,255,0.9)' : undefined }}
-      />
+      <div className="relative flex min-w-[60px] flex-1 items-center">
+        {/* Track background */}
+        <div className={clsx(
+          'pointer-events-none absolute h-1.5 w-full rounded-full',
+          isOwn ? 'bg-primary-500/40' : 'bg-surface-400/50 dark:bg-surface-500/50',
+        )} />
+        {/* Progress fill */}
+        <div
+          className={clsx(
+            'pointer-events-none absolute h-1.5 rounded-full',
+            isOwn ? 'bg-primary-100' : 'bg-surface-500 dark:bg-surface-300',
+          )}
+          style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+        />
+        {/* Invisible range input on top for interaction */}
+        <input
+          type="range"
+          min={0}
+          max={duration > 0 ? duration : 100}
+          value={currentTime}
+          step={0.1}
+          onChange={(e) => {
+            const t = Number(e.target.value);
+            setCurrentTime(t);
+            if (audioRef.current) audioRef.current.currentTime = t;
+          }}
+          className="relative h-1.5 w-full cursor-pointer appearance-none bg-transparent"
+          style={{ accentColor: isOwn ? 'rgba(255,255,255,0.9)' : undefined }}
+        />
+      </div>
       <span className="shrink-0 tabular-nums font-mono text-xs opacity-75">
         {fmt(isPlaying || currentTime > 0 ? currentTime : duration)}
       </span>
