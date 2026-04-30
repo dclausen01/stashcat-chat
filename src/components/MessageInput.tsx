@@ -66,7 +66,6 @@ export default function MessageInput({
   const { enterSendsMessage, spellcheckLang } = useSettings();
 
   const [sending, setSending] = useState(false);
-  const [focused, setFocused] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
@@ -177,8 +176,6 @@ export default function MessageInput({
         return false;
       },
     },
-    onFocus: () => setFocused(true),
-    onBlur: () => setFocused(false),
     onUpdate: ({ editor: ed }) => {
       // Keep draft in sync so chat-switch saves the latest content
       draftsRef.current.set(chatId, getMd(ed));
@@ -427,7 +424,6 @@ export default function MessageInput({
 
   const isEmpty = editor?.isEmpty ?? true;
   const canSend = !sending && (pendingFiles.length > 0 || !isEmpty);
-  const toolbarVisible = focused || !isEmpty || pendingFiles.length > 0;
 
   return (
     <div className="shrink-0 border-t border-surface-200 p-3 dark:border-surface-700">
@@ -474,7 +470,7 @@ export default function MessageInput({
       )}
 
       {/* Formatting toolbar */}
-      <div className={clsx('mb-2 flex flex-wrap items-center gap-0.5', !toolbarVisible && 'hidden')}>
+      <div className="mb-2 flex flex-wrap items-center gap-0.5">
         {FORMAT_BUTTONS.map((btn) => (
           <button
             key={btn.label}
@@ -553,11 +549,14 @@ export default function MessageInput({
       )}
 
       {/* Input area */}
-      <div className={clsx(
-        'relative flex items-end gap-2 rounded-xl border bg-surface-50 px-3 py-1.5 transition',
-        'border-surface-200 focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500/20',
-        'dark:border-surface-600 dark:bg-surface-800',
-      )}>
+      <div
+        className={clsx(
+          'relative flex items-end gap-2 rounded-xl border bg-surface-50 px-3 py-1.5 transition',
+          'border-surface-200 focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500/20',
+          'dark:border-surface-600 dark:bg-surface-800',
+        )}
+        onClick={() => editor?.commands.focus()}
+      >
         {/* Attach / poll / event dropdown */}
         <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onFilesChange} />
         <div ref={attachMenuRef} className="relative shrink-0">
