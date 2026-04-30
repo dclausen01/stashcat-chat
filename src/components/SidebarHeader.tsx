@@ -63,11 +63,11 @@ export default function SidebarHeader({
       </div>
       {/* Row 2: Action buttons */}
       <div className="mt-1.5 flex items-center justify-between px-1">
-        {/* Home button — desktop only, visible when a chat is open */}
-        {hasActiveChat && onGoHome && (
+        {/* Home button — always visible */}
+        {onGoHome && (
           <button
             onClick={onGoHome}
-            className="hidden rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700 lg:block"
+            className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
             title="Zur Startseite"
             aria-label="Zur Startseite"
           >
