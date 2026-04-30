@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useSettings } from './context/SettingsContext';
 import { useCallManager } from './hooks/useCallManager';
@@ -177,6 +177,19 @@ export default function App() {
     { key: '/', handler: (e: KeyboardEvent) => { if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return; e.preventDefault(); setFocusSearchKey(k => k + 1); } },
   ] : [], [loggedIn, closeAllPanels]);
   useHotkeys(hotkeys, loggedIn);
+
+  // Strg+Alt+F — sidebar search focus (outside useHotkeys since that hook doesn't support ctrl)
+  useEffect(() => {
+    if (!loggedIn) return;
+    const handler = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || !e.altKey || e.key.toLowerCase() !== 'f') return;
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+      e.preventDefault();
+      setFocusSearchKey(k => k + 1);
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [loggedIn]);
 
   // On mobile: when nothing else is open, the Sidebar is the home screen (fullscreen).
   // When activeChat or any panel/view is open, the Sidebar is hidden and that takes over.

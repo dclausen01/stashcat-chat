@@ -10,7 +10,7 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(na
 const MOD = isMac ? '⌘' : 'Strg';
 
 const SHORTCUTS: { keys: string[]; label: string }[] = [
-  { keys: ['/'], label: 'Sidebar-Suche fokussieren' },
+  { keys: ['Strg', 'Alt', 'F'], label: 'Sidebar-Suche fokussieren' },
   { keys: [MOD, 'K'], label: 'Schnell zwischen Chats wechseln' },
   { keys: [MOD, ','], label: 'Einstellungen öffnen' },
   { keys: ['Strg', '␣'], label: 'Emoji-Picker öffnen / schließen' },
