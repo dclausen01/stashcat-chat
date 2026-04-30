@@ -347,7 +347,7 @@ function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
                 {onOnlyOfficeClick && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onOnlyOfficeClick(f); }}
-                    className="rounded-md bg-white/90 p-1 text-primary-600 hover:bg-white"
+                    className="rounded-md bg-white/90 p-1 text-primary-600 hover:bg-white dark:bg-surface-700/90 dark:text-primary-400 dark:hover:bg-surface-600"
                     title="In OnlyOffice ansehen"
                   >
                     <Eye size={13} />
@@ -356,7 +356,7 @@ function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
                 {onShare && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onShare(f); }}
-                    className="rounded-md bg-white/90 p-1 text-teal-600 hover:bg-white"
+                    className="rounded-md bg-white/90 p-1 text-teal-600 hover:bg-white dark:bg-surface-700/90 dark:text-teal-400 dark:hover:bg-surface-600"
                     title="In Chat teilen"
                   >
                     <Send size={13} />
@@ -366,21 +366,21 @@ function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
                   href={downloadUrl}
                   download={f.name}
                   onClick={(e) => e.stopPropagation()}
-                  className="rounded-md bg-white/90 p-1 text-surface-700 hover:bg-white"
+                  className="rounded-md bg-white/90 p-1 text-surface-700 hover:bg-white dark:bg-surface-700/90 dark:text-surface-100 dark:hover:bg-surface-600"
                   title="Herunterladen"
                 >
                   <ExternalLink size={13} />
                 </a>
                 <button
                   onClick={(e) => { e.stopPropagation(); onRename(f); }}
-                  className="rounded-md bg-white/90 p-1 text-surface-700 hover:bg-white"
+                  className="rounded-md bg-white/90 p-1 text-surface-700 hover:bg-white dark:bg-surface-700/90 dark:text-surface-100 dark:hover:bg-surface-600"
                   title="Umbenennen"
                 >
                   <Pencil size={13} />
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onDelete(f); }}
-                  className="rounded-md bg-white/90 p-1 text-red-600 hover:bg-white"
+                  className="rounded-md bg-white/90 p-1 text-red-600 hover:bg-white dark:bg-surface-700/90 dark:text-red-400 dark:hover:bg-surface-600"
                   title="Löschen"
                 >
                   <Trash2 size={13} />
@@ -398,7 +398,7 @@ function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
                   onKeyDown={(e) => { if (e.key === 'Enter') commitRename(f); if (e.key === 'Escape') commitRename({ ...f, name: f.name }); }}
                   className="min-w-0 flex-1 rounded border border-primary-400 bg-white px-1 py-0.5 text-xs text-surface-900 outline-none dark:bg-surface-700 dark:text-surface-100"
                 />
-                <button onClick={() => commitRename(f)} className="shrink-0 text-primary-600"><Check size={13} /></button>
+                <button onClick={() => commitRename(f)} className="shrink-0 text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"><Check size={13} /></button>
               </div>
             ) : (
               <span
@@ -587,7 +587,7 @@ function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
                       onKeyDown={(e) => { if (e.key === 'Enter') commitRename(f); if (e.key === 'Escape') commitRename({ ...f, name: f.name }); }}
                       className="min-w-0 flex-1 rounded border border-primary-400 bg-white px-2 py-0.5 text-xs text-surface-900 outline-none dark:bg-surface-700 dark:text-surface-100"
                     />
-                    <button onClick={() => commitRename(f)} className="shrink-0 text-primary-600"><Check size={13} /></button>
+                    <button onClick={() => commitRename(f)} className="shrink-0 text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"><Check size={13} /></button>
                   </div>
                 ) : (
                   <span
@@ -615,7 +615,7 @@ function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
                 {onShare && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onShare(f); }}
-                    className="rounded-md p-1.5 text-teal-500 hover:bg-teal-50 hover:text-teal-600 dark:hover:bg-teal-900/30"
+                    className="rounded-md p-1.5 text-teal-500 hover:bg-teal-50 hover:text-teal-600 dark:text-teal-400 dark:hover:bg-teal-900/30 dark:hover:text-teal-300"
                     title="In Chat teilen"
                   >
                     <Send size={14} />
