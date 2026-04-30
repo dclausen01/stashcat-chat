@@ -174,36 +174,45 @@ export default function App() {
     { key: 'b', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setActiveView('chat'); setBroadcastsOpen(true); } },
     { key: 'u', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setPollIdToOpen(null); setActiveView('polls'); } },
     { key: '?', shift: true, handler: (e: KeyboardEvent) => { e.preventDefault(); setShortcutsOpen(true); } },
-    { key: '/', handler: (e: KeyboardEvent) => { if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return; e.preventDefault(); setFocusSearchKey(k => k + 1); } },
   ] : [], [loggedIn, closeAllPanels]);
   useHotkeys(hotkeys, loggedIn);
 
-  // Strg+Alt+F / ⌘+Option+F — sidebar search focus (outside useHotkeys since that hook doesn't support ctrl)
-  useEffect(() => {
-    if (!loggedIn) return;
-    const handler = (e: KeyboardEvent) => {
-      const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-      const modKey = isMac ? e.metaKey : e.ctrlKey;
-      if (!modKey || !e.altKey || e.key.toLowerCase() !== 'f') return;
-      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
-      e.preventDefault();
-      setFocusSearchKey(k => k + 1);
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [loggedIn]);
-
-  // Esc — close any open panel (Esc in individual modals is handled by useEscapeKey there)
+  // Sidebar search focus + global Esc — capture phase so Tiptap/ProseMirror
+  // can't swallow the events before us. INPUT/TEXTAREA are still respected,
+  // but contenteditable (chat editor) is intentionally bypassed so `/` works.
   const anyPanelOpenRef = useRef(false);
   anyPanelOpenRef.current = settingsOpen || fileBrowserOpen || broadcastsOpen || notificationsOpen || profileOpen || flaggedOpen;
   useEffect(() => {
     if (!loggedIn) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (anyPanelOpenRef.current) closeAllPanels();
+    const isInRealInput = () => {
+      const tag = (document.activeElement as HTMLElement | null)?.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
     };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
+    const handler = (e: KeyboardEvent) => {
+      // / → focus sidebar search (also from chat editor)
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        if (isInRealInput()) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setFocusSearchKey((k) => k + 1);
+        return;
+      }
+      // Ctrl+Alt+F / Cmd+Option+F → focus sidebar search (works everywhere)
+      const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+      const modKey = isMac ? e.metaKey : e.ctrlKey;
+      if (modKey && e.altKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        e.stopPropagation();
+        setFocusSearchKey((k) => k + 1);
+        return;
+      }
+      // Esc → close any open panel
+      if (e.key === 'Escape') {
+        if (anyPanelOpenRef.current) closeAllPanels();
+      }
+    };
+    document.addEventListener('keydown', handler, true); // capture phase
+    return () => document.removeEventListener('keydown', handler, true);
   }, [loggedIn, closeAllPanels]);
 
   // On mobile: when nothing else is open, the Sidebar is the home screen (fullscreen).
