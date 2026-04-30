@@ -187,8 +187,6 @@ export default function App() {
     return <LoginPage />;
   }
 
-  const showHomeButton = activeChat !== null || fileBrowserStandalone || activeView !== 'chat';
-
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* TopBar — Desktop only, full width over sidebar + main area */}
@@ -207,7 +205,6 @@ export default function App() {
         onOpenCalendar={openCalendar}
         pollsOpen={activeView === 'polls'}
         onOpenPolls={openPolls}
-        showHomeButton={showHomeButton}
         onGoHome={handleGoHome}
         onOpenProfile={() => { const wasOpen = profileOpen; closeAllPanels(); if (!wasOpen) setProfileOpen(true); }}
         onOpenSettings={toggleSettings}

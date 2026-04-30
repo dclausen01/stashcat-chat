@@ -24,7 +24,6 @@ interface TopBarProps {
   onOpenCalendar: () => void;
   pollsOpen: boolean;
   onOpenPolls: () => void;
-  showHomeButton: boolean;
   onGoHome: () => void;
   onOpenProfile: () => void;
   onOpenSettings: () => void;
@@ -46,7 +45,7 @@ export default function TopBar({
   broadcastsOpen, onOpenBroadcasts,
   calendarOpen, onOpenCalendar,
   pollsOpen, onOpenPolls,
-  showHomeButton, onGoHome,
+  onGoHome,
   onOpenProfile, onOpenSettings,
 }: TopBarProps) {
   const { user, logout } = useAuth();
@@ -78,16 +77,14 @@ export default function TopBar({
       <div className="flex items-center gap-0.5">
 
         {/* Home */}
-        {showHomeButton && (
-          <button
-            onClick={onGoHome}
-            className={iconBtn(false)}
-            title="Zur Startseite"
-            aria-label="Zur Startseite"
-          >
-            <Home size={16} />
-          </button>
-        )}
+        <button
+          onClick={onGoHome}
+          className={iconBtn(false)}
+          title="Zur Startseite"
+          aria-label="Zur Startseite"
+        >
+          <Home size={16} />
+        </button>
 
         {/* Notification bell with unread badge + hover popup */}
         <div className="group/bell relative">
