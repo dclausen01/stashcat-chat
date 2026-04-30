@@ -57,7 +57,14 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
   useEffect(() => {
     if (triggerFocusKey === 0) return; // skip initial mount, only focus on explicit trigger
-    searchRef.current?.focus();
+    // rAF: ensure focus call happens after any in-flight focus / render, so it sticks.
+    const raf = requestAnimationFrame(() => {
+      const el = searchRef.current;
+      if (!el) return;
+      el.focus();
+      el.select();
+    });
+    return () => cancelAnimationFrame(raf);
   }, [triggerFocusKey]);
 
   const [showNewChannel, setShowNewChannel] = useState(false);
