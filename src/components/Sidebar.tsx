@@ -425,6 +425,14 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   const totalUnread = channels.reduce((sum, ch) => sum + (ch.unread_count ?? 0), 0)
     + conversations.reduce((sum, c) => sum + (c.unread_count ?? 0), 0);
 
+  // Unread chats — used by the bell hover popup
+  const unreadChannels = channels
+    .filter((ch) => (ch.unread_count ?? 0) > 0)
+    .sort((a, b) => (b.lastActivity ?? 0) - (a.lastActivity ?? 0));
+  const unreadConversations = conversations
+    .filter((c) => (c.unread_count ?? 0) > 0)
+    .sort((a, b) => (b.lastActivity ?? 0) - (a.lastActivity ?? 0));
+
   useEffect(() => {
     document.title = totalUnread > 0 ? `(${totalUnread}) BBZ Chat` : 'BBZ Chat';
   }, [totalUnread]);
@@ -468,6 +476,9 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       />
       <SidebarHeader
         totalUnread={totalUnread}
+        unreadChannels={unreadChannels}
+        unreadConversations={unreadConversations}
+        onSelectChat={handleSelect}
         notificationsOpen={notificationsOpen}
         onOpenNotifications={onOpenNotifications}
         onOpenFileBrowser={onOpenFileBrowser}

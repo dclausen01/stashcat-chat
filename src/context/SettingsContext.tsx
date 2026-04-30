@@ -4,6 +4,7 @@ interface Settings {
   showImagesInline: boolean;
   bubbleView: boolean;
   ownBubbleColor: string;
+  ownBubbleColorDark: string;
   otherBubbleColor: string;
   otherBubbleColorDark: string;
   homeView: 'info' | 'cards';
@@ -21,6 +22,7 @@ interface SettingsContextValue extends Settings {
   setShowImagesInline: (v: boolean) => void;
   setBubbleView: (v: boolean) => void;
   setOwnBubbleColor: (v: string) => void;
+  setOwnBubbleColorDark: (v: string) => void;
   setOtherBubbleColor: (v: string) => void;
   setOtherBubbleColorDark: (v: string) => void;
   setHomeView: (v: 'info' | 'cards') => void;
@@ -41,8 +43,9 @@ function loadSettings(): Settings {
     showImagesInline: true,
     bubbleView: true,
     ownBubbleColor: '#4f46e5',
+    ownBubbleColorDark: '#0e3281',
     otherBubbleColor: '#f3f4f6',
-    otherBubbleColorDark: '#0d9488',
+    otherBubbleColorDark: '#1e293b',
     homeView: 'cards',
     fileBrowserViewMode: 'grid',
     fileBrowserTab: 'context',
@@ -59,15 +62,16 @@ function loadSettings(): Settings {
       const parsed = JSON.parse(raw) as Partial<Settings>;
       // Migrate old defaults of otherBubbleColorDark to the current default
       // so users still on a former auto-default see the new one.
-      const OLD_DARK_DEFAULTS = new Set(['#374151', '#3730a3', '#92dcda']);
-      const migratedDarkBubble = parsed.otherBubbleColorDark && OLD_DARK_DEFAULTS.has(parsed.otherBubbleColorDark.toLowerCase())
+      const OLD_DARK_OTHER_DEFAULTS = new Set(['#374151', '#3730a3', '#92dcda', '#0d9488']);
+      const migratedDarkOtherBubble = parsed.otherBubbleColorDark && OLD_DARK_OTHER_DEFAULTS.has(parsed.otherBubbleColorDark.toLowerCase())
         ? defaults.otherBubbleColorDark
         : (parsed.otherBubbleColorDark ?? defaults.otherBubbleColorDark);
       return {
         ...defaults,
         ...parsed,
         favoriteCardsSortMode: parsed.favoriteCardsSortMode ?? defaults.favoriteCardsSortMode,
-        otherBubbleColorDark: migratedDarkBubble,
+        otherBubbleColorDark: migratedDarkOtherBubble,
+        ownBubbleColorDark: parsed.ownBubbleColorDark ?? defaults.ownBubbleColorDark,
       };
     }
   } catch { /* ignore */ }
@@ -78,8 +82,9 @@ const SettingsContext = createContext<SettingsContextValue>({
   showImagesInline: true,
   bubbleView: true,
   ownBubbleColor: '#4f46e5',
+  ownBubbleColorDark: '#0e3281',
   otherBubbleColor: '#f3f4f6',
-  otherBubbleColorDark: '#374151',
+  otherBubbleColorDark: '#1e293b',
   homeView: 'cards',
   fileBrowserViewMode: 'grid',
   fileBrowserTab: 'context',
@@ -92,6 +97,7 @@ const SettingsContext = createContext<SettingsContextValue>({
   setShowImagesInline: () => {},
   setBubbleView: () => {},
   setOwnBubbleColor: () => {},
+  setOwnBubbleColorDark: () => {},
   setOtherBubbleColor: () => {},
   setOtherBubbleColorDark: () => {},
   setHomeView: () => {},
@@ -127,6 +133,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setShowImagesInline: (v) => update({ showImagesInline: v }),
       setBubbleView: (v) => update({ bubbleView: v }),
       setOwnBubbleColor: (v) => update({ ownBubbleColor: v }),
+      setOwnBubbleColorDark: (v) => update({ ownBubbleColorDark: v }),
       setOtherBubbleColor: (v) => update({ otherBubbleColor: v }),
       setOtherBubbleColorDark: (v) => update({ otherBubbleColorDark: v }),
       setHomeView: (v) => update({ homeView: v }),

@@ -46,8 +46,8 @@
   --theme-panel: #ffffff;
 }
 .dark {
-  --theme-bg: #030712;
-  --theme-panel: #111827;
+  --theme-bg: #000000;
+  --theme-panel: #0b132b;
 }
 
 html, body, #root {
@@ -68,12 +68,19 @@ html {
   font-size: 17px;
 }
 
-/* Dark mode: improve contrast for muted text (dates, times, metadata) */
-.dark .text-surface-400 {
-  color: var(--color-surface-300) !important;
+/* Dark mode: soft primary text (not glaring white) */
+.dark .text-white,
+.dark .text-surface-50,
+.dark .text-surface-100,
+.dark .text-surface-200 {
+  color: #e2e8f0 !important;
 }
-.dark .text-surface-500 {
-  color: var(--color-surface-400) !important;
+/* Dark mode: improve contrast for muted text (dates, times, metadata) */
+.dark .text-surface-300,
+.dark .text-surface-400,
+.dark .text-surface-500,
+.dark .text-surface-600 {
+  color: #94a3b8 !important;
 }
 
 /* Dark mode: darker borders for better visual separation */

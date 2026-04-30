@@ -20,7 +20,7 @@ export const LIGHT_PRESETS: Record<NamedPresetId, PresetDef> = {
 };
 
 export const DARK_PRESETS: Record<NamedPresetId, PresetDef> = {
-  default: { label: 'Schiefer',    colors: { bg: '#030712', panel: '#111827' } },
+  default: { label: 'Schiefer',    colors: { bg: '#000000', panel: '#0b132b' } },
   warm:    { label: 'Mitternacht', colors: { bg: '#0c1220', panel: '#162032' } },
 };
 
@@ -62,7 +62,7 @@ function loadState(): ThemeState {
     lightPreset: 'default',
     darkPreset: 'default',
     customLight: { bg: '#eff6ff', panel: '#ffffff' },
-    customDark: { bg: '#030712', panel: '#111827' },
+    customDark: { bg: '#000000', panel: '#0b132b' },
   };
 }
 
