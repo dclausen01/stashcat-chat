@@ -13,13 +13,12 @@ const MOD_ALT_F = isMac ? ['⌘', 'Option', 'F'] : ['Strg', 'Alt', 'F'];
 const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: MOD_ALT_F, label: 'Sidebar-Suche fokussieren' },
   { keys: [MOD, 'K'], label: 'Schnell zwischen Chats wechseln' },
-  { keys: [MOD, ','], label: 'Einstellungen öffnen' },
+  { keys: [MOD, '.'], label: 'Einstellungen öffnen' },
   { keys: ['Strg', '␣'], label: 'Emoji-Picker öffnen / schließen' },
   { keys: ['Alt', 'C'], label: 'Kalender öffnen' },
   { keys: ['Alt', 'B'], label: 'Broadcasts öffnen' },
   { keys: ['Alt', 'U'], label: 'Umfragen öffnen' },
   { keys: ['?'], label: 'Diese Hilfe anzeigen' },
-  { keys: ['Esc'], label: 'Modal / Panel schließen' },
 ];
 
 export default function ShortcutsModal({ onClose }: ShortcutsModalProps) {

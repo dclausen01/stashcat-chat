@@ -25,9 +25,12 @@ export function useHotkeys(hotkeys: Hotkey[], enabled = true) {
     if (!enabled) return;
     const handler = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
+      // On macOS, Option+letter produces special chars (e.g. Option+B → '∫').
+      // Fall back to the physical key code so Alt shortcuts still match.
+      const codeKey = e.code.startsWith('Key') ? e.code.slice(3).toLowerCase() : key;
       const mod = e.ctrlKey || e.metaKey;
       for (const hk of hotkeys) {
-        if (hk.key !== key) continue;
+        if (hk.key !== key && hk.key !== codeKey) continue;
         if (Boolean(hk.mod) !== mod) continue;
         if (Boolean(hk.shift) !== e.shiftKey) continue;
         if (Boolean(hk.alt) !== e.altKey) continue;
