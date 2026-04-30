@@ -1378,7 +1378,7 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
               key={t}
               onClick={() => handleTabChange(t)}
               className={clsx(
-                'flex-1 border-b-2 px-3 py-2 text-xs font-medium transition-colors',
+                'border-b-2 px-3 py-2 text-left text-xs font-medium transition-colors',
                 tab === t
                   ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400'
                   : 'border-transparent text-surface-500 hover:text-surface-700 dark:hover:text-surface-400',
@@ -1391,7 +1391,7 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
             <button
               onClick={() => handleTabChange('personal')}
               className={clsx(
-                'flex-1 border-b-2 px-3 py-2 text-xs font-medium transition-colors',
+                'border-b-2 px-3 py-2 text-left text-xs font-medium transition-colors',
                 tab === 'personal'
                   ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400'
                   : 'border-transparent text-surface-500 hover:text-surface-700 dark:hover:text-surface-400',
@@ -1403,9 +1403,9 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
           <button
             onClick={() => handleTabChange('nextcloud')}
             className={clsx(
-              'flex flex-1 items-center justify-center gap-1 border-b-2 px-3 py-2 text-xs font-medium transition-colors',
+              'flex items-center gap-1 border-b-2 px-3 py-2 text-left text-xs font-medium transition-colors',
               tab === 'nextcloud'
-                ? 'border-teal-600 text-teal-600 dark:border-teal-400 dark:text-teal-400'
+                ? 'border-blue-700 text-blue-700 dark:border-blue-400 dark:text-blue-400'
                 : 'border-transparent text-surface-500 hover:text-surface-700 dark:hover:text-surface-400',
             )}
           >
