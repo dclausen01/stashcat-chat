@@ -1941,7 +1941,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                       group={group}
                       canDeleteAll={isManager && chat.type === 'channel'}
                       showImagesInline={settings.showImagesInline}
-                      ownBubbleColor={settings.ownBubbleColor}
+                      ownBubbleColor={theme === 'dark' ? settings.ownBubbleColorDark : settings.ownBubbleColor}
                       otherBubbleColor={theme === 'dark' ? settings.otherBubbleColorDark : settings.otherBubbleColor}
                       messageMap={messageMap}
                       onDelete={handleDelete}
@@ -2044,7 +2044,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             <div className="flex min-w-0 max-w-[75%] flex-col items-end gap-1">
               <div
                 className="relative max-w-full rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed opacity-80"
-                style={{ backgroundColor: settings.ownBubbleColor, color: '#fff' }}
+                style={{ backgroundColor: theme === 'dark' ? settings.ownBubbleColorDark : settings.ownBubbleColor, color: '#fff' }}
               >
                 {pm.replyTo && <ReplyQuote msg={pm.replyTo} isOwn />}
                 <div className="overflow-x-auto">

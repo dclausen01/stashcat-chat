@@ -103,6 +103,8 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
     setBubbleView,
     ownBubbleColor,
     setOwnBubbleColor,
+    ownBubbleColorDark,
+    setOwnBubbleColorDark,
     otherBubbleColor,
     setOtherBubbleColor,
     otherBubbleColorDark,
@@ -329,11 +331,18 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-surface-600">Farben</p>
 
         <div className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
-          <ColorRow
-            label="Eigene Nachrichten"
-            value={ownBubbleColor}
-            onChange={setOwnBubbleColor}
-          />
+          <div className="flex flex-col gap-2">
+            <ColorRow
+              label="Eigene Nachrichten (Hell)"
+              value={ownBubbleColor}
+              onChange={setOwnBubbleColor}
+            />
+            <ColorRow
+              label="Eigene Nachrichten (Dunkel)"
+              value={ownBubbleColorDark}
+              onChange={setOwnBubbleColorDark}
+            />
+          </div>
         </div>
 
         <div className="mt-1 rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
