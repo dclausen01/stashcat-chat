@@ -2515,19 +2515,28 @@ async function findChatBot(client: StashcatClient, clientKey: string): Promise<B
       if (conversations.length < 100) break; // no more pages
     }
 
-    // Bot not found in conversations — try company members as fallback
-    console.warn('[Video] Chat Bot not found in conversations. Searching company members...');
+    // Bot not found in conversations — search company members by name
+    console.warn('[Video] Chat Bot not found in conversations. Searching company members by name...');
     try {
       const companies = await client.getCompanies() as unknown as Array<Record<string, unknown>>;
       for (const company of companies) {
         const companyId = String(company.id);
-        // getCompanyMembers fetches members; the bot user should be in there
-        const members = await client.getCompanyMembers(companyId) as unknown as Array<Record<string, unknown>>;
-        for (const member of members) {
+
+        // Targeted name search first (fast path)
+        const searchResult = await client.listManagedUsers(companyId, { search: 'Chat Bot', limit: 20 }) as unknown as { users: Array<Record<string, unknown>> };
+        const candidates = searchResult?.users ?? [];
+
+        // Fall back to scanning all managed users if targeted search returns nothing
+        let allMembers: Array<Record<string, unknown>> = candidates;
+        if (candidates.length === 0) {
+          const allResult = await client.listManagedUsers(companyId, { limit: 500 }) as unknown as { users: Array<Record<string, unknown>> };
+          allMembers = allResult?.users ?? [];
+        }
+
+        for (const member of allMembers) {
           if (looksLikeChatBot(member)) {
             const botUserId = String(member.id ?? member.user_id);
-            console.log(`[Video] Found Chat Bot via company members: userId=${botUserId}, creating conversation...`);
-            // Create/get the 1:1 conversation with the bot
+            console.log(`[Video] Found Chat Bot via company search: userId=${botUserId}, creating conversation...`);
             const conv = await client.createConversation([botUserId]) as unknown as Record<string, unknown>;
             const botConvId = String(conv.id);
             const info: BotInfo = { botUserId, botConvId };
