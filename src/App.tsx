@@ -5,6 +5,7 @@ import { useCallManager } from './hooks/useCallManager';
 import { useHotkeys } from './hooks/useHotkeys';
 import LoginPage from './pages/LoginPage';
 import Sidebar from './components/Sidebar';
+import TopBar from './components/TopBar';
 import ChatView from './components/ChatView';
 import EmptyState from './components/EmptyState';
 import SettingsPanel from './components/SettingsPanel';
@@ -31,6 +32,8 @@ export default function App() {
   const [activeChat, setActiveChat] = useState<ChatTarget | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [fileBrowserOpen, setFileBrowserOpen] = useState(false);
+  const [fileBrowserStandalone, setFileBrowserStandalone] = useState(false);
+  const [topBarUnread, setTopBarUnread] = useState({ total: 0, channels: [] as ChatTarget[], conversations: [] as ChatTarget[] });
   const [broadcastsOpen, setBroadcastsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [activeView, setActiveView] = useState<ActiveView>('chat');
@@ -77,9 +80,20 @@ export default function App() {
   };
 
   const toggleFileBrowser = () => {
-    const wasOpen = fileBrowserOpen;
+    const wasOpen = fileBrowserOpen && !fileBrowserStandalone;
     closeAllPanels();
+    setFileBrowserStandalone(false);
     if (!wasOpen) setFileBrowserOpen(true);
+  };
+
+  const openFileBrowserStandalone = () => {
+    const wasOpen = fileBrowserOpen && fileBrowserStandalone;
+    closeAllPanels();
+    setActiveView('chat');
+    if (!wasOpen) {
+      setFileBrowserStandalone(true);
+      setFileBrowserOpen(true);
+    }
   };
 
   const toggleFlagged = () => {
@@ -172,102 +186,141 @@ export default function App() {
     return <LoginPage />;
   }
 
+  const showHomeButton = activeChat !== null || fileBrowserStandalone || activeView !== 'chat';
+
   return (
-    <div className="flex h-full overflow-hidden">
-      {/* Sidebar: fullscreen home on mobile when nothing else is open; always visible on desktop */}
-      <div
-        className={`shrink-0 ${nothingElseOpen ? 'flex w-full' : 'hidden'} md:flex md:w-auto`}
-      >
-        <Sidebar
-          activeChat={activeChat}
-          onSelectChat={handleSelectChat}
-          loggedIn={loggedIn}
-          onOpenFileBrowser={toggleFileBrowser}
-          onOpenBroadcasts={toggleBroadcasts}
-          onOpenCalendar={openCalendar}
-          onOpenPolls={openPolls}
-          onOpenNotifications={() => { const wasOpen = notificationsOpen; closeAllPanels(); if (!wasOpen) setNotificationsOpen(true); }}
-          onOpenSettings={toggleSettings}
-          onOpenProfile={() => { const wasOpen = profileOpen; closeAllPanels(); if (!wasOpen) setProfileOpen(true); }}
-          broadcastsOpen={broadcastsOpen}
-          calendarOpen={activeView === 'calendar'}
-          pollsOpen={activeView === 'polls'}
-          notificationsOpen={notificationsOpen}
-          onChannelsLoaded={handleChannelsLoaded}
-          onConversationsLoaded={handleConversationsLoaded}
-          onRegisterRefresh={(fn) => { refreshSidebarRef.current = fn; }}
-          onRegisterToggleFavorite={(fn) => { toggleFavoriteRef.current = fn; }}
-        />
+    <div className="flex h-full flex-col overflow-hidden">
+      {/* TopBar — Desktop only, full width over sidebar + main area */}
+      <TopBar
+        totalUnread={topBarUnread.total}
+        unreadChannels={topBarUnread.channels}
+        unreadConversations={topBarUnread.conversations}
+        onSelectChat={handleSelectChat}
+        notificationsOpen={notificationsOpen}
+        onOpenNotifications={() => { const wasOpen = notificationsOpen; closeAllPanels(); if (!wasOpen) setNotificationsOpen(true); }}
+        fileBrowserOpen={fileBrowserOpen && fileBrowserStandalone}
+        onOpenFileBrowser={openFileBrowserStandalone}
+        broadcastsOpen={broadcastsOpen}
+        onOpenBroadcasts={toggleBroadcasts}
+        calendarOpen={activeView === 'calendar'}
+        onOpenCalendar={openCalendar}
+        pollsOpen={activeView === 'polls'}
+        onOpenPolls={openPolls}
+        showHomeButton={showHomeButton}
+        onGoHome={handleGoHome}
+        onOpenProfile={() => { const wasOpen = profileOpen; closeAllPanels(); if (!wasOpen) setProfileOpen(true); }}
+        onOpenSettings={toggleSettings}
+      />
+
+      {/* Bottom area: Sidebar + Main content (flex-row) */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar: fullscreen home on mobile when nothing else is open; always visible on desktop */}
+        <div className={`shrink-0 ${nothingElseOpen ? 'flex w-full' : 'hidden'} md:flex md:w-auto`}>
+          <Sidebar
+            activeChat={activeChat}
+            onSelectChat={handleSelectChat}
+            loggedIn={loggedIn}
+            onOpenFileBrowser={toggleFileBrowser}
+            onOpenBroadcasts={toggleBroadcasts}
+            onOpenCalendar={openCalendar}
+            onOpenPolls={openPolls}
+            onOpenNotifications={() => { const wasOpen = notificationsOpen; closeAllPanels(); if (!wasOpen) setNotificationsOpen(true); }}
+            onOpenSettings={toggleSettings}
+            onOpenProfile={() => { const wasOpen = profileOpen; closeAllPanels(); if (!wasOpen) setProfileOpen(true); }}
+            broadcastsOpen={broadcastsOpen}
+            calendarOpen={activeView === 'calendar'}
+            pollsOpen={activeView === 'polls'}
+            notificationsOpen={notificationsOpen}
+            onChannelsLoaded={handleChannelsLoaded}
+            onConversationsLoaded={handleConversationsLoaded}
+            onRegisterRefresh={(fn) => { refreshSidebarRef.current = fn; }}
+            onRegisterToggleFavorite={(fn) => { toggleFavoriteRef.current = fn; }}
+            onGoHome={handleGoHome}
+            onUnreadChange={(total, ch, cv) => setTopBarUnread({ total, channels: ch, conversations: cv })}
+          />
+        </div>
+
+        {/* Main content — hidden on mobile when sidebar is fullscreen home */}
+        <div className={`flex flex-1 overflow-hidden ${nothingElseOpen ? 'hidden' : 'flex'} md:flex`}>
+          {activeView === 'calendar' ? (
+            <CalendarView eventIdToOpen={eventIdToOpen} onEventOpened={() => setEventIdToOpen(null)} onClose={() => setActiveView('chat')} />
+          ) : activeView === 'polls' ? (
+            <PollsView pollIdToOpen={pollIdToOpen} onPollOpened={() => setPollIdToOpen(null)} onClose={() => setActiveView('chat')} />
+          ) : fileBrowserStandalone && fileBrowserOpen ? (
+            // Standalone FileBrowser — full main area
+            <FileBrowserPanel
+              chat={null}
+              onClose={() => { setFileBrowserOpen(false); setFileBrowserStandalone(false); }}
+              fullscreen
+            />
+          ) : (
+            <>
+              {activeChat
+                ? <ChatView
+                    chat={activeChat}
+                    onGoHome={handleGoHome}
+                    onToggleFileBrowser={toggleFileBrowser}
+                    fileBrowserOpen={fileBrowserOpen && !fileBrowserStandalone}
+                    onOpenPolls={openPolls}
+                    onOpenPoll={openPoll}
+                    onOpenCalendar={openCalendar}
+                    onOpenEvent={openEvent}
+                    onToggleFlagged={toggleFlagged}
+                    flaggedOpen={flaggedOpen}
+                    jumpToMessageId={jumpToMessageId}
+                    jumpToMessageTime={jumpToMessageTime}
+                    jumpKey={jumpKey}
+                    onJumpComplete={handleJumpComplete}
+                    onStartCall={(calleeId: string, targetId: string, callee: CallParty) =>
+                      startCall(calleeId, targetId, callee)
+                    }
+                    onToggleFavorite={handleToggleFavoriteFromChatView}
+                  />
+                : homeView === 'cards'
+                  // FavoriteCardsView is hidden on mobile — Sidebar is the mobile home screen.
+                  ? <div className="hidden flex-1 md:flex"><FavoriteCardsView channels={channels} conversations={conversations} onSelectChat={handleSelectChat} /></div>
+                  : <div className="hidden flex-1 md:flex"><EmptyState /></div>}
+              {fileBrowserOpen && !fileBrowserStandalone && (
+                <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
+                  <FileBrowserPanel chat={activeChat} onClose={() => setFileBrowserOpen(false)} />
+                </div>
+              )}
+              {broadcastsOpen && (
+                <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
+                  <BroadcastsPanel onClose={() => setBroadcastsOpen(false)} />
+                </div>
+              )}
+              {flaggedOpen && (
+                <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
+                  <FlaggedMessagesPanel
+                    chat={activeChat}
+                    onClose={() => setFlaggedOpen(false)}
+                    onMessageClick={handleFlaggedMessageClick}
+                    jumpSearching={jumpSearching}
+                  />
+                </div>
+              )}
+              {notificationsOpen && (
+                <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
+                  <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} onOpenPoll={openPoll} onOpenCalendar={openCalendar} onOpenEvent={openEvent} onChannelJoined={() => refreshSidebarRef.current?.()} />
+                </div>
+              )}
+            </>
+          )}
+          {settingsOpen && (
+            <div className="fixed inset-0 z-50 flex md:relative md:inset-auto md:z-auto">
+              <SettingsPanel onClose={() => setSettingsOpen(false)} />
+            </div>
+          )}
+          {profileOpen && (
+            <div className="fixed inset-0 z-50 flex md:items-center md:justify-center md:bg-black/50">
+              <ProfileModal onClose={() => setProfileOpen(false)} />
+            </div>
+          )}
+        </div>
       </div>
 
-      {activeView === 'calendar' ? (
-        <CalendarView eventIdToOpen={eventIdToOpen} onEventOpened={() => setEventIdToOpen(null)} onClose={() => setActiveView('chat')} />
-      ) : activeView === 'polls' ? (
-        <PollsView pollIdToOpen={pollIdToOpen} onPollOpened={() => setPollIdToOpen(null)} onClose={() => setActiveView('chat')} />
-      ) : (
-        <>
-          {activeChat
-            ? <ChatView
-                chat={activeChat}
-                onGoHome={handleGoHome}
-                onToggleFileBrowser={toggleFileBrowser}
-                fileBrowserOpen={fileBrowserOpen}
-                onOpenPolls={openPolls}
-                onOpenPoll={openPoll}
-                onOpenCalendar={openCalendar}
-                onOpenEvent={openEvent}
-                onToggleFlagged={toggleFlagged}
-                flaggedOpen={flaggedOpen}
-                jumpToMessageId={jumpToMessageId}
-                jumpToMessageTime={jumpToMessageTime}
-                jumpKey={jumpKey}
-                onJumpComplete={handleJumpComplete}
-                onStartCall={(calleeId: string, targetId: string, callee: CallParty) =>
-                  startCall(calleeId, targetId, callee)
-                }
-                onToggleFavorite={handleToggleFavoriteFromChatView}
-              />
-            : homeView === 'cards'
-              // FavoriteCardsView is hidden on mobile — Sidebar is the mobile home screen.
-              ? <div className="hidden flex-1 md:flex"><FavoriteCardsView channels={channels} conversations={conversations} onSelectChat={handleSelectChat} /></div>
-              : <div className="hidden flex-1 md:flex"><EmptyState /></div>}
-          {fileBrowserOpen && (
-            <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
-              <FileBrowserPanel chat={activeChat} onClose={() => setFileBrowserOpen(false)} />
-            </div>
-          )}
-          {broadcastsOpen && (
-            <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
-              <BroadcastsPanel onClose={() => setBroadcastsOpen(false)} />
-            </div>
-          )}
-          {flaggedOpen && (
-            <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
-              <FlaggedMessagesPanel
-                chat={activeChat}
-                onClose={() => setFlaggedOpen(false)}
-                onMessageClick={handleFlaggedMessageClick}
-                jumpSearching={jumpSearching}
-              />
-            </div>
-          )}
-          {notificationsOpen && (
-            <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
-              <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} onOpenPoll={openPoll} onOpenCalendar={openCalendar} onOpenEvent={openEvent} onChannelJoined={() => refreshSidebarRef.current?.()} />
-            </div>
-          )}
-        </>
-      )}
-      {settingsOpen && (
-        <div className="fixed inset-0 z-50 flex md:relative md:inset-auto md:z-auto">
-          <SettingsPanel onClose={() => setSettingsOpen(false)} />
-        </div>
-      )}
-      {profileOpen && (
-        <div className="fixed inset-0 z-50 flex md:items-center md:justify-center md:bg-black/50">
-          <ProfileModal onClose={() => setProfileOpen(false)} />
-        </div>
-      )}
+      {/* Full-screen modals (outside layout flow) */}
       {activeCall && (
         <CallModal
           call={activeCall}

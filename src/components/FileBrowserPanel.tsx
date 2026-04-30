@@ -167,6 +167,7 @@ type Tab = 'context' | 'personal' | 'nextcloud';
 interface FileBrowserPanelProps {
   chat: ChatTarget | null;
   onClose: () => void;
+  fullscreen?: boolean;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -663,7 +664,7 @@ function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelet
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
-export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProps) {
+export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: FileBrowserPanelProps) {
   const settings = useSettings();
   const { user } = useAuth();
   const confirmAsync = useConfirm();
@@ -1250,8 +1251,13 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
 
   return (
     <div
-      className="relative flex h-full w-full shrink-0 flex-col border-l border-surface-200 bg-surface-50 md:w-[var(--filebrowser-w)] dark:border-surface-700 dark:bg-surface-900"
-      style={{ '--filebrowser-w': `${panelWidth}px` } as CSSProperties}
+      className={clsx(
+        'relative flex h-full shrink-0 flex-col bg-surface-50 dark:bg-surface-900',
+        fullscreen
+          ? 'w-full flex-1'
+          : 'w-full border-l border-surface-200 md:w-[var(--filebrowser-w)] dark:border-surface-700',
+      )}
+      style={fullscreen ? undefined : ({ '--filebrowser-w': `${panelWidth}px` } as CSSProperties)}
       onDragOver={(e) => {
         e.preventDefault();
         // Only show drop overlay for external files, not internal drag
@@ -1326,11 +1332,13 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
         }
       }}
     >
-      {/* Resize handle (left edge) */}
-      <div
-        onMouseDown={onWidthMouseDown}
-        className="absolute left-0 top-0 z-20 h-full w-1 cursor-col-resize border-l border-surface-200 transition-colors hover:border-primary-400 hover:border-l-2 dark:border-surface-700 dark:hover:border-primary-600"
-      />
+      {/* Resize handle (left edge) — only in side-panel mode */}
+      {!fullscreen && (
+        <div
+          onMouseDown={onWidthMouseDown}
+          className="absolute left-0 top-0 z-20 h-full w-1 cursor-col-resize border-l border-surface-200 transition-colors hover:border-primary-400 hover:border-l-2 dark:border-surface-700 dark:hover:border-primary-600"
+        />
+      )}
 
       {/* External file drop overlay */}
       {dragOver && (
@@ -1345,15 +1353,20 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
       {/* Header */}
       <div className="shrink-0 border-b border-surface-200 dark:border-surface-700">
         <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+          {!fullscreen && (
+            <button
+              onClick={onClose}
+              aria-label="Zurück"
+              className="-ml-1 rounded-md p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 md:hidden"
+            >
+              <ArrowLeft size={20} />
+            </button>
+          )}
+          <h3 className="flex-1 text-sm font-semibold text-surface-900 dark:text-white">Dateiablage</h3>
           <button
             onClick={onClose}
-            aria-label="Zurück"
-            className="-ml-1 rounded-md p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 md:hidden"
+            className={clsx('rounded-md p-1.5 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700', fullscreen ? 'block' : 'hidden md:block')}
           >
-            <ArrowLeft size={20} />
-          </button>
-          <h3 className="flex-1 text-sm font-semibold text-surface-900 dark:text-white">Dateiablage</h3>
-          <button onClick={onClose} className="hidden rounded-md p-1.5 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700 md:block">
             <X size={16} />
           </button>
         </div>
