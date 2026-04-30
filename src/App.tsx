@@ -169,7 +169,7 @@ export default function App() {
   // Keyboard shortcuts (only when logged in)
   const hotkeys = useMemo(() => loggedIn ? [
     { key: 'k', mod: true, handler: (e: KeyboardEvent) => { e.preventDefault(); setQuickSwitcherOpen(true); } },
-    { key: ',', mod: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setSettingsOpen(true); } },
+    { key: '.', mod: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setSettingsOpen(true); } },
     { key: 'c', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setEventIdToOpen(null); setActiveView('calendar'); } },
     { key: 'b', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setActiveView('chat'); setBroadcastsOpen(true); } },
     { key: 'u', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setPollIdToOpen(null); setActiveView('polls'); } },
