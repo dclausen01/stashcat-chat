@@ -490,7 +490,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           onOpenFileBrowser={onOpenFileBrowser}
           onOpenSettings={onOpenSettings}
           onOpenProfile={onOpenProfile}
-          hasActiveChat={activeChat !== null}
           onGoHome={onGoHome}
         />
       </div>

@@ -15,7 +15,6 @@ interface SidebarHeaderProps {
   onOpenFileBrowser: () => void;
   onOpenSettings: () => void;
   onOpenProfile: () => void;
-  hasActiveChat?: boolean;
   onGoHome?: () => void;
 }
 
@@ -29,7 +28,6 @@ export default function SidebarHeader({
   onOpenFileBrowser,
   onOpenSettings,
   onOpenProfile,
-  hasActiveChat,
   onGoHome,
 }: SidebarHeaderProps) {
   const { user, logout } = useAuth();
