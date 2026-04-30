@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, type CSSProperties }
 import {
   X, Grid3x3, List, Upload, Folder, ChevronRight, Home,
   Trash2, Pencil, Check, Loader2, Send, ArrowUp, ArrowDown, Plus,
-  Square, HardDrive, Eye, Cloud, ExternalLink, ArrowLeft,
+  Square, HardDrive, Eye, Cloud, ExternalLink, ArrowLeft, AlertCircle,
 } from 'lucide-react';
 import { useFileSorting, type SortField, type SortDirection } from '../hooks/useFileSorting';
 import { FolderUploadProgress, type FolderUploadProgressData } from './FolderUploadProgress';
@@ -809,7 +809,11 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
     setNcProbing(true);
     api.ncProbeAndDetect()
       .then(setNcProbeStatus)
-      .catch(() => setNcProbeStatus({ configured: false, needsAppPassword: true }))
+      .catch((err: unknown) => setNcProbeStatus({
+        configured: false,
+        needsAppPassword: true,
+        error: err instanceof Error ? err.message : 'Nextcloud-Server nicht erreichbar.',
+      }))
       .finally(() => setNcProbing(false));
   }, [tab]);
 
@@ -1554,6 +1558,15 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
                   <Cloud size={18} className="text-teal-600 dark:text-teal-400" />
                   <h4 className="text-sm font-semibold text-teal-800 dark:text-teal-200">Nextcloud-Zugang einrichten</h4>
                 </div>
+                {ncProbeStatus?.error && (
+                  <div
+                    role="alert"
+                    className="mb-3 flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200"
+                  >
+                    <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                    <span>{ncProbeStatus.error}</span>
+                  </div>
+                )}
                 <p className="text-xs text-teal-700 dark:text-teal-300 mb-2">
                   Dein Nextcloud-Server nutzt ADFS-Anmeldung. Erstelle ein App-Passwort und trage es hier ein.
                 </p>
@@ -1594,14 +1607,20 @@ export default function FileBrowserPanel({ chat, onClose }: FileBrowserPanelProp
                       setNcSaving(true);
                       try {
                         api.ncSetCredentials(ncAppPwInput.trim(), ncUsernameInput.trim());
-                        setNcAppPwInput('');
-                        setNcUsernameInput('');
                         setNcProbing(true);
                         const status = await api.ncProbeAndDetect();
                         setNcProbeStatus(status);
-                        if (!status.needsAppPassword && status.configured) await loadFolder();
-                      } catch {
-                        setNcProbeStatus({ configured: false, needsAppPassword: true });
+                        if (!status.needsAppPassword && status.configured) {
+                          setNcAppPwInput('');
+                          setNcUsernameInput('');
+                          await loadFolder();
+                        }
+                      } catch (err) {
+                        setNcProbeStatus({
+                          configured: false,
+                          needsAppPassword: true,
+                          error: err instanceof Error ? err.message : 'Nextcloud-Server nicht erreichbar.',
+                        });
                       } finally {
                         setNcSaving(false);
                         setNcProbing(false);

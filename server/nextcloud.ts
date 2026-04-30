@@ -204,7 +204,13 @@ export async function ncQuota(creds: NCCredentials): Promise<NCQuota> {
 }
 
 /** Test credentials: returns true if PROPFIND on root succeeds. */
-export async function ncProbe(creds: NCCredentials): Promise<boolean> {
+export interface NCProbeResult {
+  ok: boolean;
+  status?: number;
+  error?: string;
+}
+
+export async function ncProbe(creds: NCCredentials): Promise<NCProbeResult> {
   try {
     const url = davUrl(creds, '/');
     const res = await fetch(url, {
@@ -216,9 +222,10 @@ export async function ncProbe(creds: NCCredentials): Promise<boolean> {
       },
       body: `<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>`,
     });
-    return res.status === 207 || res.ok;
-  } catch {
-    return false;
+    if (res.status === 207 || res.ok) return { ok: true, status: res.status };
+    return { ok: false, status: res.status };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 

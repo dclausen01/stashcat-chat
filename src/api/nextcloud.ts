@@ -105,6 +105,8 @@ export interface NCStatus {
   authMode?: 'ad' | 'app-password';
   username?: string;
   needsAppPassword?: boolean;
+  /** Human-readable German diagnostic when probe fails (auth/network/etc.) */
+  error?: string;
 }
 
 // ── API functions ─────────────────────────────────────────────────────────────

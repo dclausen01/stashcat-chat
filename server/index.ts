@@ -3103,16 +3103,32 @@ app.get('/api/nextcloud/probe', async (req, res) => {
     if (!creds) {
       return res.json({ configured: false, needsAppPassword: true });
     }
-    const ok = await ncProbe(creds);
-    if (ok) {
+    const probe = await ncProbe(creds);
+    if (probe.ok) {
       res.json({ configured: true, authMode: creds ? 'ad' : 'app-password', username: creds.username });
     } else {
-      res.json({ configured: false, needsAppPassword: true });
+      res.json({
+        configured: false,
+        needsAppPassword: true,
+        error: probeErrorMessage(probe.status, probe.error),
+      });
     }
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }
 });
+
+/** Map a probe failure (HTTP status / network error) to a German user message. */
+function probeErrorMessage(status?: number, networkError?: string): string {
+  if (!status) {
+    return `Nextcloud-Server nicht erreichbar${networkError ? ` (${networkError})` : ''}.`;
+  }
+  if (status === 401) return 'Falsches App-Passwort oder Lehrerkürzel.';
+  if (status === 403) return 'Zugriff verweigert. Hat dein Konto WebDAV-Zugriff?';
+  if (status === 404) return 'Benutzer nicht gefunden — ist das Lehrerkürzel korrekt?';
+  if (status >= 500) return `Nextcloud-Server meldet einen Fehler (HTTP ${status}). Bitte später erneut versuchen.`;
+  return `Verbindung fehlgeschlagen (HTTP ${status}).`;
+}
 
 /** GET /api/nextcloud/folder?path=... — list folder contents. */
 app.get('/api/nextcloud/folder', async (req, res) => {
