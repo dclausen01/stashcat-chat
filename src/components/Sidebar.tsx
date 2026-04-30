@@ -43,9 +43,10 @@ interface SidebarProps {
   onRegisterRefresh?: (refresh: () => void) => void;
   onRegisterToggleFavorite?: (toggle: (target: ChatTarget) => void) => void;
   onGoHome?: () => void;
+  onUnreadChange?: (total: number, unreadChannels: ChatTarget[], unreadConversations: ChatTarget[]) => void;
 }
 
-export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, onOpenSettings, onOpenProfile, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen, onChannelsLoaded, onConversationsLoaded, onRegisterRefresh, onRegisterToggleFavorite, onGoHome }: SidebarProps) {
+export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, onOpenSettings, onOpenProfile, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen, onChannelsLoaded, onConversationsLoaded, onRegisterRefresh, onRegisterToggleFavorite, onGoHome, onUnreadChange }: SidebarProps) {
   const { user } = useAuth();
   const { notify } = useNotifications();
   const [channels, setChannels] = useState<ChatTarget[]>([]);
@@ -436,6 +437,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
   useEffect(() => {
     document.title = totalUnread > 0 ? `(${totalUnread}) BBZ Chat` : 'BBZ Chat';
+    onUnreadChange?.(totalUnread, unreadChannels, unreadConversations);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalUnread]);
 
   useFaviconBadge(totalUnread);
@@ -475,19 +478,22 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         className="absolute right-0 top-0 z-20 hidden h-full w-1 cursor-col-resize border-r border-surface-200 transition-colors hover:border-primary-400 hover:border-r-2 dark:border-surface-700 dark:hover:border-primary-600 md:block"
         title="Breite anpassen"
       />
-      <SidebarHeader
-        totalUnread={totalUnread}
-        unreadChannels={unreadChannels}
-        unreadConversations={unreadConversations}
-        onSelectChat={handleSelect}
-        notificationsOpen={notificationsOpen}
-        onOpenNotifications={onOpenNotifications}
-        onOpenFileBrowser={onOpenFileBrowser}
-        onOpenSettings={onOpenSettings}
-        onOpenProfile={onOpenProfile}
-        hasActiveChat={activeChat !== null}
-        onGoHome={onGoHome}
-      />
+      {/* SidebarHeader — mobile only; desktop uses TopBar */}
+      <div className="md:hidden">
+        <SidebarHeader
+          totalUnread={totalUnread}
+          unreadChannels={unreadChannels}
+          unreadConversations={unreadConversations}
+          onSelectChat={handleSelect}
+          notificationsOpen={notificationsOpen}
+          onOpenNotifications={onOpenNotifications}
+          onOpenFileBrowser={onOpenFileBrowser}
+          onOpenSettings={onOpenSettings}
+          onOpenProfile={onOpenProfile}
+          hasActiveChat={activeChat !== null}
+          onGoHome={onGoHome}
+        />
+      </div>
 
       {/* Search */}
       <div className="shrink-0 p-3">
@@ -592,14 +598,17 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         </div>
       </div>
 
-      <SidebarFooter
-        broadcastsOpen={broadcastsOpen}
-        calendarOpen={calendarOpen}
-        pollsOpen={pollsOpen}
-        onOpenBroadcasts={onOpenBroadcasts}
-        onOpenCalendar={onOpenCalendar}
-        onOpenPolls={onOpenPolls}
-      />
+      {/* SidebarFooter — mobile only; desktop uses TopBar */}
+      <div className="md:hidden">
+        <SidebarFooter
+          broadcastsOpen={broadcastsOpen}
+          calendarOpen={calendarOpen}
+          pollsOpen={pollsOpen}
+          onOpenBroadcasts={onOpenBroadcasts}
+          onOpenCalendar={onOpenCalendar}
+          onOpenPolls={onOpenPolls}
+        />
+      </div>
 
       {/* New channel modal */}
       {showNewChannel && primaryCompanyId && (
