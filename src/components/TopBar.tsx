@@ -31,7 +31,7 @@ interface TopBarProps {
 
 function iconBtn(active: boolean) {
   return clsx(
-    'flex h-8 w-8 items-center justify-center rounded-lg transition',
+    'flex h-9 w-9 items-center justify-center rounded-lg transition',
     active
       ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
       : 'text-surface-500 hover:bg-surface-200 hover:text-surface-700 dark:text-surface-400 dark:hover:bg-surface-700 dark:hover:text-surface-200',
@@ -83,7 +83,7 @@ export default function TopBar({
           title="Zur Startseite"
           aria-label="Zur Startseite"
         >
-          <Home size={16} />
+          <Home size={20} />
         </button>
 
         {/* Notification bell with unread badge + hover popup */}
@@ -94,7 +94,7 @@ export default function TopBar({
             title="Benachrichtigungen"
             aria-label="Benachrichtigungen"
           >
-            <Bell size={16} />
+            <Bell size={20} />
             {hasUnread && (
               <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
                 {totalUnread > 99 ? '99+' : totalUnread}
@@ -169,7 +169,7 @@ export default function TopBar({
           title="Dateiablage"
           aria-label="Dateiablage"
         >
-          <FolderOpen size={16} />
+          <FolderOpen size={20} />
         </button>
 
         {/* Broadcasts */}
@@ -179,7 +179,7 @@ export default function TopBar({
           title="Broadcasts"
           aria-label="Broadcasts"
         >
-          <Radio size={16} />
+          <Radio size={20} />
         </button>
 
         {/* Calendar */}
@@ -189,7 +189,7 @@ export default function TopBar({
           title="Kalender"
           aria-label="Kalender"
         >
-          <CalendarDays size={16} />
+          <CalendarDays size={20} />
         </button>
 
         {/* Polls */}
@@ -199,7 +199,7 @@ export default function TopBar({
           title="Umfragen"
           aria-label="Umfragen"
         >
-          <BarChart3 size={16} />
+          <BarChart3 size={20} />
         </button>
       </div>
 
@@ -219,7 +219,7 @@ export default function TopBar({
             aria-haspopup="true"
             aria-expanded={menuOpen}
           >
-            <MoreVertical size={16} />
+            <MoreVertical size={20} />
           </button>
 
           {menuOpen && (
