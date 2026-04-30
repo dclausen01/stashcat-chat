@@ -1381,14 +1381,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             }}
             disabled={meetingLoading}
             className={clsx(
-              'rounded-lg p-2 transition',
+              'rounded-lg p-1.5 transition',
               meetingLoading
                 ? 'animate-pulse text-primary-500'
                 : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
             )}
             title="Videokonferenz starten"
           >
-            {meetingLoading ? <Loader2 size={22} className="animate-spin" /> : <TvMinimalPlay size={22} />}
+            {meetingLoading ? <Loader2 size={26} className="animate-spin" /> : <TvMinimalPlay size={26} />}
           </button>
           {/* Audio call button — only for 1:1 conversations */}
           {chat.type === 'conversation' && chat.userId && onStartCall && (
@@ -1402,10 +1402,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 };
                 onStartCall(chat.userId!, chat.id, callee);
               }}
-              className="rounded-lg p-2 text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800"
+              className="rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800"
               title="Audioanruf starten"
             >
-              <Phone size={22} />
+              <Phone size={26} />
             </button>
           )}
           {/* Service link buttons */}
@@ -1449,14 +1449,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             <button
               onClick={() => setMembersOpen((o) => !o)}
               className={clsx(
-                'rounded-lg p-2 transition',
+                'rounded-lg p-1.5 transition',
                 membersOpen
                   ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
                   : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
               )}
               title="Mitglieder"
             >
-              <Users size={22} />
+              <Users size={26} />
             </button>
           )}
         </div>
@@ -1465,42 +1465,42 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         <button
           onClick={onToggleFileBrowser}
           className={clsx(
-            'hidden rounded-lg p-2 transition md:inline-flex',
+            'hidden rounded-lg p-1.5 transition md:inline-flex',
             fileBrowserOpen
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
               : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
           )}
           title="Dateiablage"
         >
-          <FolderOpen size={22} />
+          <FolderOpen size={26} />
         </button>
         {/* Desktop-only: Flagged */}
         {onToggleFlagged && (
           <button
             onClick={onToggleFlagged}
             className={clsx(
-              'hidden rounded-lg p-2 transition md:inline-flex',
+              'hidden rounded-lg p-1.5 transition md:inline-flex',
               flaggedOpen
                 ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
                 : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
             )}
             title="Markierte Nachrichten"
           >
-            <Bookmark size={22} />
+            <Bookmark size={26} />
           </button>
         )}
         {/* Desktop-only: Search */}
         <button
           onClick={() => setSearchOpen((o) => !o)}
           className={clsx(
-            'hidden rounded-lg p-2 transition md:inline-flex',
+            'hidden rounded-lg p-1.5 transition md:inline-flex',
             searchOpen
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
               : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
           )}
           title="Suche (Ctrl+F)"
         >
-          <Search size={22} />
+          <Search size={26} />
         </button>
 
         {/* Mobile: More menu dropdown — opens from the title button */}
