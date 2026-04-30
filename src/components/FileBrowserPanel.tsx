@@ -1403,7 +1403,7 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
           <button
             onClick={() => handleTabChange('nextcloud')}
             className={clsx(
-              'flex items-center gap-1 border-b-2 px-3 py-2 text-xs font-medium transition-colors',
+              'flex flex-1 items-center justify-center gap-1 border-b-2 px-3 py-2 text-xs font-medium transition-colors',
               tab === 'nextcloud'
                 ? 'border-teal-600 text-teal-600 dark:border-teal-400 dark:text-teal-400'
                 : 'border-transparent text-surface-500 hover:text-surface-700 dark:hover:text-surface-400',
