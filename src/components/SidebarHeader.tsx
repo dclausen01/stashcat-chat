@@ -59,7 +59,7 @@ export default function SidebarHeader({
       </div>
       {/* Row 2: Action buttons */}
       <div className="mt-1.5 flex items-center justify-between px-1">
-        <div className="group/bell relative">
+        <div className="group/bell relative after:absolute after:inset-x-0 after:top-full after:h-2 after:content-['']">
           <button
             onClick={onOpenNotifications}
             className={clsx(
@@ -79,13 +79,16 @@ export default function SidebarHeader({
             )}
           </button>
 
-          {/* Hover popup — desktop only, only when there are unread messages */}
+          {/* Hover popup — desktop only, only when there are unread messages.
+              No mt gap: popup starts at top-full so group-hover stays active
+              when the mouse moves from button into the popup. Visual spacing
+              comes from pt-2 on the inner header. */}
           {hasAnyUnreadList && (
             <div
-              className="invisible absolute left-0 top-full z-50 mt-1 hidden w-72 rounded-lg border border-surface-200 bg-white opacity-0 shadow-xl transition-opacity duration-150 group-hover/bell:visible group-hover/bell:opacity-100 dark:border-surface-700 dark:bg-surface-800 md:block"
+              className="invisible absolute left-0 top-full z-50 hidden w-72 rounded-lg border border-surface-200 bg-white opacity-0 shadow-xl transition-opacity duration-150 group-hover/bell:visible group-hover/bell:opacity-100 dark:border-surface-700 dark:bg-surface-800 md:block"
               role="menu"
             >
-              <div className="border-b border-surface-200 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-surface-600 dark:border-surface-700 dark:text-surface-300">
+              <div className="border-b border-surface-200 px-3 pb-2 pt-2 text-xs font-semibold uppercase tracking-wider text-surface-600 dark:border-surface-700 dark:text-surface-300">
                 Neue Nachrichten
               </div>
               <div className="max-h-80 overflow-y-auto py-1">
