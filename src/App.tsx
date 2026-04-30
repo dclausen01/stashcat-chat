@@ -138,6 +138,7 @@ export default function App() {
   const handleGoHome = () => {
     closeAllPanels();
     setActiveChat(null);
+    setActiveView('chat');
   };
 
   const handleChannelsLoaded = useCallback((loadedChannels: ChatTarget[]) => {
