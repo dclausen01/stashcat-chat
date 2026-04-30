@@ -197,10 +197,9 @@ export default function App() {
         setFocusSearchKey((k) => k + 1);
         return;
       }
-      // Ctrl+Alt+F / Cmd+Option+F → focus sidebar search (works everywhere)
-      const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-      const modKey = isMac ? e.metaKey : e.ctrlKey;
-      if (modKey && e.altKey && e.key.toLowerCase() === 'f') {
+      // Alt/Option+F → focus sidebar search (Option+F → 'ƒ' on macOS, use e.code fallback)
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
+          (e.key.toLowerCase() === 'f' || e.code === 'KeyF')) {
         e.preventDefault();
         e.stopPropagation();
         setFocusSearchKey((k) => k + 1);
