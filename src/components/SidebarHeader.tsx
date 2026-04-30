@@ -1,4 +1,4 @@
-import { LogOut, Sun, Moon, FolderOpen, Bell, Settings, Hash, Mail } from 'lucide-react';
+import { LogOut, Sun, Moon, FolderOpen, Bell, Settings, Hash, Mail, Home } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -15,6 +15,8 @@ interface SidebarHeaderProps {
   onOpenFileBrowser: () => void;
   onOpenSettings: () => void;
   onOpenProfile: () => void;
+  hasActiveChat?: boolean;
+  onGoHome?: () => void;
 }
 
 export default function SidebarHeader({
@@ -27,6 +29,8 @@ export default function SidebarHeader({
   onOpenFileBrowser,
   onOpenSettings,
   onOpenProfile,
+  hasActiveChat,
+  onGoHome,
 }: SidebarHeaderProps) {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
@@ -59,6 +63,17 @@ export default function SidebarHeader({
       </div>
       {/* Row 2: Action buttons */}
       <div className="mt-1.5 flex items-center justify-between px-1">
+        {/* Home button — desktop only, visible when a chat is open */}
+        {hasActiveChat && onGoHome && (
+          <button
+            onClick={onGoHome}
+            className="hidden rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700 lg:block"
+            title="Zur Startseite"
+            aria-label="Zur Startseite"
+          >
+            <Home size={16} />
+          </button>
+        )}
         <div className="group/bell relative">
           <button
             onClick={onOpenNotifications}

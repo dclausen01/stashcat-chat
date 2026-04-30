@@ -197,6 +197,7 @@ export default function App() {
           onConversationsLoaded={handleConversationsLoaded}
           onRegisterRefresh={(fn) => { refreshSidebarRef.current = fn; }}
           onRegisterToggleFavorite={(fn) => { toggleFavoriteRef.current = fn; }}
+          onGoHome={handleGoHome}
         />
       </div>
 

@@ -42,9 +42,10 @@ interface SidebarProps {
   onConversationsLoaded?: (conversations: ChatTarget[]) => void;
   onRegisterRefresh?: (refresh: () => void) => void;
   onRegisterToggleFavorite?: (toggle: (target: ChatTarget) => void) => void;
+  onGoHome?: () => void;
 }
 
-export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, onOpenSettings, onOpenProfile, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen, onChannelsLoaded, onConversationsLoaded, onRegisterRefresh, onRegisterToggleFavorite }: SidebarProps) {
+export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, onOpenSettings, onOpenProfile, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen, onChannelsLoaded, onConversationsLoaded, onRegisterRefresh, onRegisterToggleFavorite, onGoHome }: SidebarProps) {
   const { user } = useAuth();
   const { notify } = useNotifications();
   const [channels, setChannels] = useState<ChatTarget[]>([]);
@@ -484,6 +485,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         onOpenFileBrowser={onOpenFileBrowser}
         onOpenSettings={onOpenSettings}
         onOpenProfile={onOpenProfile}
+        hasActiveChat={activeChat !== null}
+        onGoHome={onGoHome}
       />
 
       {/* Search */}

@@ -1209,7 +1209,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         {/* Mobile: Back button */}
         <button
           onClick={onGoHome}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-700 md:hidden"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-700 lg:hidden"
           aria-label="Zurück zur Übersicht"
         >
           <ArrowLeft size={20} />
