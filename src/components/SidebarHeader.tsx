@@ -69,7 +69,7 @@ export default function SidebarHeader({
             title="Zur Startseite"
             aria-label="Zur Startseite"
           >
-            <Home size={20} />
+            <Home size={22} />
           </button>
         )}
         <div className="group/bell relative">
@@ -84,7 +84,7 @@ export default function SidebarHeader({
             title="Benachrichtigungen"
             aria-label="Benachrichtigungen"
           >
-            <Bell size={20} />
+            <Bell size={22} />
             {hasUnread && (
               <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
                 {totalUnread > 99 ? '99+' : totalUnread}
@@ -157,10 +157,10 @@ export default function SidebarHeader({
           title="Meine Dateien"
           aria-label="Meine Dateien"
         >
-          <FolderOpen size={20} />
+          <FolderOpen size={22} />
         </button>
         <button onClick={toggle} aria-label={theme === 'dark' ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren'} title={theme === 'dark' ? 'Helles Design' : 'Dunkles Design'} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
-          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+          {theme === 'dark' ? <Sun size={22} /> : <Moon size={22} />}
         </button>
         <button
           onClick={onOpenSettings}
@@ -168,10 +168,10 @@ export default function SidebarHeader({
           title="Einstellungen"
           aria-label="Einstellungen"
         >
-          <Settings size={20} />
+          <Settings size={22} />
         </button>
         <button onClick={logout} aria-label="Abmelden" title="Abmelden" className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
-          <LogOut size={20} />
+          <LogOut size={22} />
         </button>
       </div>
     </div>
