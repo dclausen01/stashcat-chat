@@ -178,11 +178,13 @@ export default function App() {
   ] : [], [loggedIn, closeAllPanels]);
   useHotkeys(hotkeys, loggedIn);
 
-  // Strg+Alt+F — sidebar search focus (outside useHotkeys since that hook doesn't support ctrl)
+  // Strg+Alt+F / ⌘+Option+F — sidebar search focus (outside useHotkeys since that hook doesn't support ctrl)
   useEffect(() => {
     if (!loggedIn) return;
     const handler = (e: KeyboardEvent) => {
-      if (!e.ctrlKey || !e.altKey || e.key.toLowerCase() !== 'f') return;
+      const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+      const modKey = isMac ? e.metaKey : e.ctrlKey;
+      if (!modKey || !e.altKey || e.key.toLowerCase() !== 'f') return;
       if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
       e.preventDefault();
       setFocusSearchKey(k => k + 1);

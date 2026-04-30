@@ -8,9 +8,10 @@ interface ShortcutsModalProps {
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const MOD = isMac ? '⌘' : 'Strg';
+const MOD_ALT_F = isMac ? ['⌘', 'Option', 'F'] : ['Strg', 'Alt', 'F'];
 
 const SHORTCUTS: { keys: string[]; label: string }[] = [
-  { keys: ['Strg', 'Alt', 'F'], label: 'Sidebar-Suche fokussieren' },
+  { keys: MOD_ALT_F, label: 'Sidebar-Suche fokussieren' },
   { keys: [MOD, 'K'], label: 'Schnell zwischen Chats wechseln' },
   { keys: [MOD, ','], label: 'Einstellungen öffnen' },
   { keys: ['Strg', '␣'], label: 'Emoji-Picker öffnen / schließen' },
