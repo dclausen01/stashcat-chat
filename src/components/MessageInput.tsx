@@ -175,7 +175,9 @@ export default function MessageInput({
             const blob = item.getAsFile();
             if (blob) {
               const ext = item.type.split('/')[1] || 'png';
-              setPendingFiles([new File([blob], `Eingefügtes Bild.${ext}`, { type: item.type })]);
+              const now = new Date();
+              const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+              setPendingFiles([new File([blob], `Bild_${ts}.${ext}`, { type: item.type })]);
             }
             return true;
           }
