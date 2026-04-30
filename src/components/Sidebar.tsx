@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, useCallback, type CSSProperties } from 'react';
 import { Hash, Search, Users, GripHorizontal, Plus, X } from 'lucide-react';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -55,8 +55,10 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   const [search, setSearch] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useLayoutEffect(() => { searchRef.current?.focus(); }, [triggerFocusKey]);
+  useEffect(() => {
+    if (triggerFocusKey === 0) return; // skip initial mount, only focus on explicit trigger
+    searchRef.current?.focus();
+  }, [triggerFocusKey]);
 
   const [showNewChannel, setShowNewChannel] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
@@ -509,6 +511,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Escape') { setSearch(''); searchRef.current?.blur(); } }}
             placeholder="Suchen..."
             className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-500 dark:text-white"
           />

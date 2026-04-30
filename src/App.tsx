@@ -193,6 +193,19 @@ export default function App() {
     return () => document.removeEventListener('keydown', handler);
   }, [loggedIn]);
 
+  // Esc — close any open panel (Esc in individual modals is handled by useEscapeKey there)
+  const anyPanelOpenRef = useRef(false);
+  anyPanelOpenRef.current = settingsOpen || fileBrowserOpen || broadcastsOpen || notificationsOpen || profileOpen || flaggedOpen;
+  useEffect(() => {
+    if (!loggedIn) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (anyPanelOpenRef.current) closeAllPanels();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [loggedIn, closeAllPanels]);
+
   // On mobile: when nothing else is open, the Sidebar is the home screen (fullscreen).
   // When activeChat or any panel/view is open, the Sidebar is hidden and that takes over.
   // On desktop: Sidebar is always visible (md:flex).
