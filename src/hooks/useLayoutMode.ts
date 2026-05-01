@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 
-export type LayoutMode = 'mobile' | 'desktop';
+export type LayoutMode = 'mobile' | 'tablet' | 'desktop';
 
 const isElectron = typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron');
 
 function detectMode(): LayoutMode {
   if (isElectron) return 'desktop';
   const portrait = window.matchMedia('(orientation: portrait)').matches;
-  // Portrait on screens narrower than 1200px → mobile layout (covers all tablet portrait sizes)
-  const isTablet = window.innerWidth < 1200;
-  return portrait && isTablet ? 'mobile' : 'desktop';
+  const width = window.innerWidth;
+  if (!portrait || width >= 1200) return 'desktop';
+  if (width >= 768) return 'tablet'; // portrait tablet — desktop layout, mobile chat-header
+  return 'mobile';
 }
 
 export function useLayoutMode(): LayoutMode {
