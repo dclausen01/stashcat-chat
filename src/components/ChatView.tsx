@@ -1465,7 +1465,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         <button
           onClick={onToggleFileBrowser}
           className={clsx(
-            'hidden rounded-lg p-2 transition md:inline-flex',
+            'hidden rounded-lg p-2 transition md:inline-flex portrait-tablet:!hidden',
             fileBrowserOpen
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
               : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
@@ -1479,7 +1479,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           <button
             onClick={onToggleFlagged}
             className={clsx(
-              'hidden rounded-lg p-2 transition md:inline-flex',
+              'hidden rounded-lg p-2 transition md:inline-flex portrait-tablet:!hidden',
               flaggedOpen
                 ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
                 : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
@@ -1493,7 +1493,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         <button
           onClick={() => setSearchOpen((o) => !o)}
           className={clsx(
-            'hidden rounded-lg p-2 transition md:inline-flex',
+            'hidden rounded-lg p-2 transition md:inline-flex portrait-tablet:!hidden',
             searchOpen
               ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
               : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
@@ -1503,10 +1503,25 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           <Search size={22} />
         </button>
 
+        {/* Portrait-tablet: explicit three-dots button opening the mobile overflow menu */}
+        <button
+          onClick={() => setMobileMenuOpen((v) => !v)}
+          className={clsx(
+            'hidden rounded-lg p-2 transition portrait-tablet:!flex',
+            mobileMenuOpen
+              ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+              : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
+          )}
+          title="Menü"
+          aria-label="Weitere Aktionen"
+        >
+          <MoreHorizontal size={22} />
+        </button>
+
         {/* Mobile: More menu dropdown — opens from the title button */}
         {mobileMenuOpen && (
           <>
-            <div className="pointer-events-none fixed inset-0 z-40 bg-black/50 md:hidden portrait-tablet:!block" onClick={() => { setMobileMenuOpen(false); setMuteMenuOpen(false); }} />
+            <div className="pointer-events-none fixed inset-0 z-40 bg-black/50 md:hidden portrait-tablet:!block portrait-tablet:!pointer-events-auto" onClick={() => { setMobileMenuOpen(false); setMuteMenuOpen(false); }} />
             <div className="pointer-events-auto fixed left-4 right-4 top-20 z-50 mx-auto w-full max-w-sm rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 md:hidden portrait-tablet:!block">
               {/* Favorite toggle */}
               {onToggleFavorite && (
