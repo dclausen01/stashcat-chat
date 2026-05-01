@@ -2474,7 +2474,7 @@ function MessageGroup({
                 </div>
                 {/* Mobile-only ⋯ button — toggles action panel */}
                 <button
-                  className="relative z-10 flex shrink-0 items-center justify-center rounded-full p-2 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 md:hidden"
+                  className="relative z-10 flex shrink-0 items-center justify-center rounded-full p-2 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 md:hidden portrait-tablet:!flex"
                   onClick={() => setMobileActionMsgId(mobileActionMsgId === String(msg.id) ? null : String(msg.id))}
                   aria-label="Nachrichtenaktionen"
                 >
