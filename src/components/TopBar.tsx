@@ -71,7 +71,7 @@ export default function TopBar({
   }, [menuOpen]);
 
   return (
-    <div className="hidden md:flex shrink-0 items-center gap-1 border-b border-surface-200 bg-[var(--theme-panel)] px-3 py-1.5 dark:border-surface-700 portrait-tablet:!hidden">
+    <div className="hidden md:flex shrink-0 items-center gap-1 border-b border-surface-200 bg-[var(--theme-panel)] px-3 py-1.5 dark:border-surface-700">
 
       {/* Left group: navigation buttons */}
       <div className="flex items-center gap-0.5">

@@ -258,7 +258,7 @@ export default function App() {
       {/* Bottom area: Sidebar + Main content (flex-row) */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar: fullscreen home on mobile when nothing else is open; always visible on desktop */}
-        <div className={`shrink-0 ${isMobile ? (nothingElseOpen ? 'flex w-full' : 'hidden') : 'flex md:w-auto'}`}>
+        <div className={`shrink-0 ${nothingElseOpen ? 'flex w-full' : 'hidden'} md:flex md:w-auto`}>
           <Sidebar
             activeChat={activeChat}
             onSelectChat={handleSelectChat}
@@ -285,7 +285,7 @@ export default function App() {
         </div>
 
         {/* Main content — hidden on mobile when sidebar is fullscreen home */}
-        <div className={`flex-1 overflow-hidden ${isMobile && nothingElseOpen ? 'hidden' : 'flex'}`}>
+        <div className={`flex flex-1 overflow-hidden ${nothingElseOpen ? 'hidden' : 'flex'} md:flex`}>
           {activeView === 'calendar' ? (
             <CalendarView eventIdToOpen={eventIdToOpen} onEventOpened={() => setEventIdToOpen(null)} onClose={() => setActiveView('chat')} />
           ) : activeView === 'polls' ? (
@@ -322,20 +322,20 @@ export default function App() {
                   />
                 : homeView === 'cards'
                   // FavoriteCardsView is hidden on mobile — Sidebar is the mobile home screen.
-                  ? <div className={`${isMobile ? 'hidden' : 'flex'} flex-1`}><FavoriteCardsView channels={channels} conversations={conversations} onSelectChat={handleSelectChat} /></div>
-                  : <div className={`${isMobile ? 'hidden' : 'flex'} flex-1`}><EmptyState /></div>}
+                  ? <div className="hidden flex-1 md:flex"><FavoriteCardsView channels={channels} conversations={conversations} onSelectChat={handleSelectChat} /></div>
+                  : <div className="hidden flex-1 md:flex"><EmptyState /></div>}
               {fileBrowserOpen && !fileBrowserStandalone && (
-                <div className={`flex ${isMobile ? 'fixed inset-0 z-40' : 'relative'}`}>
+                <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
                   <FileBrowserPanel chat={activeChat} onClose={() => setFileBrowserOpen(false)} />
                 </div>
               )}
               {broadcastsOpen && (
-                <div className={`flex ${isMobile ? 'fixed inset-0 z-40' : 'relative'}`}>
+                <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
                   <BroadcastsPanel onClose={() => setBroadcastsOpen(false)} />
                 </div>
               )}
               {flaggedOpen && (
-                <div className={`flex ${isMobile ? 'fixed inset-0 z-40' : 'relative'}`}>
+                <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
                   <FlaggedMessagesPanel
                     chat={activeChat}
                     onClose={() => setFlaggedOpen(false)}
@@ -345,19 +345,19 @@ export default function App() {
                 </div>
               )}
               {notificationsOpen && (
-                <div className={`flex ${isMobile ? 'fixed inset-0 z-40' : 'relative'}`}>
+                <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
                   <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} onOpenPoll={openPoll} onOpenCalendar={openCalendar} onOpenEvent={openEvent} onChannelJoined={() => refreshSidebarRef.current?.()} />
                 </div>
               )}
             </>
           )}
           {settingsOpen && (
-            <div className={`flex ${isMobile ? 'fixed inset-0 z-50' : 'relative'}`}>
+            <div className="fixed inset-0 z-50 flex md:relative md:inset-auto md:z-auto">
               <SettingsPanel onClose={() => setSettingsOpen(false)} />
             </div>
           )}
           {profileOpen && (
-            <div className={`fixed inset-0 z-50 flex ${!isMobile ? 'items-center justify-center bg-black/50' : ''}`}>
+            <div className="fixed inset-0 z-50 flex md:items-center md:justify-center md:bg-black/50">
               <ProfileModal onClose={() => setProfileOpen(false)} />
             </div>
           )}
