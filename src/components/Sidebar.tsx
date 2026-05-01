@@ -490,11 +490,11 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       {/* Horizontal resize handle — desktop only */}
       <div
         onMouseDown={onWidthMouseDown}
-        className="absolute right-0 top-0 z-20 hidden h-full w-1 cursor-col-resize border-r border-surface-200 transition-colors hover:border-primary-400 hover:border-r-2 dark:border-surface-700 dark:hover:border-primary-600 md:block"
+        className="absolute right-0 top-0 z-20 hidden h-full w-1 cursor-col-resize border-r border-surface-200 transition-colors hover:border-primary-400 hover:border-r-2 dark:border-surface-700 dark:hover:border-primary-600 md:block portrait-tablet:!hidden"
         title="Breite anpassen"
       />
       {/* SidebarHeader — mobile only; desktop uses TopBar */}
-      <div className="md:hidden">
+      <div className="md:hidden portrait-tablet:!block">
         <SidebarHeader
           totalUnread={totalUnread}
           unreadChannels={unreadChannels}
@@ -576,7 +576,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
         {/* Drag handle — desktop only */}
         <div
           onMouseDown={onMouseDown}
-          className="group hidden cursor-row-resize items-center justify-center border-y border-surface-200 py-0.5 hover:bg-surface-200 dark:border-surface-700 dark:hover:bg-surface-800 md:flex"
+          className="group hidden cursor-row-resize items-center justify-center border-y border-surface-200 py-0.5 hover:bg-surface-200 dark:border-surface-700 dark:hover:bg-surface-800 md:flex portrait-tablet:!hidden"
         >
           <GripHorizontal size={16} className="text-surface-300 group-hover:text-surface-500 dark:text-surface-400 dark:group-hover:text-surface-500" />
         </div>
@@ -615,7 +615,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       </div>
 
       {/* SidebarFooter — mobile only; desktop uses TopBar */}
-      <div className="md:hidden">
+      <div className="md:hidden portrait-tablet:!block">
         <SidebarFooter
           broadcastsOpen={broadcastsOpen}
           calendarOpen={calendarOpen}
