@@ -31,7 +31,8 @@ export default function App() {
   const { homeView } = useSettings();
   const { activeCall, startCall, acceptCall, rejectCall, hangUp, isMuted, toggleMute } = useCallManager(loggedIn);
   const layoutMode = useLayoutMode();
-  const isMobile = layoutMode === 'mobile';
+  const isMobilePhone = layoutMode === 'mobile';
+  const isPortraitTablet = layoutMode === 'tablet';
   const [activeChat, setActiveChat] = useState<ChatTarget | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [fileBrowserOpen, setFileBrowserOpen] = useState(false);
@@ -184,8 +185,8 @@ export default function App() {
   // can't swallow the events before us. INPUT/TEXTAREA are still respected,
   // but contenteditable (chat editor) is intentionally bypassed so `/` works.
   useEffect(() => {
-    document.documentElement.classList.toggle('tablet-portrait', isMobile);
-  }, [isMobile]);
+    document.documentElement.classList.toggle('tablet-portrait', isPortraitTablet);
+  }, [isPortraitTablet]);
 
   const anyPanelOpenRef = useRef(false);
   anyPanelOpenRef.current = settingsOpen || fileBrowserOpen || broadcastsOpen || notificationsOpen || profileOpen || flaggedOpen;
@@ -258,7 +259,7 @@ export default function App() {
       {/* Bottom area: Sidebar + Main content (flex-row) */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar: fullscreen home on mobile when nothing else is open; always visible on desktop */}
-        <div className={`shrink-0 ${nothingElseOpen ? 'flex w-full' : 'hidden'} md:flex md:w-auto`}>
+        <div className={`shrink-0 ${isMobilePhone ? (nothingElseOpen ? 'flex w-full' : 'hidden') : 'flex'}`}>
           <Sidebar
             activeChat={activeChat}
             onSelectChat={handleSelectChat}
@@ -285,7 +286,7 @@ export default function App() {
         </div>
 
         {/* Main content — hidden on mobile when sidebar is fullscreen home */}
-        <div className={`flex flex-1 overflow-hidden ${nothingElseOpen ? 'hidden' : 'flex'} md:flex`}>
+        <div className={`flex-1 overflow-hidden ${isMobilePhone && nothingElseOpen ? 'hidden' : 'flex'}`}>
           {activeView === 'calendar' ? (
             <CalendarView eventIdToOpen={eventIdToOpen} onEventOpened={() => setEventIdToOpen(null)} onClose={() => setActiveView('chat')} />
           ) : activeView === 'polls' ? (
@@ -321,21 +322,21 @@ export default function App() {
                     onToggleFavorite={handleToggleFavoriteFromChatView}
                   />
                 : homeView === 'cards'
-                  // FavoriteCardsView is hidden on mobile — Sidebar is the mobile home screen.
-                  ? <div className="hidden flex-1 md:flex"><FavoriteCardsView channels={channels} conversations={conversations} onSelectChat={handleSelectChat} /></div>
-                  : <div className="hidden flex-1 md:flex"><EmptyState /></div>}
+                  // FavoriteCardsView is hidden on mobile phones — Sidebar is the mobile home screen.
+                  ? <div className={`flex-1 ${isMobilePhone ? 'hidden' : 'flex'}`}><FavoriteCardsView channels={channels} conversations={conversations} onSelectChat={handleSelectChat} /></div>
+                  : <div className={`flex-1 ${isMobilePhone ? 'hidden' : 'flex'}`}><EmptyState /></div>}
               {fileBrowserOpen && !fileBrowserStandalone && (
-                <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
+                <div className={isMobilePhone ? 'fixed inset-0 z-40 flex' : isPortraitTablet ? 'fixed right-0 inset-y-0 z-40 flex' : 'relative flex'}>
                   <FileBrowserPanel chat={activeChat} onClose={() => setFileBrowserOpen(false)} />
                 </div>
               )}
               {broadcastsOpen && (
-                <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
+                <div className={isMobilePhone ? 'fixed inset-0 z-40 flex' : isPortraitTablet ? 'fixed right-0 inset-y-0 z-40 flex' : 'relative flex'}>
                   <BroadcastsPanel onClose={() => setBroadcastsOpen(false)} />
                 </div>
               )}
               {flaggedOpen && (
-                <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
+                <div className={isMobilePhone ? 'fixed inset-0 z-40 flex' : isPortraitTablet ? 'fixed right-0 inset-y-0 z-40 flex' : 'relative flex'}>
                   <FlaggedMessagesPanel
                     chat={activeChat}
                     onClose={() => setFlaggedOpen(false)}
@@ -345,19 +346,19 @@ export default function App() {
                 </div>
               )}
               {notificationsOpen && (
-                <div className="fixed inset-0 z-40 flex md:relative md:inset-auto md:z-auto">
+                <div className={isMobilePhone ? 'fixed inset-0 z-40 flex' : isPortraitTablet ? 'fixed right-0 inset-y-0 z-40 flex' : 'relative flex'}>
                   <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} onOpenPoll={openPoll} onOpenCalendar={openCalendar} onOpenEvent={openEvent} onChannelJoined={() => refreshSidebarRef.current?.()} />
                 </div>
               )}
             </>
           )}
           {settingsOpen && (
-            <div className="fixed inset-0 z-50 flex md:relative md:inset-auto md:z-auto">
+            <div className={isMobilePhone ? 'fixed inset-0 z-50 flex' : isPortraitTablet ? 'fixed right-0 inset-y-0 z-50 flex' : 'relative flex'}>
               <SettingsPanel onClose={() => setSettingsOpen(false)} />
             </div>
           )}
           {profileOpen && (
-            <div className="fixed inset-0 z-50 flex md:items-center md:justify-center md:bg-black/50">
+            <div className={`fixed inset-0 z-50 flex ${!isMobilePhone ? 'items-center justify-center bg-black/50' : ''}`}>
               <ProfileModal onClose={() => setProfileOpen(false)} />
             </div>
           )}
