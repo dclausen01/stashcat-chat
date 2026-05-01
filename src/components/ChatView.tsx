@@ -1209,7 +1209,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         {/* Mobile: Back button */}
         <button
           onClick={onGoHome}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-700 lg:hidden"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-700 lg:hidden portrait-tablet:!flex"
           aria-label="Zurück zur Übersicht"
         >
           <ArrowLeft size={20} />
@@ -1232,14 +1232,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             >
               <span className="min-w-0 truncate">{chat.name}</span>
               {/* Mobile: small chevron indicator */}
-              <ChevronDown size={14} className="shrink-0 text-surface-400 md:hidden" />
+              <ChevronDown size={14} className="shrink-0 text-surface-400 md:hidden portrait-tablet:!block" />
             </button>
             {/* Favorite toggle — desktop only (mobile has it in the more menu) */}
             {onToggleFavorite && (
               <button
                 onClick={() => onToggleFavorite(chat)}
                 className={clsx(
-                  'hidden shrink-0 rounded p-0.5 transition md:block',
+                  'hidden shrink-0 rounded p-0.5 transition md:block portrait-tablet:!hidden',
                   chat.favorite
                     ? 'text-yellow-400 hover:text-yellow-500'
                     : 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300',
@@ -1272,7 +1272,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               }}
               disabled={notificationsLoading}
               className={clsx(
-                'hidden shrink-0 rounded p-0.5 transition md:block',
+                'hidden shrink-0 rounded p-0.5 transition md:block portrait-tablet:!hidden',
                 notificationsLoading && 'opacity-50 cursor-not-allowed',
                 notificationsMuted
                   ? 'text-surface-400 hover:bg-surface-200 hover:text-surface-600 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-300'
@@ -1346,7 +1346,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           ) : null}
         </div>
         {/* Desktop: Action buttons inline */}
-        <div className="hidden md:flex md:items-center md:gap-1">
+        <div className="hidden md:flex md:items-center md:gap-1 portrait-tablet:!hidden">
           {/* Video meeting button */}
           <button
             onClick={async () => {
@@ -1506,8 +1506,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         {/* Mobile: More menu dropdown — opens from the title button */}
         {mobileMenuOpen && (
           <>
-            <div className="pointer-events-none fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => { setMobileMenuOpen(false); setMuteMenuOpen(false); }} />
-            <div className="pointer-events-auto fixed left-4 right-4 top-20 z-50 mx-auto w-full max-w-sm rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 md:hidden">
+            <div className="pointer-events-none fixed inset-0 z-40 bg-black/50 md:hidden portrait-tablet:!block" onClick={() => { setMobileMenuOpen(false); setMuteMenuOpen(false); }} />
+            <div className="pointer-events-auto fixed left-4 right-4 top-20 z-50 mx-auto w-full max-w-sm rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 md:hidden portrait-tablet:!block">
               {/* Favorite toggle */}
               {onToggleFavorite && (
                 <button
