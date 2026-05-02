@@ -1078,8 +1078,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     }
   };
 
-  const handleUpload = async (file: File, text: string) => {
-    await api.uploadFile(chat.type, chat.id, file, text);
+  const handleUpload = async (file: File, text: string, onProgress?: (pct: number) => void) => {
+    await api.uploadFile(chat.type, chat.id, file, text, onProgress);
     await loadMessages();
   };
 
