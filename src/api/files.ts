@@ -91,7 +91,8 @@ export async function uploadToStorage(
   type: string,
   typeId: string | undefined,
   file: File,
-  folderId?: string
+  folderId?: string,
+  onProgress?: (percent: number) => void
 ): Promise<void> {
   const formData = new FormData();
   formData.append('file', file);
@@ -99,16 +100,32 @@ export async function uploadToStorage(
   if (typeId) formData.append('typeId', typeId);
   if (folderId) formData.append('folderId', folderId);
   const token = getToken();
-  const res = await fetch(`${BACKEND}/files/upload`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: formData,
+
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BACKEND}/files/upload`);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    if (onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText) as { error?: unknown };
+          const msg = typeof err.error === 'string' ? err.error : `HTTP ${xhr.status}`;
+          reject(new Error(msg));
+        } catch {
+          reject(new Error(`HTTP ${xhr.status}`));
+        }
+      }
+    };
+    xhr.onerror = () => reject(new Error('Netzwerkfehler beim Upload'));
+    xhr.send(formData);
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    const errorMsg = typeof err.error === 'string' ? err.error : JSON.stringify(err.error);
-    throw new Error(errorMsg);
-  }
 }
 
 export function fileDownloadUrl(fileId: string, name: string): string {

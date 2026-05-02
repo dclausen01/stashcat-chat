@@ -131,22 +131,37 @@ export async function uploadFile(
   type: 'channel' | 'conversation',
   targetId: string,
   file: File,
-  text = ''
+  text = '',
+  onProgress?: (percent: number) => void
 ): Promise<void> {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('text', text);
   const token = getToken();
-  const res = await fetch(
-    `${BACKEND}/upload/${type}/${targetId}`,
-    {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
+
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BACKEND}/upload/${type}/${targetId}`);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    if (onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
     }
-  );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText) as { error?: unknown };
+          const msg = typeof err.error === 'string' ? err.error : `HTTP ${xhr.status}`;
+          reject(new Error(msg));
+        } catch {
+          reject(new Error(`HTTP ${xhr.status}`));
+        }
+      }
+    };
+    xhr.onerror = () => reject(new Error('Netzwerkfehler beim Upload'));
+    xhr.send(formData);
+  });
 }

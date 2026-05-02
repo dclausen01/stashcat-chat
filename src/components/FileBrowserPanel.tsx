@@ -727,6 +727,7 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [pdfView, setPdfView] = useState<{ fileId: string; viewUrl: string; name: string } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadByteProgress, setUploadByteProgress] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState<FolderUploadProgressData | null>(null);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
@@ -1015,20 +1016,23 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
 
   const handleUpload = async (file: File, folderId?: string) => {
     setUploading(true);
+    setUploadByteProgress(0);
+    const onProgress = (pct: number) => setUploadByteProgress(pct);
     try {
       if (tab === 'nextcloud') {
         const uploadPath = folderId ?? currentFolderId ?? '/';
         await api.ncUpload(uploadPath, file);
       } else if (tab === 'personal') {
         const userId = user?.id ? String(user.id) : undefined;
-        await api.uploadToStorage('personal', userId, file, folderId ?? currentFolderId);
+        await api.uploadToStorage('personal', userId, file, folderId ?? currentFolderId, onProgress);
       } else if (chat) {
-        await api.uploadToStorage(chat.type, chat.id, file, folderId ?? currentFolderId);
+        await api.uploadToStorage(chat.type, chat.id, file, folderId ?? currentFolderId, onProgress);
       }
     } catch (err) {
       throw err;
     } finally {
       setUploading(false);
+      setUploadByteProgress(null);
     }
   };
 
@@ -1500,7 +1504,13 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
           className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary-600 hover:bg-primary-50 disabled:opacity-50 dark:text-primary-400 dark:hover:bg-primary-900/20"
         >
           {uploading || uploadProgress !== null ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-          {uploading ? 'Lädt…' : uploadProgress !== null ? 'Upload läuft…' : 'Upload'}
+          {uploading
+            ? uploadByteProgress !== null && uploadByteProgress < 100
+              ? `${uploadByteProgress}%`
+              : 'Verarbeitung…'
+            : uploadProgress !== null
+              ? 'Upload läuft…'
+              : 'Upload'}
         </button>
         <input
           ref={fileInputRef}

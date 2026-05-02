@@ -31,7 +31,7 @@ interface ReplyTarget {
 
 interface MessageInputProps {
   onSend: (text: string) => Promise<void>;
-  onUpload: (file: File, text: string) => Promise<void>;
+  onUpload: (file: File, text: string, onProgress?: (pct: number) => void) => Promise<void>;
   onTyping?: () => void;
   chatId: string;
   chatName: string;
@@ -67,6 +67,8 @@ export default function MessageInput({
   const { enterSendsMessage, spellcheckLang } = useSettings();
 
   const [sending, setSending] = useState(false);
+  const [sendProgress, setSendProgress] = useState<number | null>(null);
+  const [currentUploadIdx, setCurrentUploadIdx] = useState<number | null>(null);
   const [showEmoji, setShowEmoji] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
@@ -208,15 +210,19 @@ export default function MessageInput({
       const filesToSend = [...currentFiles];
       let failCount = 0;
       for (let i = 0; i < filesToSend.length; i++) {
+        setCurrentUploadIdx(i);
+        setSendProgress(0);
         try {
           const label = i === 0
             ? `${msgText} 1/${filesToSend.length}`.trim()
             : `${i + 1}/${filesToSend.length}`;
-          await onUpload(filesToSend[i], label);
+          await onUpload(filesToSend[i], label, (pct) => setSendProgress(pct));
         } catch {
           failCount++;
         }
+        setSendProgress(null);
       }
+      setCurrentUploadIdx(null);
       if (failCount > 0) {
         alert(failCount === 1
           ? '1 Datei konnte nicht hochgeladen werden.'
@@ -527,18 +533,26 @@ export default function MessageInput({
             <div key={idx} className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 text-sm dark:bg-surface-800">
               <Paperclip size={14} className="shrink-0 text-surface-500" />
               <span className="min-w-0 flex-1 truncate text-surface-700 dark:text-surface-300">{file.name}</span>
-              <span className="shrink-0 text-xs text-surface-500">
-                {file.size >= 1024 * 1024
-                  ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
-                  : `${(file.size / 1024).toFixed(0)} KB`}
-              </span>
-              <button
-                onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
-                className="shrink-0 text-surface-500 hover:text-surface-600"
-                title="Entfernen"
-              >
-                <X size={14} />
-              </button>
+              {sending && idx === currentUploadIdx ? (
+                <span className="min-w-[3rem] shrink-0 text-right text-xs font-medium text-primary-600 dark:text-primary-400">
+                  {sendProgress !== null && sendProgress < 100 ? `${sendProgress}%` : 'Verarb.…'}
+                </span>
+              ) : (
+                <>
+                  <span className="shrink-0 text-xs text-surface-500">
+                    {file.size >= 1024 * 1024
+                      ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
+                      : `${(file.size / 1024).toFixed(0)} KB`}
+                  </span>
+                  <button
+                    onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
+                    className="shrink-0 text-surface-500 hover:text-surface-600"
+                    title="Entfernen"
+                  >
+                    <X size={14} />
+                  </button>
+                </>
+              )}
             </div>
           ))}
         </div>
