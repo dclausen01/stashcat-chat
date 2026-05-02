@@ -7,6 +7,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import * as fsSync from 'fs';
 import { randomBytes, createHash, pbkdf2Sync, createDecipheriv } from 'crypto';
+import { Readable } from 'stream';
 import { StashcatClient, CryptoManager, type RsaPrivateKeyJwk, type ActiveDevice } from 'stashcat-api';
 
 function debugLog(...args: unknown[]) {
@@ -1821,16 +1822,42 @@ app.get('/api/file/:fileId', async (req, res) => {
     const fileName = (req.query.name as string) || 'download';
 
     const info = await client.getFileInfo(fileId);
-    const buf = await client.downloadFile({
-      id: fileId,
-      encrypted: info.encrypted,
-      e2e_iv: info.e2e_iv ?? null,
-    });
 
     const disposition = req.query.view === '1' ? 'inline' : 'attachment';
     res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(fileName)}"`);
     res.setHeader('Content-Type', info.mime || 'application/octet-stream');
-    res.send(buf);
+
+    if (!info.encrypted) {
+      // Stream non-encrypted files directly — avoids loading the whole file into RAM
+      const rawToken = ((req.headers['authorization'] as string | undefined)?.split(' ')[1] ?? req.query.token) as string;
+      const { baseUrl } = decryptSession(rawToken);
+      const authData = client.api.createAuthenticatedRequestData({}) as Record<string, string>;
+      const formBody = new URLSearchParams({
+        client_key: authData.client_key ?? '',
+        device_id: authData.device_id ?? '',
+      }).toString();
+
+      const stashRes = await fetch(`${baseUrl}/file/download?id=${encodeURIComponent(fileId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formBody,
+      });
+      if (!stashRes.ok || !stashRes.body) throw new Error(`Stashcat download failed: ${stashRes.status}`);
+
+      const contentLength = stashRes.headers.get('content-length');
+      if (contentLength) res.setHeader('Content-Length', contentLength);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      Readable.fromWeb(stashRes.body as any).pipe(res);
+    } else {
+      // Encrypted files must be fully buffered for E2E decryption
+      const buf = await client.downloadFile({
+        id: fileId,
+        encrypted: info.encrypted,
+        e2e_iv: info.e2e_iv ?? null,
+      });
+      res.send(buf);
+    }
   } catch (err) {
     res.status(500).json({ error: errorMessage(err, 'Download failed') });
   }

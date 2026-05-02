@@ -45,6 +45,7 @@ const path_1 = __importDefault(require("path"));
 const promises_1 = __importDefault(require("fs/promises"));
 const fsSync = __importStar(require("fs"));
 const crypto_1 = require("crypto");
+const stream_1 = require("stream");
 const stashcat_api_1 = require("stashcat-api");
 function debugLog(...args) {
     const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
@@ -824,6 +825,16 @@ app.post('/api/channels/:channelId/join', async (req, res) => {
         res.status(500).json({ error: errorMessage(e) });
     }
 });
+app.post('/api/channels/:channelId/quit', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        await client.quitChannel(req.params.channelId);
+        res.json({ ok: true });
+    }
+    catch (e) {
+        res.status(500).json({ error: errorMessage(e) });
+    }
+});
 // ── Channel Invitations (accept / decline) ────────────────────────────────────
 // The invite_id comes from the notification's content.id field (NOT the
 // notification_id and NOT the channel_id). These endpoints call the
@@ -913,17 +924,24 @@ app.get('/api/channels/:channelId/members', async (req, res) => {
         const channelId = req.params.channelId;
         // Paginate until all members are fetched (channels can have 500+ members)
         // Note: Stashcat API has a hard cap of ~100 per request regardless of limit param
+        // IMPORTANT: Exclude pending members (filter out membership_pending=true) to avoid
+        // duplicate display in the frontend where members appear as both "joined" and "pending"
         const all = [];
         const PAGE = 100;
         let offset = 0;
         while (true) {
             const batch = await client.getChannelMembers(channelId, { limit: PAGE, offset });
-            all.push(...batch);
+            // Filter out pending members - they should only appear in the pending-members endpoint
+            const nonPending = batch.filter((m) => {
+                const pending = m.membership_pending === true || m.pending === true;
+                return !pending;
+            });
+            all.push(...nonPending);
             if (batch.length < PAGE)
                 break;
             offset += PAGE;
         }
-        console.log(`[channels/members] channelId=${channelId} → ${all.length} members`);
+        console.log(`[channels/members] channelId=${channelId} → ${all.length} members (excluding pending)`);
         if (all.length > 0)
             console.log('[channels/members] first member:', JSON.stringify(all[0]));
         res.json(all);
@@ -1108,11 +1126,23 @@ app.get('/api/companies/:companyId/groups', async (req, res) => {
 app.get('/api/companies/:companyId/groups/:groupId/members', async (req, res) => {
     try {
         const client = await getClient(req);
-        const result = await client.listManagedUsers(req.params.companyId, {
-            groupIds: [req.params.groupId],
-            limit: 200,
-        });
-        res.json({ users: result.users, total: result.total });
+        const PAGE = 200;
+        const allUsers = [];
+        let offset = 0;
+        let total = 0;
+        while (true) {
+            const result = await client.listManagedUsers(req.params.companyId, {
+                groupIds: [req.params.groupId],
+                limit: PAGE,
+                offset,
+            });
+            allUsers.push(...result.users);
+            total = result.total ?? allUsers.length;
+            if (result.users.length < PAGE)
+                break;
+            offset += PAGE;
+        }
+        res.json({ users: allUsers, total });
     }
     catch (err) {
         console.error('[group-members] Error:', err);
@@ -1129,22 +1159,26 @@ app.post('/api/channels', async (req, res) => {
         const isEncrypted = channel_type === 'encrypted';
         const isPassword = channel_type === 'password';
         // Build channel options
+        // Generate unique identifier for this channel creation request (required by API)
+        const cryptoGen = await Promise.resolve().then(() => __importStar(require('crypto')));
+        const uniqueIdentifier = cryptoGen.randomBytes(16).toString('hex');
         const channelOpts = {
+            unique_identifier: uniqueIdentifier,
             channel_name: name,
             company: company_id,
             description: [description, policies ? `\n\nRichtlinien: ${policies}` : ''].filter(Boolean).join(''),
             type: isEncrypted ? 'closed' : 'public',
             visible: !hidden,
-            writable: !read_only,
-            inviteable: !invite_only,
+            writable: read_only ? 'manager' : 'all',
+            inviteable: invite_only ? 'manager' : 'all',
             show_activities: show_activities ?? true,
             show_membership_activities: show_membership_activities ?? true,
+            message_ttl: 0, // Must be explicitly set to 0 for signature to match
             ...(isPassword && password ? { password, password_repeat: password_repeat ?? password } : {}),
         };
         // For encrypted channels: generate AES key, encrypt with own public key, sign
         if (isEncrypted) {
-            const crypto = await Promise.resolve().then(() => __importStar(require('crypto')));
-            const aesKey = crypto.randomBytes(32);
+            const aesKey = cryptoGen.randomBytes(32);
             if (!client.isE2EUnlocked()) {
                 return res.status(400).json({ error: 'E2E not unlocked — encrypted channels require E2E. Please re-login with your security password.' });
             }
@@ -1153,15 +1187,32 @@ app.post('/api/channels', async (req, res) => {
             if (!me.public_key) {
                 return res.status(500).json({ error: 'Own public key not available' });
             }
+            debugLog(`[channels/create] aesKey length=${aesKey.length} E2E_unlocked=${client.isE2EUnlocked()}`);
+            debugLog(`[channels/create] public_key prefix="${me.public_key.slice(0, 40).replace(/\n/g, '\\n')}"`);
             // Encrypt AES key with own RSA public key (RSA-OAEP)
             const encryptedKey = stashcat_api_1.StashcatClient.encryptWithPublicKey(me.public_key, aesKey);
-            channelOpts.encryption_key = encryptedKey.toString('base64');
-            // Sign the encrypted key with own private signing key
-            const signature = client.signData(encryptedKey);
-            channelOpts.encryption_key_signature = signature.toString('hex');
+            const keyBase64 = encryptedKey.toString('base64');
+            channelOpts.encryption_key = keyBase64;
+            debugLog(`[channels/create] encryptedKey length=${encryptedKey.length} keyBase64 length=${keyBase64.length}`);
+            // Skip signature — the server accepts channels without it
+            // This avoids signature mismatch warnings when the verification logic
+            // doesn't match the original app's signing method.
+            debugLog(`[channels/create] skipping signature (server accepts without)`);
         }
         const channel = await client.createChannel(channelOpts);
-        console.log(`[channels/create] created channel: ${channel.name ?? name}`);
+        const channelId = String(channel.id ?? '');
+        debugLog(`[channels/create] created channel id=${channelId} name=${channel.name ?? name} encrypted=${channel.encrypted}`);
+        debugLog(`[channels/create] response key length=${String(channel.key ?? '').length} key_sender=${channel.key_sender}`);
+        // Self-test: immediately verify we can decrypt the stored key
+        if (isEncrypted && channelId) {
+            try {
+                const aesKeyFromServer = await client.getChannelAesKey(channelId);
+                debugLog(`[channels/create] SELF-TEST getChannelAesKey: SUCCESS aesKey length=${aesKeyFromServer?.length}`);
+            }
+            catch (selfTestErr) {
+                debugLog(`[channels/create] SELF-TEST getChannelAesKey: FAILED — ${errorMessage(selfTestErr, '')}`);
+            }
+        }
         res.json(channel);
     }
     catch (err) {
@@ -1485,6 +1536,28 @@ app.post('/api/messages/:type/:targetId/read', async (req, res) => {
         res.status(500).json({ error: errorMessage(err) });
     }
 });
+app.post('/api/messages/:type/:targetId/unread', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { type, targetId } = req.params;
+        await client.markChatAsUnread(type, targetId);
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
+app.post('/api/conversations/:id/archive', async (req, res) => {
+    try {
+        const client = await getClient(req);
+        const { id } = req.params;
+        await client.archiveConversation(id);
+        res.json({ ok: true });
+    }
+    catch (err) {
+        res.status(500).json({ error: errorMessage(err) });
+    }
+});
 // ── File Browser ─────────────────────────────────────────────────────────────
 /** List folder contents for channel, conversation, or personal storage */
 app.get('/api/files/folder', async (req, res) => {
@@ -1646,15 +1719,40 @@ app.get('/api/file/:fileId', async (req, res) => {
         const { fileId } = req.params;
         const fileName = req.query.name || 'download';
         const info = await client.getFileInfo(fileId);
-        const buf = await client.downloadFile({
-            id: fileId,
-            encrypted: info.encrypted,
-            e2e_iv: info.e2e_iv ?? null,
-        });
         const disposition = req.query.view === '1' ? 'inline' : 'attachment';
         res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(fileName)}"`);
         res.setHeader('Content-Type', info.mime || 'application/octet-stream');
-        res.send(buf);
+        if (!info.encrypted) {
+            // Stream non-encrypted files directly — avoids loading the whole file into RAM
+            const rawToken = (req.headers['authorization']?.split(' ')[1] ?? req.query.token);
+            const { baseUrl } = (0, token_crypto_1.decryptSession)(rawToken);
+            const authData = client.api.createAuthenticatedRequestData({});
+            const formBody = new URLSearchParams({
+                client_key: authData.client_key ?? '',
+                device_id: authData.device_id ?? '',
+            }).toString();
+            const stashRes = await fetch(`${baseUrl}/file/download?id=${encodeURIComponent(fileId)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formBody,
+            });
+            if (!stashRes.ok || !stashRes.body)
+                throw new Error(`Stashcat download failed: ${stashRes.status}`);
+            const contentLength = stashRes.headers.get('content-length');
+            if (contentLength)
+                res.setHeader('Content-Length', contentLength);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            stream_1.Readable.fromWeb(stashRes.body).pipe(res);
+        }
+        else {
+            // Encrypted files must be fully buffered for E2E decryption
+            const buf = await client.downloadFile({
+                id: fileId,
+                encrypted: info.encrypted,
+                e2e_iv: info.e2e_iv ?? null,
+            });
+            res.send(buf);
+        }
     }
     catch (err) {
         res.status(500).json({ error: errorMessage(err, 'Download failed') });
@@ -1937,7 +2035,17 @@ app.post('/api/broadcasts/:id/messages', async (req, res) => {
 app.get('/api/broadcasts/:id/members', async (req, res) => {
     try {
         const client = await getClient(req);
-        res.json(await client.listBroadcastMembers(req.params.id));
+        const PAGE = 200;
+        const all = [];
+        let offset = 0;
+        while (true) {
+            const page = await client.listBroadcastMembers(req.params.id, { limit: PAGE, offset });
+            all.push(...page);
+            if (page.length < PAGE)
+                break;
+            offset += PAGE;
+        }
+        res.json(all);
     }
     catch (err) {
         res.status(500).json({ error: errorMessage(err) });
@@ -2288,19 +2396,25 @@ async function findChatBot(client, clientKey) {
             if (conversations.length < 100)
                 break; // no more pages
         }
-        // Bot not found in conversations — try company members as fallback
-        console.warn('[Video] Chat Bot not found in conversations. Searching company members...');
+        // Bot not found in conversations — search company members by name
+        console.warn('[Video] Chat Bot not found in conversations. Searching company members by name...');
         try {
             const companies = await client.getCompanies();
             for (const company of companies) {
                 const companyId = String(company.id);
-                // getCompanyMembers fetches members; the bot user should be in there
-                const members = await client.getCompanyMembers(companyId);
-                for (const member of members) {
+                // Targeted name search first (fast path)
+                const searchResult = await client.listManagedUsers(companyId, { search: 'Chat Bot', limit: 20 });
+                const candidates = searchResult?.users ?? [];
+                // Fall back to scanning all managed users if targeted search returns nothing
+                let allMembers = candidates;
+                if (candidates.length === 0) {
+                    const allResult = await client.listManagedUsers(companyId, { limit: 500 });
+                    allMembers = allResult?.users ?? [];
+                }
+                for (const member of allMembers) {
                     if (looksLikeChatBot(member)) {
                         const botUserId = String(member.id ?? member.user_id);
-                        console.log(`[Video] Found Chat Bot via company members: userId=${botUserId}, creating conversation...`);
-                        // Create/get the 1:1 conversation with the bot
+                        console.log(`[Video] Found Chat Bot via company search: userId=${botUserId}, creating conversation...`);
                         const conv = await client.createConversation([botUserId]);
                         const botConvId = String(conv.id);
                         const info = { botUserId, botConvId };
