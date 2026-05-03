@@ -51,6 +51,29 @@ function notifyConnectionState(connected: boolean) {
   }
 }
 
+/** Whether the browser-level offline/online listeners are registered */
+let networkListenersActive = false;
+
+/** Register window offline/online listeners once — fires immediately on WiFi toggle,
+ *  much faster than waiting for SSE onerror or the watchdog timeout. */
+function ensureNetworkListeners() {
+  if (networkListenersActive) return;
+  networkListenersActive = true;
+
+  window.addEventListener('offline', () => {
+    if (!sharedWasDisconnected) notifyConnectionState(false);
+    sharedWasDisconnected = true;
+    // Tear down EventSource so we don't hold a dead connection
+    destroyEventSource();
+  });
+
+  window.addEventListener('online', () => {
+    // Network is back — try to reconnect SSE; the banner clears once SSE confirms
+    sharedIsReconnect = true;
+    ensureSharedEventSource();
+  });
+}
+
 /** Timestamp of the last received SSE event (any type, including heartbeat) */
 let lastEventTime = 0;
 
@@ -237,6 +260,7 @@ function stopWatchdog() {
 
 /** Initialize the shared EventSource if not already done (or if connection is dead) */
 function ensureSharedEventSource() {
+  ensureNetworkListeners();
   // Check if we have a healthy connection already
   if (sharedEs) {
     if (sharedEs.readyState === EventSource.OPEN || sharedEs.readyState === EventSource.CONNECTING) {
@@ -432,4 +456,6 @@ export function closeRealtimeConnection() {
   sharedWasDisconnected = false;
   sharedIsReconnect = false;
   lastEventTime = 0;
+  // Note: offline/online listeners are intentionally NOT removed here —
+  // they are window-level singletons and would not be re-added after re-login.
 }
