@@ -1,4 +1,4 @@
-import { Wifi, WifiOff, CheckCircle } from 'lucide-react';
+import { WifiOff, CheckCircle } from 'lucide-react';
 
 type Props = {
   status: 'connected' | 'disconnected' | 'reconnected';
