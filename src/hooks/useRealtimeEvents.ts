@@ -37,6 +37,20 @@ const consumerRegistry = new Map<string, Map<string, SSEHandler>>();
 
 let sharedWasDisconnected = false;
 
+/** Subscribers notified on connection state changes: true = connected, false = disconnected */
+const connectionStateListeners = new Set<(connected: boolean) => void>();
+
+export function subscribeConnectionState(cb: (connected: boolean) => void): () => void {
+  connectionStateListeners.add(cb);
+  return () => connectionStateListeners.delete(cb);
+}
+
+function notifyConnectionState(connected: boolean) {
+  for (const cb of connectionStateListeners) {
+    try { cb(connected); } catch { /* ignore */ }
+  }
+}
+
 /** Timestamp of the last received SSE event (any type, including heartbeat) */
 let lastEventTime = 0;
 
@@ -206,6 +220,7 @@ function startWatchdog() {
       // console.warn(`[useRealtimeEvents] No SSE event received for ${Math.round(elapsed / 1000)}s — reconnecting`);
       // Connection is likely dead — tear down and recreate
       destroyEventSource();
+      if (!sharedWasDisconnected) notifyConnectionState(false);
       sharedWasDisconnected = true;
       ensureSharedEventSource();
     }
@@ -260,6 +275,7 @@ function ensureSharedEventSource() {
     lastEventTime = Date.now();
     if (sharedWasDisconnected) {
       sharedWasDisconnected = false;
+      notifyConnectionState(true);
       dispatchNamedEvent('reconnect', {});
     }
   });
@@ -274,9 +290,8 @@ function ensureSharedEventSource() {
     if (sharedIsReconnect || sharedWasDisconnected) {
       // console.log('[useRealtimeEvents] SSE reconnected after standby/disconnect');
       sharedIsReconnect = false;
-      // Clear sharedWasDisconnected here so the 'connected' event handler
-      // below does not dispatch a second 'reconnect' event for the same reconnect.
       sharedWasDisconnected = false;
+      notifyConnectionState(true);
       dispatchNamedEvent('reconnect', {});
     }
   };
@@ -291,6 +306,7 @@ function ensureSharedEventSource() {
 
   sharedEs.onerror = () => {
     console.error('[useRealtimeEvents] SSE error, readyState:', sharedEs?.readyState);
+    if (!sharedWasDisconnected) notifyConnectionState(false);
     sharedWasDisconnected = true;
     // If the EventSource has transitioned to CLOSED, auto-reconnect has given up.
     // Tear down and schedule a manual reconnect.
@@ -412,6 +428,7 @@ export function closeRealtimeConnection() {
   stopWatchdog();
   sharedHandlers.clear();
   consumerRegistry.clear();
+  connectionStateListeners.clear();
   sharedWasDisconnected = false;
   sharedIsReconnect = false;
   lastEventTime = 0;
