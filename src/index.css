@@ -47,11 +47,11 @@
 /* Default theme surface vars — overridden at runtime by ThemeContext */
 :root {
   --theme-bg: #eff6ff;
-  --theme-panel: #ffffff;
+  --theme-panel: #f8fafc;
 }
 .dark {
   --theme-bg: #000000;
-  --theme-panel: #0b132b;
+  --theme-panel: #171922;
 }
 
 html, body, #root {
