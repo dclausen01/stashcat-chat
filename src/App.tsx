@@ -21,6 +21,8 @@ import FlaggedMessagesPanel from './components/FlaggedMessagesPanel';
 import CallModal from './components/CallModal';
 import QuickSwitcher from './components/QuickSwitcher';
 import ShortcutsModal from './components/ShortcutsModal';
+import ConnectionBanner from './components/ConnectionBanner';
+import { useConnectionState } from './hooks/useConnectionState';
 import type { ChatTarget } from './types';
 import type { CallParty } from './api/calls';
 
@@ -30,6 +32,7 @@ export default function App() {
   const { loggedIn } = useAuth();
   const { homeView } = useSettings();
   const { activeCall, startCall, acceptCall, rejectCall, hangUp, isMuted, toggleMute } = useCallManager(loggedIn);
+  const connectionStatus = useConnectionState(loggedIn);
   const layoutMode = useLayoutMode();
   const isMobilePhone = layoutMode === 'mobile';
   const isPortraitTablet = layoutMode === 'tablet';
@@ -387,6 +390,7 @@ export default function App() {
       {shortcutsOpen && (
         <ShortcutsModal onClose={() => setShortcutsOpen(false)} />
       )}
+      <ConnectionBanner status={connectionStatus} />
     </div>
   );
 }
