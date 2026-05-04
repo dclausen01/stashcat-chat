@@ -1,4 +1,5 @@
 # BBZ Chat
+[[https://www.bbz-rd-eck.de/wp-content/uploads/2018/09/BBZ-Logo-Master.png]]
 
 Ein moderner Browser-Client für Stashcat / schul.cloud, entwickelt für das BBZ Rendsburg-Eckernförde.
 
