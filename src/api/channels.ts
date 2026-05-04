@@ -73,8 +73,8 @@ export async function removeModerator(channelId: string, userId: string): Promis
   return del(`/channels/${channelId}/moderator/${userId}`);
 }
 
-export async function editChannel(channelId: string, companyId: string, description: string): Promise<void> {
-  return patch(`/channels/${channelId}`, { description, company_id: companyId });
+export async function editChannel(channelId: string, companyId: string, description: string, name?: string): Promise<void> {
+  return patch(`/channels/${channelId}`, { description, company_id: companyId, ...(name !== undefined ? { name } : {}) });
 }
 
 export async function setChannelImage(channelId: string, companyId: string, image: string): Promise<{ channel?: { image?: string } }> {

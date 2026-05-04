@@ -399,6 +399,15 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     return () => window.removeEventListener('channel-deleted', handler as EventListener);
   }, []);
 
+  // Listen for channel-renamed events to update sidebar
+  useEffect(() => {
+    const handler = (e: CustomEvent<{ channelId: string; newName: string }>) => {
+      setChannels((prev) => prev.map((ch) => ch.id === e.detail.channelId ? { ...ch, name: e.detail.newName } : ch));
+    };
+    window.addEventListener('channel-renamed', handler as EventListener);
+    return () => window.removeEventListener('channel-renamed', handler as EventListener);
+  }, []);
+
   const handleSelect = useCallback((target: ChatTarget) => {
     // Clear unread for selected chat immediately in sidebar
     if (target.type === 'channel') {

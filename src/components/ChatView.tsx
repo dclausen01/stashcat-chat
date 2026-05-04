@@ -206,6 +206,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [descEditorOpen, setDescEditorOpen] = useState(false);
   const [chatDescription, setChatDescription] = useState(chat.description || '');
   const [chatImage, setChatImage] = useState(chat.image || '');
+  const [chatName, setChatName] = useState(chat.name);
   const [imageEditorOpen, setImageEditorOpen] = useState(false);
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const [meetingLoading, setMeetingLoading] = useState(false);
@@ -289,6 +290,11 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   useEffect(() => {
     setChatImage(chat.image || '');
   }, [chat.image, chat.id]);
+
+  // Sync chat name when channel changes
+  useEffect(() => {
+    setChatName(chat.name);
+  }, [chat.name, chat.id]);
 
   // Clear pending message indicators when switching chats
   useEffect(() => {
@@ -1230,7 +1236,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               className="flex min-w-0 items-center gap-1.5 text-left text-base font-semibold text-surface-900 dark:text-white md:cursor-default md:bg-transparent md:hover:bg-transparent"
               title="Menü öffnen"
             >
-              <span className="min-w-0 truncate">{chat.name}</span>
+              <span className="min-w-0 truncate">{chatName}</span>
               {/* Mobile: small chevron indicator */}
               <ChevronDown size={14} className="shrink-0 text-surface-400 md:hidden portrait-tablet:!block" />
             </button>
@@ -1443,6 +1449,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               onOpenDescriptionEditor={() => setDescEditorOpen(true)}
               onOpenImageEditor={() => setImageEditorOpen(true)}
               onDeleted={onGoHome}
+              onRenamed={(newName) => setChatName(newName)}
             />
           )}
           {chat.type === 'channel' && (

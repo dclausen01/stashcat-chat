@@ -1090,11 +1090,12 @@ app.delete('/api/channels/:channelId/moderator/:userId', async (req, res) => {
 app.patch('/api/channels/:channelId', async (req, res) => {
   try {
     const client = await getClient(req);
-    const { description, company_id } = req.body as { description?: string; company_id: string };
+    const { description, company_id, name } = req.body as { description?: string; company_id: string; name?: string };
     const result = await client.editChannel({
       channel_id: req.params.channelId,
       company_id,
       description,
+      ...(name !== undefined ? { channel_name: name } : {}),
     });
     res.json(result);
   } catch (err) {
