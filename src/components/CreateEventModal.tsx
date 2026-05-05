@@ -82,6 +82,27 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
   const [startStr, setStartStr] = useState(formatLocalDatetime(defStart));
   const [endStr, setEndStr] = useState(formatLocalDatetime(defEnd));
 
+  // Existing invitees on the event being edited (used to mark them as already invited)
+  const existingInvitedUserIds = useMemo<Set<string>>(() => {
+    if (!editingEvent?.invites) return new Set();
+    return new Set(editingEvent.invites.map((inv) => String(inv.user.id)));
+  }, [editingEvent]);
+
+  const existingInvitedChannelIds = useMemo<Set<string>>(() => {
+    const ids = new Set<string>();
+    if (editingEvent?.type === 'channel' && editingEvent.type_id) {
+      ids.add(String(editingEvent.type_id));
+    }
+    if (editingEvent?.channel_invites) {
+      for (const ci of editingEvent.channel_invites as Array<Record<string, unknown>>) {
+        const ch = ci.channel as Record<string, unknown> | undefined;
+        const cid = String(ci.channel_id ?? ch?.id ?? ci.id ?? '');
+        if (cid) ids.add(cid);
+      }
+    }
+    return ids;
+  }, [editingEvent]);
+
   // Get company ID and load channels on mount
   useEffect(() => {
     api.getCompanies().then((c) => {
@@ -163,8 +184,11 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
   const toggleInviteChannel = (cid: string) => {
     setInviteChannelIds((prev) => {
       const next = prev.includes(cid) ? prev.filter((x) => x !== cid) : [...prev, cid];
-      // First selected channel becomes the type_id
-      setSelectedChannelId(next.length > 0 ? next[0] : '');
+      // In create mode, the first selected channel becomes the main type_id.
+      // In edit mode, the original type_id stays; new selections are additive invites.
+      if (!isEdit) {
+        setSelectedChannelId(next.length > 0 ? next[0] : '');
+      }
       return next;
     });
   };
@@ -179,24 +203,60 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
     try {
       const start = Math.floor(new Date(startStr).getTime() / 1000);
       const end = Math.floor(new Date(endStr).getTime() / 1000);
+
+      // Filter out already-invited entities so we only send true additions.
+      const newInviteUserIds = inviteUserIds.filter((uid) => !existingInvitedUserIds.has(uid));
+      const newInviteChannelIds = inviteChannelIds.filter((cid) => !existingInvitedChannelIds.has(cid));
+
+      // In edit mode preserve the original event type and main channel; in create mode use the selection.
+      const effectiveType = isEdit && editingEvent ? editingEvent.type : category;
+      const effectiveTypeId = isEdit && editingEvent
+        ? String(editingEvent.type_id ?? '')
+        : (category === 'channel' ? (inviteChannelIds[0] ?? selectedChannelId) : '');
+
+      // For create: same semantics as before. For edit: only send additions.
+      const sendUserIds = isEdit
+        ? newInviteUserIds
+        : (category === 'personal' ? inviteUserIds : []);
+      const sendChannelIds = isEdit
+        ? newInviteChannelIds
+        : (category === 'channel' ? inviteChannelIds.slice(1) : []);
+
       const eventData: Record<string, unknown> = {
         name: name.trim(),
         description,
         location,
         start,
         end,
-        type: category,
-        type_id: category === 'channel' ? (inviteChannelIds[0] ?? selectedChannelId) : '',
+        type: effectiveType,
+        type_id: effectiveTypeId,
         company_id: companyId,
         allday,
         repeat,
-        invite_user_ids: category === 'personal' ? inviteUserIds : [],
-        invite_channel_ids: category === 'channel' ? inviteChannelIds.slice(1) : [],
+        invite_user_ids: sendUserIds,
+        invite_channel_ids: sendChannelIds,
         ...(preselectedChat && !isEdit ? { notify_chat_id: preselectedChat.id, notify_chat_type: preselectedChat.type } : {}),
       };
 
       if (isEdit && editingEvent) {
         await api.editCalendarEvent(String(editingEvent.id), eventData);
+
+        // Notify newly added channels in chat (mirrors the create-mode behaviour).
+        if (newInviteChannelIds.length > 0) {
+          const startDate = new Date(start * 1000);
+          const endDate = new Date(end * 1000);
+          const dateStr = allday
+            ? startDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            : `${startDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}, ${startDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} – ${endDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+          const messageText = `**Termin geteilt: ${name.trim()}**\n📅 ${dateStr}${location ? `\n📍 ${location}` : ''}\n\nDetails im Kalender ansehen. [%event:${editingEvent.id}%]`;
+          for (const cid of newInviteChannelIds) {
+            try {
+              await api.sendMessage(cid, 'channel', messageText);
+            } catch {
+              // Ignore — the event update already succeeded.
+            }
+          }
+        }
       } else {
         const { id: eventId } = await api.createCalendarEvent(eventData);
 
@@ -273,11 +333,13 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
               <button
                 type="button"
                 onClick={() => setCategory('personal')}
+                disabled={isEdit}
                 className={clsx(
                   'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition',
                   category === 'personal'
                     ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-700 dark:text-white'
                     : 'text-surface-600 hover:text-surface-700 dark:text-surface-400',
+                  isEdit && 'cursor-not-allowed opacity-60',
                 )}
               >
                 Persönlich
@@ -285,11 +347,13 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
               <button
                 type="button"
                 onClick={() => setCategory('channel')}
+                disabled={isEdit}
                 className={clsx(
                   'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition',
                   category === 'channel'
                     ? 'bg-white text-surface-900 shadow-sm dark:bg-surface-700 dark:text-white'
                     : 'text-surface-600 hover:text-surface-700 dark:text-surface-400',
+                  isEdit && 'cursor-not-allowed opacity-60',
                 )}
               >
                 Channel
@@ -357,10 +421,17 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
           </div>
 
           {/* Context-dependent invite section */}
-          {!isEdit && category === 'personal' && (
+          {category === 'personal' && (
             <div>
+              {isEdit && existingInvitedUserIds.size > 0 && (
+                <p className="mb-1 text-xs text-surface-600 dark:text-surface-400">
+                  {existingInvitedUserIds.size} Person{existingInvitedUserIds.size === 1 ? '' : 'en'} bereits eingeladen — bestehende Einladungen bleiben erhalten.
+                </p>
+              )}
               <div className="mb-1 flex items-center justify-between">
-                <label className="text-xs text-surface-600">Personen einladen</label>
+                <label className="text-xs text-surface-600">
+                  {isEdit ? 'Weitere Personen einladen' : 'Personen einladen'}
+                </label>
                 <button
                   type="button"
                   onClick={() => { setShowPersonPicker(!showPersonPicker); setSearchQuery(''); }}
@@ -406,25 +477,32 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
                       searchResults.map((u) => {
                         const uid = String(u.id);
                         const uname = `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || u.email || uid;
+                        const alreadyInvited = existingInvitedUserIds.has(uid);
                         const selected = inviteUserIds.includes(uid);
                         return (
                           <button
                             key={uid}
                             type="button"
-                            onClick={() => toggleInviteUser(uid)}
+                            onClick={() => { if (!alreadyInvited) toggleInviteUser(uid); }}
+                            disabled={alreadyInvited}
                             className={clsx(
                               'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition',
-                              selected ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-surface-200 dark:hover:bg-surface-800',
+                              alreadyInvited ? 'cursor-not-allowed opacity-60'
+                                : selected ? 'bg-primary-50 dark:bg-primary-900/20'
+                                : 'hover:bg-surface-200 dark:hover:bg-surface-800',
                             )}
                           >
                             <div className={clsx(
                               'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
-                              selected ? 'border-primary-500 bg-primary-500 text-white' : 'border-surface-300 dark:border-surface-600',
+                              alreadyInvited ? 'border-surface-400 bg-surface-300 text-surface-600 dark:border-surface-600 dark:bg-surface-700'
+                                : selected ? 'border-primary-500 bg-primary-500 text-white'
+                                : 'border-surface-300 dark:border-surface-600',
                             )}>
-                              {selected && <Check size={10} />}
+                              {(selected || alreadyInvited) && <Check size={10} />}
                             </div>
                             <span className="truncate text-surface-900 dark:text-surface-100">{uname}</span>
-                            {u.email && <span className="ml-auto truncate text-xs text-surface-600">{u.email}</span>}
+                            {alreadyInvited && <span className="ml-auto shrink-0 text-xs text-surface-600">bereits eingeladen</span>}
+                            {!alreadyInvited && u.email && <span className="ml-auto truncate text-xs text-surface-600">{u.email}</span>}
                           </button>
                         );
                       })
@@ -436,10 +514,17 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
           )}
 
           {/* Channel type: additional channel invites */}
-          {!isEdit && category === 'channel' && (
+          {category === 'channel' && (
             <div>
+              {isEdit && existingInvitedChannelIds.size > 0 && (
+                <p className="mb-1 text-xs text-surface-600 dark:text-surface-400">
+                  Bereits geteilt mit {existingInvitedChannelIds.size} Channel{existingInvitedChannelIds.size === 1 ? '' : 's'} — bestehende Freigaben bleiben erhalten.
+                </p>
+              )}
               <div className="mb-1 flex items-center justify-between">
-                <label className="text-xs text-surface-600">Channels auswählen *</label>
+                <label className="text-xs text-surface-600">
+                  {isEdit ? 'Mit weiteren Channels teilen' : 'Channels auswählen *'}
+                </label>
                 <button
                   type="button"
                   onClick={() => { setShowChannelPicker(!showChannelPicker); setSearchQuery(''); }}
@@ -481,25 +566,32 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
                     ) : (
                       filteredChannels.map((ch) => {
                         const cid = String(ch.id);
+                        const alreadyInvited = existingInvitedChannelIds.has(cid);
                         const selected = inviteChannelIds.includes(cid);
                         return (
                           <button
                             key={cid}
                             type="button"
-                            onClick={() => toggleInviteChannel(cid)}
+                            onClick={() => { if (!alreadyInvited) toggleInviteChannel(cid); }}
+                            disabled={alreadyInvited}
                             className={clsx(
                               'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition',
-                              selected ? 'bg-green-50 dark:bg-green-900/20' : 'hover:bg-surface-200 dark:hover:bg-surface-800',
+                              alreadyInvited ? 'cursor-not-allowed opacity-60'
+                                : selected ? 'bg-green-50 dark:bg-green-900/20'
+                                : 'hover:bg-surface-200 dark:hover:bg-surface-800',
                             )}
                           >
                             <div className={clsx(
                               'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
-                              selected ? 'border-green-500 bg-green-500 text-white' : 'border-surface-300 dark:border-surface-600',
+                              alreadyInvited ? 'border-surface-400 bg-surface-300 text-surface-600 dark:border-surface-600 dark:bg-surface-700'
+                                : selected ? 'border-green-500 bg-green-500 text-white'
+                                : 'border-surface-300 dark:border-surface-600',
                             )}>
-                              {selected && <Check size={10} />}
+                              {(selected || alreadyInvited) && <Check size={10} />}
                             </div>
                             <Hash size={13} className="shrink-0 text-surface-600" />
                             <span className="truncate text-surface-900 dark:text-surface-100">{ch.name}</span>
+                            {alreadyInvited && <span className="ml-auto shrink-0 text-xs text-surface-600">bereits geteilt</span>}
                           </button>
                         );
                       })
