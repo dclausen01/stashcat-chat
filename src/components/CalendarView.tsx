@@ -743,7 +743,7 @@ export default function CalendarView({ eventIdToOpen, onEventOpened, onClose }: 
                           {inv.status === 'accepted' && <Check size={13} className="text-green-500" />}
                           {inv.status === 'declined' && <XCircle size={13} className="text-red-500" />}
                           {inv.status === 'open' && <HelpCircle size={13} className="text-amber-500" />}
-                          <span className={clsx('text-sm', isMe && 'font-semibold')}>{name}</span>
+                          <span className={clsx('text-sm text-surface-900 dark:text-surface-100', isMe && 'font-semibold')}>{name}</span>
                           {isMe && inv.status === 'open' && (
                             <div className="ml-auto flex gap-1">
                               <button onClick={() => handleRespond(selectedEvent.id, 'accepted')} className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400">
