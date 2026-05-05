@@ -10,7 +10,11 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { Markdown } from 'tiptap-markdown';
 
 function getMd(editor: Editor): string {
-  return (editor.storage as unknown as { markdown: { getMarkdown(): string } }).markdown.getMarkdown();
+  const raw = (editor.storage as unknown as { markdown: { getMarkdown(): string } }).markdown.getMarkdown();
+  // tiptap-markdown always serializes HardBreak as \\\n (CommonMark syntax).
+  // The original Stashcat app shows this as a literal backslash, so we replace
+  // it with a plain newline which the original app renders correctly as a line break.
+  return raw.replace(/\\\n/g, '\n');
 }
 import {
   Send, Paperclip, Bold, Italic, Strikethrough, Code, List, ListOrdered,
@@ -162,7 +166,7 @@ export default function MessageInput({
         html: false,
         tightLists: true,
         linkify: true,
-        breaks: true,
+        breaks: false,
         transformPastedText: true,
       }),
       EnterBehaviorExtension,
