@@ -162,7 +162,7 @@ export default function MessageInput({
         html: false,
         tightLists: true,
         linkify: true,
-        breaks: false,
+        breaks: true,
         transformPastedText: true,
       }),
       EnterBehaviorExtension,

@@ -26,17 +26,18 @@ export function autoLinkify(text: string): string {
 }
 
 /**
- * Normalize backslashes that the original Stashcat app inserts at line
- * boundaries as hard-break markers (e.g. "text\\\nmore text").
- * We convert them to Markdown hard line breaks (two trailing spaces before \n)
- * so react-markdown renders an actual <br> instead of collapsing the newline.
- * Lines that consist of only a backslash are stripped (no visible content).
+ * Normalize line breaks for rendering:
+ * - The original Stashcat app uses "text\\\n" (backslash + newline) for hard line breaks.
+ * - Our app now sends plain "\n" for hard line breaks (breaks: true in tiptap-markdown).
+ * Both are unified to a plain "\n", then every single "\n" (not a paragraph break "\n\n")
+ * is converted to Markdown hard line breaks ("  \n") so react-markdown renders a <br>.
  */
 export function normalizeBackslashArtifacts(text: string): string {
   return text
-    .replace(/\\(\n)/g, '  $1')
-    .replace(/(\n)\s*\\\s*(?=\n|$)/g, '$1')
-    .replace(/\\$/g, '');
+    .replace(/\\(\n)/g, '\n')                     // \+newline → plain newline
+    .replace(/(\n)\s*\\\s*(?=\n|$)/g, '$1')       // standalone backslash-only line → remove
+    .replace(/\\$/g, '')                           // trailing backslash → remove
+    .replace(/(?<!\n)\n(?!\n)/g, '  \n');          // single newline → Markdown hard break
 }
 
 interface MarkdownContentProps {
