@@ -210,6 +210,26 @@ export default function CalendarView({ eventIdToOpen, onEventOpened, onClose }: 
 
   useEffect(() => { loadAgendaEvents(); }, [loadAgendaEvents]);
 
+  // After save: refresh the lists and also fetch the specific event by ID and merge it.
+  // Listing endpoints can be eventually consistent right after an edit, so the single-event
+  // fetch guarantees the just-edited event is fresh in both `events` and `agendaEvents`.
+  const handleEventSaved = useCallback((eventId?: string) => {
+    loadEvents();
+    loadAgendaEvents();
+    if (!eventId) return;
+    api.getCalendarEvent(eventId).then((fresh) => {
+      const mergeFn = (prev: CalendarEvent[]) => {
+        const idx = prev.findIndex((e) => String(e.id) === String(fresh.id));
+        if (idx === -1) return [...prev, fresh];
+        const next = prev.slice();
+        next[idx] = fresh;
+        return next;
+      };
+      setEvents(mergeFn);
+      setAgendaEvents(mergeFn);
+    }).catch(() => { /* fall back to the list refreshes above */ });
+  }, [loadEvents, loadAgendaEvents]);
+
   // Filter events by visible sources
   const visibleSourceIds = useMemo(() => new Set(sources.filter((s) => s.visible).map((s) => s.id)), [sources]);
   const filteredEvents = useMemo(() => {
@@ -851,9 +871,9 @@ export default function CalendarView({ eventIdToOpen, onEventOpened, onClose }: 
       {showCreate && <CreateEventModal
         initialDate={createDate}
         onClose={() => setShowCreate(false)}
-        onCreated={() => {
+        onCreated={(eventId) => {
           setShowCreate(false);
-          loadEvents();
+          handleEventSaved(eventId);
         }}
       />}
 
@@ -862,9 +882,9 @@ export default function CalendarView({ eventIdToOpen, onEventOpened, onClose }: 
         initialDate={null}
         editingEvent={editEvent}
         onClose={() => setEditEvent(null)}
-        onCreated={() => {
+        onCreated={(eventId) => {
           setEditEvent(null);
-          loadEvents();
+          handleEventSaved(eventId);
         }}
       />}
     </div>
