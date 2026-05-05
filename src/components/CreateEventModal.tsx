@@ -204,7 +204,7 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
       const start = Math.floor(new Date(startStr).getTime() / 1000);
       const end = Math.floor(new Date(endStr).getTime() / 1000);
 
-      // Filter out already-invited entities so we only send true additions.
+      // Identify truly new additions (for the notification messages).
       const newInviteUserIds = inviteUserIds.filter((uid) => !existingInvitedUserIds.has(uid));
       const newInviteChannelIds = inviteChannelIds.filter((cid) => !existingInvitedChannelIds.has(cid));
 
@@ -214,12 +214,20 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
         ? String(editingEvent.type_id ?? '')
         : (category === 'channel' ? (inviteChannelIds[0] ?? selectedChannelId) : '');
 
-      // For create: same semantics as before. For edit: only send additions.
+      // For create: same semantics as before.
+      // For edit: the backend REPLACES invite lists, so we must re-send existing IDs + new ones.
+      // existingInvitedChannelIds includes the main channel (type_id) which is sent separately,
+      // so we only re-send the secondary channel_invites (exclude the main type_id).
+      const existingSecondaryChannelIds = isEdit && editingEvent
+        ? [...existingInvitedChannelIds].filter((cid) => cid !== String(editingEvent.type_id ?? ''))
+        : [];
+      const existingUserIds = isEdit ? [...existingInvitedUserIds] : [];
+
       const sendUserIds = isEdit
-        ? newInviteUserIds
+        ? [...existingUserIds, ...newInviteUserIds]
         : (category === 'personal' ? inviteUserIds : []);
       const sendChannelIds = isEdit
-        ? newInviteChannelIds
+        ? [...existingSecondaryChannelIds, ...newInviteChannelIds]
         : (category === 'channel' ? inviteChannelIds.slice(1) : []);
 
       const eventData: Record<string, unknown> = {
