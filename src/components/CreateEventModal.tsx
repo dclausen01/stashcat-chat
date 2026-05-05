@@ -215,20 +215,25 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
         : (category === 'channel' ? (inviteChannelIds[0] ?? selectedChannelId) : '');
 
       // For create: same semantics as before.
-      // For edit: the backend REPLACES invite lists, so we must re-send existing IDs + new ones.
-      // existingInvitedChannelIds includes the main channel (type_id) which is sent separately,
-      // so we only re-send the secondary channel_invites (exclude the main type_id).
-      const existingSecondaryChannelIds = isEdit && editingEvent
-        ? [...existingInvitedChannelIds].filter((cid) => cid !== String(editingEvent.type_id ?? ''))
-        : [];
+      // For edit: the backend REPLACES invite lists with the values it receives, so we must
+      // re-send EVERY existing channel ID (including the main type_id — the original web
+      // client includes it in invite_channel_ids too) plus any new ones.
+      const existingChannelIdsAll = isEdit ? [...existingInvitedChannelIds] : [];
       const existingUserIds = isEdit ? [...existingInvitedUserIds] : [];
 
       const sendUserIds = isEdit
         ? [...existingUserIds, ...newInviteUserIds]
         : (category === 'personal' ? inviteUserIds : []);
       const sendChannelIds = isEdit
-        ? [...existingSecondaryChannelIds, ...newInviteChannelIds]
+        ? [...existingChannelIdsAll, ...newInviteChannelIds]
         : (category === 'channel' ? inviteChannelIds.slice(1) : []);
+
+      // Stashcat expects numeric IDs in the JSON arrays (the official web client sends
+      // [4684531,...] not ["4684531",...]). Coerce string IDs to numbers, dropping anything
+      // that isn't a finite integer.
+      const toNumericIds = (ids: string[]): number[] => ids
+        .map((s) => Number(s))
+        .filter((n) => Number.isFinite(n));
 
       const eventData: Record<string, unknown> = {
         name: name.trim(),
@@ -241,8 +246,8 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
         company_id: companyId,
         allday,
         repeat,
-        invite_user_ids: sendUserIds,
-        invite_channel_ids: sendChannelIds,
+        invite_user_ids: toNumericIds(sendUserIds),
+        invite_channel_ids: toNumericIds(sendChannelIds),
         ...(preselectedChat && !isEdit ? { notify_chat_id: preselectedChat.id, notify_chat_type: preselectedChat.type } : {}),
       };
 
