@@ -104,32 +104,18 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
   }, [editingEvent]);
 
   // Get company ID and load channels on mount
-  const loadChannels = useCallback((cid: string) => {
-    api.getChannels(cid).then((chs) => {
-      setChannels(chs as RawChannel[]);
-    }).catch((err) => {
-      console.error('Failed to load channels for picker:', err);
-    });
-  }, []);
-
   useEffect(() => {
     api.getCompanies().then((c) => {
       if (c.length > 0) {
         const cid = String(c[0].id);
         setCompanyId(cid);
-        loadChannels(cid);
+        // Load channels for the channel picker
+        api.getChannels(cid).then((chs) => {
+          setChannels(chs as RawChannel[]);
+        }).catch(() => {});
       }
-    }).catch((err) => {
-      console.error('Failed to load companies:', err);
-    });
-  }, [loadChannels]);
-
-  // Retry channel load when the channel picker opens but the list is still empty.
-  useEffect(() => {
-    if (showChannelPicker && channels.length === 0 && companyId) {
-      loadChannels(companyId);
-    }
-  }, [showChannelPicker, channels.length, companyId, loadChannels]);
+    }).catch(() => {});
+  }, []);
 
   // Preselect channel or conversation members
   useEffect(() => {
