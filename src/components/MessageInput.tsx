@@ -239,8 +239,6 @@ export default function MessageInput({
     } else {
       const md = (editor ? getMd(editor) : '').trim();
       if (!md) return;
-      console.log('[DEBUG getMd raw]', JSON.stringify((editor?.storage as unknown as { markdown: { getMarkdown(): string } })?.markdown?.getMarkdown()));
-      console.log('[DEBUG getMd processed]', JSON.stringify(md));
       setSending(true);
       try {
         await onSend(md);
