@@ -1612,7 +1612,6 @@ app.post('/api/messages/:type/:targetId', async (req, res) => {
     const client = await getClient(req);
     const { type, targetId } = req.params;
     const { text, is_forwarded, reply_to_id, files } = req.body as { text: string; is_forwarded?: boolean; reply_to_id?: string; files?: string[] };
-    debugLog('[DEBUG sendMessage] text received by server:', JSON.stringify(text));
     const chatType = type as 'channel' | 'conversation';
     await client.sendMessage({ target: targetId, target_type: chatType, text, is_forwarded, reply_to_id, files });
     res.json({ ok: true });
