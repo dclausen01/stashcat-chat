@@ -32,7 +32,7 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
   editingEvent?: CalendarEvent;
   preselectedChat?: ChatTarget;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (eventId?: string) => void;
 }) {
   useEscapeKey(onClose);
   const isEdit = !!editingEvent;
@@ -252,8 +252,10 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
         // itself (see the targets loop below) to avoid duplicate messages.
       };
 
+      let savedEventId: string | undefined;
       if (isEdit && editingEvent) {
         await api.editCalendarEvent(String(editingEvent.id), eventData);
+        savedEventId = String(editingEvent.id);
 
         // Notify newly added channels in chat (mirrors the create-mode behaviour).
         if (newInviteChannelIds.length > 0) {
@@ -273,6 +275,7 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
         }
       } else {
         const { id: eventId } = await api.createCalendarEvent(eventData);
+        savedEventId = eventId ? String(eventId) : undefined;
 
         // Send notification messages to all relevant chats
         if (eventId) {
@@ -309,7 +312,7 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
           }
         }
       }
-      onCreated();
+      onCreated(savedEventId);
     } catch (err) {
       alert(`Fehler: ${err instanceof Error ? err.message : err}`);
     } finally {
