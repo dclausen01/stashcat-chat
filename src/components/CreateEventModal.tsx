@@ -248,7 +248,8 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
         repeat,
         invite_user_ids: toNumericIds(sendUserIds),
         invite_channel_ids: toNumericIds(sendChannelIds),
-        ...(preselectedChat && !isEdit ? { notify_chat_id: preselectedChat.id, notify_chat_type: preselectedChat.type } : {}),
+        // notify_chat_id is intentionally omitted — the frontend sends chat notifications
+        // itself (see the targets loop below) to avoid duplicate messages.
       };
 
       if (isEdit && editingEvent) {
