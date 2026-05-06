@@ -2063,6 +2063,38 @@ app.post('/api/broadcasts/:id/members', async (req, res) => {
         res.status(500).json({ error: errorMessage(err) });
     }
 });
+app.post('/api/upload/broadcast/:listId', upload.single('file'), async (req, res) => {
+    const tmpPath = req.file?.path;
+    try {
+        const client = await getClient(req);
+        if (!req.file)
+            throw new Error('No file received');
+        const me = await client.getMe();
+        const userId = String(me.id);
+        const originalName = req.file.originalname;
+        const ext = path_1.default.extname(originalName);
+        const namedPath = tmpPath + ext;
+        await promises_1.default.rename(tmpPath, namedPath);
+        const fileInfo = await client.uploadFile(namedPath, {
+            type: 'personal',
+            type_id: userId,
+            filename: originalName,
+        });
+        await promises_1.default.unlink(namedPath).catch(() => { });
+        const fileId = String(fileInfo.id);
+        const msg = await client.sendBroadcastMessage({
+            list_id: String(req.params.listId),
+            text: typeof req.body.text === 'string' ? req.body.text : '',
+            files: fileId,
+        });
+        res.json({ ok: true, message: msg, file: fileInfo });
+    }
+    catch (err) {
+        if (tmpPath)
+            await promises_1.default.unlink(tmpPath).catch(() => { });
+        res.status(500).json({ error: errorMessage(err, 'Upload failed') });
+    }
+});
 app.delete('/api/broadcasts/:id/members', async (req, res) => {
     try {
         const client = await getClient(req);

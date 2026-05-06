@@ -122,7 +122,9 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
     setActiveBroadcast(b);
     setActiveTab('messages');
     setShowAddMembers(false);
+    setMembers([]);
     loadMessages(b);
+    loadMembers(b);
   };
 
   const loadMessages = async (b: Broadcast) => {
@@ -241,6 +243,14 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
   const handleSend = async (text: string) => {
     if (!activeBroadcast) return;
     await api.sendBroadcastMessage(String(activeBroadcast.id), text);
+    const msgs = await api.getBroadcastMessages(String(activeBroadcast.id));
+    setMessages(msgs as unknown as BroadcastMessage[]);
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+  };
+
+  const handleUpload = async (file: File, text: string, onProgress?: (pct: number) => void) => {
+    if (!activeBroadcast) return;
+    await api.uploadBroadcastFile(String(activeBroadcast.id), file, text, onProgress);
     const msgs = await api.getBroadcastMessages(String(activeBroadcast.id));
     setMessages(msgs as unknown as BroadcastMessage[]);
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -401,7 +411,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
               {activeBroadcast.name}
             </h3>
             <span className="flex items-center gap-1 text-xs text-surface-600">
-              <Users size={12} /> {activeBroadcast.member_count}
+              <Users size={12} /> {loadingMembers && members.length === 0 ? activeBroadcast.member_count : members.length}
             </span>
           </>
         ) : (
@@ -464,7 +474,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
               activeTab === 'members'
                 ? 'border-b-2 border-primary-500 text-primary-600 dark:text-primary-400'
                 : 'text-surface-600 hover:text-surface-700 dark:text-surface-400')}>
-            Empfänger ({activeBroadcast.member_count})
+            Empfänger ({loadingMembers && members.length === 0 ? activeBroadcast.member_count : members.length})
           </button>
         </div>
       )}
@@ -494,7 +504,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
             </div>
             <MessageInput
               onSend={handleSend}
-              onUpload={async () => {}}
+              onUpload={handleUpload}
               chatId={String(activeBroadcast.id)}
               chatName={activeBroadcast.name}
             />

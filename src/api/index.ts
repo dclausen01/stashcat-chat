@@ -124,6 +124,7 @@ export {
   getBroadcastMembers,
   addBroadcastMembers,
   removeBroadcastMembers,
+  uploadBroadcastFile,
 } from './broadcasts';
 
 // Calendar
