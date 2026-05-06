@@ -2186,7 +2186,7 @@ app.post('/api/broadcasts/:id/members', async (req, res) => {
   }
 });
 
-app.post('/api/upload/broadcast/:listId', upload.single('file'), async (req, res) => {
+app.post('/api/broadcasts/:listId/upload', upload.single('file'), async (req, res) => {
   const tmpPath = req.file?.path;
   try {
     const client = await getClient(req);

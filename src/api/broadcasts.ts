@@ -73,7 +73,7 @@ export async function uploadBroadcastFile(
 
   await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${BACKEND}/upload/broadcast/${listId}`);
+    xhr.open('POST', `${BACKEND}/broadcasts/${listId}/upload`);
     xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     if (onProgress) {
       xhr.upload.onprogress = (e) => {
