@@ -2085,7 +2085,8 @@ app.post('/api/upload/broadcast/:listId', upload.single('file'), async (req, res
         const msg = await client.sendBroadcastMessage({
             list_id: String(req.params.listId),
             text: typeof req.body.text === 'string' ? req.body.text : '',
-            files: fileId,
+            files: JSON.stringify([Number(fileId)]),
+            metainfo: { v: 1, style: 'md' },
         });
         res.json({ ok: true, message: msg, file: fileInfo });
     }
