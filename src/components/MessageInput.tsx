@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, useEditorState, EditorContent } from '@tiptap/react';
 import { Extension } from '@tiptap/core';
 import type { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
@@ -507,7 +507,12 @@ export default function MessageInput({
     },
   ];
 
-  const isEmpty = editor?.isEmpty ?? true;
+  // Tiptap v3's useEditor does not re-render on transactions by default,
+  // so editor.isEmpty would stay stale. Subscribe explicitly via useEditorState.
+  const isEmpty = useEditorState({
+    editor,
+    selector: ({ editor: ed }) => ed?.isEmpty ?? true,
+  });
   const canSend = !sending && !isRecording && (pendingFiles.length > 0 || !isEmpty);
 
   return (
