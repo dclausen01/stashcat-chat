@@ -11,10 +11,18 @@ import { Markdown } from 'tiptap-markdown';
 
 function getMd(editor: Editor): string {
   const raw = (editor.storage as unknown as { markdown: { getMarkdown(): string } }).markdown.getMarkdown();
-  // tiptap-markdown always serializes HardBreak as \\\n (CommonMark syntax).
-  // The original Stashcat app shows this as a literal backslash, so we replace
-  // it with a plain newline which the original app renders correctly as a line break.
-  return raw.replace(/\\\n/g, '\n');
+  return raw
+    // tiptap-markdown serializes HardBreak as "\\\n" (CommonMark). The original
+    // Stashcat app shows the literal backslash, so collapse to a plain newline.
+    .replace(/\\\n/g, '\n')
+    // Autolinks <https://...> — both clients auto-detect URLs, so the angle
+    // brackets are noise and render literally in the original client.
+    .replace(/<(https?:\/\/[^>\s]+)>/g, '$1')
+    // Image markdown ![alt](url) — original client renders this literally.
+    // Drop to a bare URL; our client auto-linkifies it.
+    .replace(/!\[[^\]]*\]\(([^\s)]+)(?:\s+"[^"]*")?\)/g, '$1')
+    // Inline links [text](url) where text equals url — same reasoning.
+    .replace(/\[([^\]]+)\]\(([^\s)]+)(?:\s+"[^"]*")?\)/g, (m, text, url) => text === url ? url : m);
 }
 import {
   Send, Paperclip, Bold, Italic, Strikethrough, Code, List, ListOrdered,
