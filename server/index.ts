@@ -3190,12 +3190,18 @@ app.get('/api/nextcloud/probe', async (req, res) => {
     if (!result) {
       return res.json({ configured: false, needsAppPassword: true });
     }
-    const ok = await ncProbe(result.creds);
-    if (ok) {
-      res.json({ configured: true, authMode: result.authMode, username: result.creds.username });
-    } else {
-      res.json({ configured: false, needsAppPassword: true });
+    const probe = await ncProbe(result.creds);
+    if (probe.ok) {
+      return res.json({ configured: true, authMode: result.authMode, username: result.creds.username });
     }
+    if (probe.reason === 'throttled') {
+      // Nextcloud brute-force protection — credentials may be valid, IP is throttled.
+      return res.json({ configured: true, throttled: true, authMode: result.authMode, username: result.creds.username });
+    }
+    if (probe.reason === 'auth') {
+      return res.json({ configured: false, needsAppPassword: true, reason: 'auth' });
+    }
+    return res.json({ configured: false, reason: probe.reason, status: probe.status });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }

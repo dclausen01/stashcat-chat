@@ -830,8 +830,12 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
     setCrumbs([{ id: null, name: 'Alle Dateien' }]);
   };
 
-  // Auto-reload when crumbs change (folder navigation, tab switch)
-  useEffect(() => { loadFolder(); }, [crumbs, tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Auto-reload when crumbs change (folder navigation, tab switch).
+  // Skip Nextcloud loads while throttled — would just produce more 429s.
+  useEffect(() => {
+    if (tab === 'nextcloud' && ncProbeStatus?.throttled) return;
+    loadFolder();
+  }, [crumbs, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const navigateInto = (folder: FolderEntry) => {
     setSelectedIds(new Set()); // clear selection on navigation
@@ -1563,8 +1567,21 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
             </button>
           </div>
         )}
+        {/* Nextcloud throttled banner — credentials are saved but Nextcloud is rate-limiting */}
+        {tab === 'nextcloud' && !ncProbing && ncProbeStatus?.throttled && (
+          <div className="m-4 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950/40">
+            <div className="flex items-center gap-2 mb-2">
+              <Cloud size={18} className="text-amber-600 dark:text-amber-400" />
+              <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200">Nextcloud drosselt aktuell die Verbindung</h4>
+            </div>
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              Deine Anmeldedaten sind gespeichert, aber Nextcloud lehnt Anfragen vorübergehend ab (HTTP 429 — Brute-Force-Schutz).
+              Bitte einige Minuten warten und dann erneut versuchen. Wenn das Problem länger andauert, bitte einem Admin Bescheid geben.
+            </p>
+          </div>
+        )}
         {/* Nextcloud setup panel — shown when credentials are missing or probe failed */}
-        {tab === 'nextcloud' && (ncProbing || ncProbeStatus?.needsAppPassword || (ncProbeStatus && !ncProbeStatus.configured)) && (
+        {tab === 'nextcloud' && !ncProbeStatus?.throttled && (ncProbing || ncProbeStatus?.needsAppPassword || (ncProbeStatus && !ncProbeStatus.configured)) && (
           <div className="m-4 rounded-xl border border-teal-200 bg-teal-50 p-4 dark:border-teal-800 dark:bg-teal-950/40">
             {ncProbing ? (
               <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400">
@@ -1622,7 +1639,7 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
                         setNcProbing(true);
                         const status = await api.ncProbeAndDetect();
                         setNcProbeStatus(status);
-                        if (!status.needsAppPassword && status.configured) await loadFolder();
+                        if (!status.needsAppPassword && status.configured && !status.throttled) await loadFolder();
                       } catch {
                         setNcProbeStatus({ configured: false, needsAppPassword: true });
                       } finally {

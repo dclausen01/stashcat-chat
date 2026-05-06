@@ -105,6 +105,9 @@ export interface NCStatus {
   authMode?: 'ad' | 'app-password';
   username?: string;
   needsAppPassword?: boolean;
+  throttled?: boolean;
+  reason?: 'auth' | 'throttled' | 'network' | 'other';
+  status?: number;
 }
 
 // ── API functions ─────────────────────────────────────────────────────────────

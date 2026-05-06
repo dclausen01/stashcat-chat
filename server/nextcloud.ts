@@ -203,8 +203,16 @@ export async function ncQuota(creds: NCCredentials): Promise<NCQuota> {
   };
 }
 
-/** Test credentials: returns true if PROPFIND on root succeeds. */
-export async function ncProbe(creds: NCCredentials): Promise<boolean> {
+export type NCProbeResult =
+  | { ok: true }
+  | { ok: false; reason: 'auth' | 'throttled' | 'network' | 'other'; status?: number };
+
+/**
+ * Test credentials. Distinguishes auth failures (401/403) from
+ * brute-force throttling (429) and network errors so the UI can
+ * show meaningful messages.
+ */
+export async function ncProbe(creds: NCCredentials): Promise<NCProbeResult> {
   try {
     const url = davUrl(creds, '/');
     const res = await fetch(url, {
@@ -216,9 +224,12 @@ export async function ncProbe(creds: NCCredentials): Promise<boolean> {
       },
       body: `<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>`,
     });
-    return res.status === 207 || res.ok;
+    if (res.status === 207 || res.ok) return { ok: true };
+    if (res.status === 401 || res.status === 403) return { ok: false, reason: 'auth', status: res.status };
+    if (res.status === 429) return { ok: false, reason: 'throttled', status: 429 };
+    return { ok: false, reason: 'other', status: res.status };
   } catch {
-    return false;
+    return { ok: false, reason: 'network' };
   }
 }
 
