@@ -3043,7 +3043,7 @@ app.get('/api/onlyoffice/view', async (req, res) => {
 /** POST /api/onlyoffice/view-nc — OnlyOffice viewer config for Nextcloud files */
 app.post('/api/onlyoffice/view-nc', async (req, res) => {
   try {
-    const creds = await getNCCreds(req);
+    const creds = await getNCCred(req);
     if (!creds) return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
 
     const { path: filePath, fileName } = req.query as Record<string, string>;
@@ -3132,7 +3132,12 @@ app.get('/api/onlyoffice/dl', async (req, res) => {
  * Password priority: X-NC-App-Password header > loginPassword from session token.
  * Username priority: X-NC-Username header > derived from user profile (Last, First).
  */
-async function getNCCreds(req: express.Request): Promise<NCCredentials | null> {
+interface NCCredsResult {
+  creds: NCCredentials;
+  authMode: 'ad' | 'app-password';
+}
+
+async function getNCCreds(req: express.Request): Promise<NCCredsResult | null> {
   const token = extractToken(req);
   const payload = decryptSession(token);
 
@@ -3153,18 +3158,26 @@ async function getNCCreds(req: express.Request): Promise<NCCredentials | null> {
   }
   if (!username) return null;
 
-  const baseUrl = process.env.NEXTCLOUD_URL || 'https://cloud.bbz-rd-eck.de';
-  return { baseUrl, username, password };
+  const baseUrl = (process.env.NEXTCLOUD_URL || 'https://cloud.bbz-rd-eck.de').replace(/\/+$/, '');
+  return {
+    creds: { baseUrl, username, password },
+    authMode: appPassword ? 'app-password' : 'ad',
+  };
+}
+
+/** Convenience wrapper — returns only the NCCredentials (no authMode). */
+async function getNCCred(req: express.Request): Promise<NCCredentials | null> {
+  return (await getNCCreds(req))?.creds ?? null;
 }
 
 /** GET /api/nextcloud/status — check if credentials are available. */
 app.get('/api/nextcloud/status', async (req, res) => {
   try {
-    const creds = await getNCCreds(req);
-    if (!creds) {
+    const result = await getNCCreds(req);
+    if (!result) {
       return res.json({ configured: false, needsAppPassword: true });
     }
-    res.json({ configured: true, username: creds.username });
+    res.json({ configured: true, authMode: result.authMode, username: result.creds.username });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
   }
@@ -3173,13 +3186,13 @@ app.get('/api/nextcloud/status', async (req, res) => {
 /** GET /api/nextcloud/probe — test credentials against WebDAV. */
 app.get('/api/nextcloud/probe', async (req, res) => {
   try {
-    const creds = await getNCCreds(req);
-    if (!creds) {
+    const result = await getNCCreds(req);
+    if (!result) {
       return res.json({ configured: false, needsAppPassword: true });
     }
-    const ok = await ncProbe(creds);
+    const ok = await ncProbe(result.creds);
     if (ok) {
-      res.json({ configured: true, authMode: creds ? 'ad' : 'app-password', username: creds.username });
+      res.json({ configured: true, authMode: result.authMode, username: result.creds.username });
     } else {
       res.json({ configured: false, needsAppPassword: true });
     }
@@ -3191,7 +3204,7 @@ app.get('/api/nextcloud/probe', async (req, res) => {
 /** GET /api/nextcloud/folder?path=... — list folder contents. */
 app.get('/api/nextcloud/folder', async (req, res) => {
   try {
-    const creds = await getNCCreds(req);
+    const creds = await getNCCred(req);
     if (!creds) return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert', needsAppPassword: true });
     const folderPath = (req.query.path as string) || '/';
     const entries = await ncListFolder(creds, folderPath);
@@ -3204,7 +3217,7 @@ app.get('/api/nextcloud/folder', async (req, res) => {
 /** GET /api/nextcloud/file?path=...&view=1 — download or view a file. */
 app.get('/api/nextcloud/file', async (req, res) => {
   try {
-    const creds = await getNCCreds(req);
+    const creds = await getNCCred(req);
     if (!creds) return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
     const filePath = req.query.path as string;
     if (!filePath) return res.status(400).json({ error: 'path required' });
@@ -3227,7 +3240,7 @@ app.get('/api/nextcloud/file', async (req, res) => {
 app.post('/api/nextcloud/upload', upload.single('file'), async (req, res) => {
   const tmpPath = req.file?.path;
   try {
-    const creds = await getNCCreds(req);
+    const creds = await getNCCred(req);
     if (!creds) return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
     if (!req.file) throw new Error('No file received');
 
@@ -3248,7 +3261,7 @@ app.post('/api/nextcloud/upload', upload.single('file'), async (req, res) => {
 /** POST /api/nextcloud/delete — delete one or more paths. */
 app.post('/api/nextcloud/delete', async (req, res) => {
   try {
-    const creds = await getNCCreds(req);
+    const creds = await getNCCred(req);
     if (!creds) return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
     const { paths } = req.body as { paths: string[] };
     for (const p of paths) await ncDelete(creds, p);
@@ -3261,7 +3274,7 @@ app.post('/api/nextcloud/delete', async (req, res) => {
 /** POST /api/nextcloud/mkcol — create a folder. */
 app.post('/api/nextcloud/mkcol', async (req, res) => {
   try {
-    const creds = await getNCCreds(req);
+    const creds = await getNCCred(req);
     if (!creds) return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
     const { path: folderPath } = req.body as { path: string };
     await ncMkcol(creds, folderPath);
@@ -3274,7 +3287,7 @@ app.post('/api/nextcloud/mkcol', async (req, res) => {
 /** POST /api/nextcloud/move — move a file/folder. */
 app.post('/api/nextcloud/move', async (req, res) => {
   try {
-    const creds = await getNCCreds(req);
+    const creds = await getNCCred(req);
     if (!creds) return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
     const { from, to } = req.body as { from: string; to: string };
     await ncMove(creds, from, to);
@@ -3287,7 +3300,7 @@ app.post('/api/nextcloud/move', async (req, res) => {
 /** POST /api/nextcloud/rename — rename by MOVE to same folder with new name. */
 app.post('/api/nextcloud/rename', async (req, res) => {
   try {
-    const creds = await getNCCreds(req);
+    const creds = await getNCCred(req);
     if (!creds) return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
     const { path: filePath, newName } = req.body as { path: string; newName: string };
     const parent = filePath.substring(0, filePath.lastIndexOf('/')) || '/';
@@ -3302,7 +3315,7 @@ app.post('/api/nextcloud/rename', async (req, res) => {
 /** POST /api/nextcloud/share — create a public share link. */
 app.post('/api/nextcloud/share', async (req, res) => {
   try {
-    const creds = await getNCCreds(req);
+    const creds = await getNCCred(req);
     if (!creds) return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
     const { path: filePath, password, permissions } = req.body as { path: string; password?: string; permissions?: number };
     const result = await ncCreateShare(creds, filePath, password, permissions);
@@ -3315,7 +3328,7 @@ app.post('/api/nextcloud/share', async (req, res) => {
 /** GET /api/nextcloud/quota — storage quota. */
 app.get('/api/nextcloud/quota', async (req, res) => {
   try {
-    const creds = await getNCCreds(req);
+    const creds = await getNCCred(req);
     if (!creds) return res.status(401).json({ error: 'Nextcloud-Zugangsdaten nicht konfiguriert' });
     const quota = await ncQuota(creds);
     res.json(quota);
