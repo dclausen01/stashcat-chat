@@ -2,7 +2,7 @@
  * Broadcast messaging API endpoints.
  */
 
-import { get, post, del, patch } from './core';
+import { get, post, del, patch, getToken, BACKEND } from './core';
 
 export async function listBroadcasts(): Promise<Array<Record<string, unknown>>> {
   return get<Array<Record<string, unknown>>>('/broadcasts');
@@ -58,4 +58,42 @@ export async function removeBroadcastMembers(
   memberIds: string[]
 ): Promise<void> {
   return del(`/broadcasts/${id}/members`, { memberIds });
+}
+
+export async function uploadBroadcastFile(
+  listId: string,
+  file: File,
+  text = '',
+  onProgress?: (percent: number) => void,
+): Promise<void> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('text', text);
+  const token = getToken();
+
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BACKEND}/upload/broadcast/${listId}`);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    if (onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText) as { error?: unknown };
+          const msg = typeof err.error === 'string' ? err.error : `HTTP ${xhr.status}`;
+          reject(new Error(msg));
+        } catch {
+          reject(new Error(`HTTP ${xhr.status}`));
+        }
+      }
+    };
+    xhr.onerror = () => reject(new Error('Netzwerkfehler beim Upload'));
+    xhr.send(formData);
+  });
 }
