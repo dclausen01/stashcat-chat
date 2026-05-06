@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Radio, Plus, Trash2, Users, Loader2, ArrowLeft,
-  Pencil, Check, Search, UserMinus, UserPlus, UsersRound,
+  Pencil, Check, Search, UserMinus, UserPlus, UsersRound, Paperclip,
 } from 'lucide-react';
 import MarkdownContent from './MarkdownContent';
 import { clsx } from 'clsx';
 import * as api from '../api';
+import { fileDownloadUrl } from '../api/files';
 import Avatar from './Avatar';
 import MessageInput from './MessageInput';
 import { useConfirm } from '../context/ConfirmContext';
@@ -18,11 +19,20 @@ interface Broadcast {
   lastAction: number;
 }
 
+interface BroadcastFile {
+  id: string;
+  name: string;
+  ext?: string;
+  mime?: string;
+  size_string?: string;
+}
+
 interface BroadcastMessage {
   id: string;
   text: string;
   time?: number;
   sender?: { first_name?: string; last_name?: string; image?: string };
+  files?: BroadcastFile[];
 }
 
 interface RawUser {
@@ -493,9 +503,28 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
               ) : (
                 messages.map((msg) => (
                   <div key={msg.id} className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
-                    <div className="text-sm text-surface-900 dark:text-surface-100">
-                      <MarkdownContent content={msg.text} />
-                    </div>
+                    {msg.text && (
+                      <div className="text-sm text-surface-900 dark:text-surface-100">
+                        <MarkdownContent content={msg.text} />
+                      </div>
+                    )}
+                    {msg.files && msg.files.length > 0 && (
+                      <div className={clsx('flex flex-col gap-1', msg.text && 'mt-2')}>
+                        {msg.files.map((f) => (
+                          <a
+                            key={f.id}
+                            href={fileDownloadUrl(f.id, f.name)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 rounded-lg border border-surface-200 px-3 py-2 text-sm text-primary-600 hover:bg-surface-50 dark:border-surface-600 dark:text-primary-400 dark:hover:bg-surface-700"
+                          >
+                            <Paperclip size={14} className="shrink-0" />
+                            <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                            {f.size_string && <span className="shrink-0 text-xs text-surface-500">{f.size_string}</span>}
+                          </a>
+                        ))}
+                      </div>
+                    )}
                     <div className="mt-1 text-xs text-surface-600">{formatTime(msg.time)}</div>
                   </div>
                 ))
