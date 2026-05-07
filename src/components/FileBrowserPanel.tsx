@@ -1545,7 +1545,7 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
               }}
               placeholder="Ordnername..."
               autoFocus
-              className="flex-1 rounded-md border border-surface-200 bg-white px-2 py-1 text-sm outline-none focus:border-primary-500 dark:border-surface-700 dark:bg-surface-800"
+              className="flex-1 rounded-md border border-surface-200 bg-white px-2 py-1 text-sm text-surface-900 outline-none focus:border-primary-500 dark:border-surface-700 dark:bg-surface-800 dark:text-white"
             />
             <button
               onClick={handleCreateFolder}
