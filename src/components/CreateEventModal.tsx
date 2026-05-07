@@ -452,9 +452,14 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
                 <button
                   type="button"
                   onClick={() => { setShowPersonPicker(!showPersonPicker); setSearchQuery(''); }}
-                  className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                  className={clsx(
+                    'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium shadow-sm transition',
+                    showPersonPicker
+                      ? 'bg-surface-200 text-surface-700 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-200 dark:hover:bg-surface-600'
+                      : 'bg-primary-500 text-white hover:bg-primary-600',
+                  )}
                 >
-                  <Users size={12} /> {showPersonPicker ? 'Schließen' : 'Auswählen'}
+                  <Users size={13} /> {showPersonPicker ? 'Schließen' : 'Auswählen'}
                 </button>
               </div>
 
@@ -545,9 +550,14 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
                 <button
                   type="button"
                   onClick={() => { setShowChannelPicker(!showChannelPicker); setSearchQuery(''); }}
-                  className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                  className={clsx(
+                    'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium shadow-sm transition',
+                    showChannelPicker
+                      ? 'bg-surface-200 text-surface-700 hover:bg-surface-300 dark:bg-surface-700 dark:text-surface-200 dark:hover:bg-surface-600'
+                      : 'bg-primary-500 text-white hover:bg-primary-600',
+                  )}
                 >
-                  <Hash size={12} /> {showChannelPicker ? 'Schließen' : 'Auswählen'}
+                  <Hash size={13} /> {showChannelPicker ? 'Schließen' : 'Auswählen'}
                 </button>
               </div>
 

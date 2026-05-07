@@ -2373,74 +2373,12 @@ function MessageGroup({
               data-msg-time={String(msg.time ?? 0)}
               ref={isBubbleMatch ? (el) => onMatchRef?.(String(msg.id), el) : undefined}
               className={clsx(
-                'group/msg relative flex flex-col gap-1 before:pointer-events-auto before:absolute before:-top-8 before:left-0 before:right-0 before:h-8',
+                'relative flex flex-col gap-1',
                 isOwn ? 'items-end' : 'items-start',
                 isBubbleMatch && 'rounded-xl ring-2',
                 isBubbleCurrent ? 'ring-yellow-400 dark:ring-yellow-500' : isBubbleMatch ? 'ring-yellow-200 dark:ring-yellow-800' : undefined,
               )}
             >
-              {/* Action buttons — above the bubble on desktop (hover), inline panel on mobile */}
-              <div className={clsx(
-                'absolute bottom-full mb-1 z-10 items-center gap-0.5 rounded-lg bg-white/90 p-1 shadow-sm ring-1 ring-surface-200 backdrop-blur dark:bg-surface-800/90 dark:ring-surface-700',
-                isOwn ? 'right-0' : 'left-0',
-                mobileActionMsgId === String(msg.id) ? 'flex' : 'hidden group-hover/msg:flex',
-              )}>
-                <button
-                  onClick={() => onLike(String(msg.id), Boolean(msg.liked))}
-                  title={msg.liked ? 'Like entfernen' : 'Gefällt mir'}
-                  className={clsx(
-                    'flex items-center justify-center rounded-md p-1.5 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1',
-                    msg.liked
-                      ? 'text-amber-500 dark:text-amber-400'
-                      : 'text-surface-600 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700 dark:hover:text-amber-400',
-                  )}
-                >
-                  <ThumbsUp size={13} />
-                </button>
-                <button
-                  onClick={() => onReply(msg)}
-                  title="Antworten"
-                  className="flex items-center justify-center rounded-md p-1.5 text-surface-600 hover:bg-surface-200 hover:text-primary-600 dark:hover:bg-surface-700 dark:hover:text-primary-400 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1"
-                >
-                  <Reply size={13} />
-                </button>
-                <button
-                  onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }}
-                  title="Kopieren"
-                  className="flex items-center justify-center rounded-md p-1.5 text-surface-600 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1"
-                >
-                  <Copy size={13} />
-                </button>
-                <button
-                  onClick={() => onForward(msg)}
-                  title="Weiterleiten"
-                  className="flex items-center justify-center rounded-md p-1.5 text-surface-600 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1"
-                >
-                  <Forward size={13} />
-                </button>
-                <button
-                  onClick={() => onFlag(String(msg.id), Boolean(msg.flagged))}
-                  title={msg.flagged ? 'Markierung entfernen' : 'Markieren'}
-                  className={clsx(
-                    'flex items-center justify-center rounded-md p-1.5 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1',
-                    msg.flagged
-                      ? 'text-amber-500 dark:text-amber-400'
-                      : 'text-surface-600 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700 dark:hover:text-amber-400',
-                  )}
-                >
-                  <Bookmark size={13} fill={msg.flagged ? 'currentColor' : 'none'} />
-                </button>
-                {canDelete && (
-                  <button
-                    onClick={() => onDelete(String(msg.id))}
-                    title="Löschen"
-                    className="flex items-center justify-center rounded-md p-1.5 text-surface-600 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                )}
-              </div>
-
               {/* Bookmark indicator for flagged messages */}
               {msg.flagged && (
                 <div className={clsx('flex items-center gap-1 text-amber-500 dark:text-amber-400', isOwn ? 'flex-row-reverse' : 'flex-row')}>
@@ -2450,10 +2388,10 @@ function MessageGroup({
               )}
 
               {/* Bubble row: bubble + mobile ⋯ trigger */}
-              <div className={clsx('flex items-end gap-1', isOwn ? 'flex-row-reverse' : 'flex-row')}>
+              <div className={clsx('relative flex items-end gap-1', isOwn ? 'flex-row-reverse' : 'flex-row')}>
                 <div
                   className={clsx(
-                    'relative max-w-full rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed select-text',
+                    'peer/bubble relative max-w-full rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed select-text',
                     isOwn && !isFirst && 'rounded-tr-md',
                     isOwn && !isLast && 'rounded-br-md',
                     !isOwn && !isFirst && 'rounded-tl-md',
@@ -2487,6 +2425,68 @@ function MessageGroup({
                 >
                   <MoreHorizontal size={16} />
                 </button>
+                {/* Action popup — desktop: shown on bubble or popup hover (peer/bubble); mobile: toggled via ⋯ */}
+                <div className={clsx(
+                  'absolute bottom-full mb-1 z-20 items-center gap-0.5 rounded-lg bg-white/95 p-1 shadow-md ring-1 ring-surface-200 backdrop-blur dark:bg-surface-800/95 dark:ring-surface-700',
+                  'before:absolute before:-bottom-1.5 before:left-0 before:right-0 before:h-1.5',
+                  isOwn ? 'right-0' : 'left-0',
+                  mobileActionMsgId === String(msg.id) ? 'flex' : 'hidden peer-hover/bubble:flex hover:flex',
+                )}>
+                  <button
+                    onClick={() => onLike(String(msg.id), Boolean(msg.liked))}
+                    title={msg.liked ? 'Like entfernen' : 'Gefällt mir'}
+                    className={clsx(
+                      'flex items-center justify-center rounded-md p-1.5 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1',
+                      msg.liked
+                        ? 'text-amber-500 dark:text-amber-400'
+                        : 'text-surface-600 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700 dark:hover:text-amber-400',
+                    )}
+                  >
+                    <ThumbsUp size={13} />
+                  </button>
+                  <button
+                    onClick={() => onReply(msg)}
+                    title="Antworten"
+                    className="flex items-center justify-center rounded-md p-1.5 text-surface-600 hover:bg-surface-200 hover:text-primary-600 dark:hover:bg-surface-700 dark:hover:text-primary-400 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1"
+                  >
+                    <Reply size={13} />
+                  </button>
+                  <button
+                    onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }}
+                    title="Kopieren"
+                    className="flex items-center justify-center rounded-md p-1.5 text-surface-600 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1"
+                  >
+                    <Copy size={13} />
+                  </button>
+                  <button
+                    onClick={() => onForward(msg)}
+                    title="Weiterleiten"
+                    className="flex items-center justify-center rounded-md p-1.5 text-surface-600 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1"
+                  >
+                    <Forward size={13} />
+                  </button>
+                  <button
+                    onClick={() => onFlag(String(msg.id), Boolean(msg.flagged))}
+                    title={msg.flagged ? 'Markierung entfernen' : 'Markieren'}
+                    className={clsx(
+                      'flex items-center justify-center rounded-md p-1.5 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1',
+                      msg.flagged
+                        ? 'text-amber-500 dark:text-amber-400'
+                        : 'text-surface-600 hover:bg-surface-200 hover:text-amber-500 dark:hover:bg-surface-700 dark:hover:text-amber-400',
+                    )}
+                  >
+                    <Bookmark size={13} fill={msg.flagged ? 'currentColor' : 'none'} />
+                  </button>
+                  {canDelete && (
+                    <button
+                      onClick={() => onDelete(String(msg.id))}
+                      title="Löschen"
+                      className="flex items-center justify-center rounded-md p-1.5 text-surface-600 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition min-h-9 min-w-9 sm:min-h-7 sm:min-w-7 sm:p-1"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {(isLast || (msg.likes ?? 0) > 0) && (
