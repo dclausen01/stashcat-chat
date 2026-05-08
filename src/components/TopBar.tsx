@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import Avatar from './Avatar';
 import type { ChatTarget } from '../types';
+import { getCleanName } from '../utils/subchannels';
 
 interface TopBarProps {
   totalUnread: number;
@@ -124,8 +125,8 @@ export default function TopBar({
                         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition hover:bg-surface-100 dark:hover:bg-surface-700"
                         role="menuitem"
                       >
-                        <Avatar name={ch.name} image={ch.image} size="xs" />
-                        <span className="min-w-0 flex-1 truncate text-surface-800 dark:text-surface-100">{ch.name}</span>
+                        <Avatar name={getCleanName(ch.name)} image={ch.image} size="xs" />
+                        <span className="min-w-0 flex-1 truncate text-surface-800 dark:text-surface-100">{getCleanName(ch.name)}</span>
                         <span className="shrink-0 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
                           {(ch.unread_count ?? 0) > 99 ? '99+' : ch.unread_count}
                         </span>

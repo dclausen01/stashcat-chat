@@ -10,6 +10,7 @@ import type { CalendarEvent } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useConfirm } from '../context/ConfirmContext';
 import CreateEventModal from './CreateEventModal';
+import { getCleanName } from '../utils/subchannels';
 
 type ViewMode = 'month' | 'week';
 
@@ -139,7 +140,7 @@ export default function CalendarView({ eventIdToOpen, onEventOpened, onClose }: 
           for (const ch of channels) {
             channelSources.push({
               id: String(ch.id),
-              name: String(ch.name ?? 'Channel'),
+              name: getCleanName(String(ch.name ?? 'Channel')),
               type: 'channel',
               colorIndex: colorIdx % CALENDAR_COLORS.length,
               visible: true,
@@ -155,7 +156,7 @@ export default function CalendarView({ eventIdToOpen, onEventOpened, onClose }: 
         const nameMap = new Map<string, string>();
         for (const channels of results) {
           for (const ch of channels) {
-            nameMap.set(String(ch.id), String(ch.name ?? ''));
+            nameMap.set(String(ch.id), getCleanName(String(ch.name ?? '')));
           }
         }
         setAllChannelNames(nameMap);
@@ -792,7 +793,7 @@ export default function CalendarView({ eventIdToOpen, onEventOpened, onClose }: 
                   seenIds.add(cid);
                   sharedChannels.push({
                     id: cid,
-                    name: String(ch.name ?? allChannelNames.get(cid) ?? sources.find((s) => s.id === cid)?.name ?? 'Channel'),
+                    name: getCleanName(String(ch.name ?? allChannelNames.get(cid) ?? sources.find((s) => s.id === cid)?.name ?? 'Channel')),
                   });
                 }
                 // Channel invites
@@ -804,7 +805,7 @@ export default function CalendarView({ eventIdToOpen, onEventOpened, onClose }: 
                     seenIds.add(cid);
                     sharedChannels.push({
                       id: cid,
-                      name: String(ch?.name ?? ci.name ?? allChannelNames.get(cid) ?? sources.find((s) => s.id === cid)?.name ?? `Channel ${cid}`),
+                      name: getCleanName(String(ch?.name ?? ci.name ?? allChannelNames.get(cid) ?? sources.find((s) => s.id === cid)?.name ?? `Channel ${cid}`)),
                     });
                   }
                 }

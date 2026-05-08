@@ -8,6 +8,7 @@ import { clsx } from 'clsx';
 import * as api from '../api';
 import type { CalendarEvent } from '../api';
 import type { ChatTarget } from '../types';
+import { getCleanName } from '../utils/subchannels';
 
 interface RawUser {
   id?: string;
@@ -174,7 +175,7 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
   const filteredChannels = useMemo(() => {
     if (!searchQuery) return channels;
     const q = searchQuery.toLowerCase();
-    return channels.filter((c) => c.name?.toLowerCase().includes(q));
+    return channels.filter((c) => getCleanName(c.name ?? '').toLowerCase().includes(q));
   }, [channels, searchQuery]);
 
   const toggleInviteUser = (uid: string) => {
@@ -617,7 +618,7 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
                               {(selected || alreadyInvited) && <Check size={10} />}
                             </div>
                             <Hash size={13} className="shrink-0 text-surface-600" />
-                            <span className="truncate text-surface-900 dark:text-surface-100">{ch.name}</span>
+                            <span className="truncate text-surface-900 dark:text-surface-100">{getCleanName(ch.name)}</span>
                             {alreadyInvited && <span className="ml-auto shrink-0 text-xs text-surface-600">bereits geteilt</span>}
                           </button>
                         );

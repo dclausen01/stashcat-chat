@@ -7,6 +7,7 @@ import * as api from '../api';
 import { DOCX_TEMPLATE, XLSX_TEMPLATE, PPTX_TEMPLATE } from '../utils/documentTemplates';
 import { clsx } from 'clsx';
 import type { Channel, Conversation } from '../types';
+import { getCleanName } from '../utils/subchannels';
 
 interface Crumb {
   id: string | null;
@@ -110,7 +111,7 @@ export default function CreateNCDocumentModal({ chatId, chatType, onClose, onCre
           api.getConversations(),
         ]);
         const options: ChatOption[] = [
-          ...channels.map((c: Channel) => ({ type: 'channel' as const, id: String(c.id), name: c.name ?? 'Unbenannter Kanal' })),
+          ...channels.map((c: Channel) => ({ type: 'channel' as const, id: String(c.id), name: getCleanName(c.name ?? 'Unbenannter Kanal') })),
           ...convs.map((c: Conversation) => ({ type: 'conversation' as const, id: String(c.id), name: c.name ?? '' })),
         ];
         setChatOptions(options);

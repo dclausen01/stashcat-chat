@@ -6,6 +6,7 @@ import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
 import type { ChatTarget, Channel, Conversation } from '../types';
+import { getCleanName } from '../utils/subchannels';
 
 interface Question {
   name: string;
@@ -73,7 +74,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
           const companyId = String(companies[0].id ?? '');
           const channels = await api.getChannels(companyId).catch(() => [] as Channel[]);
           for (const ch of channels) {
-            opts.push({ id: String(ch.id), name: String(ch.name ?? ''), type: 'channel' });
+            opts.push({ id: String(ch.id), name: getCleanName(String(ch.name ?? '')), type: 'channel' });
           }
         }
 

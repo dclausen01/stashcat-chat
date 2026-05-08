@@ -5,6 +5,7 @@ import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
+import { getCleanName } from '../utils/subchannels';
 
 interface ChannelDiscoveryModalProps {
   companyId: string;
@@ -55,7 +56,7 @@ export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClos
   const filtered = channels.filter((ch) => {
     if (!search) return true;
     const q = search.toLowerCase();
-    return ch.name.toLowerCase().includes(q) || ch.description?.toLowerCase().includes(q);
+    return getCleanName(ch.name).toLowerCase().includes(q) || ch.description?.toLowerCase().includes(q);
   });
 
   const handleJoin = async (ch: VisibleChannel) => {
@@ -120,7 +121,7 @@ export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClos
                   className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-surface-50 dark:hover:bg-surface-800/50"
                 >
                   {ch.image ? (
-                    <Avatar name={ch.name} image={ch.image} size="sm" />
+                    <Avatar name={getCleanName(ch.name)} image={ch.image} size="sm" />
                   ) : (
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-100 dark:bg-surface-800">
                       <Hash size={16} className="text-surface-500" />
@@ -128,7 +129,7 @@ export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClos
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="truncate text-sm font-medium text-surface-900 dark:text-white">{ch.name}</span>
+                      <span className="truncate text-sm font-medium text-surface-900 dark:text-white">{getCleanName(ch.name)}</span>
                     </div>
                     {ch.description && (
                       <p className="truncate text-xs text-surface-500">{ch.description}</p>
