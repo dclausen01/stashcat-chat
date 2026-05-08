@@ -5,6 +5,7 @@ import { clsx } from 'clsx';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import Avatar from './Avatar';
 import type { ChatTarget } from '../types';
+import { getCleanName } from '../utils/subchannels';
 
 interface QuickSwitcherProps {
   channels: ChatTarget[];
@@ -29,7 +30,7 @@ export default function QuickSwitcher({ channels, conversations, onSelect, onClo
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return allChats.slice(0, 30);
-    return allChats.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 30);
+    return allChats.filter((c) => getCleanName(c.name).toLowerCase().includes(q)).slice(0, 30);
   }, [query, allChats]);
 
   // Reset selection when filter changes
@@ -110,12 +111,12 @@ export default function QuickSwitcher({ channels, conversations, onSelect, onClo
               >
                 {chat.type === 'channel' ? (
                   chat.image
-                    ? <Avatar name={chat.name} image={chat.image} size="sm" />
+                    ? <Avatar name={getCleanName(chat.name)} image={chat.image} size="sm" />
                     : <Hash size={17} className="shrink-0 text-surface-500" />
                 ) : (
-                  <Avatar name={chat.name} image={chat.image} size="sm" />
+                  <Avatar name={getCleanName(chat.name)} image={chat.image} size="sm" />
                 )}
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">{chat.name}</span>
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">{getCleanName(chat.name)}</span>
                 <span className="shrink-0 text-[11px] uppercase tracking-wider text-surface-500">
                   {chat.type === 'channel' ? 'Channel' : <Users size={11} className="inline" />}
                 </span>

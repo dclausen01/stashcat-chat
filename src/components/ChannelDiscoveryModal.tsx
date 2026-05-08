@@ -56,7 +56,7 @@ export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClos
   const filtered = channels.filter((ch) => {
     if (!search) return true;
     const q = search.toLowerCase();
-    return ch.name.toLowerCase().includes(q) || ch.description?.toLowerCase().includes(q);
+    return getCleanName(ch.name).toLowerCase().includes(q) || ch.description?.toLowerCase().includes(q);
   });
 
   const handleJoin = async (ch: VisibleChannel) => {

@@ -3,6 +3,7 @@ import { X, Loader2, Upload, ImageIcon, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { ChatTarget } from '../types';
+import { getCleanName } from '../utils/subchannels';
 
 interface ChannelImageEditorProps {
   chat: ChatTarget;
@@ -144,7 +145,7 @@ export default function ChannelImageEditor({ chat, onClose, onSaved }: ChannelIm
               {preview ? (
                 <img
                   src={preview}
-                  alt={chat.name}
+                  alt={getCleanName(chat.name)}
                   className="h-32 w-32 rounded-full object-cover ring-4 ring-surface-200 dark:ring-surface-700"
                 />
               ) : (
@@ -162,7 +163,7 @@ export default function ChannelImageEditor({ chat, onClose, onSaved }: ChannelIm
                 </button>
               )}
             </div>
-            <p className="text-sm text-surface-500">{chat.name}</p>
+            <p className="text-sm text-surface-500">{getCleanName(chat.name)}</p>
           </div>
 
           {/* Upload area */}

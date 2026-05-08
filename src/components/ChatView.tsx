@@ -2121,7 +2121,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           {sendError}
         </div>
       )}
-      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatId={chat.id} chatName={chat.name} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} onCreateWhiteboard={() => setShowWhiteboardModal(true)} onCreateNCDocument={() => setShowNCDocumentModal(true)} droppedFiles={droppedFiles} onDroppedFilesConsumed={() => setDroppedFiles([])} />
+      <MessageInput onSend={handleSend} onUpload={handleUpload} onTyping={handleTyping} chatId={chat.id} chatName={chatName} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onCreatePoll={() => setShowPollModal(true)} onCreateEvent={() => setShowEventModal(true)} onCreateWhiteboard={() => setShowWhiteboardModal(true)} onCreateNCDocument={() => setShowNCDocumentModal(true)} droppedFiles={droppedFiles} onDroppedFilesConsumed={() => setDroppedFiles([])} />
       {showPollModal && (
         <CreatePollModal
           preselectedChat={chat}
@@ -3351,7 +3351,7 @@ function ForwardDialog({ message, onClose }: { message: Message; onClose: () => 
         if (companies.length > 0) {
           const chans = await api.getChannels(String(companies[0].id));
           for (const ch of chans) {
-            all.push({ id: String(ch.id), name: String(ch.name ?? ''), type: 'channel', image: ch.image ? String(ch.image) : undefined });
+            all.push({ id: String(ch.id), name: getCleanName(String(ch.name ?? '')), type: 'channel', image: ch.image ? String(ch.image) : undefined });
           }
         }
         // Conversations

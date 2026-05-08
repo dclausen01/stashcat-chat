@@ -213,7 +213,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           const newCount = chat.unread_count ?? 0;
           if (newCount > prevCount && prevCount === 0) {
             const body = newCount === 1 ? 'Neue Nachricht' : `${newCount} neue Nachrichten`;
-            notify(chat.name, body);
+            notify(getCleanName(chat.name), body);
           }
         }
       }
