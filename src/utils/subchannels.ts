@@ -4,12 +4,14 @@ export const SUBCHANNEL_SEPARATOR = ' ▸';
 const PARENT_RE = / ▸\[parent:(\d+)\]\s*$/;
 
 /** Strip the ` ▸[parent:ID]` marker and return the human-readable name. */
-export function getCleanName(name: string): string {
+export function getCleanName(name: string | null | undefined): string {
+  if (!name) return '';
   return name.replace(PARENT_RE, '').trim();
 }
 
 /** Return the encoded parent ID if present, otherwise null. */
-export function getParentId(name: string): string | null {
+export function getParentId(name: string | null | undefined): string | null {
+  if (!name) return null;
   const m = name.match(PARENT_RE);
   return m ? m[1] : null;
 }
