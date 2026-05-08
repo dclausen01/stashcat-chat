@@ -23,6 +23,7 @@ import CreateNCDocumentModal from './CreateNCDocumentModal';
 import NCShareChoiceModal from './NCShareChoiceModal';
 import type { ChatTarget, Message } from '../types';
 import type { CallParty } from '../api/calls';
+import { getCleanName } from '../utils/subchannels';
 
 interface ChatViewProps {
   chat: ChatTarget;
@@ -42,6 +43,8 @@ interface ChatViewProps {
   onJumpComplete?: () => void;
   onStartCall?: (calleeId: string, targetId: string, callee: CallParty) => void;
   onToggleFavorite?: (chat: ChatTarget) => void;
+  /** All channels — passed to ChannelDropdownMenu for subchannel awareness */
+  channels?: ChatTarget[];
 }
 
 interface TypingUser {
@@ -183,7 +186,7 @@ function extractServiceLinks(description: string): { cleanDescription: string; l
 
 interface PendingMessage { text: string; replyTo: Message | null; time: number }
 
-export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onOpenEvent, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall, onToggleFavorite }: ChatViewProps) {
+export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onOpenEvent, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall, onToggleFavorite, channels }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const { theme } = useTheme();
@@ -206,7 +209,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [descEditorOpen, setDescEditorOpen] = useState(false);
   const [chatDescription, setChatDescription] = useState(chat.description || '');
   const [chatImage, setChatImage] = useState(chat.image || '');
-  const [chatName, setChatName] = useState(chat.name);
+  const [chatName, setChatName] = useState(getCleanName(chat.name));
   const [imageEditorOpen, setImageEditorOpen] = useState(false);
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const [meetingLoading, setMeetingLoading] = useState(false);
@@ -293,7 +296,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
   // Sync chat name when channel changes
   useEffect(() => {
-    setChatName(chat.name);
+    setChatName(getCleanName(chat.name));
   }, [chat.name, chat.id]);
 
   // Clear pending message indicators when switching chats
@@ -1223,10 +1226,10 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
         {chat.type === 'channel' ? (
           chatImage
-            ? <Avatar name={chat.name} image={chatImage} size="md" />
+            ? <Avatar name={chatName} image={chatImage} size="md" />
             : <Hash size={22} className="text-surface-600" />
         ) : (
-          <Avatar name={chat.name} image={chat.image} size="md" />
+          <Avatar name={chatName} image={chat.image} size="md" />
         )}
         <div className="min-w-0 flex-1">
           <div className="relative flex min-w-0 items-center gap-2">
@@ -1449,7 +1452,8 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               onOpenDescriptionEditor={() => setDescEditorOpen(true)}
               onOpenImageEditor={() => setImageEditorOpen(true)}
               onDeleted={onGoHome}
-              onRenamed={(newName) => setChatName(newName)}
+              onRenamed={(newName) => setChatName(getCleanName(newName))}
+              channels={channels}
             />
           )}
           {chat.type === 'channel' && (

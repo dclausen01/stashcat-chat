@@ -4,12 +4,17 @@ import { FocusTrap } from 'focus-trap-react';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';
 import * as api from '../api';
-import type { Channel } from '../types';
+import type { Channel, ChatTarget } from '../types';
+import { encodeSubchannelName, getCleanName, getParentId } from '../utils/subchannels';
 
 interface NewChannelModalProps {
   companyId: string;
   onClose: () => void;
   onCreate: (channel: Channel) => void;
+  /** All currently known channels — used to populate the parent-channel dropdown */
+  channels?: ChatTarget[];
+  /** Current user ID — excluded from member snapshot copy */
+  myUserId?: string;
 }
 
 type ChannelType = 'public' | 'encrypted' | 'password';
@@ -72,7 +77,7 @@ function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: b
   );
 }
 
-export default function NewChannelModal({ companyId, onClose, onCreate }: NewChannelModalProps) {
+export default function NewChannelModal({ companyId, onClose, onCreate, channels = [], myUserId }: NewChannelModalProps) {
   useEscapeKey(onClose);
   const [name, setName]             = useState('');
   const [description, setDescription] = useState('');
@@ -88,7 +93,11 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
   const [error, setError]     = useState('');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const [parentChannelId, setParentChannelId] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Only root channels (no parent marker themselves) can be parents
+  const rootChannels = channels.filter((ch) => ch.type === 'channel' && !getParentId(ch.name));
 
   const setToggle = (key: string, val: boolean) =>
     setToggles((prev) => ({ ...prev, [key]: val }));
@@ -134,8 +143,12 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
     setSaving(true);
     setError('');
     try {
+      const encodedName = parentChannelId
+        ? encodeSubchannelName(name.trim(), parentChannelId)
+        : name.trim();
+
       let channel = await api.createChannel({
-        name: name.trim(),
+        name: encodedName,
         company_id: companyId,
         description: description.trim() || undefined,
         policies: policies.trim() || undefined,
@@ -157,6 +170,26 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
           console.error('Channel image upload failed:', imgErr);
         }
       }
+
+      // Snapshot: copy parent members + moderators to the new subchannel
+      if (parentChannelId) {
+        try {
+          const members = await api.getChannelMembers(parentChannelId);
+          const otherMembers = members.filter((m) => m.id !== myUserId);
+          const memberIds = otherMembers.map((m) => m.id);
+          if (memberIds.length > 0) {
+            await api.inviteToChannel(String(channel.id), memberIds);
+          }
+          for (const m of otherMembers) {
+            if (m.manager) {
+              try { await api.addModerator(String(channel.id), m.id); } catch { /* best-effort */ }
+            }
+          }
+        } catch (syncErr) {
+          console.error('Member snapshot sync failed:', syncErr);
+        }
+      }
+
       onCreate(channel);
       onClose();
     } catch (err) {
@@ -208,6 +241,30 @@ export default function NewChannelModal({ companyId, onClose, onCreate }: NewCha
                 className="w-full rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm text-surface-900 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
               />
             </div>
+
+            {/* Parent channel */}
+            {rootChannels.length > 0 && (
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-surface-600">
+                  Übergeordneter Channel <span className="text-surface-600 font-normal normal-case">(optional)</span>
+                </label>
+                <select
+                  value={parentChannelId}
+                  onChange={(e) => setParentChannelId(e.target.value)}
+                  className="w-full rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm text-surface-900 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
+                >
+                  <option value="">— Kein übergeordneter Channel —</option>
+                  {rootChannels.map((ch) => (
+                    <option key={ch.id} value={ch.id}>{getCleanName(ch.name)}</option>
+                  ))}
+                </select>
+                {parentChannelId && (
+                  <p className="mt-1 text-xs text-surface-500">
+                    Mitglieder und Moderatoren des übergeordneten Channels werden übernommen.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Channel image */}
             <div>

@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { MoreVertical, Users, Pencil, Download, Trash2, Loader2, Info, X, Lock, UsersRound, Clock, ImageIcon, LogOut, Type } from 'lucide-react';
+import { MoreVertical, Users, Pencil, Download, Trash2, Loader2, Info, X, Lock, UsersRound, Clock, ImageIcon, LogOut, Type, GitBranch, RefreshCw } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { ChatTarget, Channel } from '../types';
+import { getCleanName, getParentId, encodeSubchannelName } from '../utils/subchannels';
 
 interface ChannelDropdownMenuProps {
   chat: ChatTarget;
@@ -12,6 +13,8 @@ interface ChannelDropdownMenuProps {
   onOpenImageEditor?: () => void;
   onDeleted?: () => void;
   onRenamed?: (newName: string) => void;
+  /** All channels — used for subchannel detection in delete flow */
+  channels?: ChatTarget[];
 }
 
 function formatDateLabel(ts: number): string {
@@ -43,7 +46,7 @@ async function exportChatAsMarkdown(chat: ChatTarget): Promise<void> {
     : '--:--';
 
   const lines: string[] = [];
-  lines.push(`# ${chat.name}\n`);
+  lines.push(`# ${getCleanName(chat.name)}\n`);
   lines.push(`*Exportiert am ${dateExport} von ${timeStart} bis ${timeEnd}*\n`);
   lines.push('---\n');
 
@@ -102,7 +105,7 @@ async function exportChatAsMarkdown(chat: ChatTarget): Promise<void> {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${chat.name.replace(/[^a-zA-Z0-9ÄÖÜäöüß0-9_-]/g, '-')}-${dateExport.replace(/\./g, '-')}.md`;
+  a.download = `${getCleanName(chat.name).replace(/[^a-zA-Z0-9ÄÖÜäöüß0-9_-]/g, '-')}-${dateExport.replace(/\./g, '-')}.md`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -130,10 +133,12 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof Info; label: strin
   );
 }
 
-export function ChannelInfoModal({ chat, onClose }: { chat: ChatTarget; onClose: () => void }) {
+export function ChannelInfoModal({ chat, channels, onClose }: { chat: ChatTarget; channels?: ChatTarget[]; onClose: () => void }) {
   const [info, setInfo] = useState<Channel | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
 
   useEffect(() => {
     api.getChannelInfo(chat.id).then(ch => {
@@ -144,6 +149,36 @@ export function ChannelInfoModal({ chat, onClose }: { chat: ChatTarget; onClose:
       setLoading(false);
     });
   }, [chat.id]);
+
+  const parentId = getParentId(chat.name);
+  const parentChannel = parentId ? channels?.find((c) => c.id === parentId) : undefined;
+
+  const handleSync = async () => {
+    if (!parentId) return;
+    setSyncing(true);
+    setSyncMsg('');
+    try {
+      const members = await api.getChannelMembers(parentId);
+      const existingMembers = await api.getChannelMembers(chat.id);
+      const existingIds = new Set(existingMembers.map((m) => m.id));
+      const toInvite = members.filter((m) => !existingIds.has(m.id));
+      if (toInvite.length > 0) {
+        await api.inviteToChannel(chat.id, toInvite.map((m) => m.id));
+      }
+      for (const m of members) {
+        if (m.manager && !existingMembers.find((e) => e.id === m.id && e.manager)) {
+          try { await api.addModerator(chat.id, m.id); } catch { /* best-effort */ }
+        }
+      }
+      setSyncMsg(toInvite.length > 0
+        ? `${toInvite.length} Mitglied(er) synchronisiert.`
+        : 'Bereits synchronisiert.');
+    } catch (err) {
+      setSyncMsg(err instanceof Error ? err.message : 'Sync fehlgeschlagen');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const createdStr = info
     ? info.created_at
@@ -186,7 +221,7 @@ export function ChannelInfoModal({ chat, onClose }: { chat: ChatTarget; onClose:
           {!loading && !error && info && (
             <div className="space-y-0">
               <div className="mb-4 border-b border-surface-200 pb-4 dark:border-surface-700">
-                <h3 className="text-xl font-bold text-surface-900 dark:text-white">{String(info.name || '')}</h3>
+                <h3 className="text-xl font-bold text-surface-900 dark:text-white">{getCleanName(String(info.name || ''))}</h3>
                 <p className="mt-1">
                   <span className={clsx(
                     'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
@@ -204,6 +239,28 @@ export function ChannelInfoModal({ chat, onClose }: { chat: ChatTarget; onClose:
               <InfoRow icon={Clock} label="Erstellt" value={createdStr} />
               {!!info.description && (
                 <InfoRow icon={Info} label="Beschreibung" value={String(info.description)} />
+              )}
+              {parentChannel && (
+                <div className="flex items-start gap-3 py-2">
+                  <GitBranch size={16} className="mt-0.5 shrink-0 text-surface-500" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-surface-500">Übergeordneter Channel</p>
+                    <p className="mt-0.5 text-sm text-surface-900 dark:text-white">{getCleanName(parentChannel.name)}</p>
+                  </div>
+                </div>
+              )}
+              {parentId && (
+                <div className="mt-3 border-t border-surface-200 pt-3 dark:border-surface-700">
+                  <button
+                    onClick={handleSync}
+                    disabled={syncing}
+                    className="flex items-center gap-2 rounded-lg border border-surface-300 px-3 py-2 text-sm text-surface-700 transition hover:bg-surface-100 disabled:opacity-50 dark:border-surface-600 dark:text-surface-300 dark:hover:bg-surface-800"
+                  >
+                    {syncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                    Mit Parent synchronisieren
+                  </button>
+                  {syncMsg && <p className="mt-1.5 text-xs text-surface-500">{syncMsg}</p>}
+                </div>
               )}
             </div>
           )}
@@ -246,7 +303,7 @@ export function LeaveConfirmModal({ chat, onClose, onLeft }: {
           </div>
           <h3 className="text-lg font-semibold text-surface-900 dark:text-white">Channel verlassen</h3>
           <p className="mt-2 text-sm text-surface-500">
-            Möchtest du den Channel <strong>"{chat.name}"</strong> wirklich verlassen? Du kannst später wieder beitreten.
+            Möchtest du den Channel <strong>"{getCleanName(chat.name)}"</strong> wirklich verlassen? Du kannst später wieder beitreten.
           </p>
         </div>
         <div className="flex gap-2 px-6 pb-6 pt-2">
@@ -275,13 +332,19 @@ export function LeaveConfirmModal({ chat, onClose, onLeft }: {
   );
 }
 
-export function DeleteConfirmModal({ chat, onClose, onDeleted }: {
+export function DeleteConfirmModal({ chat, channels, onClose, onDeleted }: {
   chat: ChatTarget;
+  channels?: ChatTarget[];
   onClose: () => void;
   onDeleted: () => void;
 }) {
   const [countdown, setCountdown] = useState(3);
   const [deleting, setDeleting] = useState(false);
+  // 'ask' | 'keep' | 'delete' — only relevant when subchannels exist
+  const [subchannelAction, setSubchannelAction] = useState<'ask' | 'keep' | 'delete'>('ask');
+
+  const subchannels = channels?.filter((ch) => getParentId(ch.name) === chat.id) ?? [];
+  const hasSubchannels = subchannels.length > 0;
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -289,20 +352,74 @@ export function DeleteConfirmModal({ chat, onClose, onDeleted }: {
     return () => clearTimeout(t);
   }, [countdown]);
 
-  const handleDelete = async () => {
+  const handleDelete = async (action: 'keep' | 'delete') => {
     setDeleting(true);
     try {
+      if (action === 'keep') {
+        // Decouple subchannels (strip the parent marker)
+        for (const sub of subchannels) {
+          try {
+            await api.editChannel(sub.id, sub.company_id ?? '', sub.description ?? '', getCleanName(sub.name));
+          } catch { /* best-effort */ }
+        }
+      } else if (action === 'delete') {
+        for (const sub of subchannels) {
+          try { await api.deleteChannel(sub.id); } catch { /* best-effort */ }
+        }
+      }
       await api.deleteChannel(chat.id);
-      // Notify sidebar to refresh channel list immediately
-      window.dispatchEvent(new CustomEvent('channel-deleted', {
-        detail: { channelId: chat.id }
-      }));
+      window.dispatchEvent(new CustomEvent('channel-deleted', { detail: { channelId: chat.id } }));
       onDeleted();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Löschen fehlgeschlagen');
       setDeleting(false);
     }
   };
+
+  // If subchannels exist, first ask what to do
+  if (hasSubchannels && subchannelAction === 'ask') {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      >
+        <div
+          className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl dark:bg-surface-900"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex flex-col items-center px-6 pt-6 pb-2 text-center">
+            <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+              <GitBranch size={28} className="text-amber-500" />
+            </div>
+            <h3 className="text-lg font-semibold text-surface-900 dark:text-white">Subkanäle vorhanden</h3>
+            <p className="mt-2 text-sm text-surface-500">
+              <strong>"{getCleanName(chat.name)}"</strong> hat {subchannels.length} Subkanal{subchannels.length !== 1 ? 'e' : ''}. Was soll damit geschehen?
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 px-6 pb-6 pt-2">
+            <button
+              onClick={() => setSubchannelAction('keep')}
+              className="w-full rounded-lg border border-surface-300 px-4 py-2 text-sm font-medium text-surface-700 transition hover:bg-surface-100 dark:border-surface-600 dark:text-surface-300 dark:hover:bg-surface-800"
+            >
+              Subkanäle behalten (entkoppeln)
+            </button>
+            <button
+              onClick={() => setSubchannelAction('delete')}
+              className="w-full rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
+            >
+              Subkanäle mitlöschen
+            </button>
+            <button
+              onClick={onClose}
+              className="w-full rounded-lg px-4 py-2 text-sm font-medium text-surface-500 transition hover:bg-surface-100 dark:hover:bg-surface-800"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -319,7 +436,13 @@ export function DeleteConfirmModal({ chat, onClose, onDeleted }: {
           </div>
           <h3 className="text-lg font-semibold text-surface-900 dark:text-white">Channel löschen</h3>
           <p className="mt-2 text-sm text-surface-500">
-            Möchtest du den Channel <strong>"{chat.name}"</strong> wirklich löschen? Alle Nachrichten gehen verloren.
+            Möchtest du den Channel <strong>"{getCleanName(chat.name)}"</strong> wirklich löschen? Alle Nachrichten gehen verloren.
+            {hasSubchannels && subchannelAction === 'delete' && (
+              <> Die {subchannels.length} Subkanäle werden ebenfalls gelöscht.</>
+            )}
+            {hasSubchannels && subchannelAction === 'keep' && (
+              <> Die Subkanäle werden entkoppelt und bleiben erhalten.</>
+            )}
           </p>
         </div>
         <div className="flex gap-2 px-6 pb-6 pt-2">
@@ -330,7 +453,7 @@ export function DeleteConfirmModal({ chat, onClose, onDeleted }: {
             Abbrechen
           </button>
           <button
-            onClick={handleDelete}
+            onClick={() => handleDelete(hasSubchannels ? subchannelAction as 'keep' | 'delete' : 'keep')}
             disabled={countdown > 0 || deleting}
             className={clsx(
               'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium text-white transition',
@@ -353,7 +476,7 @@ function RenameChannelModal({ chat, onClose, onRenamed }: {
   onClose: () => void;
   onRenamed: (newName: string) => void;
 }) {
-  const [name, setName] = useState(chat.name);
+  const [name, setName] = useState(getCleanName(chat.name));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -364,9 +487,12 @@ function RenameChannelModal({ chat, onClose, onRenamed }: {
     setSaving(true);
     setError('');
     try {
-      await api.editChannel(chat.id, chat.company_id, chat.description || '', trimmed);
-      window.dispatchEvent(new CustomEvent('channel-renamed', { detail: { channelId: chat.id, newName: trimmed } }));
-      onRenamed(trimmed);
+      // Preserve the parent marker if this is a subchannel
+      const parentId = getParentId(chat.name);
+      const encodedName = parentId ? encodeSubchannelName(trimmed, parentId) : trimmed;
+      await api.editChannel(chat.id, chat.company_id, chat.description || '', encodedName);
+      window.dispatchEvent(new CustomEvent('channel-renamed', { detail: { channelId: chat.id, newName: encodedName } }));
+      onRenamed(encodedName);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Umbenennen fehlgeschlagen');
@@ -438,6 +564,7 @@ export default function ChannelDropdownMenu({
   onOpenImageEditor,
   onDeleted,
   onRenamed,
+  channels,
 }: ChannelDropdownMenuProps) {
   const [open, setOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -578,6 +705,7 @@ export default function ChannelDropdownMenu({
       {showDeleteModal && (
         <DeleteConfirmModal
           chat={chat}
+          channels={channels}
           onClose={() => setShowDeleteModal(false)}
           onDeleted={() => {
             setShowDeleteModal(false);
@@ -586,7 +714,7 @@ export default function ChannelDropdownMenu({
         />
       )}
       {showInfoModal && (
-        <ChannelInfoModal chat={chat} onClose={() => setShowInfoModal(false)} />
+        <ChannelInfoModal chat={chat} channels={channels} onClose={() => setShowInfoModal(false)} />
       )}
       {showRenameModal && (
         <RenameChannelModal

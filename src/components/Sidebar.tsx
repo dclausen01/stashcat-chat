@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback, type CSSProperties } from 'react';
-import { Hash, Search, Users, GripHorizontal, Plus, X } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from 'react';
+import { Hash, Search, Users, GripHorizontal, Plus, X, ChevronRight } from 'lucide-react';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
@@ -12,6 +12,8 @@ import NewChannelModal from './NewChannelModal';
 import NewChatModal from './NewChatModal';
 import ChannelDiscoveryModal from './ChannelDiscoveryModal';
 import type { ChatTarget } from '../types';
+import { buildChannelTree, getCleanName, type ChannelNode } from '../utils/subchannels';
+import { clsx } from 'clsx';
 
 /** Sort: favorites first, non-favorites second. Within each group: by lastActivity desc. */
 function sortChats(items: ChatTarget[]): ChatTarget[] {
@@ -442,10 +444,96 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   const filtered = (items: ChatTarget[]) => {
     if (!search) return items;
     const q = search.toLowerCase();
-    return items.filter((i) => i.name.toLowerCase().includes(q));
+    return items.filter((i) => getCleanName(i.name).toLowerCase().includes(q));
+  };
+
+  // Render tree nodes (one level deep) with collapse toggle
+  const renderChannelTree = (roots: ChannelNode[], orphans: ChannelNode[]) => {
+    const q = search.toLowerCase();
+
+    const renderNode = (node: ChannelNode, depth = 0) => {
+      const isParent = node.children.length > 0;
+      const isCollapsed = collapsedParents.has(node.id);
+      // When searching, auto-expand parents that have matching children
+      const hasMatchingChild = isParent && q
+        ? node.children.some((c) => c.displayName.toLowerCase().includes(q))
+        : false;
+      const effectivelyCollapsed = isCollapsed && !hasMatchingChild;
+
+      // Filter by search
+      const nameMatches = !q || node.displayName.toLowerCase().includes(q);
+      const childrenToShow = q
+        ? node.children.filter((c) => c.displayName.toLowerCase().includes(q))
+        : node.children;
+
+      if (!nameMatches && childrenToShow.length === 0) return null;
+
+      return (
+        <div key={node.id}>
+          <div className={clsx('flex items-center gap-0.5', depth > 0 && 'pl-5')}>
+            {isParent && !q && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); toggleCollapse(node.id); }}
+                className="shrink-0 rounded p-0.5 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300"
+                aria-label={isCollapsed ? 'Aufklappen' : 'Zuklappen'}
+              >
+                <ChevronRight size={12} className={clsx('transition-transform', !effectivelyCollapsed && 'rotate-90')} />
+              </button>
+            )}
+            {(!isParent || q) && depth === 0 && <div className="w-[18px] shrink-0" />}
+            <div className="min-w-0 flex-1">
+              <ChatItem
+                target={{ ...node, name: node.displayName }}
+                active={activeChat?.id === node.id && activeChat?.type === 'channel'}
+                onSelect={(t) => handleSelect({ ...t, name: node.name })}
+                onToggleFavorite={(t) => handleToggleFavorite({ ...t, name: node.name })}
+                onMarkUnread={(t) => handleMarkUnread({ ...t, name: node.name })}
+                onChannelDeleted={(t) => handleChannelDeleted({ ...t, name: node.name })}
+                onChannelLeft={(t) => handleChannelLeft({ ...t, name: node.name })}
+                channels={channels}
+              />
+            </div>
+          </div>
+          {isParent && !effectivelyCollapsed && childrenToShow.map((child) => renderNode(child, depth + 1))}
+        </div>
+      );
+    };
+
+    const allRoots = [...roots, ...orphans];
+    return allRoots.map((node) => renderNode(node));
   };
 
   const [showChannelDiscovery, setShowChannelDiscovery] = useState(false);
+
+  // Collapsed parent channel IDs — persisted in localStorage
+  const [collapsedParents, setCollapsedParents] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('schulchat_subchannel_collapsed');
+      return saved ? new Set<string>(JSON.parse(saved) as string[]) : new Set<string>();
+    } catch {
+      return new Set<string>();
+    }
+  });
+
+  const toggleCollapse = useCallback((channelId: string) => {
+    setCollapsedParents((prev) => {
+      const next = new Set(prev);
+      if (next.has(channelId)) {
+        next.delete(channelId);
+      } else {
+        next.add(channelId);
+      }
+      try { localStorage.setItem('schulchat_subchannel_collapsed', JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  // Build channel tree
+  const { roots: channelRoots, orphans: channelOrphans } = useMemo(
+    () => buildChannelTree(channels),
+    [channels],
+  );
 
   // Total unread count — update document title as indicator
   const totalUnread = channels.reduce((sum, ch) => sum + (ch.unread_count ?? 0), 0)
@@ -554,7 +642,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
                 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-surface-500 transition hover:text-primary-600 dark:hover:text-primary-400"
                 title="Alle Channels anzeigen"
               >
-                <Hash size={13} /> Channels ({filtered(channels).length})
+                <Hash size={13} /> Channels ({channels.length})
               </button>
               <button
                 onClick={() => setShowNewChannel(true)}
@@ -567,18 +655,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
             </div>
           </div>
           <div className="flex-1 overflow-y-auto px-2 pb-1">
-            {filtered(channels).map((ch) => (
-              <ChatItem
-                key={`ch-${ch.id}`}
-                target={ch}
-                active={activeChat?.id === ch.id && activeChat?.type === 'channel'}
-                onSelect={handleSelect}
-                onToggleFavorite={handleToggleFavorite}
-                onMarkUnread={handleMarkUnread}
-                onChannelDeleted={handleChannelDeleted}
-                onChannelLeft={handleChannelLeft}
-              />
-            ))}
+            {renderChannelTree(channelRoots, channelOrphans)}
           </div>
         </div>
 
@@ -639,6 +716,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       {showNewChannel && primaryCompanyId && (
         <NewChannelModal
           companyId={primaryCompanyId}
+          channels={channels}
+          myUserId={user?.id}
           onClose={() => setShowNewChannel(false)}
           onCreate={(ch) => {
             // Add newly created channel to the list and navigate to it

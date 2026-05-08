@@ -3,6 +3,7 @@ import { Hash, Star, ArrowUpDown, ArrowDownAZ, Hand, ChevronDown } from 'lucide-
 import Avatar from './Avatar';
 import { useSettings } from '../context/SettingsContext';
 import type { ChatTarget } from '../types';
+import { getCleanName } from '../utils/subchannels';
 
 interface FavoriteCardsViewProps {
   channels: ChatTarget[];
@@ -34,7 +35,7 @@ export default function FavoriteCardsView({ channels, conversations, onSelectCha
   const sortFavs = (favs: ChatTarget[]) => {
     switch (favoriteCardsSortMode) {
       case 'alphabetical':
-        return [...favs].sort((a, b) => a.name.localeCompare(b.name));
+        return [...favs].sort((a, b) => getCleanName(a.name).localeCompare(getCleanName(b.name)));
       case 'manual': {
         const orderMap = new Map<string, number>();
         manualOrder.forEach((id, idx) => orderMap.set(id, idx));
@@ -44,7 +45,7 @@ export default function FavoriteCardsView({ channels, conversations, onSelectCha
           if (ai !== undefined && bi !== undefined) return ai - bi;
           if (ai !== undefined) return -1;
           if (bi !== undefined) return 1;
-          return a.name.localeCompare(b.name);
+          return getCleanName(a.name).localeCompare(getCleanName(b.name));
         });
       }
       default:
@@ -281,10 +282,10 @@ function FavoriteSection({
           >
             <div className="relative shrink-0">
               {ch.image ? (
-                <Avatar name={ch.name} image={ch.image} size="md" />
+                <Avatar name={getCleanName(ch.name)} image={ch.image} size="md" />
               ) : isConversation ? (
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-200 text-surface-600 dark:bg-surface-700 dark:text-surface-300">
-                  <span className="text-sm font-medium">{ch.name.charAt(0).toUpperCase()}</span>
+                  <span className="text-sm font-medium">{getCleanName(ch.name).charAt(0).toUpperCase()}</span>
                 </div>
               ) : (
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400">
@@ -300,7 +301,7 @@ function FavoriteSection({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="truncate text-sm font-medium text-surface-700 group-hover:text-surface-900 dark:text-surface-300 dark:group-hover:text-white">
-                  {ch.name}
+                  {getCleanName(ch.name)}
                 </span>
                 {ch.encrypted && <span className="shrink-0 text-xs text-surface-500">🔒</span>}
               </div>
@@ -381,10 +382,10 @@ function ChannelCard({
       )}
       <div className="relative">
         {channel.image ? (
-          <Avatar name={channel.name} image={channel.image} size="lg" />
+          <Avatar name={getCleanName(channel.name)} image={channel.image} size="lg" />
         ) : isConversation ? (
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-200 text-lg font-medium text-surface-600 dark:bg-surface-700 dark:text-surface-300">
-            {channel.name.charAt(0).toUpperCase()}
+            {getCleanName(channel.name).charAt(0).toUpperCase()}
           </div>
         ) : (
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400">
@@ -393,7 +394,7 @@ function ChannelCard({
         )}
       </div>
       <span className="mt-3 line-clamp-2 w-full text-sm font-medium text-surface-700 group-hover:text-surface-900 dark:text-surface-300 dark:group-hover:text-white">
-        {channel.name}
+        {getCleanName(channel.name)}
       </span>
       {channel.encrypted && (
         <span className="mt-1 text-xs text-surface-500" title="Verschlüsselt">🔒</span>
