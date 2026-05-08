@@ -503,6 +503,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
                 onChannelDeleted={(t) => handleChannelDeleted({ ...t, name: node.name })}
                 onChannelLeft={(t) => handleChannelLeft({ ...t, name: node.name })}
                 channels={channels}
+                compact={depth > 0}
               />
             </div>
           </div>

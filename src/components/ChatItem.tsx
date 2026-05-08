@@ -18,6 +18,8 @@ interface ChatItemProps {
   onConversationArchived?: (t: ChatTarget) => void;
   /** All channels — passed to DeleteConfirmModal for subchannel awareness */
   channels?: ChatTarget[];
+  /** Render in a smaller variant — used for subchannels in the sidebar tree */
+  compact?: boolean;
 }
 
 function ArchiveConversationModal({ target, onClose, onArchived }: {
@@ -90,6 +92,7 @@ export default function ChatItem({
   onChannelLeft,
   onConversationArchived,
   channels,
+  compact = false,
 }: ChatItemProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -116,7 +119,8 @@ export default function ChatItem({
       <button
         onClick={() => onSelect(target)}
         className={clsx(
-          'group/item relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition',
+          'group/item relative flex w-full items-center rounded-lg text-left transition',
+          compact ? 'gap-2 px-2 py-1' : 'gap-3 px-3 py-2',
           active
             ? 'bg-primary-100 text-primary-900 dark:bg-primary-900/30 dark:text-primary-200'
             : 'text-surface-700 hover:bg-surface-200 dark:text-surface-400 dark:hover:bg-surface-800',
@@ -124,12 +128,12 @@ export default function ChatItem({
       >
         {target.type === 'channel' ? (
           target.image
-            ? <Avatar name={target.name} image={target.image} size="sm" />
-            : <Hash size={17} className={clsx('shrink-0', active ? 'text-primary-600 dark:text-primary-400' : 'text-surface-500')} />
+            ? <Avatar name={target.name} image={target.image} size={compact ? 'xs' : 'sm'} />
+            : <Hash size={compact ? 13 : 17} className={clsx('shrink-0', active ? 'text-primary-600 dark:text-primary-400' : 'text-surface-500')} />
         ) : (
-          <Avatar name={target.name} image={target.image} size="sm" availability={target.userAvailability} />
+          <Avatar name={target.name} image={target.image} size={compact ? 'xs' : 'sm'} availability={target.userAvailability} />
         )}
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{target.name}</span>
+        <span className={clsx('min-w-0 flex-1 truncate font-medium', compact ? 'text-xs' : 'text-sm')}>{target.name}</span>
         {onToggleFavorite && (
           <button
             type="button"
