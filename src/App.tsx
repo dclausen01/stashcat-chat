@@ -323,6 +323,7 @@ export default function App() {
                       startCall(calleeId, targetId, callee)
                     }
                     onToggleFavorite={handleToggleFavoriteFromChatView}
+                    channels={channels}
                   />
                 : homeView === 'cards'
                   // FavoriteCardsView is hidden on mobile phones — Sidebar is the mobile home screen.

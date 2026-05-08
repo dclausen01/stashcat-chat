@@ -16,6 +16,8 @@ interface ChatItemProps {
   onChannelDeleted?: (t: ChatTarget) => void;
   onChannelLeft?: (t: ChatTarget) => void;
   onConversationArchived?: (t: ChatTarget) => void;
+  /** All channels — passed to DeleteConfirmModal for subchannel awareness */
+  channels?: ChatTarget[];
 }
 
 function ArchiveConversationModal({ target, onClose, onArchived }: {
@@ -87,6 +89,7 @@ export default function ChatItem({
   onChannelDeleted,
   onChannelLeft,
   onConversationArchived,
+  channels,
 }: ChatItemProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -270,7 +273,7 @@ export default function ChatItem({
       </button>
 
       {showInfoModal && createPortal(
-        <ChannelInfoModal chat={target} onClose={() => setShowInfoModal(false)} />,
+        <ChannelInfoModal chat={target} channels={channels} onClose={() => setShowInfoModal(false)} />,
         document.body
       )}
       {showLeaveModal && createPortal(
@@ -287,6 +290,7 @@ export default function ChatItem({
       {showDeleteModal && createPortal(
         <DeleteConfirmModal
           chat={target}
+          channels={channels}
           onClose={() => setShowDeleteModal(false)}
           onDeleted={() => {
             setShowDeleteModal(false);
