@@ -485,13 +485,13 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); toggleExpand(node.id); }}
-                className="shrink-0 rounded p-0.5 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300"
+                className="shrink-0 rounded text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 min-h-[36px] min-w-[28px] flex items-center justify-center md:min-h-0 md:min-w-0 md:p-0.5"
                 aria-label={effectivelyExpanded ? 'Zuklappen' : 'Aufklappen'}
               >
-                <ChevronRight size={12} className={clsx('transition-transform', effectivelyExpanded && 'rotate-90')} />
+                <ChevronRight size={14} className={clsx('transition-transform', effectivelyExpanded && 'rotate-90')} />
               </button>
             ) : (
-              <div className="w-[20px] shrink-0" />
+              <div className="w-[28px] shrink-0 md:w-[20px]" />
             )}
             <div className="min-w-0 flex-1">
               <ChatItem

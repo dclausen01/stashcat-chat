@@ -3,6 +3,7 @@ import { Bell, X, Loader2, Hash, CalendarDays, Smartphone, Shield, UserPlus, Mes
 import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
+import { getCleanName } from '../utils/subchannels';
 import { useSettings } from '../context/SettingsContext';
 
 interface NotificationsPanelProps {
@@ -75,7 +76,7 @@ function parseChannelInviteNotification(content: unknown): {
   const sender = obj.sender && typeof obj.sender === 'object' ? (obj.sender as Record<string, unknown>) : null;
   return {
     inviteId: String(obj.id),
-    channelName: channel && typeof channel.name === 'string' ? channel.name : undefined,
+    channelName: channel && typeof channel.name === 'string' ? getCleanName(channel.name) : undefined,
     sender: sender ? {
       first_name: String(sender.first_name ?? ''),
       last_name: String(sender.last_name ?? ''),
@@ -271,7 +272,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
           content: n.content,
           time: n.time,
           created_at: n.created_at,
-          channel: n.channel && typeof n.channel === 'object' ? { id: String(n.channel.id ?? ''), name: String(n.channel.name ?? '') } : undefined,
+          channel: n.channel && typeof n.channel === 'object' ? { id: String(n.channel.id ?? ''), name: getCleanName(String(n.channel.name ?? '')) } : undefined,
           event: n.event && typeof n.event === 'object' ? { id: String(n.event.id ?? ''), name: String(n.event.name ?? '') } : undefined,
           survey: n.survey && typeof n.survey === 'object' ? n.survey : undefined,
           sender: n.sender && typeof n.sender === 'object' ? { id: String(n.sender.id ?? ''), first_name: String(n.sender.first_name ?? ''), last_name: String(n.sender.last_name ?? ''), image: n.sender.image } : undefined,
