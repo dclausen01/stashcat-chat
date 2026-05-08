@@ -12,7 +12,7 @@ import NewChannelModal from './NewChannelModal';
 import NewChatModal from './NewChatModal';
 import ChannelDiscoveryModal from './ChannelDiscoveryModal';
 import type { ChatTarget } from '../types';
-import { buildChannelTree, getCleanName, type ChannelNode } from '../utils/subchannels';
+import { buildChannelTree, getCleanName, getParentId, type ChannelNode } from '../utils/subchannels';
 import { clsx } from 'clsx';
 
 /** Sort: favorites first, non-favorites second. Within each group: by lastActivity desc. */
@@ -275,11 +275,21 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     if (channelId) {
       const isActive = active?.type === 'channel' && active.id === channelId;
       const shouldIncrement = (!isInForeground || !isActive) && !isOwnMessage;
-      setChannels((prev) => sortChats(prev.map((ch) =>
-        ch.id === channelId
-          ? { ...ch, lastActivity: time || ch.lastActivity, unread_count: shouldIncrement ? (ch.unread_count ?? 0) + 1 : ch.unread_count }
-          : ch
-      )));
+      setChannels((prev) => {
+        // If this channel is a subchannel, bump the parent's lastActivity too
+        // so the parent floats up in the sidebar order.
+        const target = prev.find((c) => c.id === channelId);
+        const parentId = target ? getParentId(target.name) : null;
+        return sortChats(prev.map((ch) => {
+          if (ch.id === channelId) {
+            return { ...ch, lastActivity: time || ch.lastActivity, unread_count: shouldIncrement ? (ch.unread_count ?? 0) + 1 : ch.unread_count };
+          }
+          if (parentId && ch.id === parentId) {
+            return { ...ch, lastActivity: time || ch.lastActivity };
+          }
+          return ch;
+        }));
+      });
       // Keep prevUnreadsRef in sync so background poll doesn't re-notify
       if (shouldIncrement) {
         prevUnreadsRef.current?.set(channelId, (prevUnreadsRef.current.get(channelId) ?? 0) + 1);
@@ -453,12 +463,12 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
     const renderNode = (node: ChannelNode, depth = 0) => {
       const isParent = node.children.length > 0;
-      const isCollapsed = collapsedParents.has(node.id);
-      // When searching, auto-expand parents that have matching children
       const hasMatchingChild = isParent && q
         ? node.children.some((c) => c.displayName.toLowerCase().includes(q))
         : false;
-      const effectivelyCollapsed = isCollapsed && !hasMatchingChild;
+      const isActiveParent = isParent && activeParentId === node.id;
+      const effectivelyExpanded =
+        expandedParents.has(node.id) || hasMatchingChild || isActiveParent;
 
       // Filter by search
       const nameMatches = !q || node.displayName.toLowerCase().includes(q);
@@ -470,18 +480,19 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
       return (
         <div key={node.id}>
-          <div className={clsx('flex items-center gap-0.5', depth > 0 && 'pl-5')}>
-            {isParent && !q && (
+          <div className="flex items-center gap-0.5">
+            {isParent && !q ? (
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); toggleCollapse(node.id); }}
+                onClick={(e) => { e.stopPropagation(); toggleExpand(node.id); }}
                 className="shrink-0 rounded p-0.5 text-surface-400 hover:text-surface-600 dark:hover:text-surface-300"
-                aria-label={isCollapsed ? 'Aufklappen' : 'Zuklappen'}
+                aria-label={effectivelyExpanded ? 'Zuklappen' : 'Aufklappen'}
               >
-                <ChevronRight size={12} className={clsx('transition-transform', !effectivelyCollapsed && 'rotate-90')} />
+                <ChevronRight size={12} className={clsx('transition-transform', effectivelyExpanded && 'rotate-90')} />
               </button>
+            ) : (
+              <div className="w-[20px] shrink-0" />
             )}
-            {(!isParent || q) && depth === 0 && <div className="w-[18px] shrink-0" />}
             <div className="min-w-0 flex-1">
               <ChatItem
                 target={{ ...node, name: node.displayName }}
@@ -495,7 +506,11 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
               />
             </div>
           </div>
-          {isParent && !effectivelyCollapsed && childrenToShow.map((child) => renderNode(child, depth + 1))}
+          {isParent && effectivelyExpanded && childrenToShow.length > 0 && (
+            <div className="ml-3 border-l-2 border-surface-200 pl-3 dark:border-surface-700">
+              {childrenToShow.map((child) => renderNode(child, depth + 1))}
+            </div>
+          )}
         </div>
       );
     };
@@ -506,25 +521,27 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
   const [showChannelDiscovery, setShowChannelDiscovery] = useState(false);
 
-  // Collapsed parent channel IDs — persisted in localStorage
-  const [collapsedParents, setCollapsedParents] = useState<Set<string>>(() => {
+  // Manually expanded parent channel IDs — default empty (all collapsed).
+  // Parents are also auto-expanded when an active subchannel is inside them
+  // or when a search query matches one of their children.
+  const [expandedParents, setExpandedParents] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem('schulchat_subchannel_collapsed');
+      const saved = localStorage.getItem('schulchat_subchannel_expanded');
       return saved ? new Set<string>(JSON.parse(saved) as string[]) : new Set<string>();
     } catch {
       return new Set<string>();
     }
   });
 
-  const toggleCollapse = useCallback((channelId: string) => {
-    setCollapsedParents((prev) => {
+  const toggleExpand = useCallback((channelId: string) => {
+    setExpandedParents((prev) => {
       const next = new Set(prev);
       if (next.has(channelId)) {
         next.delete(channelId);
       } else {
         next.add(channelId);
       }
-      try { localStorage.setItem('schulchat_subchannel_collapsed', JSON.stringify([...next])); } catch { /* ignore */ }
+      try { localStorage.setItem('schulchat_subchannel_expanded', JSON.stringify([...next])); } catch { /* ignore */ }
       return next;
     });
   }, []);
@@ -534,6 +551,13 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     () => buildChannelTree(channels),
     [channels],
   );
+
+  // Parent ID of the currently active subchannel — that parent is force-expanded
+  const activeParentId = useMemo(() => {
+    if (!activeChat || activeChat.type !== 'channel') return null;
+    const ch = channels.find((c) => c.id === activeChat.id);
+    return ch ? getParentId(ch.name) : null;
+  }, [activeChat, channels]);
 
   // Total unread count — update document title as indicator
   const totalUnread = channels.reduce((sum, ch) => sum + (ch.unread_count ?? 0), 0)
