@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, ChevronDown, MoreHorizontal, Mic, Play, Pause } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, ChevronDown, MoreHorizontal, Mic, Play, Pause, ImageIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -1734,6 +1734,15 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 >
                   <Pencil size={18} className="text-surface-400" />
                   Kanal bearbeiten
+                </button>
+              )}
+              {chat.type === 'channel' && isManager && (
+                <button
+                  onClick={() => { setImageEditorOpen(true); setMobileMenuOpen(false); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+                >
+                  <ImageIcon size={18} className="text-surface-400" />
+                  Bild ändern
                 </button>
               )}
             </div>
