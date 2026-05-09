@@ -12,17 +12,30 @@ interface ChannelImageEditorProps {
 }
 
 const MAX_FILE_SIZE_MB = 5;
+const MAX_DIMENSION = 512;
+const JPEG_QUALITY = 0.8;
 
-function fileToBase64(file: File): Promise<string> {
+function resizeAndEncodeImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      // Remove data:*/*;base64, prefix
-      const base64 = result.split(',')[1];
-      resolve(base64);
-    };
     reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const scale = Math.min(1, MAX_DIMENSION / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+        resolve(dataUrl.split(',')[1]);
+      };
+      img.src = reader.result as string;
+    };
     reader.readAsDataURL(file);
   });
 }
@@ -48,7 +61,7 @@ export default function ChannelImageEditor({ chat, onClose, onSaved }: ChannelIm
     try {
       const objectUrl = URL.createObjectURL(file);
       setPreview(objectUrl);
-      const b64 = await fileToBase64(file);
+      const b64 = await resizeAndEncodeImage(file);
       setBase64Image(b64);
     } catch {
       setError('Fehler beim Lesen der Datei.');
