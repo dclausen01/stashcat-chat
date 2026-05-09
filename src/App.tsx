@@ -81,6 +81,11 @@ export default function App() {
     toggleFavoriteRef.current?.(chat);
   }, []);
 
+  const handleChannelImageUpdated = useCallback((channelId: string, imageUrl: string) => {
+    setChannels((prev) => prev.map((ch) => ch.id === channelId ? { ...ch, image: imageUrl } : ch));
+    setActiveChat((prev) => prev?.id === channelId ? { ...prev, image: imageUrl } : prev);
+  }, []);
+
   const toggleSettings = () => {
     const wasOpen = settingsOpen;
     closeAllPanels();
@@ -323,6 +328,7 @@ export default function App() {
                       startCall(calleeId, targetId, callee)
                     }
                     onToggleFavorite={handleToggleFavoriteFromChatView}
+                    onChannelImageUpdated={handleChannelImageUpdated}
                     channels={channels}
                   />
                 : homeView === 'cards'
