@@ -15,6 +15,8 @@ interface NewChannelModalProps {
   channels?: ChatTarget[];
   /** Current user ID — excluded from member snapshot copy */
   myUserId?: string;
+  /** Pre-select a parent channel (used when creating a subchannel from a context menu) */
+  presetParentId?: string;
 }
 
 type ChannelType = 'public' | 'encrypted' | 'password';
@@ -77,7 +79,7 @@ function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: b
   );
 }
 
-export default function NewChannelModal({ companyId, onClose, onCreate, channels = [], myUserId }: NewChannelModalProps) {
+export default function NewChannelModal({ companyId, onClose, onCreate, channels = [], myUserId, presetParentId }: NewChannelModalProps) {
   useEscapeKey(onClose);
   const [name, setName]             = useState('');
   const [description, setDescription] = useState('');
@@ -92,8 +94,8 @@ export default function NewChannelModal({ companyId, onClose, onCreate, channels
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageBase64, setImageBase64] = useState<string | null>(null);
-  const [parentChannelId, setParentChannelId] = useState<string>('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [parentChannelId, setParentChannelId] = useState<string>(presetParentId ?? '');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Only root channels (no parent marker themselves) can be parents
@@ -111,20 +113,18 @@ export default function NewChannelModal({ companyId, onClose, onCreate, channels
     });
   }, []);
 
-  const handleFile = useCallback(async (file: File) => {
+  const handleFile = useCallback((file: File) => {
     setError('');
     if (!file.type.startsWith('image/')) { setError('Bitte ein Bild auswählen.'); return; }
-    if (file.size > 5 * 1024 * 1024) { setError('Max. 5 MB.'); return; }
-    try {
-      setImagePreview(URL.createObjectURL(file));
-      setImageBase64(await fileToBase64(file));
-    } catch { setError('Fehler beim Lesen der Datei.'); }
-  }, [fileToBase64]);
+    if (file.size > 15 * 1024 * 1024) { setError('Max. 15 MB.'); return; }
+    setImagePreview(URL.createObjectURL(file));
+    setImageFile(file);
+  }, []);
 
   const removeImage = useCallback(() => {
     if (imagePreview?.startsWith('blob:')) URL.revokeObjectURL(imagePreview);
     setImagePreview(null);
-    setImageBase64(null);
+    setImageFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [imagePreview]);
 
@@ -160,14 +160,17 @@ export default function NewChannelModal({ companyId, onClose, onCreate, channels
         show_membership_activities: toggles.show_membership_activities,
         ...(channelType === 'password' ? { password, password_repeat: password2 } : {}),
       });
-      if (imageBase64) {
+      if (imageFile) {
         try {
+          const imageBase64 = await fileToBase64(imageFile);
           const imgResult = await api.setChannelImage(channel.id, companyId, imageBase64);
           if (imgResult?.channel?.image) {
             channel = { ...channel, image: imgResult.channel.image };
           }
         } catch (imgErr) {
           console.error('Channel image upload failed:', imgErr);
+          setError('Channel angelegt, aber Bild konnte nicht hochgeladen werden: '
+            + (imgErr instanceof Error ? imgErr.message : 'Unbekannter Fehler'));
         }
       }
 

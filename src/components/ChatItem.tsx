@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Hash, Star, MoreHorizontal, Mail, Info, LogOut, Trash2, Archive, Loader2 } from 'lucide-react';
+import { Hash, Star, MoreHorizontal, Mail, Info, LogOut, Trash2, Archive, Loader2, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 import Avatar from './Avatar';
 import { ChannelInfoModal, LeaveConfirmModal, DeleteConfirmModal } from './ChannelDropdownMenu';
 import * as api from '../api';
 import type { ChatTarget } from '../types';
+import { getParentId } from '../utils/subchannels';
 
 interface ChatItemProps {
   target: ChatTarget;
@@ -20,6 +21,8 @@ interface ChatItemProps {
   channels?: ChatTarget[];
   /** Render in a smaller variant — used for subchannels in the sidebar tree */
   compact?: boolean;
+  /** Triggered from the three-dot menu — pass parent's raw name (with marker if any) */
+  onAddSubchannel?: (parentId: string) => void;
 }
 
 function ArchiveConversationModal({ target, onClose, onArchived }: {
@@ -93,7 +96,13 @@ export default function ChatItem({
   onConversationArchived,
   channels,
   compact = false,
+  onAddSubchannel,
 }: ChatItemProps) {
+  // Detect: is this row already a subchannel? Either the displayed name still
+  // has a marker (non-tree usage) or the original raw name in `channels` does.
+  const isSubchannel = !!getParentId(target.name)
+    || !!(channels && getParentId(channels.find((c) => c.id === target.id)?.name ?? null));
+  const canAddSubchannel = target.type === 'channel' && !!onAddSubchannel && !isSubchannel;
   const [menuOpen, setMenuOpen] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
@@ -110,8 +119,8 @@ export default function ChatItem({
     return () => document.removeEventListener('mousedown', handler);
   }, [menuOpen]);
 
-  const hasMenu = !!(onMarkUnread || onChannelDeleted || onChannelLeft || onConversationArchived);
-  const hasChannelActions = target.type === 'channel' && (onChannelDeleted || onChannelLeft);
+  const hasMenu = !!(onMarkUnread || onChannelDeleted || onChannelLeft || onConversationArchived || canAddSubchannel);
+  const hasChannelActions = target.type === 'channel' && (onChannelDeleted || onChannelLeft || canAddSubchannel);
   const hasConvActions = target.type === 'conversation' && !!onConversationArchived;
 
   return (
@@ -210,6 +219,21 @@ export default function ChatItem({
                       <Info size={14} className="shrink-0 text-surface-500" />
                       Channel-Info
                     </button>
+                    {canAddSubchannel && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMenuOpen(false);
+                          onAddSubchannel?.(target.id);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-surface-700 hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+                      >
+                        <Plus size={14} className="shrink-0 text-surface-500" />
+                        Subchannel hinzufügen
+                      </button>
+                    )}
                     {onChannelLeft && (
                       <button
                         type="button"
