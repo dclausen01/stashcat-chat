@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, ChevronDown, MoreHorizontal, Mic, Play, Pause } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, ChevronDown, MoreHorizontal, Mic, Play, Pause, ImageIcon, Info, Type as TypeIcon, Download, LogOut, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -12,7 +12,7 @@ import { fileIcon } from '../utils/fileIcon';
 import Avatar from './Avatar';
 import MessageInput from './MessageInput';
 import ChannelMembersPanel from './ChannelMembersPanel';
-import ChannelDropdownMenu from './ChannelDropdownMenu';
+import ChannelDropdownMenu, { ChannelInfoModal, LeaveConfirmModal, DeleteConfirmModal, RenameChannelModal, exportChatAsMarkdown } from './ChannelDropdownMenu';
 import MarkdownContent from './MarkdownContent';
 import ChannelDescriptionEditor from './ChannelDescriptionEditor';
 import ChannelImageEditor from './ChannelImageEditor';
@@ -23,7 +23,7 @@ import CreateNCDocumentModal from './CreateNCDocumentModal';
 import NCShareChoiceModal from './NCShareChoiceModal';
 import type { ChatTarget, Message } from '../types';
 import type { CallParty } from '../api/calls';
-import { getCleanName } from '../utils/subchannels';
+import { getCleanName, getParentId } from '../utils/subchannels';
 
 interface ChatViewProps {
   chat: ChatTarget;
@@ -225,6 +225,12 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [sendError, setSendError] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Mobile-only modals (mirror of desktop ChannelDropdownMenu actions)
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMatchIdx, setSearchMatchIdx] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -1736,6 +1742,85 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                   Kanal bearbeiten
                 </button>
               )}
+              {chat.type === 'channel' && isManager && (
+                <button
+                  onClick={() => { setImageEditorOpen(true); setMobileMenuOpen(false); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+                >
+                  <ImageIcon size={18} className="text-surface-400" />
+                  Bild ändern
+                </button>
+              )}
+              {chat.type === 'channel' && isManager && (
+                <button
+                  onClick={() => { setShowRenameModal(true); setMobileMenuOpen(false); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+                >
+                  <TypeIcon size={18} className="text-surface-400" />
+                  Channel umbenennen
+                </button>
+              )}
+              {chat.type === 'channel' && (
+                <button
+                  onClick={() => { setShowInfoModal(true); setMobileMenuOpen(false); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+                >
+                  <Info size={18} className="text-surface-400" />
+                  Channel-Info
+                </button>
+              )}
+              {chat.type === 'channel' && isManager && !getParentId(chat.name) && (
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    window.dispatchEvent(new CustomEvent('open-new-channel-modal', { detail: { parentId: chat.id } }));
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+                >
+                  <Plus size={18} className="text-surface-400" />
+                  Subchannel hinzufügen
+                </button>
+              )}
+              {chat.type === 'channel' && isManager && (
+                <button
+                  onClick={async () => {
+                    setMobileMenuOpen(false);
+                    if (exporting) return;
+                    setExporting(true);
+                    try {
+                      await exportChatAsMarkdown(chat);
+                    } catch (err) {
+                      alert('Export fehlgeschlagen: ' + (err instanceof Error ? err.message : err));
+                    } finally {
+                      setExporting(false);
+                    }
+                  }}
+                  disabled={exporting}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 disabled:opacity-50 dark:text-surface-200 dark:hover:bg-surface-700"
+                >
+                  {exporting ? <Loader2 size={18} className="animate-spin text-surface-400" /> : <Download size={18} className="text-surface-400" />}
+                  Als Markdown exportieren
+                </button>
+              )}
+              {chat.type === 'channel' && isManager && (
+                <>
+                  <div className="my-1 border-t border-surface-200 dark:border-surface-700" />
+                  <button
+                    onClick={() => { setShowLeaveModal(true); setMobileMenuOpen(false); }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+                  >
+                    <LogOut size={18} className="text-surface-400" />
+                    Channel verlassen
+                  </button>
+                  <button
+                    onClick={() => { setShowDeleteModal(true); setMobileMenuOpen(false); }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-red-500 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                  >
+                    <Trash2 size={18} />
+                    Channel löschen
+                  </button>
+                </>
+              )}
             </div>
           </>
         )}
@@ -2197,6 +2282,33 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         chat={{ ...chat, image: chatImage }}
         onClose={() => setImageEditorOpen(false)}
         onSaved={(newImage) => setChatImage(newImage)}
+      />
+    )}
+
+    {/* Mobile-only manager modals (mirror of desktop ChannelDropdownMenu) */}
+    {showInfoModal && chat.type === 'channel' && (
+      <ChannelInfoModal chat={chat} channels={channels} onClose={() => setShowInfoModal(false)} />
+    )}
+    {showRenameModal && chat.type === 'channel' && (
+      <RenameChannelModal
+        chat={chat}
+        onClose={() => setShowRenameModal(false)}
+        onRenamed={(newName) => { setShowRenameModal(false); setChatName(getCleanName(newName)); }}
+      />
+    )}
+    {showLeaveModal && chat.type === 'channel' && (
+      <LeaveConfirmModal
+        chat={chat}
+        onClose={() => setShowLeaveModal(false)}
+        onLeft={() => { setShowLeaveModal(false); onGoHome(); }}
+      />
+    )}
+    {showDeleteModal && chat.type === 'channel' && (
+      <DeleteConfirmModal
+        chat={chat}
+        channels={channels}
+        onClose={() => setShowDeleteModal(false)}
+        onDeleted={() => { setShowDeleteModal(false); onGoHome(); }}
       />
     )}
 
