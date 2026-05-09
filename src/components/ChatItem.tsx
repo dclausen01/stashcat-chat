@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Hash, Star, MoreHorizontal, Mail, Info, LogOut, Trash2, Archive, Loader2, Plus } from 'lucide-react';
+import { Hash, Star, MoreHorizontal, Mail, Info, LogOut, Trash2, Archive, Loader2, Plus, ChevronDown } from 'lucide-react';
 import { clsx } from 'clsx';
 import Avatar from './Avatar';
 import { ChannelInfoModal, LeaveConfirmModal, DeleteConfirmModal } from './ChannelDropdownMenu';
@@ -23,6 +23,9 @@ interface ChatItemProps {
   compact?: boolean;
   /** Triggered from the three-dot menu — pass parent's raw name (with marker if any) */
   onAddSubchannel?: (parentId: string) => void;
+  /** Subchannel-tree expand state. When defined, a chevron appears after the name. */
+  expanded?: boolean;
+  onToggleExpand?: () => void;
 }
 
 function ArchiveConversationModal({ target, onClose, onArchived }: {
@@ -97,6 +100,8 @@ export default function ChatItem({
   channels,
   compact = false,
   onAddSubchannel,
+  expanded,
+  onToggleExpand,
 }: ChatItemProps) {
   // Detect: is this row already a subchannel? Either the displayed name still
   // has a marker (non-tree usage) or the original raw name in `channels` does.
@@ -143,6 +148,18 @@ export default function ChatItem({
           <Avatar name={target.name} image={target.image} size={compact ? 'xs' : 'sm'} availability={target.userAvailability} />
         )}
         <span className={clsx('min-w-0 flex-1 truncate font-medium', compact ? 'text-xs' : 'text-sm')}>{target.name}</span>
+        {onToggleExpand && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
+            title={expanded ? 'Subkanäle einklappen' : 'Subkanäle ausklappen'}
+            aria-label={expanded ? 'Subkanäle einklappen' : 'Subkanäle ausklappen'}
+            aria-expanded={!!expanded}
+            className="shrink-0 rounded text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 min-h-[36px] min-w-[28px] flex items-center justify-center md:min-h-0 md:min-w-0 md:p-0.5"
+          >
+            <ChevronDown size={14} className={clsx('transition-transform', expanded && 'rotate-180')} />
+          </button>
+        )}
         {onToggleFavorite && (
           <button
             type="button"
