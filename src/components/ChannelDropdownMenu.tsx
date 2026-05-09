@@ -29,7 +29,7 @@ function formatTime(ts: number): string {
   });
 }
 
-async function exportChatAsMarkdown(chat: ChatTarget): Promise<void> {
+export async function exportChatAsMarkdown(chat: ChatTarget): Promise<void> {
   const msgs = await api.getMessages(chat.id, chat.type, 9999);
   const sorted = [...msgs].sort(
     (a, b) => (Number((a as Record<string, unknown>).time) || 0) - (Number((b as Record<string, unknown>).time) || 0)
@@ -538,7 +538,7 @@ export function DeleteConfirmModal({ chat, channels, onClose, onDeleted }: {
   );
 }
 
-function RenameChannelModal({ chat, onClose, onRenamed }: {
+export function RenameChannelModal({ chat, onClose, onRenamed }: {
   chat: ChatTarget;
   onClose: () => void;
   onRenamed: (newName: string) => void;
