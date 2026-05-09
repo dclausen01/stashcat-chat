@@ -481,7 +481,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
       return (
         <div key={node.id}>
           <div className="flex items-center gap-0.5">
-            {isParent && !q ? (
+            {isParent && !q && (
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); toggleExpand(node.id); }}
@@ -490,8 +490,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
               >
                 <ChevronRight size={14} className={clsx('transition-transform', effectivelyExpanded && 'rotate-90')} />
               </button>
-            ) : (
-              <div className="w-[28px] shrink-0 md:w-[20px]" />
             )}
             <div className="min-w-0 flex-1">
               <ChatItem
