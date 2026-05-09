@@ -179,7 +179,7 @@ export function ChannelInfoModal({ chat, channels, onClose }: { chat: ChatTarget
         : cleanName;
       await api.editChannel(chat.id, chat.company_id, chat.description || '', newName);
       window.dispatchEvent(new CustomEvent('channel-renamed', { detail: { channelId: chat.id, newName } }));
-      setParentMsg(selectedParentId ? 'Parent gesetzt. Tipp: "Mit Parent synchronisieren" überträgt Mitglieder.' : 'Parent entfernt.');
+      setParentMsg(selectedParentId ? 'Übergeordneter Channel gesetzt. Tipp: "Mit übergeordnetem Channel synchronisieren" überträgt Mitglieder.' : 'Übergeordneter Channel entfernt.');
     } catch (err) {
       setParentMsg(err instanceof Error ? err.message : 'Speichern fehlgeschlagen');
     } finally {
@@ -282,7 +282,7 @@ export function ChannelInfoModal({ chat, channels, onClose }: { chat: ChatTarget
                     <p className="text-xs font-medium text-surface-500">Übergeordneter Channel</p>
                     {hasOwnSubchannels ? (
                       <p className="mt-1 text-xs text-surface-500">
-                        Dieser Channel hat selbst Subkanäle und kann deshalb keinem Parent zugeordnet werden (max. eine Ebene).
+                        Dieser Channel hat selbst Subkanäle und kann deshalb keinem übergeordneten Channel zugeordnet werden (max. eine Ebene).
                       </p>
                     ) : (
                       <>
@@ -291,7 +291,7 @@ export function ChannelInfoModal({ chat, channels, onClose }: { chat: ChatTarget
                           onChange={(e) => { setSelectedParentId(e.target.value); setParentMsg(''); }}
                           className="mt-1 w-full rounded-lg border border-surface-300 bg-white px-2 py-1.5 text-sm text-surface-900 outline-none transition focus:border-primary-500 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
                         >
-                          <option value="">— Kein Parent —</option>
+                          <option value="">— Kein übergeordneter Channel —</option>
                           {/* Always include the current parent in the list, even if it would otherwise be filtered */}
                           {parentChannel && !eligibleParents.find((c) => c.id === parentChannel.id) && (
                             <option value={parentChannel.id}>{getCleanName(parentChannel.name)}</option>
@@ -307,7 +307,7 @@ export function ChannelInfoModal({ chat, channels, onClose }: { chat: ChatTarget
                             className="mt-2 flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-primary-700 disabled:opacity-50"
                           >
                             {savingParent ? <Loader2 size={12} className="animate-spin" /> : null}
-                            Parent speichern
+                            Übergeordneten Channel speichern
                           </button>
                         )}
                         {parentMsg && <p className="mt-1.5 text-xs text-surface-500">{parentMsg}</p>}
@@ -324,7 +324,7 @@ export function ChannelInfoModal({ chat, channels, onClose }: { chat: ChatTarget
                     className="flex items-center gap-2 rounded-lg border border-surface-300 px-3 py-2 text-sm text-surface-700 transition hover:bg-surface-100 disabled:opacity-50 dark:border-surface-600 dark:text-surface-300 dark:hover:bg-surface-800"
                   >
                     {syncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                    Mit Parent synchronisieren
+                    Mit übergeordnetem Channel synchronisieren
                   </button>
                   {syncMsg && <p className="mt-1.5 text-xs text-surface-500">{syncMsg}</p>}
                 </div>
