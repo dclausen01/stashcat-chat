@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from 'react';
-import { Hash, Search, Users, GripHorizontal, Plus, X, ChevronRight } from 'lucide-react';
+import { Hash, Search, Users, GripHorizontal, Plus, X } from 'lucide-react';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
@@ -13,7 +13,6 @@ import NewChatModal from './NewChatModal';
 import ChannelDiscoveryModal from './ChannelDiscoveryModal';
 import type { ChatTarget } from '../types';
 import { buildChannelTree, getCleanName, getParentId, type ChannelNode } from '../utils/subchannels';
-import { clsx } from 'clsx';
 
 /** Sort: favorites first, non-favorites second. Within each group: by lastActivity desc. */
 function sortChats(items: ChatTarget[]): ChatTarget[] {
@@ -491,35 +490,23 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
       return (
         <div key={node.id}>
-          <div className="flex items-center gap-0.5">
-            {isParent && !q && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); toggleExpand(node.id); }}
-                className="shrink-0 rounded text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 min-h-[36px] min-w-[28px] flex items-center justify-center md:min-h-0 md:min-w-0 md:p-0.5"
-                aria-label={effectivelyExpanded ? 'Zuklappen' : 'Aufklappen'}
-              >
-                <ChevronRight size={14} className={clsx('transition-transform', effectivelyExpanded && 'rotate-90')} />
-              </button>
-            )}
-            <div className="min-w-0 flex-1">
-              <ChatItem
-                target={{ ...node, name: node.displayName }}
-                active={activeChat?.id === node.id && activeChat?.type === 'channel'}
-                onSelect={(t) => handleSelect({ ...t, name: node.name })}
-                onToggleFavorite={(t) => handleToggleFavorite({ ...t, name: node.name })}
-                onMarkUnread={(t) => handleMarkUnread({ ...t, name: node.name })}
-                onChannelDeleted={(t) => handleChannelDeleted({ ...t, name: node.name })}
-                onChannelLeft={(t) => handleChannelLeft({ ...t, name: node.name })}
-                channels={channels}
-                compact={depth > 0}
-                onAddSubchannel={depth === 0 ? (parentId) => {
-                  setNewChannelParentId(parentId);
-                  setShowNewChannel(true);
-                } : undefined}
-              />
-            </div>
-          </div>
+          <ChatItem
+            target={{ ...node, name: node.displayName }}
+            active={activeChat?.id === node.id && activeChat?.type === 'channel'}
+            onSelect={(t) => handleSelect({ ...t, name: node.name })}
+            onToggleFavorite={(t) => handleToggleFavorite({ ...t, name: node.name })}
+            onMarkUnread={(t) => handleMarkUnread({ ...t, name: node.name })}
+            onChannelDeleted={(t) => handleChannelDeleted({ ...t, name: node.name })}
+            onChannelLeft={(t) => handleChannelLeft({ ...t, name: node.name })}
+            channels={channels}
+            compact={depth > 0}
+            onAddSubchannel={depth === 0 ? (parentId) => {
+              setNewChannelParentId(parentId);
+              setShowNewChannel(true);
+            } : undefined}
+            expanded={isParent && !q ? effectivelyExpanded : undefined}
+            onToggleExpand={isParent && !q ? () => toggleExpand(node.id) : undefined}
+          />
           {isParent && effectivelyExpanded && childrenToShow.length > 0 && (
             <div className="ml-3 border-l-2 border-surface-200 pl-3 dark:border-surface-700">
               {childrenToShow.map((child) => renderNode(child, depth + 1))}
