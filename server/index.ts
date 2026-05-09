@@ -65,7 +65,7 @@ const upload = multer({ dest: os.tmpdir() });
 const app = express();
 app.set('trust proxy', 1); // Trust first proxy (e.g. nginx) to get correct client IP for rate limiting
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Rate limiting — exempt SSE endpoint and file/image endpoints
 const apiLimiter = rateLimit({
