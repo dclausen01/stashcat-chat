@@ -70,6 +70,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
   }, [triggerFocusKey]);
 
   const [showNewChannel, setShowNewChannel] = useState(false);
+  const [newChannelParentId, setNewChannelParentId] = useState<string | undefined>(undefined);
   const [showNewChat, setShowNewChat] = useState(false);
   // Track first company ID for creating channels/chats
   const [primaryCompanyId, setPrimaryCompanyId] = useState<string>('');
@@ -420,6 +421,16 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
     return () => window.removeEventListener('channel-renamed', handler as EventListener);
   }, []);
 
+  // Listen for "open new channel modal" requests (e.g. from ChatItem "Subchannel hinzufügen")
+  useEffect(() => {
+    const handler = (e: CustomEvent<{ parentId?: string }>) => {
+      setNewChannelParentId(e.detail?.parentId);
+      setShowNewChannel(true);
+    };
+    window.addEventListener('open-new-channel-modal', handler as EventListener);
+    return () => window.removeEventListener('open-new-channel-modal', handler as EventListener);
+  }, []);
+
   const handleSelect = useCallback((target: ChatTarget) => {
     // Clear unread for selected chat immediately in sidebar
     if (target.type === 'channel') {
@@ -502,6 +513,10 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
                 onChannelLeft={(t) => handleChannelLeft({ ...t, name: node.name })}
                 channels={channels}
                 compact={depth > 0}
+                onAddSubchannel={depth === 0 ? (parentId) => {
+                  setNewChannelParentId(parentId);
+                  setShowNewChannel(true);
+                } : undefined}
               />
             </div>
           </div>
@@ -741,7 +756,8 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           companyId={primaryCompanyId}
           channels={channels}
           myUserId={user?.id}
-          onClose={() => setShowNewChannel(false)}
+          presetParentId={newChannelParentId}
+          onClose={() => { setShowNewChannel(false); setNewChannelParentId(undefined); }}
           onCreate={(ch) => {
             // Add newly created channel to the list and navigate to it
             const newTarget: ChatTarget = {

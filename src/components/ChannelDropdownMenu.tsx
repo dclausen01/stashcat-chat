@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { MoreVertical, Users, Pencil, Download, Trash2, Loader2, Info, X, Lock, UsersRound, Clock, ImageIcon, LogOut, Type, GitBranch, RefreshCw } from 'lucide-react';
+import { MoreVertical, Users, Pencil, Download, Trash2, Loader2, Info, X, Lock, UsersRound, Clock, ImageIcon, LogOut, Type, GitBranch, RefreshCw, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { ChatTarget, Channel } from '../types';
@@ -140,6 +140,11 @@ export function ChannelInfoModal({ chat, channels, onClose }: { chat: ChatTarget
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
 
+  const initialParentId = getParentId(chat.name) ?? '';
+  const [selectedParentId, setSelectedParentId] = useState<string>(initialParentId);
+  const [savingParent, setSavingParent] = useState(false);
+  const [parentMsg, setParentMsg] = useState('');
+
   useEffect(() => {
     api.getChannelInfo(chat.id).then(ch => {
       setInfo(ch);
@@ -152,6 +157,35 @@ export function ChannelInfoModal({ chat, channels, onClose }: { chat: ChatTarget
 
   const parentId = getParentId(chat.name);
   const parentChannel = parentId ? channels?.find((c) => c.id === parentId) : undefined;
+  const isSubchannel = !!parentId;
+  // If this channel has its own subchannels, it can't be demoted (would create 2 levels)
+  const hasOwnSubchannels = (channels ?? []).some((c) => getParentId(c.name) === chat.id);
+  // Eligible parents: only root channels, exclude self
+  const eligibleParents = (channels ?? []).filter((c) =>
+    c.type === 'channel'
+    && c.id !== chat.id
+    && !getParentId(c.name),
+  );
+
+  const handleSaveParent = async () => {
+    if (selectedParentId === initialParentId) return;
+    if (!chat.company_id) { setParentMsg('Keine company_id vorhanden'); return; }
+    setSavingParent(true);
+    setParentMsg('');
+    try {
+      const cleanName = getCleanName(chat.name);
+      const newName = selectedParentId
+        ? encodeSubchannelName(cleanName, selectedParentId)
+        : cleanName;
+      await api.editChannel(chat.id, chat.company_id, chat.description || '', newName);
+      window.dispatchEvent(new CustomEvent('channel-renamed', { detail: { channelId: chat.id, newName } }));
+      setParentMsg(selectedParentId ? 'Parent gesetzt. Tipp: "Mit Parent synchronisieren" überträgt Mitglieder.' : 'Parent entfernt.');
+    } catch (err) {
+      setParentMsg(err instanceof Error ? err.message : 'Speichern fehlgeschlagen');
+    } finally {
+      setSavingParent(false);
+    }
+  };
 
   const handleSync = async () => {
     if (!parentId) return;
@@ -240,12 +274,45 @@ export function ChannelInfoModal({ chat, channels, onClose }: { chat: ChatTarget
               {!!info.description && (
                 <InfoRow icon={Info} label="Beschreibung" value={String(info.description)} />
               )}
-              {parentChannel && (
+              {/* Parent channel — editable. Suppressed only if there are simply no candidates AND no current parent. */}
+              {(eligibleParents.length > 0 || isSubchannel) && (
                 <div className="flex items-start gap-3 py-2">
                   <GitBranch size={16} className="mt-0.5 shrink-0 text-surface-500" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-surface-500">Übergeordneter Channel</p>
-                    <p className="mt-0.5 text-sm text-surface-900 dark:text-white">{getCleanName(parentChannel.name)}</p>
+                    {hasOwnSubchannels ? (
+                      <p className="mt-1 text-xs text-surface-500">
+                        Dieser Channel hat selbst Subkanäle und kann deshalb keinem Parent zugeordnet werden (max. eine Ebene).
+                      </p>
+                    ) : (
+                      <>
+                        <select
+                          value={selectedParentId}
+                          onChange={(e) => { setSelectedParentId(e.target.value); setParentMsg(''); }}
+                          className="mt-1 w-full rounded-lg border border-surface-300 bg-white px-2 py-1.5 text-sm text-surface-900 outline-none transition focus:border-primary-500 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
+                        >
+                          <option value="">— Kein Parent —</option>
+                          {/* Always include the current parent in the list, even if it would otherwise be filtered */}
+                          {parentChannel && !eligibleParents.find((c) => c.id === parentChannel.id) && (
+                            <option value={parentChannel.id}>{getCleanName(parentChannel.name)}</option>
+                          )}
+                          {eligibleParents.map((c) => (
+                            <option key={c.id} value={c.id}>{getCleanName(c.name)}</option>
+                          ))}
+                        </select>
+                        {selectedParentId !== initialParentId && (
+                          <button
+                            onClick={handleSaveParent}
+                            disabled={savingParent}
+                            className="mt-2 flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-primary-700 disabled:opacity-50"
+                          >
+                            {savingParent ? <Loader2 size={12} className="animate-spin" /> : null}
+                            Parent speichern
+                          </button>
+                        )}
+                        {parentMsg && <p className="mt-1.5 text-xs text-surface-500">{parentMsg}</p>}
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -641,6 +708,18 @@ export default function ChannelDropdownMenu({
               <Info size={16} className="text-surface-500" />
               Channel-Info
             </button>
+            {!getParentId(chat.name) && (
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  window.dispatchEvent(new CustomEvent('open-new-channel-modal', { detail: { parentId: chat.id } }));
+                }}
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-surface-700 transition hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-surface-700"
+              >
+                <Plus size={16} className="text-surface-500" />
+                Subchannel hinzufügen
+              </button>
+            )}
             <button
               onClick={() => { setOpen(false); onOpenDescriptionEditor(); }}
               className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-surface-700 transition hover:bg-surface-200 dark:text-surface-200 dark:hover:bg-surface-700"
