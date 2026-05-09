@@ -43,6 +43,7 @@ interface ChatViewProps {
   onJumpComplete?: () => void;
   onStartCall?: (calleeId: string, targetId: string, callee: CallParty) => void;
   onToggleFavorite?: (chat: ChatTarget) => void;
+  onChannelImageUpdated?: (channelId: string, imageUrl: string) => void;
   /** All channels — passed to ChannelDropdownMenu for subchannel awareness */
   channels?: ChatTarget[];
 }
@@ -186,7 +187,7 @@ function extractServiceLinks(description: string): { cleanDescription: string; l
 
 interface PendingMessage { text: string; replyTo: Message | null; time: number }
 
-export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onOpenEvent, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall, onToggleFavorite, channels }: ChatViewProps) {
+export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onOpenEvent, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall, onToggleFavorite, onChannelImageUpdated, channels }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const { theme } = useTheme();
@@ -2281,7 +2282,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       <ChannelImageEditor
         chat={{ ...chat, image: chatImage }}
         onClose={() => setImageEditorOpen(false)}
-        onSaved={(newImage) => setChatImage(newImage)}
+        onSaved={(newImage) => { setChatImage(newImage); onChannelImageUpdated?.(chat.id, newImage); }}
       />
     )}
 
