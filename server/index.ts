@@ -59,6 +59,7 @@ import {
   touchCachedClient,
   invalidateClient,
 } from './lib/get-client';
+import { authenticate } from './middleware/auth';
 import { getOfficeDocType, buildViewerConfig, validateDownloadToken, createDownloadToken, PUBLIC_URL } from './onlyoffice';
 import { ncListFolder, ncDownload, ncUpload, ncDelete, ncMove, ncMkcol, ncQuota, ncProbe, ncCreateShare, type NCCredentials } from './nextcloud';
 
@@ -84,6 +85,9 @@ const apiLimiter = rateLimit({
   skip: (req) => req.path === '/api/events' || req.path.startsWith('/api/file'),
 });
 app.use('/api/', apiLimiter);
+
+// Resolve req.client for all /api routes except login, SSE and OnlyOffice downloads.
+app.use(authenticate);
 
 // ── Chat Bot cache (for video meetings) ──────────────────────────────────────
 interface BotInfo {
@@ -771,7 +775,7 @@ app.post('/api/typing', (req, res) => {
 
 app.get('/api/companies', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     res.json(await client.getCompanies());
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
@@ -782,7 +786,7 @@ app.get('/api/companies', async (req, res) => {
 
 app.get('/api/channels/:companyId/visible', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const channels = await client.getVisibleChannels(req.params.companyId);
     res.json(channels);
   } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
@@ -790,7 +794,7 @@ app.get('/api/channels/:companyId/visible', async (req, res) => {
 
 app.post('/api/channels/:channelId/join', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     await client.joinChannel(req.params.channelId);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
@@ -798,7 +802,7 @@ app.post('/api/channels/:channelId/join', async (req, res) => {
 
 app.post('/api/channels/:channelId/quit', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     await client.quitChannel(req.params.channelId);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
@@ -812,7 +816,7 @@ app.post('/api/channels/:channelId/quit', async (req, res) => {
 
 app.post('/api/channels/invites/:inviteId/accept', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const inviteId = req.params.inviteId;
     const { notificationId } = req.body as { notificationId?: string };
     serverLog(`[channel-invite] ACCEPT invite_id=${inviteId}`);
@@ -831,7 +835,7 @@ app.post('/api/channels/invites/:inviteId/accept', async (req, res) => {
 
 app.post('/api/channels/invites/:inviteId/decline', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const inviteId = req.params.inviteId;
     const { notificationId } = req.body as { notificationId?: string };
     serverLog(`[channel-invite] DECLINE invite_id=${inviteId}`);
@@ -850,7 +854,7 @@ app.post('/api/channels/invites/:inviteId/decline', async (req, res) => {
 
 app.post('/api/channels/:channelId/favorite', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { favorite } = req.body as { favorite: boolean };
     if (favorite) {
       await client.setChannelFavorite(req.params.channelId, true);
@@ -863,7 +867,7 @@ app.post('/api/channels/:channelId/favorite', async (req, res) => {
 
 app.get('/api/channels/:companyId', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const channels = await client.getChannels(req.params.companyId);
     // Flatten membership.muted into top-level muted for easier frontend use
     const mapped = channels.map((ch) => {
@@ -881,7 +885,7 @@ app.get('/api/channels/:companyId', async (req, res) => {
 
 app.get('/api/channels/:channelId/members', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const channelId = req.params.channelId;
     // Paginate until all members are fetched (channels can have 500+ members)
     // Note: Stashcat API has a hard cap of ~100 per request regardless of limit param
@@ -911,7 +915,7 @@ app.get('/api/channels/:channelId/members', async (req, res) => {
 
 app.get('/api/channels/:channelId/pending-members', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const channelId = req.params.channelId;
     const all: unknown[] = [];
     const PAGE = 100;
@@ -931,7 +935,7 @@ app.get('/api/channels/:channelId/pending-members', async (req, res) => {
 
 app.post('/api/channels/:channelId/notifications', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const channelId = req.params.channelId;
     const { enabled, duration } = req.body as { enabled: boolean; duration?: number };
     if (enabled) {
@@ -951,7 +955,7 @@ app.post('/api/channels/:channelId/notifications', async (req, res) => {
 
 app.post('/api/channels/:channelId/invite', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { userIds } = req.body as { userIds: string[] };
     await client.inviteUsersToChannel(req.params.channelId, userIds);
     res.json({ ok: true });
@@ -962,7 +966,7 @@ app.post('/api/channels/:channelId/invite', async (req, res) => {
 
 app.delete('/api/channels/:channelId/members/:userId', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     await client.removeUserFromChannel(req.params.channelId, req.params.userId);
     res.json({ ok: true });
   } catch (err) {
@@ -974,7 +978,7 @@ app.delete('/api/channels/:channelId/members/:userId', async (req, res) => {
 
 app.post('/api/channels/:channelId/moderator/:userId', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     await client.addChannelModerator(req.params.channelId, req.params.userId);
     res.json({ ok: true });
   } catch (err) {
@@ -984,7 +988,7 @@ app.post('/api/channels/:channelId/moderator/:userId', async (req, res) => {
 
 app.delete('/api/channels/:channelId/moderator/:userId', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     await client.removeChannelModerator(req.params.channelId, req.params.userId);
     res.json({ ok: true });
   } catch (err) {
@@ -996,7 +1000,7 @@ app.delete('/api/channels/:channelId/moderator/:userId', async (req, res) => {
 
 app.patch('/api/channels/:channelId', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { description, company_id, name } = req.body as { description?: string; company_id: string; name?: string };
     const result = await client.editChannel({
       channel_id: req.params.channelId,
@@ -1013,7 +1017,7 @@ app.patch('/api/channels/:channelId', async (req, res) => {
 // ── Channel image ────────────────────────────────────────────────────────────
 app.post('/api/channels/:channelId/image', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { company_id, image } = req.body as { company_id: string; image: string };
     // Access internal API to call /channels/setImage
     const api = (client as any).api;
@@ -1035,7 +1039,7 @@ app.post('/api/channels/:channelId/image', async (req, res) => {
 // ── Channel info ───────────────────────────────────────────────────────────────
 app.get('/api/channels/:channelId/info', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const ch = await client.getChannelInfo(req.params.channelId, true);
     res.json(ch);
   } catch (err) {
@@ -1046,7 +1050,7 @@ app.get('/api/channels/:channelId/info', async (req, res) => {
 // ── Delete channel ────────────────────────────────────────────────────────────
 app.delete('/api/channels/:channelId', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { channelId } = req.params;
     await client.deleteChannel(channelId);
     res.json({ ok: true });
@@ -1059,7 +1063,7 @@ app.delete('/api/channels/:channelId', async (req, res) => {
 
 app.get('/api/companies/:companyId/members', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const search = req.query.search as string | undefined;
     const limit = req.query.limit ? Number(req.query.limit) : undefined;
     const offset = req.query.offset ? Number(req.query.offset) : undefined;
@@ -1076,7 +1080,7 @@ app.get('/api/companies/:companyId/members', async (req, res) => {
 
 app.get('/api/companies/:companyId/groups', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const groups = await client.listGroups(req.params.companyId);
     res.json(groups);
   } catch (err) {
@@ -1089,7 +1093,7 @@ app.get('/api/companies/:companyId/groups', async (req, res) => {
 
 app.get('/api/companies/:companyId/groups/:groupId/members', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const PAGE = 200;
     const allUsers: unknown[] = [];
     let offset = 0;
@@ -1116,7 +1120,7 @@ app.get('/api/companies/:companyId/groups/:groupId/members', async (req, res) =>
 
 app.post('/api/channels', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const {
       name, company_id, description, policies,
       channel_type,                      // 'public' | 'encrypted' | 'password'
@@ -1217,7 +1221,7 @@ app.post('/api/channels', async (req, res) => {
 
 app.post('/api/channels/:channelId/keys', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const channelId = req.params.channelId;
     const { keys } = req.body as { keys: Array<{ user_id: string; key: string; key_signature: string }> };
     if (!keys || !Array.isArray(keys)) {
@@ -1233,7 +1237,7 @@ app.post('/api/channels/:channelId/keys', async (req, res) => {
 
 app.post('/api/conversations/:convId/favorite', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { favorite } = req.body as { favorite: boolean };
     if (favorite) {
       await client.setConversationFavorite(req.params.convId, true);
@@ -1248,7 +1252,7 @@ app.post('/api/conversations/:convId/favorite', async (req, res) => {
 
 app.post('/api/conversations', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { member_ids } = req.body as { member_ids: string[] };
     const conversation = await client.createConversation(member_ids);
     console.log(`[conversations/create] created conversation with ${member_ids.length} member(s)`);
@@ -1264,7 +1268,7 @@ app.get('/api/conversations', async (req, res) => {
   try {
     const token = extractToken(req);
     const payload = decryptSession(token);
-    const client = await getClient(req);
+    const client = req.client!;
 
     // When no explicit limit is passed, paginate through all conversations.
     // Stashcat's API caps each response at ~100 regardless of the requested limit,
@@ -1300,7 +1304,7 @@ app.get('/api/conversations', async (req, res) => {
 
 app.get('/api/conversations/:id', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const conv = await client.getConversation(req.params.id);
     res.json(conv);
   } catch (err) {
@@ -1314,7 +1318,7 @@ app.get('/api/conversations/:id', async (req, res) => {
 
 app.post('/api/messages/:messageId/like', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     await client.likeMessage(req.params.messageId);
     res.json({ ok: true });
   } catch (err) {
@@ -1324,7 +1328,7 @@ app.post('/api/messages/:messageId/like', async (req, res) => {
 
 app.get('/api/messages/:messageId/likes', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const likes = await client.listLikes(req.params.messageId);
     res.json({ likes });
   } catch (err) {
@@ -1334,7 +1338,7 @@ app.get('/api/messages/:messageId/likes', async (req, res) => {
 
 app.post('/api/messages/:messageId/unlike', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     await client.unlikeMessage(req.params.messageId);
     res.json({ ok: true });
   } catch (err) {
@@ -1344,7 +1348,7 @@ app.post('/api/messages/:messageId/unlike', async (req, res) => {
 
 app.delete('/api/messages/:messageId', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     await client.deleteMessage(req.params.messageId);
     res.json({ ok: true });
   } catch (err) {
@@ -1356,7 +1360,7 @@ app.delete('/api/messages/:messageId', async (req, res) => {
 
 app.post('/api/messages/:messageId/flag', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     await client.flagMessage(req.params.messageId);
     res.json({ ok: true });
   } catch (err) {
@@ -1366,7 +1370,7 @@ app.post('/api/messages/:messageId/flag', async (req, res) => {
 
 app.post('/api/messages/:messageId/unflag', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     await client.unflagMessage(req.params.messageId);
     res.json({ ok: true });
   } catch (err) {
@@ -1376,7 +1380,7 @@ app.post('/api/messages/:messageId/unflag', async (req, res) => {
 
 app.get('/api/messages/:type/:targetId/flagged', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { type, targetId } = req.params;
     const chatType = type as 'channel' | 'conversation';
     const limit = Number(req.query.limit) || 50;
@@ -1402,7 +1406,7 @@ app.get('/api/messages/:type/:targetId/flagged', async (req, res) => {
 
 app.get('/api/messages/:type/:targetId/search', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { type, targetId } = req.params;
     const chatType = type as 'channel' | 'conversation';
     const startDate = Number(req.query.startDate) || 0;
@@ -1450,7 +1454,7 @@ app.get('/api/messages/:type/:targetId/search', async (req, res) => {
 // ── Generic message routes (must be AFTER specific ones) ─────────────────────
 
 app.get('/api/messages/:type/:targetId', async (req, res) => {
-  const client = await getClient(req);
+  const client = req.client!;
   try {
     const { type, targetId } = req.params;
     const limit = Number(req.query.limit) || 40;
@@ -1484,7 +1488,7 @@ app.get('/api/messages/:type/:targetId', async (req, res) => {
 
 app.post('/api/messages/:type/:targetId', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { type, targetId } = req.params;
     const { text, is_forwarded, reply_to_id, files } = req.body as { text: string; is_forwarded?: boolean; reply_to_id?: string; files?: string[] };
     const chatType = type as 'channel' | 'conversation';
@@ -1497,7 +1501,7 @@ app.post('/api/messages/:type/:targetId', async (req, res) => {
 
 app.post('/api/messages/:type/:targetId/read', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { type, targetId } = req.params;
     const { messageId } = req.body as { messageId?: string };
     const chatType = type as 'channel' | 'conversation';
@@ -1512,7 +1516,7 @@ app.post('/api/messages/:type/:targetId/read', async (req, res) => {
 
 app.post('/api/messages/:type/:targetId/unread', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { type, targetId } = req.params;
     await client.markChatAsUnread(type as 'channel' | 'conversation', targetId);
     res.json({ ok: true });
@@ -1523,7 +1527,7 @@ app.post('/api/messages/:type/:targetId/unread', async (req, res) => {
 
 app.post('/api/conversations/:id/archive', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { id } = req.params;
     await client.archiveConversation(id);
     res.json({ ok: true });
@@ -1537,7 +1541,7 @@ app.post('/api/conversations/:id/archive', async (req, res) => {
 /** List folder contents for channel, conversation, or personal storage */
 app.get('/api/files/folder', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { type, typeId, folderId, offset, limit } = req.query;
     const result = await client.listFolder({
       type: type as string,
@@ -1557,7 +1561,7 @@ app.get('/api/files/folder', async (req, res) => {
 /** Get storage quota for a channel, conversation, or personal storage */
 app.get('/api/files/quota', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { type, typeId } = req.query;
     if (!type || !typeId) {
       res.status(400).json({ error: 'type and typeId are required' });
@@ -1575,7 +1579,7 @@ app.get('/api/files/quota', async (req, res) => {
 
 app.get('/api/files/personal', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { folderId, offset, limit } = req.query;
     const result = await client.listPersonalFiles({
       folder_id: (folderId as string | undefined) ?? '0',
@@ -1595,7 +1599,7 @@ app.get('/api/files/personal', async (req, res) => {
 app.post('/api/files/upload', upload.single('file'), async (req, res) => {
   const tmpPath = req.file?.path;
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     if (!req.file) throw new Error('No file received');
 
     const { type, typeId, folderId } = req.body as { type: string; typeId?: string; folderId?: string };
@@ -1632,7 +1636,7 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
 
 app.post('/api/files/:fileId/move', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { target_folder_id } = req.body as { target_folder_id: string };
     await client.moveFile(req.params.fileId, target_folder_id);
     res.json({ ok: true });
@@ -1642,7 +1646,7 @@ app.post('/api/files/:fileId/move', async (req, res) => {
 // ── Create folder ─────────────────────────────────────────────────────────────
 app.post('/api/files/folder/create', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { folder_name, parent_id, type, type_id } = req.body as {
       folder_name: string;
       parent_id: string;
@@ -1658,7 +1662,7 @@ app.post('/api/files/folder/create', async (req, res) => {
 
 app.post('/api/folder/delete', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { folderId } = req.body as { folderId: string };
     await client.deleteFolder(parseInt(folderId, 10));
     res.json({ ok: true });
@@ -1669,7 +1673,7 @@ app.post('/api/folder/delete', async (req, res) => {
 
 app.post('/api/files/delete', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { fileIds } = req.body as { fileIds: string[] };
     await client.deleteFiles(fileIds);
     res.json({ ok: true });
@@ -1680,7 +1684,7 @@ app.post('/api/files/delete', async (req, res) => {
 
 app.patch('/api/files/:fileId', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { name } = req.body as { name: string };
     await client.renameFile(req.params.fileId, name);
     res.json({ ok: true });
@@ -1693,7 +1697,7 @@ app.patch('/api/files/:fileId', async (req, res) => {
 
 app.get('/api/file/:fileId', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { fileId } = req.params;
     const fileName = (req.query.name as string) || 'download';
 
@@ -1744,7 +1748,7 @@ app.get('/api/file/:fileId', async (req, res) => {
 app.post('/api/upload/:type/:targetId', upload.single('file'), async (req, res) => {
   const tmpPath = req.file?.path;
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { type, targetId } = req.params;
     const chatType = type as 'channel' | 'conversation';
 
@@ -1781,7 +1785,7 @@ app.post('/api/upload/:type/:targetId', upload.single('file'), async (req, res) 
 
 app.get('/api/me', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     res.json(await client.getMe());
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
@@ -1792,7 +1796,7 @@ app.get('/api/me', async (req, res) => {
 
 app.get('/api/account/settings', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     res.json(await client.getAccountSettings());
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
@@ -1801,7 +1805,7 @@ app.get('/api/account/settings', async (req, res) => {
 
 app.post('/api/account/status', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { status } = req.body;
     await client.changeStatus(status);
     res.json({ success: true });
@@ -1812,7 +1816,7 @@ app.post('/api/account/status', async (req, res) => {
 
 app.post('/api/account/profile-image', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { imgBase64 } = req.body;
     await client.storeProfileImage(imgBase64);
     res.json({ success: true });
@@ -1823,7 +1827,7 @@ app.post('/api/account/profile-image', async (req, res) => {
 
 app.post('/api/account/profile-image/reset', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     await client.resetProfileImage();
     res.json({ success: true });
   } catch (err) {
@@ -1967,7 +1971,7 @@ app.get('/api/link-preview', async (req, res) => {
 
 app.get('/api/broadcasts', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     res.json(await client.listBroadcasts());
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
@@ -1976,7 +1980,7 @@ app.get('/api/broadcasts', async (req, res) => {
 
 app.post('/api/broadcasts', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { name, memberIds } = req.body as { name: string; memberIds: string[] };
     res.json(await client.createBroadcast(name, memberIds));
   } catch (err) {
@@ -1986,7 +1990,7 @@ app.post('/api/broadcasts', async (req, res) => {
 
 app.delete('/api/broadcasts/:id', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     await client.deleteBroadcast(req.params.id);
     res.json({ ok: true });
   } catch (err) {
@@ -1996,7 +2000,7 @@ app.delete('/api/broadcasts/:id', async (req, res) => {
 
 app.patch('/api/broadcasts/:id', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { name } = req.body as { name: string };
     await client.renameBroadcast(req.params.id, name);
     res.json({ ok: true });
@@ -2007,7 +2011,7 @@ app.patch('/api/broadcasts/:id', async (req, res) => {
 
 app.get('/api/broadcasts/:id/messages', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const limit = Number(req.query.limit) || 50;
     const offset = Number(req.query.offset) || 0;
     const messages = await client.getBroadcastContent({
@@ -2023,7 +2027,7 @@ app.get('/api/broadcasts/:id/messages', async (req, res) => {
 
 app.post('/api/broadcasts/:id/messages', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { text } = req.body as { text: string };
     const msg = await client.sendBroadcastMessage({ list_id: req.params.id, text });
     res.json(msg);
@@ -2034,7 +2038,7 @@ app.post('/api/broadcasts/:id/messages', async (req, res) => {
 
 app.get('/api/broadcasts/:id/members', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const PAGE = 200;
     const all: unknown[] = [];
     let offset = 0;
@@ -2052,7 +2056,7 @@ app.get('/api/broadcasts/:id/members', async (req, res) => {
 
 app.post('/api/broadcasts/:id/members', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { memberIds } = req.body as { memberIds: string[] };
     await client.addBroadcastMembers(req.params.id, memberIds);
     res.json({ ok: true });
@@ -2064,7 +2068,7 @@ app.post('/api/broadcasts/:id/members', async (req, res) => {
 app.post('/api/broadcasts/:listId/upload', upload.single('file'), async (req, res) => {
   const tmpPath = req.file?.path;
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     if (!req.file) throw new Error('No file received');
 
     const me = await client.getMe();
@@ -2100,7 +2104,7 @@ app.post('/api/broadcasts/:listId/upload', upload.single('file'), async (req, re
 
 app.delete('/api/broadcasts/:id/members', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { memberIds } = req.body as { memberIds: string[] };
     await client.removeBroadcastMembers(req.params.id, memberIds);
     res.json({ ok: true });
@@ -2113,7 +2117,7 @@ app.delete('/api/broadcasts/:id/members', async (req, res) => {
 
 app.get('/api/calendar/events', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const start = Number(req.query.start);
     const end = Number(req.query.end);
     if (!start || !end) return res.status(400).json({ error: 'start and end required' });
@@ -2125,7 +2129,7 @@ app.get('/api/calendar/events', async (req, res) => {
 
 app.get('/api/calendar/events/:id', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const event = await client.getEventDetails([req.params.id]);
     if (!event) return res.status(404).json({ error: 'Event not found' });
     res.json(event);
@@ -2136,7 +2140,7 @@ app.get('/api/calendar/events/:id', async (req, res) => {
 
 app.post('/api/calendar/events', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { notify_chat_id, notify_chat_type, ...eventData } = req.body;
     const eventId = await client.createEvent(eventData);
 
@@ -2170,7 +2174,7 @@ app.post('/api/calendar/events', async (req, res) => {
 
 app.put('/api/calendar/events/:id', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const eventId = await client.editEvent({ ...req.body, event_id: req.params.id });
     res.json({ id: eventId });
   } catch (err) {
@@ -2180,7 +2184,7 @@ app.put('/api/calendar/events/:id', async (req, res) => {
 
 app.delete('/api/calendar/events/:id', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     await client.deleteEvents([req.params.id]);
     res.json({ ok: true });
   } catch (err) {
@@ -2190,7 +2194,7 @@ app.delete('/api/calendar/events/:id', async (req, res) => {
 
 app.post('/api/calendar/events/:id/respond', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { status: rsvp } = req.body as { status: string };
     const me = await client.getMe() as unknown as Record<string, unknown>;
     await client.respondToEvent(req.params.id, String(me.id), rsvp as 'accepted' | 'declined' | 'open');
@@ -2202,7 +2206,7 @@ app.post('/api/calendar/events/:id/respond', async (req, res) => {
 
 app.post('/api/calendar/events/:id/invite', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { userIds } = req.body as { userIds: string[] };
     await client.inviteToEvent(req.params.id, userIds);
     res.json({ ok: true });
@@ -2213,7 +2217,7 @@ app.post('/api/calendar/events/:id/invite', async (req, res) => {
 
 app.get('/api/calendar/channels/:companyId', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     res.json(await client.listChannelsHavingEvents(req.params.companyId));
   } catch (err) {
     res.status(500).json({ error: errorMessage(err) });
@@ -2224,7 +2228,7 @@ app.get('/api/calendar/channels/:companyId', async (req, res) => {
 
 app.get('/api/notifications', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const limit = Number(req.query.limit) || 50;
     const offset = Number(req.query.offset) || 0;
     const notifications = await client.getNotifications(limit, offset);
@@ -2238,7 +2242,7 @@ app.get('/api/notifications', async (req, res) => {
 
 app.get('/api/notifications/count', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const count = await client.getNotificationCount();
     res.json({ count });
   } catch (err) {
@@ -2248,7 +2252,7 @@ app.get('/api/notifications/count', async (req, res) => {
 
 app.delete('/api/notifications/:notificationId', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const notificationId = req.params.notificationId;
     serverLog(`[notifications] DELETE id=${notificationId}`);
     await client.deleteNotification(notificationId);
@@ -2262,7 +2266,7 @@ app.delete('/api/notifications/:notificationId', async (req, res) => {
 
 app.delete('/api/notifications', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     serverLog(`[notifications] DELETE ALL (serial)`);
 
     // Fetch all notifications first
@@ -2297,7 +2301,7 @@ app.delete('/api/notifications', async (req, res) => {
 
 app.post('/api/key-sync/accept', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { userId, notificationId } = req.body as { userId?: string; notificationId?: string };
     if (!userId) return void res.status(400).json({ error: 'userId required' });
     if (!client.isE2EUnlocked()) return void res.status(400).json({ error: 'E2E not unlocked' });
@@ -2539,7 +2543,7 @@ app.post('/api/video/start-meeting', async (req, res) => {
     const token = extractToken(req);
     const payload = decryptSession(token);
     clientKey = payload.clientKey;
-    const client = await getClient(req);
+    const client = req.client!;
 
     // 1. Find Chat Bot
     const botInfo = await findChatBot(client, clientKey);
@@ -2628,7 +2632,7 @@ app.post('/api/video/start-meeting', async (req, res) => {
  *  'archived_or_over'            = archivierte / abgelaufene Umfragen */
 app.get('/api/polls', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const constraint = (req.query.constraint as string) || 'invited_and_not_archived';
     let companyId = req.query.company_id as string | undefined;
     if (!companyId) {
@@ -2645,7 +2649,7 @@ app.get('/api/polls', async (req, res) => {
 /** Get poll details including questions and all answers */
 app.get('/api/polls/:id', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const companyId = req.query.company_id as string;
     const poll = await client.getPollDetails(req.params.id, companyId || '');
     // Fetch answers for each question
@@ -2676,7 +2680,7 @@ app.get('/api/polls/:id', async (req, res) => {
  */
 app.post('/api/polls', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
 
     // 1. Determine company_id
     const companies = await client.getCompanies();
@@ -2773,7 +2777,7 @@ app.post('/api/polls', async (req, res) => {
 /** Delete a poll */
 app.delete('/api/polls/:id', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     await client.deletePoll(req.params.id);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: String(err) }); }
@@ -2782,7 +2786,7 @@ app.delete('/api/polls/:id', async (req, res) => {
 /** Archive / unarchive a poll */
 app.post('/api/polls/:id/archive', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const archive = req.body.archive !== false;
     await client.archivePoll(req.params.id, archive);
     res.json({ ok: true });
@@ -2792,7 +2796,7 @@ app.post('/api/polls/:id/archive', async (req, res) => {
 /** Close a poll early (set end_time to now) */
 app.post('/api/polls/:id/close', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { name, company_id, start_time } = req.body as { name: string; company_id: string; start_time: number };
     await client.editPoll({
       poll_id: req.params.id,
@@ -2808,7 +2812,7 @@ app.post('/api/polls/:id/close', async (req, res) => {
 /** Submit answers for a question — { question_id, answer_ids: string[] } */
 app.post('/api/polls/:id/answer', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { question_id, answer_ids } = req.body as { question_id: string; answer_ids: string[] };
     await client.storePollUserAnswers(question_id, answer_ids);
     res.json({ ok: true });
@@ -2819,7 +2823,7 @@ app.post('/api/polls/:id/answer', async (req, res) => {
 
 app.post('/api/call/get_turn_server', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const data = client.api.createAuthenticatedRequestData({});
     const result = await client.api.post<{ turn_server: unknown }>('/call/get_turn_server', data);
     res.json(result.turn_server);
@@ -2830,7 +2834,7 @@ app.post('/api/call/get_turn_server', async (req, res) => {
 
 app.post('/api/call/create', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { callee_id, target_id, target, type, verification } = req.body as Record<string, string>;
     const data = client.api.createAuthenticatedRequestData({
       callee_id,
@@ -2872,7 +2876,7 @@ app.post('/api/call/signal', async (req, res) => {
 
 app.post('/api/call/end', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const { call_id } = req.body as { call_id: number | string };
     const data = client.api.createAuthenticatedRequestData({ call_id: String(call_id) });
     await client.api.post('/call/end', data);
@@ -2888,7 +2892,7 @@ app.post('/api/call/end', async (req, res) => {
 /** GET /api/onlyoffice/view — build viewer config for a file */
 app.get('/api/onlyoffice/view', async (req, res) => {
   try {
-    const client = await getClient(req);
+    const client = req.client!;
     const token = extractToken(req);
     const payload = decryptSession(token);
     const { fileId, fileName } = req.query as Record<string, string>;
@@ -3024,7 +3028,7 @@ async function getNCCreds(req: express.Request): Promise<NCCredsResult | null> {
 
   let username = usernameOverride;
   if (!username) {
-    const client = await getClient(req);
+    const client = req.client!;
     const me = await client.getMe() as unknown as Record<string, unknown>;
     username = `${me.last_name || ''}, ${me.first_name || ''}`.trim() || String(me.email || '');
   }
