@@ -336,7 +336,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     paginationOffsetRef.current = 0;
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
-      const msgs = res as unknown as Message[];
+      const msgs = res;
       
       // Determine first unread message BEFORE we mark them as read
       let firstUnreadId = null;
@@ -395,7 +395,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
 
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, paginationOffsetRef.current);
-      const older = res as unknown as Message[];
+      const older = res;
 
       if (older.length < PAGE_SIZE) {
         setHasMore(false);
@@ -442,7 +442,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       const startTs = Math.floor(new Date(dateStart).getTime() / 1000);
       const endTs = Math.floor(new Date(dateEnd + 'T23:59:59').getTime() / 1000);
       const res = await api.searchMessages(chat.id, chat.type, startTs, endTs, searchQuery || undefined);
-      setDateSearchResults(res.messages as unknown as Message[]);
+      setDateSearchResults(res.messages);
     } catch (err) {
       console.error('Date search failed:', err);
       setDateSearchResults([]);
@@ -584,7 +584,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         for (let probe = PROBE_STEP; probe <= 50000; probe += PROBE_STEP) {
           if (cancelled) return;
           const res = await api.getMessages(chat.id, chat.type, 1, probe);
-          const msgs = res as unknown as Message[];
+          const msgs = res;
           if (msgs.length === 0) { upperBound = probe; break; }
           const t = Number(msgs[0].time) || 0;
           if (t <= targetTime) { upperBound = probe; break; }
@@ -599,7 +599,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           if (cancelled) return;
           const mid = Math.floor((low + high) / 2);
           const res = await api.getMessages(chat.id, chat.type, 1, mid);
-          const msgs = res as unknown as Message[];
+          const msgs = res;
           if (msgs.length === 0) { high = mid; continue; }
           const t = Number(msgs[0].time) || 0;
           if (t > targetTime) { low = mid; } else { high = mid; }
@@ -610,7 +610,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         const loadOffset = Math.max(0, low - PAGE_SIZE);
         const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE * 3, loadOffset);
         if (cancelled) return;
-        const windowMsgs = (res as unknown as Message[]).sort(
+        const windowMsgs = res.sort(
           (a, b) => (Number(a.time) || 0) - (Number(b.time) || 0),
         );
 
@@ -763,7 +763,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     refreshingRef.current = true;
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
-      const msgs = res as unknown as Message[];
+      const msgs = res;
       let hadNewOwnMessages = false;
       setMessages((prev) => {
         const prevMap = new Map(prev.map(m => [String(m.id), m]));

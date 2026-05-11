@@ -42,12 +42,12 @@ export async function getNotificationCount(): Promise<{ count: number }> {
 
 export async function deleteNotification(
   notificationId: string
-): Promise<Record<string, unknown>> {
-  return del<Record<string, unknown>>(`/notifications/${notificationId}`);
+): Promise<{ success?: boolean }> {
+  return del<{ success?: boolean }>(`/notifications/${notificationId}`);
 }
 
-export async function deleteAllNotifications(): Promise<Record<string, unknown>> {
-  return del<Record<string, unknown>>('/notifications');
+export async function deleteAllNotifications(): Promise<{ success?: boolean; deleted?: number }> {
+  return del<{ success?: boolean; deleted?: number }>('/notifications');
 }
 
 export async function acceptKeySync(

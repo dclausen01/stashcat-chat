@@ -10,30 +10,7 @@ import { fileDownloadUrl } from '../api/files';
 import Avatar from './Avatar';
 import MessageInput from './MessageInput';
 import { useConfirm } from '../context/ConfirmContext';
-
-interface Broadcast {
-  id: number;
-  user_id: number;
-  name: string;
-  member_count: number;
-  lastAction: number;
-}
-
-interface BroadcastFile {
-  id: string;
-  name: string;
-  ext?: string;
-  mime?: string;
-  size_string?: string;
-}
-
-interface BroadcastMessage {
-  id: string;
-  text: string;
-  time?: number;
-  sender?: { first_name?: string; last_name?: string; image?: string };
-  files?: BroadcastFile[];
-}
+import type { Broadcast, BroadcastMessage } from '../types';
 
 interface RawUser {
   id?: string;
@@ -116,7 +93,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
     setLoading(true);
     try {
       const data = await api.listBroadcasts();
-      setBroadcasts(data as unknown as Broadcast[]);
+      setBroadcasts(data);
     } catch (err) {
       console.error('Failed to load broadcasts:', err);
     } finally {
@@ -141,7 +118,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
     setLoadingMessages(true);
     try {
       const msgs = await api.getBroadcastMessages(String(b.id));
-      setMessages(msgs as unknown as BroadcastMessage[]);
+      setMessages(msgs);
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch (err) {
       console.error('Failed to load broadcast messages:', err);
@@ -254,7 +231,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
     if (!activeBroadcast) return;
     await api.sendBroadcastMessage(String(activeBroadcast.id), text);
     const msgs = await api.getBroadcastMessages(String(activeBroadcast.id));
-    setMessages(msgs as unknown as BroadcastMessage[]);
+    setMessages(msgs);
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
@@ -262,7 +239,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
     if (!activeBroadcast) return;
     await api.uploadBroadcastFile(String(activeBroadcast.id), file, text, onProgress);
     const msgs = await api.getBroadcastMessages(String(activeBroadcast.id));
-    setMessages(msgs as unknown as BroadcastMessage[]);
+    setMessages(msgs);
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
@@ -274,7 +251,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
       setNewName('');
       setShowCreate(false);
       await loadBroadcasts();
-      const newBroadcast = created as unknown as Broadcast;
+      const newBroadcast = created;
       setActiveBroadcast(newBroadcast);
       setActiveTab('members');
       setMembers([]);
