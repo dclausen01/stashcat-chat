@@ -44,13 +44,11 @@ export default function App() {
     closeAllPanels,
     toggleSettings,
     closeSettings,
-    toggleFileBrowser,
     closeFileBrowser,
     toggleBroadcasts,
     closeBroadcasts,
     closeNotifications,
     closeProfile,
-    toggleFlagged,
     closeFlagged,
     openCalendar,
     openPolls,
@@ -236,14 +234,6 @@ export default function App() {
                 ? <ChatView
                     chat={activeChat}
                     onGoHome={handleGoHome}
-                    onToggleFileBrowser={toggleFileBrowser}
-                    fileBrowserOpen={fileBrowserOpen && !fileBrowserStandalone}
-                    onOpenPolls={openPolls}
-                    onOpenPoll={openPoll}
-                    onOpenCalendar={openCalendar}
-                    onOpenEvent={openEvent}
-                    onToggleFlagged={toggleFlagged}
-                    flaggedOpen={flaggedOpen}
                     jumpToMessageId={jumpToMessageId}
                     jumpToMessageTime={jumpToMessageTime}
                     jumpKey={jumpKey}

@@ -7,6 +7,7 @@ import { useSettings } from '../context/SettingsContext';
 import { useTheme } from '../context/ThemeContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { useAnnouncer } from '../context/AnnouncerContext';
+import { usePanels } from '../context/PanelContext';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import { fileIcon } from '../utils/fileIcon';
 import Avatar from './Avatar';
@@ -28,15 +29,7 @@ import { getCleanName, getParentId } from '../utils/subchannels';
 interface ChatViewProps {
   chat: ChatTarget;
   onGoHome: () => void;
-  onToggleFileBrowser: () => void;
-  fileBrowserOpen: boolean;
-  onOpenPolls?: () => void;
-  onOpenPoll?: (pollId: string) => void;
-  onOpenCalendar?: () => void;
-  onOpenEvent?: (eventId: string) => void;
   onMarkRead?: (chatId: string, chatType: 'channel' | 'conversation') => void;
-  onToggleFlagged?: () => void;
-  flaggedOpen?: boolean;
   jumpToMessageId?: string | null;
   jumpToMessageTime?: number | null;
   jumpKey?: number;
@@ -187,10 +180,24 @@ function extractServiceLinks(description: string): { cleanDescription: string; l
 
 interface PendingMessage { text: string; replyTo: Message | null; time: number }
 
-export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onOpenEvent, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall, onToggleFavorite, onChannelImageUpdated, channels }: ChatViewProps) {
+export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall, onToggleFavorite, onChannelImageUpdated, channels }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const { theme } = useTheme();
+  const {
+    fileBrowser: fileBrowserOpenRaw,
+    fileBrowserStandalone,
+    flagged: flaggedOpen,
+    toggleFileBrowser: onToggleFileBrowser,
+    toggleFlagged: onToggleFlagged,
+    openPolls: onOpenPolls,
+    openPoll: onOpenPoll,
+    openCalendar: onOpenCalendar,
+    openEvent: onOpenEvent,
+  } = usePanels();
+  // In ChatView "file browser open" means the in-chat side panel — not the
+  // standalone full-area mode (that one replaces ChatView entirely).
+  const fileBrowserOpen = fileBrowserOpenRaw && !fileBrowserStandalone;
   const confirmAsync = useConfirm();
   const announce = useAnnouncer();
   const [messages, setMessages] = useState<Message[]>([]);
