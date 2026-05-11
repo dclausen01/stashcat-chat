@@ -8,7 +8,7 @@ import fs from 'fs/promises';
 import * as fsSync from 'fs';
 import { randomBytes, createHash, pbkdf2Sync, createDecipheriv } from 'crypto';
 import { Readable } from 'stream';
-import { StashcatClient, CryptoManager, type RsaPrivateKeyJwk, type ActiveDevice } from 'stashcat-api';
+import { StashcatClient, type RsaPrivateKeyJwk, type ActiveDevice } from 'stashcat-api';
 
 function debugLog(...args: unknown[]) {
   const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
@@ -51,6 +51,7 @@ function serverLog(...args: unknown[]) {
 import type { RealtimeManager } from 'stashcat-api';
 import type { MessageSyncPayload } from 'stashcat-api';
 import { encryptSession, decryptSession } from './token-crypto';
+import { decryptMessageInPlace } from './lib/decrypt';
 import { getOfficeDocType, buildViewerConfig, validateDownloadToken, createDownloadToken, PUBLIC_URL } from './onlyoffice';
 import { ncListFolder, ncDownload, ncUpload, ncDelete, ncMove, ncMkcol, ncQuota, ncProbe, ncCreateShare, type NCCredentials } from './nextcloud';
 
@@ -296,30 +297,11 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
         return; // Silently drop bot messages
       }
 
-      const payload = { ...data };
-
-      // Decrypt message text if E2E-encrypted
-      if (data.encrypted && data.text && data.iv) {
-        try {
-          let aesKey: Buffer | undefined;
-          const channelId = data.channel_id && data.channel_id !== 0 ? String(data.channel_id) : null;
-          const msgConvId = data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null;
-
-          if (msgConvId) {
-            aesKey = await client.getConversationAesKey(msgConvId);
-          } else if (channelId) {
-            aesKey = await client.getChannelAesKey(channelId);
-          }
-
-          if (aesKey) {
-            const iv = CryptoManager.hexToBuffer(data.iv);
-            payload.text = CryptoManager.decrypt(data.text, aesKey, iv);
-          }
-        } catch (err) {
-          serverLog('[Realtime] Failed to decrypt message_sync:', errorMessage(err));
-          payload.text = '[Nachricht konnte nicht entschlüsselt werden]';
-        }
-      }
+      const payload: Record<string, unknown> = { ...data };
+      await decryptMessageInPlace(client, payload, {
+        fallback: '[Nachricht konnte nicht entschlüsselt werden]',
+        onError: (err) => serverLog('[Realtime] Failed to decrypt message_sync:', errorMessage(err)),
+      });
 
       serverLog(`[Realtime] Pushing message_sync to SSE for clientKey ${clientKey.slice(0, 8)}`);
       pushSSE(clientKey, 'message_sync', payload);
@@ -347,24 +329,10 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
       if (convId && isBotConversation(convId, clientKey)) return;
 
       const payload: Record<string, unknown> = { ...msg };
-
-      // Decrypt if E2E-encrypted
-      if (msg.encrypted && msg.text && msg.iv) {
-        try {
-          let aesKey: Buffer | undefined;
-          const channelId = msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null;
-          const msgConvId = msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null;
-          if (msgConvId) aesKey = await client.getConversationAesKey(msgConvId);
-          else if (channelId) aesKey = await client.getChannelAesKey(channelId);
-          if (aesKey) {
-            const iv = CryptoManager.hexToBuffer(msg.iv);
-            payload.text = CryptoManager.decrypt(msg.text, aesKey, iv);
-          }
-        } catch (err) {
-          serverLog('[Realtime] Failed to decrypt notification:', errorMessage(err));
-          payload.text = '[Nachricht konnte nicht entschlüsselt werden]';
-        }
-      }
+      await decryptMessageInPlace(client, payload, {
+        fallback: '[Nachricht konnte nicht entschlüsselt werden]',
+        onError: (err) => serverLog('[Realtime] Failed to decrypt notification:', errorMessage(err)),
+      });
 
       serverLog(`[Realtime] Pushing notification as message_sync to SSE`);
       pushSSE(clientKey, 'message_sync', payload);
@@ -1479,25 +1447,10 @@ app.get('/api/messages/:type/:targetId/flagged', async (req, res) => {
 
     // E2E decrypt each message (same pattern as search endpoint)
     for (const msg of messages as unknown as Array<Record<string, unknown>>) {
-      if (msg.encrypted && msg.text && msg.iv) {
-        try {
-          let aesKey: Buffer | undefined;
-          const channelId = msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null;
-          const msgConvId = msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null;
-          if (msgConvId) {
-            aesKey = await client.getConversationAesKey(msgConvId);
-          } else if (channelId) {
-            aesKey = await client.getChannelAesKey(channelId);
-          }
-          if (aesKey) {
-            const iv = CryptoManager.hexToBuffer(String(msg.iv));
-            msg.text = CryptoManager.decrypt(String(msg.text), aesKey, iv);
-          }
-        } catch (err) {
-          serverLog('[flaggedMessages] Failed to decrypt:', errorMessage(err));
-          msg.text = '[Nachricht konnte nicht entschlüsselt werden]';
-        }
-      }
+      await decryptMessageInPlace(client, msg, {
+        fallback: '[Nachricht konnte nicht entschlüsselt werden]',
+        onError: (err) => serverLog('[flaggedMessages] Failed to decrypt:', errorMessage(err)),
+      });
     }
 
     res.json(messages);
@@ -1533,26 +1486,9 @@ app.get('/api/messages/:type/:targetId/search', async (req, res) => {
     const result = await client.api.post<{ messages: Array<Record<string, unknown>> }>('/search/messages', data);
     let messages = result.messages || [];
 
-    // E2E decrypt each message
+    // E2E decrypt each message — leave text as-is if decryption fails
     for (const msg of messages) {
-      if (msg.encrypted && msg.text && msg.iv) {
-        try {
-          let aesKey: Buffer | undefined;
-          const channelId = msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null;
-          const msgConvId = msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null;
-          if (msgConvId) {
-            aesKey = await client.getConversationAesKey(msgConvId);
-          } else if (channelId) {
-            aesKey = await client.getChannelAesKey(channelId);
-          }
-          if (aesKey) {
-            const iv = CryptoManager.hexToBuffer(String(msg.iv));
-            msg.text = CryptoManager.decrypt(String(msg.text), aesKey, iv);
-          }
-        } catch {
-          // Leave text as-is if decryption fails
-        }
-      }
+      await decryptMessageInPlace(client, msg);
     }
 
     // Optional server-side text filter
