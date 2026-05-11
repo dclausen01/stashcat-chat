@@ -48,9 +48,7 @@ export default function App() {
     closeFileBrowser,
     toggleBroadcasts,
     closeBroadcasts,
-    toggleNotifications,
     closeNotifications,
-    toggleProfile,
     closeProfile,
     toggleFlagged,
     closeFlagged,
@@ -209,18 +207,7 @@ export default function App() {
             activeChat={activeChat}
             onSelectChat={handleSelectChat}
             loggedIn={loggedIn}
-            onOpenFileBrowser={toggleFileBrowser}
-            onOpenBroadcasts={toggleBroadcasts}
-            onOpenCalendar={openCalendar}
-            onOpenPolls={openPolls}
-            onOpenNotifications={toggleNotifications}
-            onOpenSettings={toggleSettings}
-            onOpenProfile={toggleProfile}
             triggerFocusKey={focusSearchKey}
-            broadcastsOpen={broadcastsOpen}
-            calendarOpen={activeView === 'calendar'}
-            pollsOpen={activeView === 'polls'}
-            notificationsOpen={notificationsOpen}
             onChannelsLoaded={handleChannelsLoaded}
             onConversationsLoaded={handleConversationsLoaded}
             onRegisterRefresh={(fn) => { refreshSidebarRef.current = fn; }}

@@ -1,20 +1,21 @@
 import { Radio, CalendarDays, BarChart3 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { usePanels } from '../context/PanelContext';
 
-interface SidebarFooterProps {
-  broadcastsOpen: boolean;
-  calendarOpen: boolean;
-  pollsOpen: boolean;
-  onOpenBroadcasts: () => void;
-  onOpenCalendar: () => void;
-  onOpenPolls: () => void;
-}
-
-export default function SidebarFooter({ broadcastsOpen, calendarOpen, pollsOpen, onOpenBroadcasts, onOpenCalendar, onOpenPolls }: SidebarFooterProps) {
+export default function SidebarFooter() {
+  const {
+    broadcasts: broadcastsOpen,
+    activeView,
+    toggleBroadcasts,
+    openCalendar,
+    openPolls,
+  } = usePanels();
+  const calendarOpen = activeView === 'calendar';
+  const pollsOpen = activeView === 'polls';
   return (
     <div className="flex shrink-0 items-center border-t border-surface-200 dark:border-surface-700">
       <button
-        onClick={onOpenBroadcasts}
+        onClick={toggleBroadcasts}
         className={clsx(
           'flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition',
           broadcastsOpen
@@ -28,7 +29,7 @@ export default function SidebarFooter({ broadcastsOpen, calendarOpen, pollsOpen,
       </button>
       <div className="h-6 w-px bg-surface-200 dark:bg-surface-700" />
       <button
-        onClick={onOpenCalendar}
+        onClick={openCalendar}
         className={clsx(
           'flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition',
           calendarOpen
@@ -42,7 +43,7 @@ export default function SidebarFooter({ broadcastsOpen, calendarOpen, pollsOpen,
       </button>
       <div className="h-6 w-px bg-surface-200 dark:bg-surface-700" />
       <button
-        onClick={onOpenPolls}
+        onClick={openPolls}
         className={clsx(
           'flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition',
           pollsOpen
