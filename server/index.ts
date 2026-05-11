@@ -52,6 +52,13 @@ import type { RealtimeManager } from 'stashcat-api';
 import type { MessageSyncPayload } from 'stashcat-api';
 import { encryptSession, decryptSession } from './token-crypto';
 import { decryptMessageInPlace } from './lib/decrypt';
+import {
+  extractToken,
+  getClient,
+  cacheClient,
+  touchCachedClient,
+  invalidateClient,
+} from './lib/get-client';
 import { getOfficeDocType, buildViewerConfig, validateDownloadToken, createDownloadToken, PUBLIC_URL } from './onlyoffice';
 import { ncListFolder, ncDownload, ncUpload, ncDelete, ncMove, ncMkcol, ncQuota, ncProbe, ncCreateShare, type NCCredentials } from './nextcloud';
 
@@ -78,16 +85,6 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
-// ── Client cache with TTL ────────────────────────────────────────────────────
-
-interface CachedClient {
-  client: StashcatClient;
-  expiresAt: number;
-}
-const clientCache = new Map<string, CachedClient>();
-const pendingClients = new Map<string, Promise<StashcatClient>>();
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-
 // ── Chat Bot cache (for video meetings) ──────────────────────────────────────
 interface BotInfo {
   botUserId: string;
@@ -107,12 +104,10 @@ const preAuthCache = new Map<string, PreAuthEntry>();
 const PREAUTH_TTL = 5 * 60 * 1000; // 5 minutes
 const PREAUTH_MAX_ENTRIES = 100;
 
-// Cleanup expired entries periodically
+// Cleanup expired preAuth entries periodically.
+// (clientCache has its own sweeper inside lib/get-client.ts.)
 setInterval(() => {
   const now = Date.now();
-  for (const [key, entry] of clientCache) {
-    if (now > entry.expiresAt) clientCache.delete(key);
-  }
   for (const [key, entry] of preAuthCache) {
     if (now > entry.expiresAt) preAuthCache.delete(key);
   }
@@ -144,60 +139,7 @@ function pushSSE(clientKey: string, event: string, data: unknown) {
   }
 }
 
-// ── Client resolution ────────────────────────────────────────────────────────
-
-function extractToken(req: express.Request): string {
-  const token = req.headers.authorization?.replace('Bearer ', '') || (req.query.token as string);
-  if (!token) throw new Error('No token');
-  return token;
-}
-
-async function getClient(req: express.Request): Promise<StashcatClient> {
-  const token = extractToken(req);
-  const payload = decryptSession(token);
-  const { clientKey, deviceId, baseUrl, securityPassword, privateKeyJwk } = payload;
-
-  // Check cache
-  const cached = clientCache.get(clientKey);
-  if (cached && Date.now() < cached.expiresAt) {
-    return cached.client;
-  }
-
-  // Check if initialization is already in progress
-  const pending = pendingClients.get(clientKey);
-  if (pending) {
-    console.log(`[getClient] clientKey=${clientKey?.slice(0,8)} waiting for pending initialization...`);
-    return pending;
-  }
-
-  const initPromise = (async () => {
-    try {
-      console.log(`[getClient] clientKey=${clientKey?.slice(0,8)} initializing new client...`);
-      // Create new client
-      const client = StashcatClient.fromSession(
-        { deviceId, clientKey },
-        { baseUrl }
-      );
-
-      // Unlock E2E — either via securityPassword (legacy) or privateKeyJwk (device flow)
-      if (securityPassword) {
-        await client.unlockE2E(securityPassword);
-      } else if (privateKeyJwk) {
-        await client.unlockE2EWithPrivateKey(privateKeyJwk);
-      } else {
-        throw new Error('Session has no E2E unlock material');
-      }
-
-      clientCache.set(clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
-      return client;
-    } finally {
-      pendingClients.delete(clientKey);
-    }
-  })();
-
-  pendingClients.set(clientKey, initPromise);
-  return initPromise;
-}
+// Client resolution moved to ./lib/get-client.ts
 
 // ── Realtime setup ───────────────────────────────────────────────────────────
 
@@ -402,7 +344,7 @@ app.post('/api/login', async (req, res) => {
     });
 
     // Cache the client
-    clientCache.set(serialized.clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
+    cacheClient(serialized.clientKey, client);
 
     const me = await client.getMe();
     res.json({ token, user: me });
@@ -585,7 +527,7 @@ app.post('/api/login/password', async (req, res) => {
       baseUrl: process.env.STASHCAT_BASE_URL || 'https://api.stashcat.com/',
     });
 
-    clientCache.set(serialized.clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
+    cacheClient(serialized.clientKey, client);
     const me = await client.getMe();
     res.json({ token, user: me });
   } catch (err) {
@@ -701,7 +643,7 @@ app.post('/api/login/device/complete', async (req, res) => {
       baseUrl: process.env.STASHCAT_BASE_URL || 'https://api.stashcat.com/',
     });
 
-    clientCache.set(serialized.clientKey, { client, expiresAt: Date.now() + CACHE_TTL });
+    cacheClient(serialized.clientKey, client);
     const me = await client.getMe();
     res.json({ token, user: me });
   } catch (err) {
@@ -716,7 +658,7 @@ app.post('/api/logout', async (req, res) => {
     if (token) {
       const payload = decryptSession(token);
       // Clean up cache and SSE
-      clientCache.delete(payload.clientKey);
+      invalidateClient(payload.clientKey);
       const sse = activeSSE.get(payload.clientKey);
       if (sse) {
         void Promise.resolve(sse.realtime?.disconnect?.()).catch(() => {});
@@ -763,10 +705,7 @@ app.get('/api/events', async (req, res) => {
         (res as unknown as { flush: () => void }).flush();
       }
       // Refresh client cache TTL while SSE connection is active
-      const cached = clientCache.get(clientKey);
-      if (cached) {
-        cached.expiresAt = Date.now() + CACHE_TTL;
-      }
+      touchCachedClient(clientKey);
     } catch { clearInterval(hb); try { res.end(); } catch {} }
   }, 25_000);
 
@@ -3039,11 +2978,8 @@ app.get('/api/onlyoffice/dl', async (req, res) => {
     if (!tokenData) return res.status(403).json({ error: 'Invalid or expired token' });
     if (!tokenData.fileId) return res.status(403).json({ error: 'Not a Stashcat token' });
 
-    const cached = clientCache.get(tokenData.clientKey);
-    if (!cached) return res.status(403).json({ error: 'Session expired' });
-
-    const client = cached.client;
-    cached.expiresAt = Date.now() + CACHE_TTL;
+    const client = touchCachedClient(tokenData.clientKey);
+    if (!client) return res.status(403).json({ error: 'Session expired' });
 
     const info = await client.getFileInfo(tokenData.fileId);
     const buf = await client.downloadFile({
