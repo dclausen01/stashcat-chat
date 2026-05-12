@@ -8,6 +8,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { useAnnouncer } from '../context/AnnouncerContext';
 import { usePanels } from '../context/PanelContext';
+import { useChatMeta } from '../hooks/chat/useChatMeta';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import { fileIcon } from '../utils/fileIcon';
 import Avatar from './Avatar';
@@ -322,7 +323,6 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   }, []);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
-  const [isManager, setIsManager] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [fileSentToast, setFileSentToast] = useState(false);
   const [droppedFiles, setDroppedFiles] = useState<File[]>([]);
@@ -331,13 +331,9 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [pdfView, setPdfView] = useState<{ fileId: string; viewUrl: string; name: string } | null>(null);
   const [descEditorOpen, setDescEditorOpen] = useState(false);
-  const [chatDescription, setChatDescription] = useState(chat.description || '');
-  const [chatImage, setChatImage] = useState(chat.image || '');
-  const [chatName, setChatName] = useState(getCleanName(chat.name));
   const [imageEditorOpen, setImageEditorOpen] = useState(false);
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const [meetingLoading, setMeetingLoading] = useState(false);
-  const [notificationsMuted, setNotificationsMuted] = useState(chat.muted === true);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [muteMenuOpen, setMuteMenuOpen] = useState(false);
 
@@ -389,6 +385,17 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   const pendingMessagesRef = useRef<Map<string, PendingMessage>>(new Map());
 
   const userId = user?.id ?? '';
+  const {
+    name: chatName,
+    description: chatDescription,
+    image: chatImage,
+    muted: notificationsMuted,
+    isManager,
+    setName: setChatName,
+    setDescription: setChatDescription,
+    setImage: setChatImage,
+    setMuted: setNotificationsMuted,
+  } = useChatMeta(chat, userId);
 
   // Extract service links (Moodle, BBB, TaskCards) from channel description
   const { cleanDescription, links: serviceLinks } = chatDescription
@@ -416,21 +423,6 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
     dispatchDateSearch({ type: 'close' });
     savedMessagesRef.current = null;
   }, [chat.id]);
-  // Sync muted state when chat changes
-  useEffect(() => {
-    setNotificationsMuted(chat.muted === true);
-  }, [chat.muted, chat.id]);
-
-  // Sync chat image when channel changes
-  useEffect(() => {
-    setChatImage(chat.image || '');
-  }, [chat.image, chat.id]);
-
-  // Sync chat name when channel changes
-  useEffect(() => {
-    setChatName(getCleanName(chat.name));
-  }, [chat.name, chat.id]);
-
   // Clear pending message indicators when switching chats
   useEffect(() => {
     pendingMessagesRef.current.clear();
@@ -610,30 +602,14 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
     setViewingJumpedMessage(false);
   }, [loadMessages]);
 
-  // Check manager status when entering a channel
-  // The API returns { id, manager: boolean } — not { user_id, role }
-  useEffect(() => {
-    setIsManager(false);
-    if (chat.type !== 'channel') return;
-    api.getChannelMembers(chat.id)
-      .then((members) => {
-        const raw = members as Array<Record<string, unknown>>;
-        const me = raw.find(
-          (m) => String(m.user_id ?? m.id) === userId
-        );
-        // manager: true = moderator/owner, manager: false or role 'member' = regular
-        const isMgr = me?.manager === true ||
-          (me?.role !== undefined && me?.role !== 'member');
-        setIsManager(!!me && isMgr);
-      })
-      .catch(() => {});
-  }, [chat.id, chat.type, userId]);
-
   useEffect(() => {
     setMessages([]);
     setTypingUsers([]);
-    setChatDescription(chat.description || '');
     loadMessages();
+    // chat.description is kept as a dep to preserve the legacy behavior of
+    // reloading the message list whenever the channel description changes
+    // (a side effect of the previous combined effect — left intact here so
+    // this extraction stays bit-for-bit equivalent).
   }, [loadMessages, chat.description]);
 
   // Scroll to bottom after initial load and after chat switch.
