@@ -9,6 +9,10 @@ import { useConfirm } from '../context/ConfirmContext';
 import { useAnnouncer } from '../context/AnnouncerContext';
 import { usePanels } from '../context/PanelContext';
 import { useChatMeta } from '../hooks/chat/useChatMeta';
+import { DateSeparator } from './chat/DateSeparator';
+import { SystemMessage } from './chat/SystemMessage';
+import { ReplyQuote } from './chat/ReplyQuote';
+import { HighlightedText, LinkifiedText } from './chat/textRendering';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import { fileIcon } from '../utils/fileIcon';
 import Avatar from './Avatar';
@@ -312,11 +316,19 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   const announce = useAnnouncer();
   const [messagesState, dispatchMessages] = useReducer(messagesReducer, INITIAL_MESSAGES_STATE);
   const { messages, loading, loadingMore, hasMore } = messagesState;
+  // Mirror of messagesState so the setMessages adapter can evaluate the
+  // updater eagerly — useState's functional setter does this synchronously
+  // for its bailout optimisation, and callers (silentRefresh, message_sync
+  // handler) rely on side effects in the updater closure (e.g. setting an
+  // outer `hadNewOwnMessages` flag) running before the next statement.
+  const messagesStateRef = useRef(messagesState);
+  messagesStateRef.current = messagesState;
   // setMessages keeps the (prev) => next ergonomics callers expect; multi-field
   // transitions (load, search, reset) go through dispatchMessages directly.
   const setMessages = useCallback((next: Message[] | ((prev: Message[]) => Message[])) => {
     if (typeof next === 'function') {
-      dispatchMessages({ type: 'apply', updater: next });
+      const computed = next(messagesStateRef.current.messages);
+      dispatchMessages({ type: 'replace', messages: computed });
     } else {
       dispatchMessages({ type: 'replace', messages: next });
     }
@@ -1836,7 +1848,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
                 >
                   <Pencil size={18} className="text-surface-400" />
-                  Kanal bearbeiten
+                  Beschreibung bearbeiten
                 </button>
               )}
               {chat.type === 'channel' && isManager && (
@@ -2952,21 +2964,8 @@ function VideoMeetingCard({ msg }: { msg: Message }) {
   );
 }
 
-// ── System message ─────────────────────────────────────────────────────────────
-
-// ── Date separator ─────────────────────────────────────────────────────────────
-
-function DateSeparator({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-3 py-2 px-4">
-      <div className="h-px flex-1 bg-surface-200 dark:bg-surface-700" />
-      <span className="rounded-full bg-surface-100 px-3 py-0.5 text-xs font-medium text-surface-600 dark:bg-surface-800 dark:text-surface-400 select-none">
-        {label}
-      </span>
-      <div className="h-px flex-1 bg-surface-200 dark:bg-surface-700" />
-    </div>
-  );
-}
+// ── Date separator ────────────────────────────────────────────────────────────
+// Moved to ./chat/DateSeparator.tsx
 
 // ── Poll invite system message ────────────────────────────────────────────────
 
@@ -3122,77 +3121,9 @@ function CalendarEventCard({ msg, onOpenCalendar, onOpenEvent }: { msg: Message;
   );
 }
 
-function SystemMessage({ msg }: { msg: Message }) {
-  const senderName = msg.sender ? `${msg.sender.first_name ?? ''} ${msg.sender.last_name ?? ''}`.trim() || 'Jemand' : 'Jemand';
-  const time = msg.time
-    ? new Date(msg.time * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
-    : '';
-  const date = msg.time
-    ? new Date(msg.time * 1000).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })
-    : '';
+// SystemMessage moved to ./chat/SystemMessage.tsx
 
-  let text = '';
-  switch (msg.kind) {
-    case 'joined':
-      text = `${senderName} ist dem Channel beigetreten.`;
-      break;
-    case 'left':
-      text = `${senderName} hat den Channel verlassen.`;
-      break;
-    case 'removed':
-      text = `${senderName} wurde aus dem Channel entfernt.`;
-      break;
-    case 'call_start':
-      text = `${senderName} hat einen Anruf gestartet.`;
-      break;
-    case 'call_end':
-      text = 'Der Anruf wurde beendet.';
-      break;
-    default:
-      text = msg.text || `Systemnachricht (${msg.kind})`;
-  }
-
-  return (
-    <div className="flex justify-center py-1">
-      <div className="rounded-full bg-surface-100 px-4 py-1.5 text-xs text-surface-600 dark:bg-surface-800 dark:text-surface-400">
-        <span className="font-medium">{text}</span>
-        {time && <span className="ml-2 text-surface-600">{date}, {time}</span>}
-      </div>
-    </div>
-  );
-}
-
-// ── Reply quote ────────────────────────────────────────────────────────────────
-
-function ReplyQuote({ msg, isOwn }: { msg: Message; isOwn: boolean }) {
-  const senderName = msg.sender ? `${msg.sender.first_name ?? ''} ${msg.sender.last_name ?? ''}`.trim() || 'Unbekannt' : 'Unbekannt';
-  const isDeleted = msg.deleted || msg.is_deleted_by_manager;
-  const text = isDeleted ? 'Nachricht wurde gelöscht' : (msg.text || '');
-  const preview = text.slice(0, 120) + (text.length > 120 ? '...' : '');
-
-  const handleClick = () => {
-    const el = document.getElementById(`msg-${msg.id}`);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.add('ring-2', 'ring-primary-400', 'rounded-xl');
-      setTimeout(() => el.classList.remove('ring-2', 'ring-primary-400', 'rounded-xl'), 1500);
-    }
-  };
-
-  return (
-    <div
-      onClick={handleClick}
-      className={clsx(
-        'mb-1.5 cursor-pointer rounded-lg border-l-3 px-2.5 py-1.5 text-xs transition hover:opacity-80',
-        isOwn
-          ? 'border-primary-300 bg-primary-700/50 text-primary-100'
-          : 'border-surface-400 bg-surface-200/60 text-surface-600 dark:bg-surface-700/60 dark:text-surface-400',
-      )}>
-      <div className="font-semibold">{senderName}</div>
-      <div className="line-clamp-2 opacity-80">{preview || 'Nachricht'}</div>
-    </div>
-  );
-}
+// ReplyQuote moved to ./chat/ReplyQuote.tsx
 
 // ── Shared sub-components ──────────────────────────────────────────────────────
 
@@ -3394,47 +3325,7 @@ function FileList({
 
 // ── Utilities ──────────────────────────────────────────────────────────────────
 
-/** Highlight search query occurrences in text */
-function HighlightedText({ text, query }: { text: string; query: string }) {
-  if (!query || query.trim().length < 2) return <>{text}</>;
-  const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
-  return (
-    <>
-      {parts.map((part, i) =>
-        part.toLowerCase() === query.toLowerCase()
-          ? <mark key={i} className="rounded bg-yellow-300 px-0.5 text-yellow-900 dark:bg-yellow-500 dark:text-yellow-950">{part}</mark>
-          : part,
-      )}
-    </>
-  );
-}
-
-/** Renders plain text with clickable https?:// URLs */
-function LinkifiedText({ text }: { text: string }) {
-  const URL_RE = /https?:\/\/[^\s]+/g;
-  const parts: ReactNode[] = [];
-  let last = 0;
-  let match: RegExpExecArray | null;
-  while ((match = URL_RE.exec(text)) !== null) {
-    if (match.index > last) parts.push(text.slice(last, match.index));
-    const url = match[0];
-    parts.push(
-      <a
-        key={match.index}
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-0.5 text-primary-600 underline hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200"
-      >
-        <ExternalLink size={11} className="shrink-0" />
-        {url}
-      </a>,
-    );
-    last = match.index + url.length;
-  }
-  if (last < text.length) parts.push(text.slice(last));
-  return <>{parts}</>;
-}
+// HighlightedText and LinkifiedText moved to ./chat/textRendering.tsx
 
 /** Returns true if the text consists solely of emoji characters (no letters, numbers, or punctuation) */
 function isOnlyEmoji(text: string): boolean {
