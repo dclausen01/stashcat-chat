@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useSettings } from './context/SettingsContext';
+import { usePanels } from './context/PanelContext';
 import { useCallManager } from './hooks/useCallManager';
 import { useLayoutMode } from './hooks/useLayoutMode';
 import { useHotkeys } from './hooks/useHotkeys';
@@ -26,32 +27,48 @@ import { useConnectionState } from './hooks/useConnectionState';
 import type { ChatTarget } from './types';
 import type { CallParty } from './api/calls';
 
-type ActiveView = 'chat' | 'calendar' | 'polls';
-
 export default function App() {
   const { loggedIn } = useAuth();
   const { homeView } = useSettings();
+  const {
+    settings: settingsOpen,
+    fileBrowser: fileBrowserOpen,
+    fileBrowserStandalone,
+    broadcasts: broadcastsOpen,
+    notifications: notificationsOpen,
+    profile: profileOpen,
+    flagged: flaggedOpen,
+    activeView,
+    pollIdToOpen,
+    eventIdToOpen,
+    closeAllPanels,
+    toggleSettings,
+    closeSettings,
+    closeFileBrowser,
+    toggleBroadcasts,
+    closeBroadcasts,
+    closeNotifications,
+    closeProfile,
+    closeFlagged,
+    openCalendar,
+    openPolls,
+    openPoll,
+    openEvent,
+    goToChat,
+    clearPollIdToOpen,
+    clearEventIdToOpen,
+  } = usePanels();
   const { activeCall, startCall, acceptCall, rejectCall, hangUp, isMuted, toggleMute } = useCallManager(loggedIn);
   const connectionStatus = useConnectionState(loggedIn);
   const layoutMode = useLayoutMode();
   const isMobilePhone = layoutMode === 'mobile';
   const isPortraitTablet = layoutMode === 'tablet';
   const [activeChat, setActiveChat] = useState<ChatTarget | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [fileBrowserOpen, setFileBrowserOpen] = useState(false);
-  const [fileBrowserStandalone, setFileBrowserStandalone] = useState(false);
   const [topBarUnread, setTopBarUnread] = useState({ total: 0, channels: [] as ChatTarget[], conversations: [] as ChatTarget[] });
-  const [broadcastsOpen, setBroadcastsOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [activeView, setActiveView] = useState<ActiveView>('chat');
   const [channels, setChannels] = useState<ChatTarget[]>([]);
   const [conversations, setConversations] = useState<ChatTarget[]>([]);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [flaggedOpen, setFlaggedOpen] = useState(false);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [pollIdToOpen, setPollIdToOpen] = useState<string | null>(null);
-  const [eventIdToOpen, setEventIdToOpen] = useState<string | null>(null);
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
   const [jumpToMessageTime, setJumpToMessageTime] = useState<number | null>(null);
   const [jumpKey, setJumpKey] = useState(0);
@@ -60,21 +77,10 @@ export default function App() {
   const refreshSidebarRef = useRef<(() => void) | null>(null);
   const toggleFavoriteRef = useRef<((target: ChatTarget) => void) | null>(null);
 
-  // Close all side panels — defined before use to avoid forward reference
-  const closeAllPanels = useCallback(() => {
-    setSettingsOpen(false);
-    setFileBrowserOpen(false);
-    setBroadcastsOpen(false);
-    setNotificationsOpen(false);
-    setProfileOpen(false);
-    setFlaggedOpen(false);
-  }, []);
-
   const handleSelectChat = useCallback((chat: ChatTarget) => {
-    setActiveView('chat');
-    closeAllPanels();
+    goToChat();
     setActiveChat(chat);
-  }, [closeAllPanels]);
+  }, [goToChat]);
 
   const handleToggleFavoriteFromChatView = useCallback((chat: ChatTarget) => {
     setActiveChat((prev) => prev?.id === chat.id ? { ...prev, favorite: !prev.favorite } : prev);
@@ -86,73 +92,10 @@ export default function App() {
     setActiveChat((prev) => prev?.id === channelId ? { ...prev, image: imageUrl } : prev);
   }, []);
 
-  const toggleSettings = () => {
-    const wasOpen = settingsOpen;
-    closeAllPanels();
-    if (!wasOpen) setSettingsOpen(true);
-  };
-
-  const toggleFileBrowser = () => {
-    const wasOpen = fileBrowserOpen && !fileBrowserStandalone;
-    closeAllPanels();
-    setFileBrowserStandalone(false);
-    if (!wasOpen) setFileBrowserOpen(true);
-  };
-
-  const openFileBrowserStandalone = () => {
-    const wasOpen = fileBrowserOpen && fileBrowserStandalone;
-    closeAllPanels();
-    setActiveView('chat');
-    if (!wasOpen) {
-      setFileBrowserStandalone(true);
-      setFileBrowserOpen(true);
-    }
-  };
-
-  const toggleFlagged = () => {
-    const wasOpen = flaggedOpen;
-    closeAllPanels();
-    if (!wasOpen) setFlaggedOpen(true);
-  };
-
-  const toggleBroadcasts = () => {
-    const wasOpen = broadcastsOpen;
-    closeAllPanels();
-    setActiveView('chat');
-    if (!wasOpen) setBroadcastsOpen(true);
-  };
-
-  const openCalendar = () => {
-    const wasOpen = activeView === 'calendar';
-    closeAllPanels();
-    setEventIdToOpen(null);
-    setActiveView(wasOpen ? 'chat' : 'calendar');
-  };
-
-  const openEvent = (eventId: string) => {
-    closeAllPanels();
-    setEventIdToOpen(eventId);
-    setActiveView('calendar');
-  };
-
-  const openPolls = () => {
-    const wasOpen = activeView === 'polls';
-    closeAllPanels();
-    setPollIdToOpen(null);
-    setActiveView(wasOpen ? 'chat' : 'polls');
-  };
-
-  const openPoll = (pollId: string) => {
-    closeAllPanels();
-    setPollIdToOpen(pollId);
-    setActiveView('polls');
-  };
-
-  const handleGoHome = () => {
-    closeAllPanels();
+  const handleGoHome = useCallback(() => {
+    goToChat();
     setActiveChat(null);
-    setActiveView('chat');
-  };
+  }, [goToChat]);
 
   const handleChannelsLoaded = useCallback((loadedChannels: ChatTarget[]) => {
     setChannels(loadedChannels);
@@ -178,15 +121,17 @@ export default function App() {
     setJumpSearching(false);
   }, []);
 
-  // Keyboard shortcuts (only when logged in)
+  // Keyboard shortcuts (only when logged in). Hotkeys *always* open the target
+  // panel; the matching toolbar buttons toggle. Preserved from before the
+  // PanelContext refactor.
   const hotkeys = useMemo(() => loggedIn ? [
     { key: 'k', mod: true, handler: (e: KeyboardEvent) => { e.preventDefault(); setQuickSwitcherOpen(true); } },
-    { key: '.', mod: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setSettingsOpen(true); } },
-    { key: 'c', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setEventIdToOpen(null); setActiveView('calendar'); } },
-    { key: 'b', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setActiveView('chat'); setBroadcastsOpen(true); } },
-    { key: 'u', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); closeAllPanels(); setPollIdToOpen(null); setActiveView('polls'); } },
+    { key: '.', mod: true, handler: (e: KeyboardEvent) => { e.preventDefault(); if (!settingsOpen) toggleSettings(); } },
+    { key: 'c', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); if (activeView !== 'calendar') openCalendar(); } },
+    { key: 'b', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); if (!broadcastsOpen) toggleBroadcasts(); } },
+    { key: 'u', alt: true, handler: (e: KeyboardEvent) => { e.preventDefault(); if (activeView !== 'polls') openPolls(); } },
     { key: '?', shift: true, handler: (e: KeyboardEvent) => { e.preventDefault(); setShortcutsOpen(true); } },
-  ] : [], [loggedIn, closeAllPanels]);
+  ] : [], [loggedIn, settingsOpen, broadcastsOpen, activeView, toggleSettings, openCalendar, toggleBroadcasts, openPolls]);
   useHotkeys(hotkeys, loggedIn);
 
   // Sidebar search focus + global Esc — capture phase so Tiptap/ProseMirror
@@ -249,19 +194,7 @@ export default function App() {
         unreadChannels={topBarUnread.channels}
         unreadConversations={topBarUnread.conversations}
         onSelectChat={handleSelectChat}
-        notificationsOpen={notificationsOpen}
-        onOpenNotifications={() => { const wasOpen = notificationsOpen; closeAllPanels(); if (!wasOpen) setNotificationsOpen(true); }}
-        fileBrowserOpen={fileBrowserOpen && fileBrowserStandalone}
-        onOpenFileBrowser={openFileBrowserStandalone}
-        broadcastsOpen={broadcastsOpen}
-        onOpenBroadcasts={toggleBroadcasts}
-        calendarOpen={activeView === 'calendar'}
-        onOpenCalendar={openCalendar}
-        pollsOpen={activeView === 'polls'}
-        onOpenPolls={openPolls}
         onGoHome={handleGoHome}
-        onOpenProfile={() => { const wasOpen = profileOpen; closeAllPanels(); if (!wasOpen) setProfileOpen(true); }}
-        onOpenSettings={toggleSettings}
       />
 
       {/* Bottom area: Sidebar + Main content (flex-row) */}
@@ -272,18 +205,7 @@ export default function App() {
             activeChat={activeChat}
             onSelectChat={handleSelectChat}
             loggedIn={loggedIn}
-            onOpenFileBrowser={toggleFileBrowser}
-            onOpenBroadcasts={toggleBroadcasts}
-            onOpenCalendar={openCalendar}
-            onOpenPolls={openPolls}
-            onOpenNotifications={() => { const wasOpen = notificationsOpen; closeAllPanels(); if (!wasOpen) setNotificationsOpen(true); }}
-            onOpenSettings={toggleSettings}
-            onOpenProfile={() => { const wasOpen = profileOpen; closeAllPanels(); if (!wasOpen) setProfileOpen(true); }}
             triggerFocusKey={focusSearchKey}
-            broadcastsOpen={broadcastsOpen}
-            calendarOpen={activeView === 'calendar'}
-            pollsOpen={activeView === 'polls'}
-            notificationsOpen={notificationsOpen}
             onChannelsLoaded={handleChannelsLoaded}
             onConversationsLoaded={handleConversationsLoaded}
             onRegisterRefresh={(fn) => { refreshSidebarRef.current = fn; }}
@@ -296,14 +218,14 @@ export default function App() {
         {/* Main content — hidden on mobile when sidebar is fullscreen home */}
         <div className={`flex-1 overflow-hidden ${isMobilePhone && nothingElseOpen ? 'hidden' : 'flex'}`}>
           {activeView === 'calendar' ? (
-            <CalendarView eventIdToOpen={eventIdToOpen} onEventOpened={() => setEventIdToOpen(null)} onClose={() => setActiveView('chat')} />
+            <CalendarView eventIdToOpen={eventIdToOpen} onEventOpened={clearEventIdToOpen} onClose={goToChat} />
           ) : activeView === 'polls' ? (
-            <PollsView pollIdToOpen={pollIdToOpen} onPollOpened={() => setPollIdToOpen(null)} onClose={() => setActiveView('chat')} />
+            <PollsView pollIdToOpen={pollIdToOpen} onPollOpened={clearPollIdToOpen} onClose={goToChat} />
           ) : fileBrowserStandalone && fileBrowserOpen ? (
             // Standalone FileBrowser — full main area
             <FileBrowserPanel
               chat={null}
-              onClose={() => { setFileBrowserOpen(false); setFileBrowserStandalone(false); }}
+              onClose={closeFileBrowser}
               fullscreen
             />
           ) : (
@@ -312,14 +234,6 @@ export default function App() {
                 ? <ChatView
                     chat={activeChat}
                     onGoHome={handleGoHome}
-                    onToggleFileBrowser={toggleFileBrowser}
-                    fileBrowserOpen={fileBrowserOpen && !fileBrowserStandalone}
-                    onOpenPolls={openPolls}
-                    onOpenPoll={openPoll}
-                    onOpenCalendar={openCalendar}
-                    onOpenEvent={openEvent}
-                    onToggleFlagged={toggleFlagged}
-                    flaggedOpen={flaggedOpen}
                     jumpToMessageId={jumpToMessageId}
                     jumpToMessageTime={jumpToMessageTime}
                     jumpKey={jumpKey}
@@ -337,19 +251,19 @@ export default function App() {
                   : <div className={`flex-1 ${isMobilePhone ? 'hidden' : 'flex'}`}><EmptyState /></div>}
               {fileBrowserOpen && !fileBrowserStandalone && (
                 <div className={isMobilePhone ? 'fixed inset-0 z-40 flex' : isPortraitTablet ? 'fixed right-0 inset-y-0 z-40 flex' : 'relative flex'}>
-                  <FileBrowserPanel chat={activeChat} onClose={() => setFileBrowserOpen(false)} />
+                  <FileBrowserPanel chat={activeChat} onClose={closeFileBrowser} />
                 </div>
               )}
               {broadcastsOpen && (
                 <div className={isMobilePhone ? 'fixed inset-0 z-40 flex' : isPortraitTablet ? 'fixed right-0 inset-y-0 z-40 flex' : 'relative flex'}>
-                  <BroadcastsPanel onClose={() => setBroadcastsOpen(false)} />
+                  <BroadcastsPanel onClose={closeBroadcasts} />
                 </div>
               )}
               {flaggedOpen && (
                 <div className={isMobilePhone ? 'fixed inset-0 z-40 flex' : isPortraitTablet ? 'fixed right-0 inset-y-0 z-40 flex' : 'relative flex'}>
                   <FlaggedMessagesPanel
                     chat={activeChat}
-                    onClose={() => setFlaggedOpen(false)}
+                    onClose={closeFlagged}
                     onMessageClick={handleFlaggedMessageClick}
                     jumpSearching={jumpSearching}
                   />
@@ -357,19 +271,19 @@ export default function App() {
               )}
               {notificationsOpen && (
                 <div className={isMobilePhone ? 'fixed inset-0 z-40 flex' : isPortraitTablet ? 'fixed right-0 inset-y-0 z-40 flex' : 'relative flex'}>
-                  <NotificationsPanel onClose={() => setNotificationsOpen(false)} onOpenPolls={openPolls} onOpenPoll={openPoll} onOpenCalendar={openCalendar} onOpenEvent={openEvent} onChannelJoined={() => refreshSidebarRef.current?.()} />
+                  <NotificationsPanel onClose={closeNotifications} onOpenPolls={openPolls} onOpenPoll={openPoll} onOpenCalendar={openCalendar} onOpenEvent={openEvent} onChannelJoined={() => refreshSidebarRef.current?.()} />
                 </div>
               )}
             </>
           )}
           {settingsOpen && (
             <div className={isMobilePhone ? 'fixed inset-0 z-50 flex' : isPortraitTablet ? 'fixed right-0 inset-y-0 z-50 flex' : 'relative flex'}>
-              <SettingsPanel onClose={() => setSettingsOpen(false)} />
+              <SettingsPanel onClose={closeSettings} />
             </div>
           )}
           {profileOpen && (
             <div className={`fixed inset-0 z-50 flex ${!isMobilePhone ? 'items-center justify-center bg-black/50' : ''}`}>
-              <ProfileModal onClose={() => setProfileOpen(false)} />
+              <ProfileModal onClose={closeProfile} />
             </div>
           )}
         </div>

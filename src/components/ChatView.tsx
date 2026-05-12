@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
+import React, { useState, useEffect, useRef, useReducer, useCallback, type ReactNode } from 'react';
 import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, ChevronDown, MoreHorizontal, Mic, Play, Pause, ImageIcon, Info, Type as TypeIcon, Download, LogOut, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
@@ -7,6 +7,8 @@ import { useSettings } from '../context/SettingsContext';
 import { useTheme } from '../context/ThemeContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { useAnnouncer } from '../context/AnnouncerContext';
+import { usePanels } from '../context/PanelContext';
+import { useChatMeta } from '../hooks/chat/useChatMeta';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import { fileIcon } from '../utils/fileIcon';
 import Avatar from './Avatar';
@@ -28,15 +30,7 @@ import { getCleanName, getParentId } from '../utils/subchannels';
 interface ChatViewProps {
   chat: ChatTarget;
   onGoHome: () => void;
-  onToggleFileBrowser: () => void;
-  fileBrowserOpen: boolean;
-  onOpenPolls?: () => void;
-  onOpenPoll?: (pollId: string) => void;
-  onOpenCalendar?: () => void;
-  onOpenEvent?: (eventId: string) => void;
   onMarkRead?: (chatId: string, chatType: 'channel' | 'conversation') => void;
-  onToggleFlagged?: () => void;
-  flaggedOpen?: boolean;
   jumpToMessageId?: string | null;
   jumpToMessageTime?: number | null;
   jumpKey?: number;
@@ -187,19 +181,148 @@ function extractServiceLinks(description: string): { cleanDescription: string; l
 
 interface PendingMessage { text: string; replyTo: Message | null; time: number }
 
-export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrowserOpen, onOpenPolls, onOpenPoll, onOpenCalendar, onOpenEvent, onToggleFlagged, flaggedOpen, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall, onToggleFavorite, onChannelImageUpdated, channels }: ChatViewProps) {
+// ── Messages slice ──────────────────────────────────────────────────────────
+// Bundles the four fields that always move together so the load/load-more/
+// search/reset transitions become single atomic dispatches instead of
+// 2–3 sequential setX calls.
+interface MessagesState {
+  messages: Message[];
+  loading: boolean;
+  loadingMore: boolean;
+  hasMore: boolean;
+}
+
+type MessagesAction =
+  | { type: 'load-start' }
+  | { type: 'load-success'; messages: Message[]; hasMore: boolean }
+  | { type: 'load-failure' }
+  | { type: 'load-more-start' }
+  | { type: 'load-more-end'; hasMore?: boolean }
+  | { type: 'replace'; messages: Message[]; hasMore?: boolean }
+  | { type: 'apply'; updater: (prev: Message[]) => Message[] }
+  | { type: 'set-has-more'; hasMore: boolean }
+  | { type: 'reset' };
+
+const INITIAL_MESSAGES_STATE: MessagesState = {
+  messages: [],
+  loading: true,
+  loadingMore: false,
+  hasMore: true,
+};
+
+// ── Date-search slice ───────────────────────────────────────────────────────
+// The header's date-range search panel has its own little state machine:
+// toggle on / pick range / submit / view results / close. Six fields, almost
+// always mutated in pairs.
+interface DateSearchState {
+  mode: boolean;
+  start: string;
+  end: string;
+  results: Message[] | null;
+  loading: boolean;
+  viewing: boolean;
+}
+
+type DateSearchAction =
+  | { type: 'toggle-mode' }
+  | { type: 'set-range'; start?: string; end?: string }
+  | { type: 'search-start' }
+  | { type: 'search-success'; results: Message[] }
+  | { type: 'search-end' }
+  | { type: 'start-viewing' }
+  | { type: 'stop-viewing' }
+  | { type: 'close' };
+
+const INITIAL_DATE_SEARCH_STATE: DateSearchState = {
+  mode: false,
+  start: '',
+  end: '',
+  results: null,
+  loading: false,
+  viewing: false,
+};
+
+function dateSearchReducer(state: DateSearchState, action: DateSearchAction): DateSearchState {
+  switch (action.type) {
+    case 'toggle-mode':
+      return { ...state, mode: !state.mode, results: null };
+    case 'set-range':
+      return {
+        ...state,
+        ...(action.start !== undefined ? { start: action.start } : {}),
+        ...(action.end !== undefined ? { end: action.end } : {}),
+      };
+    case 'search-start':
+      return { ...state, loading: true, results: null };
+    case 'search-success':
+      return { ...state, loading: false, results: action.results };
+    case 'search-end':
+      return { ...state, loading: false };
+    case 'start-viewing':
+      return { ...state, viewing: true };
+    case 'stop-viewing':
+      return { ...state, viewing: false, results: null };
+    case 'close':
+      return INITIAL_DATE_SEARCH_STATE;
+  }
+}
+
+function messagesReducer(state: MessagesState, action: MessagesAction): MessagesState {
+  switch (action.type) {
+    case 'load-start':
+      return { ...state, loading: true, hasMore: true };
+    case 'load-success':
+      return { messages: action.messages, hasMore: action.hasMore, loading: false, loadingMore: false };
+    case 'load-failure':
+      return { ...state, loading: false };
+    case 'load-more-start':
+      return { ...state, loadingMore: true };
+    case 'load-more-end':
+      return { ...state, loadingMore: false, ...(action.hasMore !== undefined ? { hasMore: action.hasMore } : {}) };
+    case 'set-has-more':
+      return { ...state, hasMore: action.hasMore };
+    case 'replace':
+      return { ...state, messages: action.messages, ...(action.hasMore !== undefined ? { hasMore: action.hasMore } : {}) };
+    case 'apply':
+      return { ...state, messages: action.updater(state.messages) };
+    case 'reset':
+      return INITIAL_MESSAGES_STATE;
+  }
+}
+
+export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall, onToggleFavorite, onChannelImageUpdated, channels }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
   const { theme } = useTheme();
+  const {
+    fileBrowser: fileBrowserOpenRaw,
+    fileBrowserStandalone,
+    flagged: flaggedOpen,
+    toggleFileBrowser: onToggleFileBrowser,
+    toggleFlagged: onToggleFlagged,
+    openPolls: onOpenPolls,
+    openPoll: onOpenPoll,
+    openCalendar: onOpenCalendar,
+    openEvent: onOpenEvent,
+  } = usePanels();
+  // In ChatView "file browser open" means the in-chat side panel — not the
+  // standalone full-area mode (that one replaces ChatView entirely).
+  const fileBrowserOpen = fileBrowserOpenRaw && !fileBrowserStandalone;
   const confirmAsync = useConfirm();
   const announce = useAnnouncer();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const [messagesState, dispatchMessages] = useReducer(messagesReducer, INITIAL_MESSAGES_STATE);
+  const { messages, loading, loadingMore, hasMore } = messagesState;
+  // setMessages keeps the (prev) => next ergonomics callers expect; multi-field
+  // transitions (load, search, reset) go through dispatchMessages directly.
+  const setMessages = useCallback((next: Message[] | ((prev: Message[]) => Message[])) => {
+    if (typeof next === 'function') {
+      dispatchMessages({ type: 'apply', updater: next });
+    } else {
+      dispatchMessages({ type: 'replace', messages: next });
+    }
+  }, []);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
-  const [isManager, setIsManager] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [fileSentToast, setFileSentToast] = useState(false);
   const [droppedFiles, setDroppedFiles] = useState<File[]>([]);
@@ -208,13 +331,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [pdfView, setPdfView] = useState<{ fileId: string; viewUrl: string; name: string } | null>(null);
   const [descEditorOpen, setDescEditorOpen] = useState(false);
-  const [chatDescription, setChatDescription] = useState(chat.description || '');
-  const [chatImage, setChatImage] = useState(chat.image || '');
-  const [chatName, setChatName] = useState(getCleanName(chat.name));
   const [imageEditorOpen, setImageEditorOpen] = useState(false);
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const [meetingLoading, setMeetingLoading] = useState(false);
-  const [notificationsMuted, setNotificationsMuted] = useState(chat.muted === true);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [muteMenuOpen, setMuteMenuOpen] = useState(false);
 
@@ -227,22 +346,25 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   // Mobile-only modals (mirror of desktop ChannelDropdownMenu actions)
-  const [showInfoModal, setShowInfoModal] = useState(false);
-  const [showRenameModal, setShowRenameModal] = useState(false);
-  const [showLeaveModal, setShowLeaveModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  // Channel-dropdown modals (info / rename / leave / delete). They all
+  // originate from the same dropdown menu and are mutually exclusive.
+  const [channelModal, setChannelModal] = useState<null | 'info' | 'rename' | 'leave' | 'delete'>(null);
+  const closeChannelModal = useCallback(() => setChannelModal(null), []);
   const [exporting, setExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMatchIdx, setSearchMatchIdx] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchMatchRefs = useRef<(HTMLDivElement | null)[]>([]);
   // Date-range search state
-  const [dateSearchMode, setDateSearchMode] = useState(false);
-  const [dateStart, setDateStart] = useState('');
-  const [dateEnd, setDateEnd] = useState('');
-  const [dateSearchResults, setDateSearchResults] = useState<Message[] | null>(null);
-  const [dateSearchLoading, setDateSearchLoading] = useState(false);
-  const [viewingDateResults, setViewingDateResults] = useState(false);
+  const [dateSearchState, dispatchDateSearch] = useReducer(dateSearchReducer, INITIAL_DATE_SEARCH_STATE);
+  const {
+    mode: dateSearchMode,
+    start: dateStart,
+    end: dateEnd,
+    results: dateSearchResults,
+    loading: dateSearchLoading,
+    viewing: viewingDateResults,
+  } = dateSearchState;
   const savedMessagesRef = useRef<{ messages: Message[]; hasMore: boolean; offset: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -263,6 +385,17 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   const pendingMessagesRef = useRef<Map<string, PendingMessage>>(new Map());
 
   const userId = user?.id ?? '';
+  const {
+    name: chatName,
+    description: chatDescription,
+    image: chatImage,
+    muted: notificationsMuted,
+    isManager,
+    setName: setChatName,
+    setDescription: setChatDescription,
+    setImage: setChatImage,
+    setMuted: setNotificationsMuted,
+  } = useChatMeta(chat, userId);
 
   // Extract service links (Moodle, BBB, TaskCards) from channel description
   const { cleanDescription, links: serviceLinks } = chatDescription
@@ -287,25 +420,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   useEffect(() => { setSearchMatchIdx(0); }, [searchQuery, chat.id]);
   useEffect(() => {
     setSearchOpen(false); setSearchQuery('');
-    setDateSearchMode(false); setDateStart(''); setDateEnd('');
-    setDateSearchResults(null); setViewingDateResults(false);
+    dispatchDateSearch({ type: 'close' });
     savedMessagesRef.current = null;
   }, [chat.id]);
-  // Sync muted state when chat changes
-  useEffect(() => {
-    setNotificationsMuted(chat.muted === true);
-  }, [chat.muted, chat.id]);
-
-  // Sync chat image when channel changes
-  useEffect(() => {
-    setChatImage(chat.image || '');
-  }, [chat.image, chat.id]);
-
-  // Sync chat name when channel changes
-  useEffect(() => {
-    setChatName(getCleanName(chat.name));
-  }, [chat.name, chat.id]);
-
   // Clear pending message indicators when switching chats
   useEffect(() => {
     pendingMessagesRef.current.clear();
@@ -330,14 +447,13 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   }, []);
 
   const loadMessages = useCallback(async () => {
-    setLoading(true);
-    setHasMore(true);
+    dispatchMessages({ type: 'load-start' });
     hasMoreRef.current = true;
     paginationOffsetRef.current = 0;
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
-      const msgs = res as unknown as Message[];
-      
+      const msgs = res;
+
       // Determine first unread message BEFORE we mark them as read
       let firstUnreadId = null;
       const firstUnreadMsg = msgs.find(m => m.unread === true && String(m.sender?.id) !== userId);
@@ -359,7 +475,6 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
       }
       setFirstUnreadMsgId(firstUnreadId);
 
-      setMessages(msgs);
       // Update user name cache from loaded messages
       for (const m of msgs) {
         if (m.sender?.id && m.sender?.first_name) {
@@ -369,18 +484,16 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           );
         }
       }
-      if (msgs.length < PAGE_SIZE) {
-        setHasMore(false);
-        hasMoreRef.current = false;
-      }
+      const moreAvailable = msgs.length >= PAGE_SIZE;
+      hasMoreRef.current = moreAvailable;
       paginationOffsetRef.current = msgs.length;
+      dispatchMessages({ type: 'load-success', messages: msgs, hasMore: moreAvailable });
+
       // Mark latest message as read
       const last = msgs[msgs.length - 1];
       if (last) api.markAsRead(chat.id, chat.type, String(last.id)).catch(() => {});
     } catch {
-      // errors are silently ignored
-    } finally {
-      setLoading(false);
+      dispatchMessages({ type: 'load-failure' });
     }
   }, [chat.id, chat.type]);
 
@@ -390,17 +503,15 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     if (!container) return;
 
     loadingMoreRef.current = true;
-    setLoadingMore(true);
+    dispatchMessages({ type: 'load-more-start' });
     const prevHeight = container.scrollHeight;
 
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, paginationOffsetRef.current);
-      const older = res as unknown as Message[];
+      const older = res;
 
-      if (older.length < PAGE_SIZE) {
-        setHasMore(false);
-        hasMoreRef.current = false;
-      }
+      const exhausted = older.length < PAGE_SIZE;
+      if (exhausted) hasMoreRef.current = false;
 
       if (older.length > 0) {
         paginationOffsetRef.current += older.length;
@@ -413,41 +524,42 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             );
           }
         }
-        setMessages((prev) => {
-          const combined = [...older, ...prev];
-          const deduped = combined.filter(
-            (m, idx, arr) => arr.findIndex((x) => String(x.id) === String(m.id)) === idx
-          );
-          return deduped.sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
+        dispatchMessages({
+          type: 'apply',
+          updater: (prev) => {
+            const combined = [...older, ...prev];
+            const deduped = combined.filter(
+              (m, idx, arr) => arr.findIndex((x) => String(x.id) === String(m.id)) === idx
+            );
+            return deduped.sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
+          },
         });
         // Preserve scroll position after prepend
         requestAnimationFrame(() => {
           if (container) container.scrollTop = container.scrollHeight - prevHeight;
         });
       }
+      dispatchMessages({ type: 'load-more-end', ...(exhausted ? { hasMore: false } : {}) });
     } catch (err) {
       console.error('Failed to load older messages:', err);
+      dispatchMessages({ type: 'load-more-end' });
     } finally {
       loadingMoreRef.current = false;
-      setLoadingMore(false);
     }
   }, [chat.id, chat.type]);
 
   // Date-range search: call server endpoint
   const runDateSearch = useCallback(async () => {
     if (!dateStart || !dateEnd) return;
-    setDateSearchLoading(true);
-    setDateSearchResults(null);
+    dispatchDateSearch({ type: 'search-start' });
     try {
       const startTs = Math.floor(new Date(dateStart).getTime() / 1000);
       const endTs = Math.floor(new Date(dateEnd + 'T23:59:59').getTime() / 1000);
       const res = await api.searchMessages(chat.id, chat.type, startTs, endTs, searchQuery || undefined);
-      setDateSearchResults(res.messages as unknown as Message[]);
+      dispatchDateSearch({ type: 'search-success', results: res.messages });
     } catch (err) {
       console.error('Date search failed:', err);
-      setDateSearchResults([]);
-    } finally {
-      setDateSearchLoading(false);
+      dispatchDateSearch({ type: 'search-success', results: [] });
     }
   }, [chat.id, chat.type, dateStart, dateEnd, searchQuery]);
 
@@ -462,10 +574,9 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         offset: paginationOffsetRef.current,
       };
     }
-    setMessages(dateSearchResults);
-    setHasMore(false);
+    dispatchMessages({ type: 'replace', messages: dateSearchResults, hasMore: false });
     hasMoreRef.current = false;
-    setViewingDateResults(true);
+    dispatchDateSearch({ type: 'start-viewing' });
     // Scroll to the clicked message after render
     requestAnimationFrame(() => {
       const el = document.getElementById(`msg-${msgId}`);
@@ -476,43 +587,29 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
   // Restore normal message view
   const restoreMessages = useCallback(() => {
     if (savedMessagesRef.current) {
-      setMessages(savedMessagesRef.current.messages);
-      setHasMore(savedMessagesRef.current.hasMore);
+      dispatchMessages({
+        type: 'replace',
+        messages: savedMessagesRef.current.messages,
+        hasMore: savedMessagesRef.current.hasMore,
+      });
       hasMoreRef.current = savedMessagesRef.current.hasMore;
       paginationOffsetRef.current = savedMessagesRef.current.offset;
       savedMessagesRef.current = null;
     } else {
       loadMessages();
     }
-    setViewingDateResults(false);
+    dispatchDateSearch({ type: 'stop-viewing' });
     setViewingJumpedMessage(false);
-    setDateSearchResults(null);
   }, [loadMessages]);
-
-  // Check manager status when entering a channel
-  // The API returns { id, manager: boolean } — not { user_id, role }
-  useEffect(() => {
-    setIsManager(false);
-    if (chat.type !== 'channel') return;
-    api.getChannelMembers(chat.id)
-      .then((members) => {
-        const raw = members as Array<Record<string, unknown>>;
-        const me = raw.find(
-          (m) => String(m.user_id ?? m.id) === userId
-        );
-        // manager: true = moderator/owner, manager: false or role 'member' = regular
-        const isMgr = me?.manager === true ||
-          (me?.role !== undefined && me?.role !== 'member');
-        setIsManager(!!me && isMgr);
-      })
-      .catch(() => {});
-  }, [chat.id, chat.type, userId]);
 
   useEffect(() => {
     setMessages([]);
     setTypingUsers([]);
-    setChatDescription(chat.description || '');
     loadMessages();
+    // chat.description is kept as a dep to preserve the legacy behavior of
+    // reloading the message list whenever the channel description changes
+    // (a side effect of the previous combined effect — left intact here so
+    // this extraction stays bit-for-bit equivalent).
   }, [loadMessages, chat.description]);
 
   // Scroll to bottom after initial load and after chat switch.
@@ -584,7 +681,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         for (let probe = PROBE_STEP; probe <= 50000; probe += PROBE_STEP) {
           if (cancelled) return;
           const res = await api.getMessages(chat.id, chat.type, 1, probe);
-          const msgs = res as unknown as Message[];
+          const msgs = res;
           if (msgs.length === 0) { upperBound = probe; break; }
           const t = Number(msgs[0].time) || 0;
           if (t <= targetTime) { upperBound = probe; break; }
@@ -599,7 +696,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
           if (cancelled) return;
           const mid = Math.floor((low + high) / 2);
           const res = await api.getMessages(chat.id, chat.type, 1, mid);
-          const msgs = res as unknown as Message[];
+          const msgs = res;
           if (msgs.length === 0) { high = mid; continue; }
           const t = Number(msgs[0].time) || 0;
           if (t > targetTime) { low = mid; } else { high = mid; }
@@ -610,7 +707,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
         const loadOffset = Math.max(0, low - PAGE_SIZE);
         const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE * 3, loadOffset);
         if (cancelled) return;
-        const windowMsgs = (res as unknown as Message[]).sort(
+        const windowMsgs = res.sort(
           (a, b) => (Number(a.time) || 0) - (Number(b.time) || 0),
         );
 
@@ -624,8 +721,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             offset: paginationOffsetRef.current,
           };
         }
-        setMessages(windowMsgs);
-        setHasMore(false);
+        dispatchMessages({ type: 'replace', messages: windowMsgs, hasMore: false });
         hasMoreRef.current = false;
         setViewingJumpedMessage(true);
 
@@ -763,7 +859,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     refreshingRef.current = true;
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
-      const msgs = res as unknown as Message[];
+      const msgs = res;
       let hadNewOwnMessages = false;
       setMessages((prev) => {
         const prevMap = new Map(prev.map(m => [String(m.id), m]));
@@ -1754,7 +1850,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               )}
               {chat.type === 'channel' && isManager && (
                 <button
-                  onClick={() => { setShowRenameModal(true); setMobileMenuOpen(false); }}
+                  onClick={() => { setChannelModal('rename'); setMobileMenuOpen(false); }}
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
                 >
                   <TypeIcon size={18} className="text-surface-400" />
@@ -1763,7 +1859,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               )}
               {chat.type === 'channel' && (
                 <button
-                  onClick={() => { setShowInfoModal(true); setMobileMenuOpen(false); }}
+                  onClick={() => { setChannelModal('info'); setMobileMenuOpen(false); }}
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
                 >
                   <Info size={18} className="text-surface-400" />
@@ -1807,14 +1903,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
                 <>
                   <div className="my-1 border-t border-surface-200 dark:border-surface-700" />
                   <button
-                    onClick={() => { setShowLeaveModal(true); setMobileMenuOpen(false); }}
+                    onClick={() => { setChannelModal('leave'); setMobileMenuOpen(false); }}
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
                   >
                     <LogOut size={18} className="text-surface-400" />
                     Channel verlassen
                   </button>
                   <button
-                    onClick={() => { setShowDeleteModal(true); setMobileMenuOpen(false); }}
+                    onClick={() => { setChannelModal('delete'); setMobileMenuOpen(false); }}
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-red-500 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                   >
                     <Trash2 size={18} />
@@ -1839,7 +1935,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); setDateSearchMode(false); setDateSearchResults(null); }
+                if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); dispatchDateSearch({ type: 'close' }); }
                 if (e.key === 'Enter' && !dateSearchMode) setSearchMatchIdx((i) => i + (e.shiftKey ? -1 : 1));
                 if (e.key === 'Enter' && dateSearchMode && !e.shiftKey && dateStart && dateEnd) runDateSearch();
                 if (e.key === 'Enter' && dateSearchMode && searchMatches.length > 0) setSearchMatchIdx((i) => i + (e.shiftKey ? -1 : 1));
@@ -1865,7 +1961,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               </>
             )}
             <button
-              onClick={() => { setDateSearchMode((m) => !m); setDateSearchResults(null); }}
+              onClick={() => dispatchDateSearch({ type: 'toggle-mode' })}
               className={clsx(
                 'rounded p-1 transition',
                 dateSearchMode
@@ -1876,7 +1972,7 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
             >
               <CalendarDays size={15} />
             </button>
-            <button onClick={() => { setSearchOpen(false); setSearchQuery(''); setDateSearchMode(false); setDateSearchResults(null); }} className="rounded p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700">
+            <button onClick={() => { setSearchOpen(false); setSearchQuery(''); dispatchDateSearch({ type: 'close' }); }} className="rounded p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700">
               <X size={15} />
             </button>
           </div>
@@ -1888,14 +1984,14 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
               <input
                 type="date"
                 value={dateStart}
-                onChange={(e) => setDateStart(e.target.value)}
+                onChange={(e) => dispatchDateSearch({ type: 'set-range', start: e.target.value })}
                 className="rounded border border-surface-300 bg-white px-2 py-1 text-xs text-surface-900 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
               />
               <span className="text-xs text-surface-600">Bis</span>
               <input
                 type="date"
                 value={dateEnd}
-                onChange={(e) => setDateEnd(e.target.value)}
+                onChange={(e) => dispatchDateSearch({ type: 'set-range', end: e.target.value })}
                 className="rounded border border-surface-300 bg-white px-2 py-1 text-xs text-surface-900 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
               />
               <button
@@ -2287,29 +2383,29 @@ export default function ChatView({ chat, onGoHome, onToggleFileBrowser, fileBrow
     )}
 
     {/* Mobile-only manager modals (mirror of desktop ChannelDropdownMenu) */}
-    {showInfoModal && chat.type === 'channel' && (
-      <ChannelInfoModal chat={chat} channels={channels} onClose={() => setShowInfoModal(false)} />
+    {channelModal === 'info' && chat.type === 'channel' && (
+      <ChannelInfoModal chat={chat} channels={channels} onClose={closeChannelModal} />
     )}
-    {showRenameModal && chat.type === 'channel' && (
+    {channelModal === 'rename' && chat.type === 'channel' && (
       <RenameChannelModal
         chat={chat}
-        onClose={() => setShowRenameModal(false)}
-        onRenamed={(newName) => { setShowRenameModal(false); setChatName(getCleanName(newName)); }}
+        onClose={closeChannelModal}
+        onRenamed={(newName) => { closeChannelModal(); setChatName(getCleanName(newName)); }}
       />
     )}
-    {showLeaveModal && chat.type === 'channel' && (
+    {channelModal === 'leave' && chat.type === 'channel' && (
       <LeaveConfirmModal
         chat={chat}
-        onClose={() => setShowLeaveModal(false)}
-        onLeft={() => { setShowLeaveModal(false); onGoHome(); }}
+        onClose={closeChannelModal}
+        onLeft={() => { closeChannelModal(); onGoHome(); }}
       />
     )}
-    {showDeleteModal && chat.type === 'channel' && (
+    {channelModal === 'delete' && chat.type === 'channel' && (
       <DeleteConfirmModal
         chat={chat}
         channels={channels}
-        onClose={() => setShowDeleteModal(false)}
-        onDeleted={() => { setShowDeleteModal(false); onGoHome(); }}
+        onClose={closeChannelModal}
+        onDeleted={() => { closeChannelModal(); onGoHome(); }}
       />
     )}
 

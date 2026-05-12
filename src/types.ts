@@ -98,6 +98,38 @@ export interface Message {
   is_deleted_by_manager?: boolean;
 }
 
+export interface Broadcast {
+  id: number;
+  user_id: number;
+  name: string;
+  member_count: number;
+  lastAction: number;
+}
+
+export interface BroadcastFile {
+  id: string;
+  name: string;
+  ext?: string;
+  mime?: string;
+  size_string?: string;
+}
+
+export interface BroadcastMessage {
+  id: string;
+  text: string;
+  time?: number;
+  sender?: { first_name?: string; last_name?: string; image?: string };
+  files?: BroadcastFile[];
+}
+
+export interface BroadcastMember {
+  id: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  image?: string;
+}
+
 export interface Company {
   id: string;
   name: string;

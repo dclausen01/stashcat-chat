@@ -28,18 +28,7 @@ interface SidebarProps {
   activeChat: ChatTarget | null;
   onSelectChat: (target: ChatTarget) => void;
   loggedIn: boolean;
-  onOpenFileBrowser: () => void;
-  onOpenBroadcasts: () => void;
-  onOpenCalendar: () => void;
-  onOpenPolls: () => void;
-  onOpenNotifications: () => void;
-  onOpenSettings: () => void;
-  onOpenProfile: () => void;
   triggerFocusKey?: number;
-  broadcastsOpen: boolean;
-  calendarOpen: boolean;
-  pollsOpen: boolean;
-  notificationsOpen: boolean;
   onChannelsLoaded?: (channels: ChatTarget[]) => void;
   onConversationsLoaded?: (conversations: ChatTarget[]) => void;
   onRegisterRefresh?: (refresh: () => void) => void;
@@ -48,7 +37,7 @@ interface SidebarProps {
   onUnreadChange?: (total: number, unreadChannels: ChatTarget[], unreadConversations: ChatTarget[]) => void;
 }
 
-export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFileBrowser, onOpenBroadcasts, onOpenCalendar, onOpenPolls, onOpenNotifications, onOpenSettings, onOpenProfile, triggerFocusKey, broadcastsOpen, calendarOpen, pollsOpen, notificationsOpen, onChannelsLoaded, onConversationsLoaded, onRegisterRefresh, onRegisterToggleFavorite, onGoHome, onUnreadChange }: SidebarProps) {
+export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFocusKey, onChannelsLoaded, onConversationsLoaded, onRegisterRefresh, onRegisterToggleFavorite, onGoHome, onUnreadChange }: SidebarProps) {
   const { user } = useAuth();
   const { notify } = useNotifications();
   const [channels, setChannels] = useState<ChatTarget[]>([]);
@@ -622,11 +611,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
           unreadChannels={unreadChannels}
           unreadConversations={unreadConversations}
           onSelectChat={handleSelect}
-          notificationsOpen={notificationsOpen}
-          onOpenNotifications={onOpenNotifications}
-          onOpenFileBrowser={onOpenFileBrowser}
-          onOpenSettings={onOpenSettings}
-          onOpenProfile={onOpenProfile}
           onGoHome={onGoHome}
         />
       </div>
@@ -727,14 +711,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, onOpenFile
 
       {/* SidebarFooter — mobile only; desktop uses TopBar */}
       <div className="md:hidden">
-        <SidebarFooter
-          broadcastsOpen={broadcastsOpen}
-          calendarOpen={calendarOpen}
-          pollsOpen={pollsOpen}
-          onOpenBroadcasts={onOpenBroadcasts}
-          onOpenCalendar={onOpenCalendar}
-          onOpenPolls={onOpenPolls}
-        />
+        <SidebarFooter />
       </div>
 
       {/* New channel modal */}

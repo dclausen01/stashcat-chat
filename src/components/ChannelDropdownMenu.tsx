@@ -32,17 +32,17 @@ function formatTime(ts: number): string {
 export async function exportChatAsMarkdown(chat: ChatTarget): Promise<void> {
   const msgs = await api.getMessages(chat.id, chat.type, 9999);
   const sorted = [...msgs].sort(
-    (a, b) => (Number((a as Record<string, unknown>).time) || 0) - (Number((b as Record<string, unknown>).time) || 0)
+    (a, b) => (Number(a.time) || 0) - (Number(b.time) || 0)
   );
 
   const dateExport = new Date().toLocaleDateString('de-DE', {
     day: '2-digit', month: '2-digit', year: 'numeric',
   });
   const timeStart = sorted.length > 0
-    ? formatTime(Number((sorted[0] as Record<string, unknown>).time) || 0)
+    ? formatTime(Number(sorted[0].time) || 0)
     : '--:--';
   const timeEnd = sorted.length > 0
-    ? formatTime(Number((sorted[sorted.length - 1] as Record<string, unknown>).time) || 0)
+    ? formatTime(Number(sorted[sorted.length - 1].time) || 0)
     : '--:--';
 
   const lines: string[] = [];
@@ -53,7 +53,7 @@ export async function exportChatAsMarkdown(chat: ChatTarget): Promise<void> {
   let lastDay = '';
 
   for (const msg of sorted) {
-    const t = Number((msg as Record<string, unknown>).time) || 0;
+    const t = Number(msg.time) || 0;
     const day = formatDateLabel(t);
     const time = formatTime(t);
 
@@ -62,12 +62,12 @@ export async function exportChatAsMarkdown(chat: ChatTarget): Promise<void> {
       lastDay = day;
     }
 
-    const sender = (msg as Record<string, unknown>).sender as { first_name?: string; last_name?: string } | undefined;
+    const sender = msg.sender;
     const author = sender
       ? `${sender.first_name ?? ''} ${sender.last_name ?? ''}`.trim() || 'Unbekannt'
       : 'Unbekannt';
-    const text = (msg as Record<string, unknown>).text as string || '';
-    const kind = (msg as Record<string, unknown>).kind as string | undefined;
+    const text = msg.text || '';
+    const kind = msg.kind;
 
     if (kind === 'forward') {
       lines.push(`**[${time}] ${author}** (weitergeleitet)\n${text}\n`);
@@ -80,7 +80,7 @@ export async function exportChatAsMarkdown(chat: ChatTarget): Promise<void> {
     } else {
       lines.push(`**[${time}] ${author}**\n${text}\n`);
 
-      const reactions = (msg as Record<string, unknown>).reactions as Record<string, number> | undefined;
+      const reactions = (msg as unknown as { reactions?: Record<string, number> }).reactions;
       if (reactions && Object.keys(reactions).length > 0) {
         const reactionStr = Object.entries(reactions)
           .map(([emoji, count]) => `${emoji} ${count}`)
@@ -88,11 +88,10 @@ export async function exportChatAsMarkdown(chat: ChatTarget): Promise<void> {
         lines.push(`Reactions: ${reactionStr}\n`);
       }
 
-      const files = (msg as Record<string, unknown>).files as Array<{ name?: string; url?: string }> | undefined;
-      if (files && files.length > 0) {
-        for (const f of files) {
+      if (msg.files && msg.files.length > 0) {
+        for (const f of msg.files) {
           const name = f.name || 'Datei';
-          const url = f.url || '#';
+          const url = (f as unknown as { url?: string }).url || '#';
           lines.push(`[📎 ${name}](${url})\n`);
         }
       }

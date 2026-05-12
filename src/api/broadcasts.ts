@@ -3,16 +3,17 @@
  */
 
 import { get, post, del, patch, getToken, BACKEND } from './core';
+import type { Broadcast, BroadcastMessage, BroadcastMember } from '../types';
 
-export async function listBroadcasts(): Promise<Array<Record<string, unknown>>> {
-  return get<Array<Record<string, unknown>>>('/broadcasts');
+export async function listBroadcasts(): Promise<Broadcast[]> {
+  return get<Broadcast[]>('/broadcasts');
 }
 
 export async function createBroadcast(
   name: string,
   memberIds: string[]
-): Promise<Record<string, unknown>> {
-  return post<Record<string, unknown>>('/broadcasts', { name, memberIds });
+): Promise<Broadcast> {
+  return post<Broadcast>('/broadcasts', { name, memberIds });
 }
 
 export async function deleteBroadcast(id: string): Promise<void> {
@@ -27,8 +28,8 @@ export async function getBroadcastMessages(
   id: string,
   limit = 50,
   offset = 0
-): Promise<Array<Record<string, unknown>>> {
-  return get<Array<Record<string, unknown>>>(
+): Promise<BroadcastMessage[]> {
+  return get<BroadcastMessage[]>(
     `/broadcasts/${id}/messages?limit=${limit}&offset=${offset}`
   );
 }
@@ -36,14 +37,14 @@ export async function getBroadcastMessages(
 export async function sendBroadcastMessage(
   id: string,
   text: string
-): Promise<Record<string, unknown>> {
-  return post<Record<string, unknown>>(`/broadcasts/${id}/messages`, { text });
+): Promise<BroadcastMessage> {
+  return post<BroadcastMessage>(`/broadcasts/${id}/messages`, { text });
 }
 
 export async function getBroadcastMembers(
   id: string
-): Promise<Array<Record<string, unknown>>> {
-  return get<Array<Record<string, unknown>>>(`/broadcasts/${id}/members`);
+): Promise<BroadcastMember[]> {
+  return get<BroadcastMember[]>(`/broadcasts/${id}/members`);
 }
 
 export async function addBroadcastMembers(

@@ -2,6 +2,7 @@ import { LogOut, Sun, Moon, FolderOpen, Bell, Settings, Hash, Mail, Home } from 
 import { clsx } from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { usePanels } from '../context/PanelContext';
 import Avatar from './Avatar';
 import type { ChatTarget } from '../types';
 import { getCleanName } from '../utils/subchannels';
@@ -11,11 +12,6 @@ interface SidebarHeaderProps {
   unreadChannels?: ChatTarget[];
   unreadConversations?: ChatTarget[];
   onSelectChat?: (target: ChatTarget) => void;
-  notificationsOpen: boolean;
-  onOpenNotifications: () => void;
-  onOpenFileBrowser: () => void;
-  onOpenSettings: () => void;
-  onOpenProfile: () => void;
   onGoHome?: () => void;
 }
 
@@ -24,15 +20,17 @@ export default function SidebarHeader({
   unreadChannels = [],
   unreadConversations = [],
   onSelectChat,
-  notificationsOpen,
-  onOpenNotifications,
-  onOpenFileBrowser,
-  onOpenSettings,
-  onOpenProfile,
   onGoHome,
 }: SidebarHeaderProps) {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
+  const {
+    notifications: notificationsOpen,
+    toggleNotifications,
+    toggleFileBrowser,
+    toggleSettings,
+    toggleProfile,
+  } = usePanels();
 
   const userName = user ? `${user.first_name} ${user.last_name}` : '';
   const userImage = user?.image;
@@ -45,14 +43,14 @@ export default function SidebarHeader({
       {/* Row 1: Avatar, Name, BBZ Logo */}
       <div className="flex items-center gap-2">
         <button
-          onClick={onOpenProfile}
+          onClick={toggleProfile}
           className="rounded-full transition hover:opacity-80"
           title="Profil bearbeiten"
         >
           <Avatar name={userName} image={userImage} size="sm" availability={user?.availability} />
         </button>
         <button
-          onClick={onOpenProfile}
+          onClick={toggleProfile}
           className="min-w-0 flex-1 text-left"
           title="Profil bearbeiten"
         >
@@ -75,7 +73,7 @@ export default function SidebarHeader({
         )}
         <div className="group/bell relative">
           <button
-            onClick={onOpenNotifications}
+            onClick={toggleNotifications}
             className={clsx(
               'relative rounded-lg p-1.5 transition',
               notificationsOpen
@@ -153,7 +151,7 @@ export default function SidebarHeader({
           )}
         </div>
         <button
-          onClick={onOpenFileBrowser}
+          onClick={toggleFileBrowser}
           className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
           title="Meine Dateien"
           aria-label="Meine Dateien"
@@ -164,7 +162,7 @@ export default function SidebarHeader({
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
         </button>
         <button
-          onClick={onOpenSettings}
+          onClick={toggleSettings}
           className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
           title="Einstellungen"
           aria-label="Einstellungen"

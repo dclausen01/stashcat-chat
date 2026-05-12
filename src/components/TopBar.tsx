@@ -6,6 +6,7 @@ import {
 import { clsx } from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { usePanels } from '../context/PanelContext';
 import Avatar from './Avatar';
 import type { ChatTarget } from '../types';
 import { getCleanName } from '../utils/subchannels';
@@ -15,19 +16,7 @@ interface TopBarProps {
   unreadChannels: ChatTarget[];
   unreadConversations: ChatTarget[];
   onSelectChat: (target: ChatTarget) => void;
-  notificationsOpen: boolean;
-  onOpenNotifications: () => void;
-  fileBrowserOpen: boolean;
-  onOpenFileBrowser: () => void;
-  broadcastsOpen: boolean;
-  onOpenBroadcasts: () => void;
-  calendarOpen: boolean;
-  onOpenCalendar: () => void;
-  pollsOpen: boolean;
-  onOpenPolls: () => void;
   onGoHome: () => void;
-  onOpenProfile: () => void;
-  onOpenSettings: () => void;
 }
 
 function iconBtn(active: boolean) {
@@ -40,17 +29,27 @@ function iconBtn(active: boolean) {
 }
 
 export default function TopBar({
-  totalUnread, unreadChannels, unreadConversations, onSelectChat,
-  notificationsOpen, onOpenNotifications,
-  fileBrowserOpen, onOpenFileBrowser,
-  broadcastsOpen, onOpenBroadcasts,
-  calendarOpen, onOpenCalendar,
-  pollsOpen, onOpenPolls,
-  onGoHome,
-  onOpenProfile, onOpenSettings,
+  totalUnread, unreadChannels, unreadConversations, onSelectChat, onGoHome,
 }: TopBarProps) {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
+  const {
+    notifications: notificationsOpen,
+    fileBrowser: fileBrowserOpen,
+    fileBrowserStandalone,
+    broadcasts: broadcastsOpen,
+    activeView,
+    toggleNotifications,
+    openFileBrowserStandalone,
+    toggleBroadcasts,
+    openCalendar,
+    openPolls,
+    toggleSettings,
+    toggleProfile,
+  } = usePanels();
+  const calendarOpen = activeView === 'calendar';
+  const pollsOpen = activeView === 'polls';
+  const fileBrowserActive = fileBrowserOpen && fileBrowserStandalone;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -90,7 +89,7 @@ export default function TopBar({
         {/* Notification bell with unread badge + hover popup */}
         <div className="group/bell relative">
           <button
-            onClick={onOpenNotifications}
+            onClick={toggleNotifications}
             className={iconBtn(notificationsOpen)}
             title="Benachrichtigungen"
             aria-label="Benachrichtigungen"
@@ -165,8 +164,8 @@ export default function TopBar({
 
         {/* File browser */}
         <button
-          onClick={onOpenFileBrowser}
-          className={iconBtn(fileBrowserOpen)}
+          onClick={openFileBrowserStandalone}
+          className={iconBtn(fileBrowserActive)}
           title="Dateiablage"
           aria-label="Dateiablage"
         >
@@ -175,7 +174,7 @@ export default function TopBar({
 
         {/* Broadcasts */}
         <button
-          onClick={onOpenBroadcasts}
+          onClick={toggleBroadcasts}
           className={iconBtn(broadcastsOpen)}
           title="Broadcasts"
           aria-label="Broadcasts"
@@ -185,7 +184,7 @@ export default function TopBar({
 
         {/* Calendar */}
         <button
-          onClick={onOpenCalendar}
+          onClick={openCalendar}
           className={iconBtn(calendarOpen)}
           title="Kalender"
           aria-label="Kalender"
@@ -195,7 +194,7 @@ export default function TopBar({
 
         {/* Polls */}
         <button
-          onClick={onOpenPolls}
+          onClick={openPolls}
           className={iconBtn(pollsOpen)}
           title="Umfragen"
           aria-label="Umfragen"
@@ -226,7 +225,7 @@ export default function TopBar({
           {menuOpen && (
             <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-surface-200 bg-white py-1 shadow-xl dark:border-surface-700 dark:bg-surface-800">
               <button
-                onClick={() => { setMenuOpen(false); onOpenSettings(); }}
+                onClick={() => { setMenuOpen(false); toggleSettings(); }}
                 className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 transition hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
               >
                 <Settings size={15} className="text-surface-500" />
@@ -255,7 +254,7 @@ export default function TopBar({
 
         {/* Profile name + avatar */}
         <button
-          onClick={onOpenProfile}
+          onClick={toggleProfile}
           className="flex items-center gap-2 rounded-lg px-2 py-1 transition hover:bg-surface-200 dark:hover:bg-surface-700"
           title="Profil bearbeiten"
         >

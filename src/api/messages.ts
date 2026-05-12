@@ -3,6 +3,7 @@
  */
 
 import { get, post, del, getToken, BACKEND } from './core';
+import type { Message } from '../types';
 
 // --- Messages ---
 
@@ -11,8 +12,8 @@ export async function getMessages(
   type: 'channel' | 'conversation',
   limit = 40,
   offset = 0
-): Promise<Array<Record<string, unknown>>> {
-  return get<Array<Record<string, unknown>>>(
+): Promise<Message[]> {
+  return get<Message[]>(
     `/messages/${type}/${targetId}?limit=${limit}&offset=${offset}`
   );
 }
@@ -25,7 +26,7 @@ export async function searchMessages(
   query?: string,
   offset = 0,
   limit = 100
-): Promise<{ messages: Array<Record<string, unknown>>; hasMore: boolean }> {
+): Promise<{ messages: Message[]; hasMore: boolean }> {
   const params = new URLSearchParams({
     startDate: String(startDate),
     endDate: String(endDate),
@@ -41,8 +42,8 @@ export async function sendMessage(
   type: 'channel' | 'conversation',
   text: string,
   opts?: { is_forwarded?: boolean; reply_to_id?: string; files?: string[] }
-): Promise<Record<string, unknown>> {
-  return post(`/messages/${type}/${targetId}`, { text, ...opts });
+): Promise<Message> {
+  return post<Message>(`/messages/${type}/${targetId}`, { text, ...opts });
 }
 
 export async function sendTyping(type: 'channel' | 'conversation', targetId: string): Promise<void> {
@@ -107,8 +108,8 @@ export async function getFlaggedMessages(
   targetId: string,
   limit = 50,
   offset = 0
-): Promise<Array<Record<string, unknown>>> {
-  return get<Array<Record<string, unknown>>>(
+): Promise<Message[]> {
+  return get<Message[]>(
     `/messages/${type}/${targetId}/flagged?limit=${limit}&offset=${offset}`
   );
 }

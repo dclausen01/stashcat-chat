@@ -7,6 +7,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { SettingsProvider } from './context/SettingsContext';
 import { ConfirmProvider } from './context/ConfirmContext';
 import { AnnouncerProvider } from './context/AnnouncerContext';
+import { PanelProvider } from './context/PanelContext';
 import ErrorBoundary from './components/ErrorBoundary';
 
 createRoot(document.getElementById('root')!).render(
@@ -17,7 +18,9 @@ createRoot(document.getElementById('root')!).render(
           <ConfirmProvider>
             <AnnouncerProvider>
               <AuthProvider>
-                <App />
+                <PanelProvider>
+                  <App />
+                </PanelProvider>
               </AuthProvider>
             </AnnouncerProvider>
           </ConfirmProvider>
