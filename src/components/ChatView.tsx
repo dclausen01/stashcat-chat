@@ -316,11 +316,19 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   const announce = useAnnouncer();
   const [messagesState, dispatchMessages] = useReducer(messagesReducer, INITIAL_MESSAGES_STATE);
   const { messages, loading, loadingMore, hasMore } = messagesState;
+  // Mirror of messagesState so the setMessages adapter can evaluate the
+  // updater eagerly — useState's functional setter does this synchronously
+  // for its bailout optimisation, and callers (silentRefresh, message_sync
+  // handler) rely on side effects in the updater closure (e.g. setting an
+  // outer `hadNewOwnMessages` flag) running before the next statement.
+  const messagesStateRef = useRef(messagesState);
+  messagesStateRef.current = messagesState;
   // setMessages keeps the (prev) => next ergonomics callers expect; multi-field
   // transitions (load, search, reset) go through dispatchMessages directly.
   const setMessages = useCallback((next: Message[] | ((prev: Message[]) => Message[])) => {
     if (typeof next === 'function') {
-      dispatchMessages({ type: 'apply', updater: next });
+      const computed = next(messagesStateRef.current.messages);
+      dispatchMessages({ type: 'replace', messages: computed });
     } else {
       dispatchMessages({ type: 'replace', messages: next });
     }
