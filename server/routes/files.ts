@@ -66,7 +66,10 @@ router.get('/files/personal', async (req, res) => {
 });
 
 router.post('/files/upload', upload.single('file'), async (req, res) => {
-  const tmpPath = req.file?.path;
+  // currentPath always points at the on-disk temp file (whether the original
+  // multer path or the renamed path) so the finally cleanup is correct even
+  // if uploadFile rejects after the rename.
+  let currentPath = req.file?.path;
   try {
     const client = req.client!;
     if (!req.file) throw new Error('No file received');
@@ -74,8 +77,9 @@ router.post('/files/upload', upload.single('file'), async (req, res) => {
     const { type, typeId, folderId } = req.body as { type: string; typeId?: string; folderId?: string };
     const originalName = req.file.originalname;
     const ext = path.extname(originalName);
-    const namedPath = tmpPath + ext;
-    await fs.rename(tmpPath!, namedPath);
+    const namedPath = currentPath! + ext;
+    await fs.rename(currentPath!, namedPath);
+    currentPath = namedPath;
 
     let resolvedTypeId = typeId;
     if (type === 'personal' && !resolvedTypeId) {
@@ -92,13 +96,13 @@ router.post('/files/upload', upload.single('file'), async (req, res) => {
       filename: originalName,
     });
 
-    await fs.unlink(namedPath).catch(() => {});
     res.json({ ok: true });
   } catch (err) {
-    if (tmpPath) await fs.unlink(tmpPath).catch(() => {});
     const message = errorMessage(err, String(err));
     if (err instanceof Error) debugLog(`[files/upload] ERROR: ${err.message}\n${err.stack}`);
     res.status(500).json({ error: message });
+  } finally {
+    if (currentPath) await fs.unlink(currentPath).catch(() => {});
   }
 });
 
@@ -207,7 +211,7 @@ router.get('/file/:fileId', async (req, res) => {
 });
 
 router.post('/upload/:type/:targetId', upload.single('file'), async (req, res) => {
-  const tmpPath = req.file?.path;
+  let currentPath = req.file?.path;
   try {
     const client = req.client!;
     const { type, targetId } = req.params;
@@ -217,16 +221,15 @@ router.post('/upload/:type/:targetId', upload.single('file'), async (req, res) =
 
     const originalName = req.file.originalname;
     const ext = path.extname(originalName);
-    const namedPath = tmpPath + ext;
-    await fs.rename(tmpPath!, namedPath);
+    const namedPath = currentPath! + ext;
+    await fs.rename(currentPath!, namedPath);
+    currentPath = namedPath;
 
     const fileInfo = await client.uploadFile(namedPath, {
       type: chatType,
       type_id: targetId,
       filename: originalName,
     } as any);
-
-    await fs.unlink(namedPath).catch(() => {});
 
     await client.sendMessage({
       target: targetId as any,
@@ -237,8 +240,9 @@ router.post('/upload/:type/:targetId', upload.single('file'), async (req, res) =
 
     res.json({ ok: true, file: fileInfo });
   } catch (err) {
-    if (tmpPath) await fs.unlink(tmpPath).catch(() => {});
     res.status(500).json({ error: errorMessage(err, 'Upload failed') });
+  } finally {
+    if (currentPath) await fs.unlink(currentPath).catch(() => {});
   }
 });
 

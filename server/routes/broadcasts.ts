@@ -105,7 +105,7 @@ router.post('/broadcasts/:id/members', async (req, res) => {
 });
 
 router.post('/broadcasts/:listId/upload', upload.single('file'), async (req, res) => {
-  const tmpPath = req.file?.path;
+  let currentPath = req.file?.path;
   try {
     const client = req.client!;
     if (!req.file) throw new Error('No file received');
@@ -115,16 +115,15 @@ router.post('/broadcasts/:listId/upload', upload.single('file'), async (req, res
 
     const originalName = req.file.originalname;
     const ext = path.extname(originalName);
-    const namedPath = tmpPath + ext;
-    await fs.rename(tmpPath!, namedPath);
+    const namedPath = currentPath! + ext;
+    await fs.rename(currentPath!, namedPath);
+    currentPath = namedPath;
 
     const fileInfo = await client.uploadFile(namedPath, {
       type: 'personal',
       type_id: userId,
       filename: originalName,
     } as any);
-
-    await fs.unlink(namedPath).catch(() => {});
 
     const fileId = String((fileInfo as unknown as Record<string, unknown>).id);
     const msg = await client.sendBroadcastMessage({
@@ -136,8 +135,9 @@ router.post('/broadcasts/:listId/upload', upload.single('file'), async (req, res
 
     res.json({ ok: true, message: msg, file: fileInfo });
   } catch (err) {
-    if (tmpPath) await fs.unlink(tmpPath).catch(() => {});
     res.status(500).json({ error: errorMessage(err, 'Upload failed') });
+  } finally {
+    if (currentPath) await fs.unlink(currentPath).catch(() => {});
   }
 });
 
