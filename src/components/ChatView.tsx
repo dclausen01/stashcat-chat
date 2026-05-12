@@ -209,6 +209,63 @@ const INITIAL_MESSAGES_STATE: MessagesState = {
   hasMore: true,
 };
 
+// ── Date-search slice ───────────────────────────────────────────────────────
+// The header's date-range search panel has its own little state machine:
+// toggle on / pick range / submit / view results / close. Six fields, almost
+// always mutated in pairs.
+interface DateSearchState {
+  mode: boolean;
+  start: string;
+  end: string;
+  results: Message[] | null;
+  loading: boolean;
+  viewing: boolean;
+}
+
+type DateSearchAction =
+  | { type: 'toggle-mode' }
+  | { type: 'set-range'; start?: string; end?: string }
+  | { type: 'search-start' }
+  | { type: 'search-success'; results: Message[] }
+  | { type: 'search-end' }
+  | { type: 'start-viewing' }
+  | { type: 'stop-viewing' }
+  | { type: 'close' };
+
+const INITIAL_DATE_SEARCH_STATE: DateSearchState = {
+  mode: false,
+  start: '',
+  end: '',
+  results: null,
+  loading: false,
+  viewing: false,
+};
+
+function dateSearchReducer(state: DateSearchState, action: DateSearchAction): DateSearchState {
+  switch (action.type) {
+    case 'toggle-mode':
+      return { ...state, mode: !state.mode, results: null };
+    case 'set-range':
+      return {
+        ...state,
+        ...(action.start !== undefined ? { start: action.start } : {}),
+        ...(action.end !== undefined ? { end: action.end } : {}),
+      };
+    case 'search-start':
+      return { ...state, loading: true, results: null };
+    case 'search-success':
+      return { ...state, loading: false, results: action.results };
+    case 'search-end':
+      return { ...state, loading: false };
+    case 'start-viewing':
+      return { ...state, viewing: true };
+    case 'stop-viewing':
+      return { ...state, viewing: false, results: null };
+    case 'close':
+      return INITIAL_DATE_SEARCH_STATE;
+  }
+}
+
 function messagesReducer(state: MessagesState, action: MessagesAction): MessagesState {
   switch (action.type) {
     case 'load-start':
@@ -303,12 +360,15 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchMatchRefs = useRef<(HTMLDivElement | null)[]>([]);
   // Date-range search state
-  const [dateSearchMode, setDateSearchMode] = useState(false);
-  const [dateStart, setDateStart] = useState('');
-  const [dateEnd, setDateEnd] = useState('');
-  const [dateSearchResults, setDateSearchResults] = useState<Message[] | null>(null);
-  const [dateSearchLoading, setDateSearchLoading] = useState(false);
-  const [viewingDateResults, setViewingDateResults] = useState(false);
+  const [dateSearchState, dispatchDateSearch] = useReducer(dateSearchReducer, INITIAL_DATE_SEARCH_STATE);
+  const {
+    mode: dateSearchMode,
+    start: dateStart,
+    end: dateEnd,
+    results: dateSearchResults,
+    loading: dateSearchLoading,
+    viewing: viewingDateResults,
+  } = dateSearchState;
   const savedMessagesRef = useRef<{ messages: Message[]; hasMore: boolean; offset: number } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -353,8 +413,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   useEffect(() => { setSearchMatchIdx(0); }, [searchQuery, chat.id]);
   useEffect(() => {
     setSearchOpen(false); setSearchQuery('');
-    setDateSearchMode(false); setDateStart(''); setDateEnd('');
-    setDateSearchResults(null); setViewingDateResults(false);
+    dispatchDateSearch({ type: 'close' });
     savedMessagesRef.current = null;
   }, [chat.id]);
   // Sync muted state when chat changes
@@ -500,18 +559,15 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   // Date-range search: call server endpoint
   const runDateSearch = useCallback(async () => {
     if (!dateStart || !dateEnd) return;
-    setDateSearchLoading(true);
-    setDateSearchResults(null);
+    dispatchDateSearch({ type: 'search-start' });
     try {
       const startTs = Math.floor(new Date(dateStart).getTime() / 1000);
       const endTs = Math.floor(new Date(dateEnd + 'T23:59:59').getTime() / 1000);
       const res = await api.searchMessages(chat.id, chat.type, startTs, endTs, searchQuery || undefined);
-      setDateSearchResults(res.messages);
+      dispatchDateSearch({ type: 'search-success', results: res.messages });
     } catch (err) {
       console.error('Date search failed:', err);
-      setDateSearchResults([]);
-    } finally {
-      setDateSearchLoading(false);
+      dispatchDateSearch({ type: 'search-success', results: [] });
     }
   }, [chat.id, chat.type, dateStart, dateEnd, searchQuery]);
 
@@ -528,7 +584,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
     }
     dispatchMessages({ type: 'replace', messages: dateSearchResults, hasMore: false });
     hasMoreRef.current = false;
-    setViewingDateResults(true);
+    dispatchDateSearch({ type: 'start-viewing' });
     // Scroll to the clicked message after render
     requestAnimationFrame(() => {
       const el = document.getElementById(`msg-${msgId}`);
@@ -550,9 +606,8 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
     } else {
       loadMessages();
     }
-    setViewingDateResults(false);
+    dispatchDateSearch({ type: 'stop-viewing' });
     setViewingJumpedMessage(false);
-    setDateSearchResults(null);
   }, [loadMessages]);
 
   // Check manager status when entering a channel
@@ -1904,7 +1959,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); setDateSearchMode(false); setDateSearchResults(null); }
+                if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); dispatchDateSearch({ type: 'close' }); }
                 if (e.key === 'Enter' && !dateSearchMode) setSearchMatchIdx((i) => i + (e.shiftKey ? -1 : 1));
                 if (e.key === 'Enter' && dateSearchMode && !e.shiftKey && dateStart && dateEnd) runDateSearch();
                 if (e.key === 'Enter' && dateSearchMode && searchMatches.length > 0) setSearchMatchIdx((i) => i + (e.shiftKey ? -1 : 1));
@@ -1930,7 +1985,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
               </>
             )}
             <button
-              onClick={() => { setDateSearchMode((m) => !m); setDateSearchResults(null); }}
+              onClick={() => dispatchDateSearch({ type: 'toggle-mode' })}
               className={clsx(
                 'rounded p-1 transition',
                 dateSearchMode
@@ -1941,7 +1996,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
             >
               <CalendarDays size={15} />
             </button>
-            <button onClick={() => { setSearchOpen(false); setSearchQuery(''); setDateSearchMode(false); setDateSearchResults(null); }} className="rounded p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700">
+            <button onClick={() => { setSearchOpen(false); setSearchQuery(''); dispatchDateSearch({ type: 'close' }); }} className="rounded p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700">
               <X size={15} />
             </button>
           </div>
@@ -1953,14 +2008,14 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
               <input
                 type="date"
                 value={dateStart}
-                onChange={(e) => setDateStart(e.target.value)}
+                onChange={(e) => dispatchDateSearch({ type: 'set-range', start: e.target.value })}
                 className="rounded border border-surface-300 bg-white px-2 py-1 text-xs text-surface-900 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
               />
               <span className="text-xs text-surface-600">Bis</span>
               <input
                 type="date"
                 value={dateEnd}
-                onChange={(e) => setDateEnd(e.target.value)}
+                onChange={(e) => dispatchDateSearch({ type: 'set-range', end: e.target.value })}
                 className="rounded border border-surface-300 bg-white px-2 py-1 text-xs text-surface-900 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
               />
               <button
