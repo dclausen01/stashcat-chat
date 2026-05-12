@@ -1,10 +1,10 @@
-import { useRef, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 import { Mic, Play, Pause } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../../api';
 import type { Message } from '../../types';
 
-export function VoiceMessagePlayer({
+function VoiceMessagePlayerImpl({
   file,
   isOwn,
 }: {
@@ -95,3 +95,5 @@ export function VoiceMessagePlayer({
     </div>
   );
 }
+
+export const VoiceMessagePlayer = memo(VoiceMessagePlayerImpl);

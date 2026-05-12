@@ -1,4 +1,6 @@
-export function DateSeparator({ label }: { label: string }) {
+import { memo } from 'react';
+
+function DateSeparatorImpl({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3 py-2 px-4">
       <div className="h-px flex-1 bg-surface-200 dark:bg-surface-700" />
@@ -9,3 +11,5 @@ export function DateSeparator({ label }: { label: string }) {
     </div>
   );
 }
+
+export const DateSeparator = memo(DateSeparatorImpl);

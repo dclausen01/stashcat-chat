@@ -2,8 +2,19 @@ import { Router, type Response } from 'express';
 
 const router = Router();
 
-const linkPreviewCache = new Map<string, { title?: string; description?: string; image?: string; siteName?: string; fetchedAt: number }>();
+type PreviewEntry = { title?: string; description?: string; image?: string; siteName?: string; fetchedAt: number };
+const linkPreviewCache = new Map<string, PreviewEntry>();
 const PREVIEW_TTL = 3600_000; // 1 hour
+const PREVIEW_MAX_ENTRIES = 500;
+
+function cachePreview(url: string, entry: PreviewEntry) {
+  // LRU-style eviction: when at capacity, drop the oldest entry (Map preserves insertion order).
+  if (linkPreviewCache.size >= PREVIEW_MAX_ENTRIES && !linkPreviewCache.has(url)) {
+    const oldestKey = linkPreviewCache.keys().next().value;
+    if (oldestKey !== undefined) linkPreviewCache.delete(oldestKey);
+  }
+  linkPreviewCache.set(url, entry);
+}
 
 function isBlockedHost(hostname: string): boolean {
   return /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.|169\.254\.|localhost|::1|\[::1\]|fc|fd)/i.test(hostname);
@@ -59,7 +70,7 @@ async function extractAndRespondPreview(response: globalThis.Response, url: stri
     fetchedAt: Date.now(),
   };
 
-  linkPreviewCache.set(url, result);
+  cachePreview(url, result);
   res.json(result);
 }
 

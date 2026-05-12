@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { ThumbsUp, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../../api';
 import Avatar from '../Avatar';
 
-export function LikeBadge({ count, liked, onToggle, messageId }: { count: number; liked: boolean; onToggle: () => void; messageId: string }) {
+function LikeBadgeImpl({ count, liked, onToggle, messageId }: { count: number; liked: boolean; onToggle: () => void; messageId: string }) {
   const [showPopup, setShowPopup] = useState(false);
   const [likers, setLikers] = useState<Array<{ name: string; image?: string }> | null>(null);
   const [loadingLikers, setLoadingLikers] = useState(false);
@@ -90,3 +90,5 @@ export function LikeBadge({ count, liked, onToggle, messageId }: { count: number
     </span>
   );
 }
+
+export const LikeBadge = memo(LikeBadgeImpl);

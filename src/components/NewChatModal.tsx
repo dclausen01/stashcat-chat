@@ -3,16 +3,8 @@ import { X, Search, MessageSquarePlus, Loader2, Check } from 'lucide-react';
 import { FocusTrap } from 'focus-trap-react';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import * as api from '../api';
-import type { Conversation } from '../types';
+import type { Conversation, RawUser } from '../types';
 import Avatar from './Avatar';
-
-interface RawUser {
-  id?: string | number;
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  image?: string;
-}
 
 interface NewChatModalProps {
   companyId: string;

@@ -7,16 +7,8 @@ import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { CalendarEvent } from '../api';
-import type { ChatTarget } from '../types';
+import type { ChatTarget, RawUser } from '../types';
 import { getCleanName } from '../utils/subchannels';
-
-interface RawUser {
-  id?: string;
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  image?: string;
-}
 
 interface RawChannel {
   id?: string;

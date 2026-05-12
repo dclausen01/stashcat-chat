@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import type { Message } from '../../types';
 
 const POLL_INVITE_KINDS = new Set([
@@ -50,7 +50,7 @@ function renderPollText(text: string): ReactNode[] {
   return parts.length > 0 ? parts : [clean];
 }
 
-export function PollInviteMessage({ msg, onOpenPolls, onOpenPoll }: { msg: Message; onOpenPolls?: () => void; onOpenPoll?: (pollId: string) => void }) {
+function PollInviteMessageImpl({ msg, onOpenPolls, onOpenPoll }: { msg: Message; onOpenPolls?: () => void; onOpenPoll?: (pollId: string) => void }) {
   const time = msg.time
     ? new Date(msg.time * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
     : '';
@@ -84,3 +84,5 @@ export function PollInviteMessage({ msg, onOpenPolls, onOpenPoll }: { msg: Messa
     </div>
   );
 }
+
+export const PollInviteMessage = memo(PollInviteMessageImpl);

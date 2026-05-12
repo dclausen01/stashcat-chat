@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import type { Message } from '../../types';
 
 export function isCalendarEventMessage(msg: Message): boolean {
@@ -35,7 +35,7 @@ function renderEventText(text: string): ReactNode[] {
   return parts.length > 0 ? parts : [clean];
 }
 
-export function CalendarEventCard({ msg, onOpenCalendar, onOpenEvent }: { msg: Message; onOpenCalendar?: () => void; onOpenEvent?: (eventId: string) => void }) {
+function CalendarEventCardImpl({ msg, onOpenCalendar, onOpenEvent }: { msg: Message; onOpenCalendar?: () => void; onOpenEvent?: (eventId: string) => void }) {
   const time = msg.time
     ? new Date(msg.time * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
     : '';
@@ -69,3 +69,5 @@ export function CalendarEventCard({ msg, onOpenCalendar, onOpenEvent }: { msg: M
     </div>
   );
 }
+
+export const CalendarEventCard = memo(CalendarEventCardImpl);

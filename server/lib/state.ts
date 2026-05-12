@@ -50,9 +50,6 @@ export interface SSEConnection {
 /** keyed by clientKey */
 export const activeSSE = new Map<string, SSEConnection>();
 
-/** Pending key_sync_request events received via Socket.io, keyed by clientKey → userId → event payload */
-export const pendingKeyRequests = new Map<string, Map<string, unknown>>();
-
 export function pushSSE(clientKey: string, event: string, data: unknown) {
   const conn = activeSSE.get(clientKey);
   if (!conn) return;

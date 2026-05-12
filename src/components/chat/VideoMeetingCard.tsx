@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Video } from 'lucide-react';
 import type { Message } from '../../types';
 
@@ -7,7 +8,7 @@ export function isVideoMeetingMessage(msg: Message): boolean {
   return VIDEO_MSG_RE.test(msg.text || '');
 }
 
-export function VideoMeetingCard({ msg }: { msg: Message }) {
+function VideoMeetingCardImpl({ msg }: { msg: Message }) {
   const match = (msg.text || '').match(VIDEO_MSG_RE);
   if (!match) return null;
   const [, startTime, link] = match;
@@ -48,3 +49,5 @@ export function VideoMeetingCard({ msg }: { msg: Message }) {
     </div>
   );
 }
+
+export const VideoMeetingCard = memo(VideoMeetingCardImpl);

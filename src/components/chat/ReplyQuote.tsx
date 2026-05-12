@@ -1,7 +1,8 @@
+import { memo } from 'react';
 import { clsx } from 'clsx';
 import type { Message } from '../../types';
 
-export function ReplyQuote({ msg, isOwn }: { msg: Message; isOwn: boolean }) {
+function ReplyQuoteImpl({ msg, isOwn }: { msg: Message; isOwn: boolean }) {
   const senderName = msg.sender ? `${msg.sender.first_name ?? ''} ${msg.sender.last_name ?? ''}`.trim() || 'Unbekannt' : 'Unbekannt';
   const isDeleted = msg.deleted || msg.is_deleted_by_manager;
   const text = isDeleted ? 'Nachricht wurde gelöscht' : (msg.text || '');
@@ -30,3 +31,5 @@ export function ReplyQuote({ msg, isOwn }: { msg: Message; isOwn: boolean }) {
     </div>
   );
 }
+
+export const ReplyQuote = memo(ReplyQuoteImpl);

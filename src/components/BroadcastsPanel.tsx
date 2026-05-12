@@ -10,15 +10,7 @@ import { fileDownloadUrl } from '../api/files';
 import Avatar from './Avatar';
 import MessageInput from './MessageInput';
 import { useConfirm } from '../context/ConfirmContext';
-import type { Broadcast, BroadcastMessage } from '../types';
-
-interface RawUser {
-  id?: string;
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  image?: string;
-}
+import type { Broadcast, BroadcastMessage, RawUser } from '../types';
 
 interface ChannelInfo {
   id: string;

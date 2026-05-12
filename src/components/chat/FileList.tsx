@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { FileText, Eye } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../../api';
@@ -5,7 +6,7 @@ import { fileIcon } from '../../utils/fileIcon';
 import type { Message } from '../../types';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 
-export function FileList({
+function FileListImpl({
   files,
   isOwn,
   showImagesInline,
@@ -105,3 +106,5 @@ export function FileList({
     </div>
   );
 }
+
+export const FileList = memo(FileListImpl);

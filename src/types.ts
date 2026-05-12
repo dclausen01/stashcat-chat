@@ -11,6 +11,18 @@ export interface User {
   socket_id?: string;
 }
 
+/**
+ * Loose user shape as returned by the Stashcat REST API in member/search
+ * responses. All fields are optional because the API is inconsistent.
+ */
+export interface RawUser {
+  id?: string | number;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  image?: string;
+}
+
 export interface Channel {
   id: string;
   name: string;
