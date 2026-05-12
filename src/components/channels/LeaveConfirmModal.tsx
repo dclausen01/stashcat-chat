@@ -4,6 +4,7 @@ import { clsx } from 'clsx';
 import * as api from '../../api';
 import type { ChatTarget } from '../../types';
 import { getCleanName } from '../../utils/subchannels';
+import { getErrorMessage } from '../../utils/errorMessage';
 
 export function LeaveConfirmModal({ chat, onClose, onLeft }: {
   chat: ChatTarget;
@@ -18,7 +19,7 @@ export function LeaveConfirmModal({ chat, onClose, onLeft }: {
       await api.quitChannel(chat.id);
       onLeft();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Verlassen fehlgeschlagen');
+      alert(getErrorMessage(err, 'Verlassen fehlgeschlagen'));
       setLeaving(false);
     }
   };

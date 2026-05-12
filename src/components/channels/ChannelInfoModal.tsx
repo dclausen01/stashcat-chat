@@ -4,6 +4,7 @@ import { clsx } from 'clsx';
 import * as api from '../../api';
 import type { ChatTarget, Channel } from '../../types';
 import { getCleanName, getParentId, encodeSubchannelName } from '../../utils/subchannels';
+import { getErrorMessage } from '../../utils/errorMessage';
 
 function typeLabel(type: string): string {
   switch (type) {
@@ -43,7 +44,7 @@ export function ChannelInfoModal({ chat, channels, onClose }: { chat: ChatTarget
       setInfo(ch);
       setLoading(false);
     }).catch(err => {
-      setError(err instanceof Error ? err.message : 'Fehler beim Laden');
+      setError(getErrorMessage(err, 'Fehler beim Laden'));
       setLoading(false);
     });
   }, [chat.id]);
@@ -72,7 +73,7 @@ export function ChannelInfoModal({ chat, channels, onClose }: { chat: ChatTarget
       window.dispatchEvent(new CustomEvent('channel-renamed', { detail: { channelId: chat.id, newName } }));
       setParentMsg(selectedParentId ? 'Parent gesetzt. Tipp: "Mit Parent synchronisieren" überträgt Mitglieder.' : 'Parent entfernt.');
     } catch (err) {
-      setParentMsg(err instanceof Error ? err.message : 'Speichern fehlgeschlagen');
+      setParentMsg(getErrorMessage(err, 'Speichern fehlgeschlagen'));
     } finally {
       setSavingParent(false);
     }
@@ -99,7 +100,7 @@ export function ChannelInfoModal({ chat, channels, onClose }: { chat: ChatTarget
         ? `${toInvite.length} Mitglied(er) synchronisiert.`
         : 'Bereits synchronisiert.');
     } catch (err) {
-      setSyncMsg(err instanceof Error ? err.message : 'Sync fehlgeschlagen');
+      setSyncMsg(getErrorMessage(err, 'Sync fehlgeschlagen'));
     } finally {
       setSyncing(false);
     }

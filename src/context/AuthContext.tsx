@@ -9,11 +9,10 @@ interface AuthState {
 }
 
 interface AuthContextType extends AuthState {
-  login: (email: string, password: string, securityPassword: string) => Promise<void>;
   /**
    * Finalize a multi-step login (password or device flow).
-   * The token is already persisted by the api.loginFinalizeWith* functions.
-   * @deprecated Use the phased login api functions directly + finishLogin instead.
+   * The token is already persisted by the api.loginFinalizeWith* functions —
+   * this just flips React state to logged in and stores the user.
    */
   finishLogin: (user: User) => void;
   logout: () => void;
@@ -51,11 +50,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const login = useCallback(async (email: string, password: string, securityPassword: string) => {
-    const res = await api.login(email, password, securityPassword);
-    setState({ loggedIn: true, user: res.user });
-  }, []);
-
   const finishLogin = useCallback((user: User) => {
     setState({ loggedIn: true, user });
   }, []);
@@ -76,8 +70,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ...state, login, finishLogin, logout, setUser }),
-    [state, login, finishLogin, logout, setUser],
+    () => ({ ...state, finishLogin, logout, setUser }),
+    [state, finishLogin, logout, setUser],
   );
 
   return (

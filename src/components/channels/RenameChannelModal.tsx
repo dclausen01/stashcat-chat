@@ -4,6 +4,7 @@ import { clsx } from 'clsx';
 import * as api from '../../api';
 import type { ChatTarget } from '../../types';
 import { getCleanName, getParentId, encodeSubchannelName } from '../../utils/subchannels';
+import { getErrorMessage } from '../../utils/errorMessage';
 
 export function RenameChannelModal({ chat, onClose, onRenamed }: {
   chat: ChatTarget;
@@ -28,7 +29,7 @@ export function RenameChannelModal({ chat, onClose, onRenamed }: {
       onRenamed(encodedName);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Umbenennen fehlgeschlagen');
+      setError(getErrorMessage(err, 'Umbenennen fehlgeschlagen'));
     } finally {
       setSaving(false);
     }

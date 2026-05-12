@@ -4,6 +4,7 @@ import { clsx } from 'clsx';
 import * as api from '../../api';
 import type { ChatTarget } from '../../types';
 import { getCleanName, getParentId } from '../../utils/subchannels';
+import { getErrorMessage } from '../../utils/errorMessage';
 
 export function DeleteConfirmModal({ chat, channels, onClose, onDeleted }: {
   chat: ChatTarget;
@@ -43,7 +44,7 @@ export function DeleteConfirmModal({ chat, channels, onClose, onDeleted }: {
       window.dispatchEvent(new CustomEvent('channel-deleted', { detail: { channelId: chat.id } }));
       onDeleted();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Löschen fehlgeschlagen');
+      alert(getErrorMessage(err, 'Löschen fehlgeschlagen'));
       setDeleting(false);
     }
   };
