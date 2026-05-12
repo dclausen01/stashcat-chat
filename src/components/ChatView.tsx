@@ -350,10 +350,10 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   // Mobile-only modals (mirror of desktop ChannelDropdownMenu actions)
-  const [showInfoModal, setShowInfoModal] = useState(false);
-  const [showRenameModal, setShowRenameModal] = useState(false);
-  const [showLeaveModal, setShowLeaveModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  // Channel-dropdown modals (info / rename / leave / delete). They all
+  // originate from the same dropdown menu and are mutually exclusive.
+  const [channelModal, setChannelModal] = useState<null | 'info' | 'rename' | 'leave' | 'delete'>(null);
+  const closeChannelModal = useCallback(() => setChannelModal(null), []);
   const [exporting, setExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMatchIdx, setSearchMatchIdx] = useState(0);
@@ -1874,7 +1874,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
               )}
               {chat.type === 'channel' && isManager && (
                 <button
-                  onClick={() => { setShowRenameModal(true); setMobileMenuOpen(false); }}
+                  onClick={() => { setChannelModal('rename'); setMobileMenuOpen(false); }}
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
                 >
                   <TypeIcon size={18} className="text-surface-400" />
@@ -1883,7 +1883,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
               )}
               {chat.type === 'channel' && (
                 <button
-                  onClick={() => { setShowInfoModal(true); setMobileMenuOpen(false); }}
+                  onClick={() => { setChannelModal('info'); setMobileMenuOpen(false); }}
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
                 >
                   <Info size={18} className="text-surface-400" />
@@ -1927,14 +1927,14 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
                 <>
                   <div className="my-1 border-t border-surface-200 dark:border-surface-700" />
                   <button
-                    onClick={() => { setShowLeaveModal(true); setMobileMenuOpen(false); }}
+                    onClick={() => { setChannelModal('leave'); setMobileMenuOpen(false); }}
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
                   >
                     <LogOut size={18} className="text-surface-400" />
                     Channel verlassen
                   </button>
                   <button
-                    onClick={() => { setShowDeleteModal(true); setMobileMenuOpen(false); }}
+                    onClick={() => { setChannelModal('delete'); setMobileMenuOpen(false); }}
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-red-500 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                   >
                     <Trash2 size={18} />
@@ -2407,29 +2407,29 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
     )}
 
     {/* Mobile-only manager modals (mirror of desktop ChannelDropdownMenu) */}
-    {showInfoModal && chat.type === 'channel' && (
-      <ChannelInfoModal chat={chat} channels={channels} onClose={() => setShowInfoModal(false)} />
+    {channelModal === 'info' && chat.type === 'channel' && (
+      <ChannelInfoModal chat={chat} channels={channels} onClose={closeChannelModal} />
     )}
-    {showRenameModal && chat.type === 'channel' && (
+    {channelModal === 'rename' && chat.type === 'channel' && (
       <RenameChannelModal
         chat={chat}
-        onClose={() => setShowRenameModal(false)}
-        onRenamed={(newName) => { setShowRenameModal(false); setChatName(getCleanName(newName)); }}
+        onClose={closeChannelModal}
+        onRenamed={(newName) => { closeChannelModal(); setChatName(getCleanName(newName)); }}
       />
     )}
-    {showLeaveModal && chat.type === 'channel' && (
+    {channelModal === 'leave' && chat.type === 'channel' && (
       <LeaveConfirmModal
         chat={chat}
-        onClose={() => setShowLeaveModal(false)}
-        onLeft={() => { setShowLeaveModal(false); onGoHome(); }}
+        onClose={closeChannelModal}
+        onLeft={() => { closeChannelModal(); onGoHome(); }}
       />
     )}
-    {showDeleteModal && chat.type === 'channel' && (
+    {channelModal === 'delete' && chat.type === 'channel' && (
       <DeleteConfirmModal
         chat={chat}
         channels={channels}
-        onClose={() => setShowDeleteModal(false)}
-        onDeleted={() => { setShowDeleteModal(false); onGoHome(); }}
+        onClose={closeChannelModal}
+        onDeleted={() => { closeChannelModal(); onGoHome(); }}
       />
     )}
 
