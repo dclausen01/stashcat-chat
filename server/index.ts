@@ -9,46 +9,6 @@ import * as fsSync from 'fs';
 import { randomBytes, createHash, pbkdf2Sync, createDecipheriv } from 'crypto';
 import { Readable } from 'stream';
 import { StashcatClient, type RsaPrivateKeyJwk, type ActiveDevice } from 'stashcat-api';
-
-function debugLog(...args: unknown[]) {
-  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-  const line = `[${new Date().toISOString()}] ${msg}\n`;
-  const logPath = path.join(process.cwd(), 'e2e-debug.log');
-  try {
-    fsSync.appendFileSync(logPath, line);
-  } catch (e) {
-    console.warn('[debugLog] could not write to', logPath, e instanceof Error ? e.message : e);
-  }
-  console.log(...args);
-}
-
-/** Server log to file for debugging - works in both dev and production */
-function serverLog(...args: unknown[]) {
-  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-  const line = `[${new Date().toISOString()}] ${msg}\n`;
-  
-  // Try multiple possible log locations (dev vs production)
-  const possiblePaths = [
-    path.join(process.cwd(), 'server.log'),
-    path.join(process.cwd(), '..', 'server.log'),
-    path.join('/tmp', 'stashcat-server.log'),
-  ];
-  
-  let logged = false;
-  for (const logPath of possiblePaths) {
-    try {
-      fsSync.appendFileSync(logPath, line);
-      logged = true;
-      break;
-    } catch {
-      // Try next path
-    }
-  }
-  
-  // Always log to console as fallback
-  console.log(...args);
-}
-import type { RealtimeManager } from 'stashcat-api';
 import type { MessageSyncPayload } from 'stashcat-api';
 import { encryptSession, decryptSession } from './token-crypto';
 import { decryptMessageInPlace } from './lib/decrypt';
@@ -60,13 +20,20 @@ import {
   invalidateClient,
 } from './lib/get-client';
 import { authenticate } from './middleware/auth';
+import { debugLog, serverLog, errorMessage } from './lib/logging';
+import {
+  botCache,
+  preAuthCache,
+  PREAUTH_TTL,
+  PREAUTH_MAX_ENTRIES,
+  consumePreAuthToken,
+  activeSSE,
+  pendingKeyRequests,
+  pushSSE,
+  type BotInfo,
+} from './lib/state';
 import { getOfficeDocType, buildViewerConfig, validateDownloadToken, createDownloadToken, PUBLIC_URL } from './onlyoffice';
 import { ncListFolder, ncDownload, ncUpload, ncDelete, ncMove, ncMkcol, ncQuota, ncProbe, ncCreateShare, type NCCredentials } from './nextcloud';
-
-/** Extract error message safely from unknown catch values. */
-function errorMessage(err: unknown, fallback = 'Failed'): string {
-  return err instanceof Error ? err.message : fallback;
-}
 
 // Multer: store uploads in OS temp dir
 const upload = multer({ dest: os.tmpdir() });
@@ -89,61 +56,7 @@ app.use('/api/', apiLimiter);
 // Resolve req.client for all /api routes except login, SSE and OnlyOffice downloads.
 app.use(authenticate);
 
-// ── Chat Bot cache (for video meetings) ──────────────────────────────────────
-interface BotInfo {
-  botUserId: string;
-  botConvId: string;
-}
-const botCache = new Map<string, BotInfo>(); // keyed by clientKey
-
-// ── Pre-Auth cache (short-lived, for multi-step login) ───────────────────────
-
-interface PreAuthEntry {
-  client: StashcatClient;
-  createdAt: number;
-  expiresAt: number;
-  loginPassword?: string;
-}
-const preAuthCache = new Map<string, PreAuthEntry>();
-const PREAUTH_TTL = 5 * 60 * 1000; // 5 minutes
-const PREAUTH_MAX_ENTRIES = 100;
-
-// Cleanup expired preAuth entries periodically.
-// (clientCache has its own sweeper inside lib/get-client.ts.)
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of preAuthCache) {
-    if (now > entry.expiresAt) preAuthCache.delete(key);
-  }
-}, 60_000);
-
-// ── SSE connection tracking ──────────────────────────────────────────────────
-
-interface SSEConnection {
-  client: StashcatClient;
-  realtime?: RealtimeManager;
-  sseClients: Set<express.Response>;
-}
-const activeSSE = new Map<string, SSEConnection>(); // keyed by clientKey
-
-/** Pending key_sync_request events received via Socket.io, keyed by clientKey → userId → event payload */
-const pendingKeyRequests = new Map<string, Map<string, unknown>>();
-
-function pushSSE(clientKey: string, event: string, data: unknown) {
-  const conn = activeSSE.get(clientKey);
-  if (!conn) return;
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  for (const res of conn.sseClients) {
-    try {
-      res.write(payload);
-      if (typeof (res as unknown as Record<string, unknown>).flush === 'function') {
-        (res as unknown as { flush: () => void }).flush();
-      }
-    } catch { conn.sseClients.delete(res); }
-  }
-}
-
-// Client resolution moved to ./lib/get-client.ts
+// Shared state and helpers moved to ./lib/state.ts
 
 // ── Realtime setup ───────────────────────────────────────────────────────────
 
@@ -489,20 +402,6 @@ app.post('/api/login/credentials', async (req, res) => {
     res.status(401).json({ error: errorMessage(err, 'Login failed') });
   }
 });
-
-/**
- * Helper: consume a preAuthToken, validating TTL. Returns client + loginPassword.
- */
-function consumePreAuthToken(preAuthToken: string): { client: StashcatClient; loginPassword?: string } | null {
-  const entry = preAuthCache.get(preAuthToken);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    preAuthCache.delete(preAuthToken);
-    return null;
-  }
-  preAuthCache.delete(preAuthToken);
-  return { client: entry.client, loginPassword: entry.loginPassword };
-}
 
 /**
  * Step 2a: Password login — unlock E2E with securityPassword.
