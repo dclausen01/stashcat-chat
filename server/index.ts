@@ -34,6 +34,9 @@ import {
 } from './lib/state';
 import { getOfficeDocType, buildViewerConfig, validateDownloadToken, createDownloadToken, PUBLIC_URL } from './onlyoffice';
 import { ncListFolder, ncDownload, ncUpload, ncDelete, ncMove, ncMkcol, ncQuota, ncProbe, ncCreateShare, type NCCredentials } from './nextcloud';
+import notificationsRouter from './routes/notifications';
+import calendarRouter from './routes/calendar';
+import callsRouter from './routes/calls';
 
 // Multer: store uploads in OS temp dir
 const upload = multer({ dest: os.tmpdir() });
@@ -55,6 +58,11 @@ app.use('/api/', apiLimiter);
 
 // Resolve req.client for all /api routes except login, SSE and OnlyOffice downloads.
 app.use(authenticate);
+
+// ── Domain routers ───────────────────────────────────────────────────────────
+app.use('/api', notificationsRouter);
+app.use('/api', calendarRouter);
+app.use('/api', callsRouter);
 
 // Shared state and helpers moved to ./lib/state.ts
 
@@ -2012,189 +2020,7 @@ app.delete('/api/broadcasts/:id/members', async (req, res) => {
   }
 });
 
-// ── Calendar ─────────────────────────────────────────────────────────────────
 
-app.get('/api/calendar/events', async (req, res) => {
-  try {
-    const client = req.client!;
-    const start = Number(req.query.start);
-    const end = Number(req.query.end);
-    if (!start || !end) return res.status(400).json({ error: 'start and end required' });
-    res.json(await client.listEvents({ start, end }));
-  } catch (err) {
-    res.status(500).json({ error: errorMessage(err) });
-  }
-});
-
-app.get('/api/calendar/events/:id', async (req, res) => {
-  try {
-    const client = req.client!;
-    const event = await client.getEventDetails([req.params.id]);
-    if (!event) return res.status(404).json({ error: 'Event not found' });
-    res.json(event);
-  } catch (err) {
-    res.status(500).json({ error: errorMessage(err) });
-  }
-});
-
-app.post('/api/calendar/events', async (req, res) => {
-  try {
-    const client = req.client!;
-    const { notify_chat_id, notify_chat_type, ...eventData } = req.body;
-    const eventId = await client.createEvent(eventData);
-
-    // Send notification message to the source chat (if provided)
-    if (notify_chat_id && notify_chat_type && eventId) {
-      try {
-        const eName = eventData.name || 'Unbenannt';
-        const startTs = Number(eventData.start);
-        const endTs = Number(eventData.end);
-        const isAllday = eventData.allday === true || eventData.allday === '1';
-        const dateOpts: Intl.DateTimeFormatOptions = { day: '2-digit', month: '2-digit', year: 'numeric' };
-        const timeOpts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
-        const startDate = new Date(startTs * 1000).toLocaleDateString('de-DE', dateOpts);
-        const endDate = new Date(endTs * 1000).toLocaleDateString('de-DE', dateOpts);
-        const startTime = isAllday ? '' : `, ${new Date(startTs * 1000).toLocaleTimeString('de-DE', timeOpts)} Uhr`;
-        const endTime = isAllday ? '' : `, ${new Date(endTs * 1000).toLocaleTimeString('de-DE', timeOpts)} Uhr`;
-        const loc = eventData.location ? `\nOrt: ${eventData.location}` : '';
-        const desc = eventData.description ? `\n${eventData.description}` : '';
-
-        const msgText = `📅 **Neuer Termin: „${eName}"**${desc}\n${isAllday ? 'Ganztägig: ' : ''}${startDate}${startTime} – ${endDate}${endTime}${loc}\n\nDetails im Kalender ansehen. [%event:${eventId}%]`;
-
-        await client.sendMessage({ target: notify_chat_id, target_type: notify_chat_type, text: msgText }).catch(() => {});
-      } catch { /* non-critical */ }
-    }
-
-    res.json({ id: eventId });
-  } catch (err) {
-    res.status(500).json({ error: errorMessage(err) });
-  }
-});
-
-app.put('/api/calendar/events/:id', async (req, res) => {
-  try {
-    const client = req.client!;
-    const eventId = await client.editEvent({ ...req.body, event_id: req.params.id });
-    res.json({ id: eventId });
-  } catch (err) {
-    res.status(500).json({ error: errorMessage(err) });
-  }
-});
-
-app.delete('/api/calendar/events/:id', async (req, res) => {
-  try {
-    const client = req.client!;
-    await client.deleteEvents([req.params.id]);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: errorMessage(err) });
-  }
-});
-
-app.post('/api/calendar/events/:id/respond', async (req, res) => {
-  try {
-    const client = req.client!;
-    const { status: rsvp } = req.body as { status: string };
-    const me = await client.getMe() as unknown as Record<string, unknown>;
-    await client.respondToEvent(req.params.id, String(me.id), rsvp as 'accepted' | 'declined' | 'open');
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: errorMessage(err) });
-  }
-});
-
-app.post('/api/calendar/events/:id/invite', async (req, res) => {
-  try {
-    const client = req.client!;
-    const { userIds } = req.body as { userIds: string[] };
-    await client.inviteToEvent(req.params.id, userIds);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: errorMessage(err) });
-  }
-});
-
-app.get('/api/calendar/channels/:companyId', async (req, res) => {
-  try {
-    const client = req.client!;
-    res.json(await client.listChannelsHavingEvents(req.params.companyId));
-  } catch (err) {
-    res.status(500).json({ error: errorMessage(err) });
-  }
-});
-
-// ── Notifications ─────────────────────────────────────────────────────────────
-
-app.get('/api/notifications', async (req, res) => {
-  try {
-    const client = req.client!;
-    const limit = Number(req.query.limit) || 50;
-    const offset = Number(req.query.offset) || 0;
-    const notifications = await client.getNotifications(limit, offset);
-    serverLog(`[notifications] GET limit=${limit} offset=${offset} → ${Array.isArray(notifications) ? notifications.length : 0} notifications`);
-    res.json(notifications);
-  } catch (err) {
-    serverLog(`[notifications] GET error: ${errorMessage(err)}`);
-    res.status(500).json({ error: errorMessage(err) });
-  }
-});
-
-app.get('/api/notifications/count', async (req, res) => {
-  try {
-    const client = req.client!;
-    const count = await client.getNotificationCount();
-    res.json({ count });
-  } catch (err) {
-    res.status(500).json({ error: errorMessage(err) });
-  }
-});
-
-app.delete('/api/notifications/:notificationId', async (req, res) => {
-  try {
-    const client = req.client!;
-    const notificationId = req.params.notificationId;
-    serverLog(`[notifications] DELETE id=${notificationId}`);
-    await client.deleteNotification(notificationId);
-    serverLog(`[notifications] DELETE id=${notificationId} — success`);
-    res.json({ ok: true });
-  } catch (err) {
-    serverLog(`[notifications] DELETE id=${req.params.notificationId} — FAILED: ${errorMessage(err)}`);
-    res.status(500).json({ error: errorMessage(err) });
-  }
-});
-
-app.delete('/api/notifications', async (req, res) => {
-  try {
-    const client = req.client!;
-    serverLog(`[notifications] DELETE ALL (serial)`);
-
-    // Fetch all notifications first
-    const notifications = await client.getNotifications(200, 0);
-    const items = Array.isArray(notifications) ? notifications : [];
-    serverLog(`[notifications] DELETE ALL — found ${items.length} notifications`);
-
-    // Delete each notification serially (Stashcat has no bulk delete endpoint)
-    let deleted = 0;
-    let errors = 0;
-    for (const n of items) {
-      const id = String((n as unknown as Record<string, unknown>).id ?? '');
-      if (!id) continue;
-      try {
-        await client.deleteNotification(id);
-        deleted++;
-      } catch (err) {
-        errors++;
-        serverLog(`[notifications] DELETE ALL — failed for id=${id}: ${errorMessage(err)}`);
-      }
-    }
-
-    serverLog(`[notifications] DELETE ALL — done: ${deleted} deleted, ${errors} errors`);
-    res.json({ ok: true, deleted, errors });
-  } catch (err) {
-    serverLog(`[notifications] DELETE ALL — FAILED: ${errorMessage(err)}`);
-    res.status(500).json({ error: errorMessage(err) });
-  }
-});
 
 // ── Key Sync (E2E key exchange) ───────────────────────────────────────────────
 
@@ -2718,73 +2544,6 @@ app.post('/api/polls/:id/answer', async (req, res) => {
   } catch (err) { res.status(500).json({ error: String(err) }); }
 });
 
-// ── Calls (WebRTC Audio) ──────────────────────────────────────────────────────
-
-app.post('/api/call/get_turn_server', async (req, res) => {
-  try {
-    const client = req.client!;
-    const data = client.api.createAuthenticatedRequestData({});
-    const result = await client.api.post<{ turn_server: unknown }>('/call/get_turn_server', data);
-    res.json(result.turn_server);
-  } catch (err) {
-    res.status(500).json({ error: errorMessage(err, 'TURN server request failed') });
-  }
-});
-
-app.post('/api/call/create', async (req, res) => {
-  try {
-    const client = req.client!;
-    const { callee_id, target_id, target, type, verification } = req.body as Record<string, string>;
-    const data = client.api.createAuthenticatedRequestData({
-      callee_id,
-      target_id: String(target_id),
-      target: target || 'conversation',
-      type: type || 'audio',
-      verification,
-    });
-    const result = await client.api.post<{ call: unknown }>('/call/create', data);
-    res.json(result.call);
-  } catch (err) {
-    res.status(500).json({ error: errorMessage(err, 'Call creation failed') });
-  }
-});
-
-app.post('/api/call/signal', async (req, res) => {
-  try {
-    const token = extractToken(req);
-    const sessionPayload = decryptSession(token);
-    const { clientKey, deviceId } = sessionPayload;
-    const conn = activeSSE.get(clientKey);
-    if (!conn?.realtime) {
-      return res.status(503).json({ error: 'Not connected to realtime' });
-    }
-    const socket = (conn.realtime as unknown as {
-      socket: { emit: (event: string, ...args: unknown[]) => void } | null;
-    }).socket;
-    if (!socket) {
-      return res.status(503).json({ error: 'Socket not available' });
-    }
-    const signalData = { ...req.body as Record<string, unknown>, deviceId };
-    socket.emit('signal', signalData);
-    serverLog(`[Call] Signal emitted: signalType=${(req.body as Record<string, unknown>).signalType}, call_id=${(req.body as Record<string, unknown>).call_id}`);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: errorMessage(err, 'Signal send failed') });
-  }
-});
-
-app.post('/api/call/end', async (req, res) => {
-  try {
-    const client = req.client!;
-    const { call_id } = req.body as { call_id: number | string };
-    const data = client.api.createAuthenticatedRequestData({ call_id: String(call_id) });
-    await client.api.post('/call/end', data);
-    res.json({ ok: true });
-  } catch {
-    // Call may already be ended — treat as success
-    res.json({ ok: true });
-  }
-});
 
 // ── OnlyOffice Document Server Integration (read-only) ──────────────────────
 
