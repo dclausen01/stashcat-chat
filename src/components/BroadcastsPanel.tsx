@@ -10,15 +10,8 @@ import { fileDownloadUrl } from '../api/files';
 import Avatar from './Avatar';
 import MessageInput from './MessageInput';
 import { useConfirm } from '../context/ConfirmContext';
-import type { Broadcast, BroadcastMessage } from '../types';
-
-interface RawUser {
-  id?: string;
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  image?: string;
-}
+import type { Broadcast, BroadcastMessage, RawUser } from '../types';
+import { formatUserName as userName } from '../utils/userName';
 
 interface ChannelInfo {
   id: string;
@@ -31,10 +24,6 @@ type ActiveTab = 'messages' | 'members';
 
 interface BroadcastsPanelProps {
   onClose: () => void;
-}
-
-function userName(u: RawUser): string {
-  return `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || u.email || String(u.id);
 }
 
 const formatTime = (ts?: number) => {

@@ -5,7 +5,7 @@ import * as api from '../api';
 import Avatar from './Avatar';
 import { useAuth } from '../context/AuthContext';
 import { useConfirm } from '../context/ConfirmContext';
-import type { ChatTarget } from '../types';
+import type { ChatTarget, RawUser } from '../types';
 
 interface RawMember {
   id?: string;
@@ -18,14 +18,6 @@ interface RawMember {
   manager?: boolean;
   pending?: boolean;
   membership_pending?: boolean;
-}
-
-interface RawUser {
-  id?: string;
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  image?: string;
 }
 
 

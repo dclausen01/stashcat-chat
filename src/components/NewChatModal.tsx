@@ -3,27 +3,15 @@ import { X, Search, MessageSquarePlus, Loader2, Check } from 'lucide-react';
 import { FocusTrap } from 'focus-trap-react';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import * as api from '../api';
-import type { Conversation } from '../types';
+import type { Conversation, RawUser } from '../types';
 import Avatar from './Avatar';
-
-interface RawUser {
-  id?: string | number;
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  image?: string;
-}
+import { formatUserName as userName } from '../utils/userName';
 
 interface NewChatModalProps {
   companyId: string;
   myUserId: string;
   onClose: () => void;
   onCreate: (conversation: Conversation) => void;
-}
-
-function userName(u: RawUser): string {
-  const name = `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim();
-  return name || u.email || String(u.id ?? '?');
 }
 
 const MAX_MEMBERS = 9;

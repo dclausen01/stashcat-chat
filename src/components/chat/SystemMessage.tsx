@@ -1,6 +1,7 @@
+import { memo } from 'react';
 import type { Message } from '../../types';
 
-export function SystemMessage({ msg }: { msg: Message }) {
+function SystemMessageImpl({ msg }: { msg: Message }) {
   const senderName = msg.sender ? `${msg.sender.first_name ?? ''} ${msg.sender.last_name ?? ''}`.trim() || 'Jemand' : 'Jemand';
   const time = msg.time
     ? new Date(msg.time * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
@@ -39,3 +40,5 @@ export function SystemMessage({ msg }: { msg: Message }) {
     </div>
   );
 }
+
+export const SystemMessage = memo(SystemMessageImpl);
