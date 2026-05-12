@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
+import React, { useState, useEffect, useRef, useReducer, useCallback, type ReactNode } from 'react';
 import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, FileText, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Eye, Star, Bell, BellOff, ChevronDown, MoreHorizontal, Mic, Play, Pause, ImageIcon, Info, Type as TypeIcon, Download, LogOut, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
@@ -180,6 +180,58 @@ function extractServiceLinks(description: string): { cleanDescription: string; l
 
 interface PendingMessage { text: string; replyTo: Message | null; time: number }
 
+// ── Messages slice ──────────────────────────────────────────────────────────
+// Bundles the four fields that always move together so the load/load-more/
+// search/reset transitions become single atomic dispatches instead of
+// 2–3 sequential setX calls.
+interface MessagesState {
+  messages: Message[];
+  loading: boolean;
+  loadingMore: boolean;
+  hasMore: boolean;
+}
+
+type MessagesAction =
+  | { type: 'load-start' }
+  | { type: 'load-success'; messages: Message[]; hasMore: boolean }
+  | { type: 'load-failure' }
+  | { type: 'load-more-start' }
+  | { type: 'load-more-end'; hasMore?: boolean }
+  | { type: 'replace'; messages: Message[]; hasMore?: boolean }
+  | { type: 'apply'; updater: (prev: Message[]) => Message[] }
+  | { type: 'set-has-more'; hasMore: boolean }
+  | { type: 'reset' };
+
+const INITIAL_MESSAGES_STATE: MessagesState = {
+  messages: [],
+  loading: true,
+  loadingMore: false,
+  hasMore: true,
+};
+
+function messagesReducer(state: MessagesState, action: MessagesAction): MessagesState {
+  switch (action.type) {
+    case 'load-start':
+      return { ...state, loading: true, hasMore: true };
+    case 'load-success':
+      return { messages: action.messages, hasMore: action.hasMore, loading: false, loadingMore: false };
+    case 'load-failure':
+      return { ...state, loading: false };
+    case 'load-more-start':
+      return { ...state, loadingMore: true };
+    case 'load-more-end':
+      return { ...state, loadingMore: false, ...(action.hasMore !== undefined ? { hasMore: action.hasMore } : {}) };
+    case 'set-has-more':
+      return { ...state, hasMore: action.hasMore };
+    case 'replace':
+      return { ...state, messages: action.messages, ...(action.hasMore !== undefined ? { hasMore: action.hasMore } : {}) };
+    case 'apply':
+      return { ...state, messages: action.updater(state.messages) };
+    case 'reset':
+      return INITIAL_MESSAGES_STATE;
+  }
+}
+
 export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessageTime, jumpKey, onJumpComplete, onStartCall, onToggleFavorite, onChannelImageUpdated, channels }: ChatViewProps) {
   const { user } = useAuth();
   const settings = useSettings();
@@ -200,10 +252,17 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   const fileBrowserOpen = fileBrowserOpenRaw && !fileBrowserStandalone;
   const confirmAsync = useConfirm();
   const announce = useAnnouncer();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const [messagesState, dispatchMessages] = useReducer(messagesReducer, INITIAL_MESSAGES_STATE);
+  const { messages, loading, loadingMore, hasMore } = messagesState;
+  // setMessages keeps the (prev) => next ergonomics callers expect; multi-field
+  // transitions (load, search, reset) go through dispatchMessages directly.
+  const setMessages = useCallback((next: Message[] | ((prev: Message[]) => Message[])) => {
+    if (typeof next === 'function') {
+      dispatchMessages({ type: 'apply', updater: next });
+    } else {
+      dispatchMessages({ type: 'replace', messages: next });
+    }
+  }, []);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [isManager, setIsManager] = useState(false);
@@ -337,14 +396,13 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   }, []);
 
   const loadMessages = useCallback(async () => {
-    setLoading(true);
-    setHasMore(true);
+    dispatchMessages({ type: 'load-start' });
     hasMoreRef.current = true;
     paginationOffsetRef.current = 0;
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
       const msgs = res;
-      
+
       // Determine first unread message BEFORE we mark them as read
       let firstUnreadId = null;
       const firstUnreadMsg = msgs.find(m => m.unread === true && String(m.sender?.id) !== userId);
@@ -366,7 +424,6 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
       }
       setFirstUnreadMsgId(firstUnreadId);
 
-      setMessages(msgs);
       // Update user name cache from loaded messages
       for (const m of msgs) {
         if (m.sender?.id && m.sender?.first_name) {
@@ -376,18 +433,16 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
           );
         }
       }
-      if (msgs.length < PAGE_SIZE) {
-        setHasMore(false);
-        hasMoreRef.current = false;
-      }
+      const moreAvailable = msgs.length >= PAGE_SIZE;
+      hasMoreRef.current = moreAvailable;
       paginationOffsetRef.current = msgs.length;
+      dispatchMessages({ type: 'load-success', messages: msgs, hasMore: moreAvailable });
+
       // Mark latest message as read
       const last = msgs[msgs.length - 1];
       if (last) api.markAsRead(chat.id, chat.type, String(last.id)).catch(() => {});
     } catch {
-      // errors are silently ignored
-    } finally {
-      setLoading(false);
+      dispatchMessages({ type: 'load-failure' });
     }
   }, [chat.id, chat.type]);
 
@@ -397,17 +452,15 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
     if (!container) return;
 
     loadingMoreRef.current = true;
-    setLoadingMore(true);
+    dispatchMessages({ type: 'load-more-start' });
     const prevHeight = container.scrollHeight;
 
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, paginationOffsetRef.current);
       const older = res;
 
-      if (older.length < PAGE_SIZE) {
-        setHasMore(false);
-        hasMoreRef.current = false;
-      }
+      const exhausted = older.length < PAGE_SIZE;
+      if (exhausted) hasMoreRef.current = false;
 
       if (older.length > 0) {
         paginationOffsetRef.current += older.length;
@@ -420,23 +473,27 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
             );
           }
         }
-        setMessages((prev) => {
-          const combined = [...older, ...prev];
-          const deduped = combined.filter(
-            (m, idx, arr) => arr.findIndex((x) => String(x.id) === String(m.id)) === idx
-          );
-          return deduped.sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
+        dispatchMessages({
+          type: 'apply',
+          updater: (prev) => {
+            const combined = [...older, ...prev];
+            const deduped = combined.filter(
+              (m, idx, arr) => arr.findIndex((x) => String(x.id) === String(m.id)) === idx
+            );
+            return deduped.sort((a, b) => (Number(a.time) || 0) - (Number(b.time) || 0));
+          },
         });
         // Preserve scroll position after prepend
         requestAnimationFrame(() => {
           if (container) container.scrollTop = container.scrollHeight - prevHeight;
         });
       }
+      dispatchMessages({ type: 'load-more-end', ...(exhausted ? { hasMore: false } : {}) });
     } catch (err) {
       console.error('Failed to load older messages:', err);
+      dispatchMessages({ type: 'load-more-end' });
     } finally {
       loadingMoreRef.current = false;
-      setLoadingMore(false);
     }
   }, [chat.id, chat.type]);
 
@@ -469,8 +526,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
         offset: paginationOffsetRef.current,
       };
     }
-    setMessages(dateSearchResults);
-    setHasMore(false);
+    dispatchMessages({ type: 'replace', messages: dateSearchResults, hasMore: false });
     hasMoreRef.current = false;
     setViewingDateResults(true);
     // Scroll to the clicked message after render
@@ -483,8 +539,11 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   // Restore normal message view
   const restoreMessages = useCallback(() => {
     if (savedMessagesRef.current) {
-      setMessages(savedMessagesRef.current.messages);
-      setHasMore(savedMessagesRef.current.hasMore);
+      dispatchMessages({
+        type: 'replace',
+        messages: savedMessagesRef.current.messages,
+        hasMore: savedMessagesRef.current.hasMore,
+      });
       hasMoreRef.current = savedMessagesRef.current.hasMore;
       paginationOffsetRef.current = savedMessagesRef.current.offset;
       savedMessagesRef.current = null;
@@ -631,8 +690,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
             offset: paginationOffsetRef.current,
           };
         }
-        setMessages(windowMsgs);
-        setHasMore(false);
+        dispatchMessages({ type: 'replace', messages: windowMsgs, hasMore: false });
         hasMoreRef.current = false;
         setViewingJumpedMessage(true);
 
