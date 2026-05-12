@@ -1,14 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
-import multer from 'multer';
-import os from 'os';
 import path from 'path';
-import fs from 'fs/promises';
-import * as fsSync from 'fs';
-import { randomBytes, createHash, pbkdf2Sync, createDecipheriv } from 'crypto';
-import { Readable } from 'stream';
-import { StashcatClient, type RsaPrivateKeyJwk, type ActiveDevice } from 'stashcat-api';
+import { randomBytes, pbkdf2Sync, createDecipheriv } from 'crypto';
+import { StashcatClient, type RsaPrivateKeyJwk } from 'stashcat-api';
 import type { MessageSyncPayload } from 'stashcat-api';
 import { encryptSession, decryptSession } from './token-crypto';
 import { decryptMessageInPlace } from './lib/decrypt';
@@ -20,20 +15,15 @@ import {
   invalidateClient,
 } from './lib/get-client';
 import { authenticate } from './middleware/auth';
-import { debugLog, serverLog, errorMessage } from './lib/logging';
+import { serverLog, errorMessage } from './lib/logging';
 import {
-  botCache,
   preAuthCache,
   PREAUTH_TTL,
   PREAUTH_MAX_ENTRIES,
   consumePreAuthToken,
   activeSSE,
-  pendingKeyRequests,
   pushSSE,
-  type BotInfo,
 } from './lib/state';
-import { getOfficeDocType, buildViewerConfig, validateDownloadToken, createDownloadToken, PUBLIC_URL } from './onlyoffice';
-import { ncListFolder, ncDownload, ncUpload, ncDelete, ncMove, ncMkcol, ncQuota, ncProbe, ncCreateShare, type NCCredentials } from './nextcloud';
 import notificationsRouter from './routes/notifications';
 import calendarRouter from './routes/calendar';
 import callsRouter from './routes/calls';
@@ -50,9 +40,6 @@ import keySyncRouter from './routes/key-sync';
 import onlyOfficeRouter from './routes/onlyoffice';
 import nextcloudRouter from './routes/nextcloud';
 import { isBotConversation } from './lib/bot';
-
-// Multer: store uploads in OS temp dir
-const upload = multer({ dest: os.tmpdir() });
 
 const app = express();
 app.set('trust proxy', 1); // Trust first proxy (e.g. nginx) to get correct client IP for rate limiting
