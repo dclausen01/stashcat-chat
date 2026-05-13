@@ -120,7 +120,49 @@ STASHCAT_PASSWORD=dein-passwort
 STASHCAT_SECURITY_PASSWORD=   # Optional; default = STASHCAT_PASSWORD
 STASHCAT_APP_NAME=bbz-chat
 STASHCAT_DEVICE_ID=            # Optional; wird autogeneriert wenn leer
+
+# Pflicht in Produktion — siehe Abschnitt "SESSION_SECRET" unten
+SESSION_SECRET=
 ```
+
+#### SESSION_SECRET (Pflicht in Produktion)
+
+`SESSION_SECRET` ist der AES-256-GCM-Hauptschlüssel, mit dem das Backend die
+Session-Tokens verschlüsselt, die im `localStorage` der Nutzer abgelegt werden.
+
+Ohne diese Variable erzeugt der Server bei jedem Start einen zufälligen Schlüssel.
+Dadurch werden bestehende Tokens nach jedem Backend-Restart ungültig — alle
+Nutzer müssen sich neu anmelden, und Stashcat registriert dabei jeweils ein
+**neues Gerät** (sichtbar als "neues Gerät angemeldet"-Mail).
+
+**Einmaliges Setup im Produktivsystem:**
+
+```bash
+# 1. Sicheres 256-Bit-Secret erzeugen
+openssl rand -hex 32
+# Beispiel-Ausgabe:
+# 4f8b2c... (64 Hex-Zeichen)
+
+# 2. In die .env eintragen
+echo "SESSION_SECRET=4f8b2c..." >> /pfad/zum/projekt/.env
+
+# 3. Dateirechte einschränken (Schlüssel nur für den Service-User lesbar)
+chmod 600 /pfad/zum/projekt/.env
+chown <service-user>:<service-group> /pfad/zum/projekt/.env
+
+# 4. Backend neu starten (systemd / pm2 / docker compose up -d / ...)
+systemctl restart stashcat-chat   # oder analog
+```
+
+**Wichtig:**
+
+- `.env` darf **nicht** ins Git-Repository (steht in `.gitignore`).
+- Den Wert sicher backuppen (z. B. in einem Passwort-Manager). Geht er verloren,
+  müssen sich alle Nutzer einmalig neu anmelden — kein Datenverlust, aber die
+  "neues Gerät"-Mail-Welle tritt einmalig auf.
+- **Nicht rotieren ohne Grund.** Jede Änderung invalidiert alle Tokens.
+- Bei Verdacht auf Leak (Backup unverschlüsselt, Server-Kompromittierung):
+  neuen Wert generieren und Backend restarten.
 
 ### Architektur
 
