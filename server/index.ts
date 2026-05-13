@@ -1,4 +1,5 @@
 import express from 'express';
+import type { Request as ExpressRequest } from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
@@ -40,6 +41,15 @@ import keySyncRouter from './routes/key-sync';
 import onlyOfficeRouter from './routes/onlyoffice';
 import nextcloudRouter from './routes/nextcloud';
 import { isBotConversation } from './lib/bot';
+import {
+  generateMobileToken,
+  saveMobileToken,
+  loadMobileToken,
+  touchMobileToken,
+  deleteMobileToken,
+  extractMobileToken,
+} from './mobile-auth';
+import pushRouter, { initPushDispatcher, notifyPush } from './push';
 
 const app = express();
 app.set('trust proxy', 1); // Trust first proxy (e.g. nginx) to get correct client IP for rate limiting
@@ -75,6 +85,10 @@ app.use('/api', accountRouter);
 app.use('/api', keySyncRouter);
 app.use('/api', onlyOfficeRouter);
 app.use('/api', nextcloudRouter);
+app.use('/api', pushRouter);
+
+// Bootstrap the push dispatcher once the realtime listeners are wired below.
+initPushDispatcher();
 
 // Shared state and helpers moved to ./lib/state.ts
 
@@ -215,6 +229,27 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
 
       serverLog(`[Realtime] Pushing notification as message_sync to SSE`);
       pushSSE(clientKey, 'message_sync', payload);
+
+      // Fan out to FCM for registered mobile devices.
+      try {
+        const senderRaw = (payload as Record<string, unknown>).sender as Record<string, unknown> | undefined;
+        const senderName = senderRaw
+          ? `${(senderRaw.first_name as string | undefined) ?? ''} ${(senderRaw.last_name as string | undefined) ?? ''}`.trim() || undefined
+          : undefined;
+        const rawText = (payload as Record<string, unknown>).text;
+        const text = typeof rawText === 'string' ? rawText : '';
+        const rawId = (payload as Record<string, unknown>).id;
+        notifyPush({
+          userId: clientKey,
+          msgId: rawId != null ? String(rawId) : undefined,
+          channelId: msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null,
+          conversationId: msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null,
+          senderName,
+          preview: text.slice(0, 200),
+        });
+      } catch (err) {
+        serverLog('[Realtime] notifyPush failed:', errorMessage(err));
+      }
     });
 
     rt.on('user-started-typing', (chatType: string, chatId: number, userId: number) => {
@@ -289,6 +324,108 @@ app.post('/api/login', async (req, res) => {
   } catch (err) {
     res.status(401).json({ error: errorMessage(err, 'Login failed') });
   }
+});
+
+// ── Mobile (Flutter shell) login ─────────────────────────────────────────────
+
+/**
+ * Single-shot login for the Flutter shell. Returns a long-lived `mobileToken`
+ * that the shell stores in secure storage and exchanges for a session token on
+ * every cold start via `/api/auth/mobile-session`.
+ */
+app.post('/api/auth/mobile-login', async (req, res) => {
+  try {
+    const { email, password, securityPassword } = req.body || {};
+    if (!email || !password || !securityPassword) {
+      return res.status(400).json({ error: 'email, password, securityPassword required' });
+    }
+    const baseUrl = process.env.STASHCAT_BASE_URL || 'https://api.stashcat.com/';
+    const client = new StashcatClient({ baseUrl });
+    await client.login({ email, password, securityPassword });
+
+    const serialized = client.serialize();
+    const sessionToken = encryptSession({
+      deviceId: serialized.deviceId,
+      clientKey: serialized.clientKey,
+      securityPassword,
+      loginPassword: password,
+      baseUrl,
+    });
+    cacheClient(serialized.clientKey, client);
+
+    const me = await client.getMe();
+    const userId = String((me as unknown as { id?: string | number }).id ?? '');
+
+    const mobileToken = generateMobileToken();
+    await saveMobileToken(mobileToken, {
+      sessionToken,
+      userId,
+      createdAt: Date.now(),
+      lastSeenAt: Date.now(),
+      pushPreviewMode: 'full',
+    });
+
+    res.json({ mobileToken, token: sessionToken, user: me });
+  } catch (err) {
+    res.status(401).json({ error: errorMessage(err, 'Mobile login failed') });
+  }
+});
+
+/**
+ * Exchange a mobileToken for a fresh session token. Called by the Flutter
+ * shell on every cold start. Refreshes `lastSeenAt` (sliding TTL).
+ */
+app.post('/api/auth/mobile-session', async (req, res) => {
+  try {
+    const mobileToken = extractMobileToken(req as unknown as { headers: Record<string, string | string[] | undefined> });
+    if (!mobileToken) return res.status(401).json({ error: 'Missing mobile token' });
+
+    const record = await touchMobileToken(mobileToken);
+    if (!record) return res.status(401).json({ error: 'Invalid or expired mobile token' });
+
+    // Best-effort: validate the session token still decrypts. We don't reload
+    // the user object here — the client will call /api/me right after.
+    let user: unknown = null;
+    try {
+      const payload = decryptSession(record.sessionToken);
+      // Re-warm the client cache by faking a request so subsequent calls hit cache.
+      const fakeReq = { headers: { authorization: `Bearer ${record.sessionToken}` }, query: {} } as unknown as ExpressRequest;
+      const client = await getClient(fakeReq);
+      user = await client.getMe();
+      // Touch cache TTL
+      touchCachedClient(payload.clientKey);
+    } catch {
+      // Session might have expired upstream — return a fresh token anyway and
+      // let the client re-login if /api/me fails.
+    }
+
+    res.json({ token: record.sessionToken, user });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err, 'Failed to restore mobile session') });
+  }
+});
+
+app.post('/api/auth/mobile-logout', async (req, res) => {
+  try {
+    const mobileToken = extractMobileToken(req as unknown as { headers: Record<string, string | string[] | undefined> });
+    if (mobileToken) {
+      const record = await loadMobileToken(mobileToken);
+      await deleteMobileToken(mobileToken);
+      // Tear down the associated session as well, if we can.
+      if (record?.sessionToken) {
+        try {
+          const payload = decryptSession(record.sessionToken);
+          invalidateClient(payload.clientKey);
+          const sse = activeSSE.get(payload.clientKey);
+          if (sse) {
+            void Promise.resolve(sse.realtime?.disconnect?.()).catch(() => {});
+            activeSSE.delete(payload.clientKey);
+          }
+        } catch { /* token may already be invalid */ }
+      }
+    }
+  } catch { /* ignore */ }
+  res.json({ ok: true });
 });
 
 // ── Phased Login (multi-step wizard) ─────────────────────────────────────────

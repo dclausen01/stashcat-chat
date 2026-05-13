@@ -9,6 +9,11 @@ import { ConfirmProvider } from './context/ConfirmContext';
 import { AnnouncerProvider } from './context/AnnouncerContext';
 import { PanelProvider } from './context/PanelContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import { bootstrapMobileBridge } from './lib/mobileBridge';
+import { installBbzChatGlobal } from './lib/flutterBridge';
+
+bootstrapMobileBridge();
+installBbzChatGlobal();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -24,6 +24,8 @@ import QuickSwitcher from './components/QuickSwitcher';
 import ShortcutsModal from './components/ShortcutsModal';
 import ConnectionBanner from './components/ConnectionBanner';
 import { useConnectionState } from './hooks/useConnectionState';
+import { on, BridgeEvents } from './lib/bridgeBus';
+import type { Deeplink } from './lib/flutterBridge';
 import type { ChatTarget } from './types';
 import type { CallParty } from './api/calls';
 
@@ -120,6 +122,25 @@ export default function App() {
     setJumpToMessageTime(null);
     setJumpSearching(false);
   }, []);
+
+  // Flutter shell deeplinks (e.g. tapping a push notification).
+  useEffect(() => {
+    if (!loggedIn) return;
+    return on<Deeplink>(BridgeEvents.navigate, (link) => {
+      if (!link) return;
+      if (link.kind === 'channel') {
+        const ch = channels.find((c) => c.id === link.id);
+        if (ch) handleSelectChat(ch);
+      } else if (link.kind === 'conversation') {
+        const cv = conversations.find((c) => c.id === link.id);
+        if (cv) handleSelectChat(cv);
+      } else if (link.kind === 'view') {
+        if (link.view === 'calendar') openCalendar();
+        else if (link.view === 'polls') openPolls();
+        else if (link.view === 'chat') goToChat();
+      }
+    });
+  }, [loggedIn, channels, conversations, handleSelectChat, openCalendar, openPolls, goToChat]);
 
   // Keyboard shortcuts (only when logged in). Hotkeys *always* open the target
   // panel; the matching toolbar buttons toggle. Preserved from before the

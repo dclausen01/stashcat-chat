@@ -35,8 +35,21 @@ export {
   deriveAvailability,
   uploadProfileImage,
   resetProfileImage,
+  mobileLogin,
+  mobileSession,
+  mobileLogout,
 } from './auth';
-export type { AccountSettings } from './auth';
+export type { AccountSettings, MobileLoginResult } from './auth';
+
+// Push (FCM token registry + mobile push prefs)
+export {
+  registerPushToken,
+  unregisterPushToken,
+  listOwnPushTokens,
+  getMobilePushPreview,
+  setMobilePushPreview,
+} from './push';
+export type { Platform as PushPlatform, PushPreviewMode, PushToken } from './push';
 
 // Channels
 export {

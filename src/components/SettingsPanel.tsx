@@ -1,7 +1,9 @@
-import { useState, useRef, useCallback, type CSSProperties } from 'react';
+import { useState, useRef, useCallback, useEffect, type CSSProperties } from 'react';
 import { X, ArrowLeft } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useTheme, LIGHT_PRESETS, DARK_PRESETS, type PresetId } from '../context/ThemeContext';
+import { isMobileBridge } from '../lib/mobileBridge';
+import { getMobilePushPreview, setMobilePushPreview, type PushPreviewMode } from '../api/push';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -127,6 +129,15 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
 
   const notificationPermission = typeof Notification !== 'undefined' ? Notification.permission : 'denied';
   const notificationsDenied = notificationPermission === 'denied';
+  const mobile = isMobileBridge();
+
+  const [pushPreview, setPushPreview] = useState<PushPreviewMode>('full');
+  useEffect(() => {
+    if (!mobile) return;
+    let active = true;
+    getMobilePushPreview().then((mode) => { if (active) setPushPreview(mode); }).catch(() => {});
+    return () => { active = false; };
+  }, [mobile]);
 
   const namedPresets = mode === 'light' ? LIGHT_PRESETS : DARK_PRESETS;
 
@@ -197,26 +208,43 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
 
         <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-surface-600">Benachrichtigungen</p>
 
-        <div className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
-          <ToggleRow
-            label="Desktop-Benachrichtigungen"
-            description={
-              notificationsDenied
-                ? 'Im Browser blockiert — bitte in den Browser-Einstellungen erlauben'
-                : 'OS-Benachrichtigungen bei neuen Nachrichten anzeigen'
-            }
-            value={notificationsEnabled && !notificationsDenied}
-            onChange={(v) => {
-              if (v && typeof Notification !== 'undefined' && Notification.permission === 'default') {
-                Notification.requestPermission().then((perm) => {
-                  setNotificationsEnabled(perm === 'granted');
-                }).catch(() => {});
-              } else {
-                setNotificationsEnabled(v);
+        {!mobile && (
+          <div className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
+            <ToggleRow
+              label="Desktop-Benachrichtigungen"
+              description={
+                notificationsDenied
+                  ? 'Im Browser blockiert — bitte in den Browser-Einstellungen erlauben'
+                  : 'OS-Benachrichtigungen bei neuen Nachrichten anzeigen'
               }
-            }}
-          />
-        </div>
+              value={notificationsEnabled && !notificationsDenied}
+              onChange={(v) => {
+                if (v && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+                  Notification.requestPermission().then((perm) => {
+                    setNotificationsEnabled(perm === 'granted');
+                  }).catch(() => {});
+                } else {
+                  setNotificationsEnabled(v);
+                }
+              }}
+            />
+          </div>
+        )}
+
+        {mobile && (
+          <div className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
+            <ToggleRow
+              label="Push-Inhalte ausblenden"
+              description='Nur „Neue Nachricht" ohne Absender oder Vorschau anzeigen'
+              value={pushPreview === 'silent'}
+              onChange={(v) => {
+                const mode: PushPreviewMode = v ? 'silent' : 'full';
+                setPushPreview(mode);
+                setMobilePushPreview(mode).catch(() => {});
+              }}
+            />
+          </div>
+        )}
 
         <div className="mt-1 rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
           <ToggleRow

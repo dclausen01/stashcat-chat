@@ -175,6 +175,7 @@ router.get('/file/:fileId', async (req, res) => {
     const disposition = req.query.view === '1' ? 'inline' : 'attachment';
     res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(fileName)}"`);
     res.setHeader('Content-Type', info.mime || 'application/octet-stream');
+    res.setHeader('Accept-Ranges', 'bytes');
 
     if (!info.encrypted) {
       const rawToken = ((req.headers['authorization'] as string | undefined)?.split(' ')[1] ?? req.query.token) as string;
@@ -203,6 +204,26 @@ router.get('/file/:fileId', async (req, res) => {
         encrypted: info.encrypted,
         e2e_iv: info.e2e_iv ?? null,
       });
+      // Range support for the encrypted-buffer path. The whole file must be
+      // decrypted server-side, but we can serve byte slices to the client so
+      // mobile WebView downloads of large files behave well.
+      const range = req.headers['range'];
+      if (typeof range === 'string') {
+        const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+        if (match) {
+          const total = buf.length;
+          const start = match[1] === '' ? Math.max(0, total - Number(match[2])) : Number(match[1]);
+          const end = match[2] === '' ? total - 1 : Math.min(total - 1, Number(match[2]));
+          if (Number.isFinite(start) && Number.isFinite(end) && start <= end) {
+            res.status(206);
+            res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
+            res.setHeader('Content-Length', String(end - start + 1));
+            res.end(buf.subarray(start, end + 1));
+            return;
+          }
+        }
+      }
+      res.setHeader('Content-Length', String(buf.length));
       res.send(buf);
     }
   } catch (err) {
