@@ -7,6 +7,23 @@
    Overrides md: breakpoint classes so portrait tablets use the mobile layout. */
 @variant portrait-tablet (&:where(.tablet-portrait, .tablet-portrait *));
 
+/* Mobile-bridge mode: bootstrapMobileBridge() sets <html data-bridge="mobile">.
+   Use the `bridge:` Tailwind variant for adjustments that only apply when the
+   page is hosted inside the Flutter WebView. */
+@variant bridge (&:where([data-bridge="mobile"] *));
+
+/* Bottom safe-area padding utility for sticky bars in WebView shells. */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+[data-bridge="mobile"] .bridge-sticky-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+[data-bridge="mobile"] .bridge-min-touch {
+  min-height: 44px;
+  min-width: 44px;
+}
+
 @theme {
   --color-primary-50: #f0f5fc;
   --color-primary-100: #dce8f7;

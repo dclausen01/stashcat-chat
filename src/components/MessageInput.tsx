@@ -524,7 +524,7 @@ export default function MessageInput({
   const canSend = !sending && !isRecording && (pendingFiles.length > 0 || !isEmpty);
 
   return (
-    <div className="shrink-0 border-t border-surface-200 p-3 dark:border-surface-700">
+    <div className="shrink-0 border-t border-surface-200 p-3 dark:border-surface-700 bridge-sticky-bottom">
       {/* Reply preview */}
       {replyTo && (
         <div className="mb-2 flex items-center gap-2 rounded-lg border-l-3 border-primary-500 bg-primary-50 px-3 py-2 text-sm dark:bg-primary-950/30">

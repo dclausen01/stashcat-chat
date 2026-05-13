@@ -209,3 +209,60 @@ server/
 | Echtzeit     | SSE + Socket.io (via stashcat-api)               |
 | Editor       | Tiptap (Markdown-Editor für Umfragen/Termine)    |
 | API          | stashcat-api (lokale file-Abhängigkeit)          |
+
+---
+
+## Mobile-Bridge (Flutter WebView)
+
+Der Chat-Client kann als WebView-Frontend der nativen Flutter-App
+`bbzcloud-mobil` betrieben werden. Aktivierung über
+`https://chat.bbz-rd-eck.com/?bridge=mobile` oder durch
+`localStorage.bbz_bridge='mobile'` (von Flutter beim ersten Boot gesetzt).
+
+**Im Mobile-Modus:**
+
+- Service-Worker wird beim Boot deregistriert; Web-Push deaktiviert.
+- `Notification.requestPermission()` und `new Notification(...)` werden
+  unterdrückt — Pushs liefert FCM via Flutter.
+- Tailwind-Variant `bridge:` aktiv (`<html data-bridge="mobile">`).
+- Sticky Composer mit `padding-bottom: env(safe-area-inset-bottom)`.
+- Video-Calls (Jitsi) werden via `bridge.jitsi(url)` an Flutter delegiert
+  (native Jitsi-App bzw. externer Browser).
+
+**JS-Bridge:**
+
+- Outgoing: `window.flutter_inappwebview.callHandler(name, payload)`
+  (siehe `src/lib/flutterBridge.ts`). Handler-Namen: `bridgeReady`,
+  `unread`, `notify`, `openExternal`, `pickFiles`, `logout`, `jitsi`,
+  `setBadge`.
+- Incoming (Flutter → Chat): `window.bbzChat.setTheme(mode)`,
+  `setToken(token)`, `navigate(path)`, `reload()`.
+
+**Auth-Flow:**
+
+1. `POST /api/auth/mobile-login` mit `{ email, password, securityPassword }`
+   → Response `{ mobileToken, token, user }`. Die Flutter-App persistiert
+   `mobileToken` in sicherem Storage.
+2. Bei jedem Cold-Start: `POST /api/auth/mobile-session` mit
+   `Authorization: Bearer <mobileToken>` → frisches Session-Token.
+3. Logout: `POST /api/auth/mobile-logout` mit demselben Bearer.
+
+**Push (FCM HTTP v1):**
+
+- `POST /api/push-tokens` mit `{ token, platform: 'android'|'ios',
+  appVersion?, locale? }` registriert das Endgerät.
+- `DELETE /api/push-tokens/:token` entfernt es.
+- `GET /api/push-tokens` listet eigene Geräte (token nur gekürzt).
+- Privacy-Toggle "Nur Hinweis ohne Inhalt": `PATCH
+  /api/account/push-preferences` mit `{ pushPreviewMode: 'silent' }`.
+
+**Deployment:**
+
+1. `yarn install` (zieht die neuen Server-Module mit).
+2. `.env` ergänzen: `FCM_SERVICE_ACCOUNT=/etc/bbzchat/firebase-admin.json`,
+   `PUSH_ENABLED=true`, `PUSH_BATCH_MS=2000`.
+3. Firebase-Admin-Service-Account-JSON unter `/etc/bbzchat/` ablegen
+   (Mode 0o600, Owner = Service-User).
+4. `yarn build` + Service-Restart.
+
+Datenschutz-Doku: siehe [docs/PRIVACY.md](docs/PRIVACY.md).

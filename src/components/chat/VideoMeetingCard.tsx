@@ -1,6 +1,8 @@
 import { memo } from 'react';
 import { Video } from 'lucide-react';
 import type { Message } from '../../types';
+import { isMobileBridge } from '../../lib/mobileBridge';
+import { bridge } from '../../lib/flutterBridge';
 
 const VIDEO_MSG_RE = /^📹 Videokonferenz gestartet um (\d{2}:\d{2}) Uhr\nJetzt beitreten: (https?:\/\/stash\.cat\/l\/[a-zA-Z0-9_-]+)$/;
 
@@ -36,6 +38,12 @@ function VideoMeetingCardImpl({ msg }: { msg: Message }) {
             href={link}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => {
+              if (isMobileBridge()) {
+                e.preventDefault();
+                bridge.jitsi(link);
+              }
+            }}
             className="flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-primary-700 shadow transition hover:bg-primary-50 active:scale-95"
           >
             <Video size={16} />

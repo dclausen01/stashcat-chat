@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
+import { on, BridgeEvents } from '../lib/bridgeBus';
 
 export type Mode = 'light' | 'dark';
 export type NamedPresetId = 'default' | 'warm';
@@ -92,6 +93,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     applyColors(state.mode, colors);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
+
+  // Flutter shell can drive the theme via `window.bbzChat.setTheme('dark'|'light')`.
+  useEffect(() => {
+    return on<'light' | 'dark'>(BridgeEvents.setTheme, (mode) => {
+      setState((s) => (s.mode === mode ? s : { ...s, mode }));
+    });
+  }, []);
 
   const toggle = useCallback(() => {
     setState((s) => ({ ...s, mode: s.mode === 'dark' ? 'light' : 'dark' }));

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { bridge } from '../lib/flutterBridge';
 
 const ORIGINAL_HREF = '/bbz-logo-neu.png';
 
@@ -10,6 +11,10 @@ export function useFaviconBadge(count: number) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
+    // Always notify the native shell — Flutter renders the app-icon badge.
+    bridge.unread(Math.max(0, count));
+    bridge.setBadge(Math.max(0, count));
+
     const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
     if (!link) return;
 

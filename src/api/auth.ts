@@ -2,7 +2,7 @@
  * Authentication and user-related API endpoints.
  */
 
-import { get, post, persistToken, clearSession } from './core';
+import { get, post, persistToken, clearSession, BACKEND } from './core';
 import type { User, Company } from '../types';
 
 // --- Auth ---
@@ -42,6 +42,48 @@ export async function loginFinalizeWithDeviceCode(preAuthToken: string, code: st
 export async function logout(): Promise<void> {
   await post('/logout').catch(() => {});
   clearSession();
+}
+
+// --- Mobile (Flutter shell) login ---
+
+export interface MobileLoginResult {
+  mobileToken: string;
+  token: string;
+  user: User;
+}
+
+export async function mobileLogin(
+  email: string,
+  password: string,
+  securityPassword: string,
+): Promise<MobileLoginResult> {
+  const res = await post<MobileLoginResult>('/auth/mobile-login', { email, password, securityPassword });
+  persistToken(res.token);
+  return res;
+}
+
+/**
+ * Exchange a long-lived `mobileToken` (issued by `/auth/mobile-login` and
+ * stored by the Flutter shell) for a regular session token. The caller is
+ * responsible for `persistToken()`-ing the result.
+ */
+export async function mobileSession(mobileToken: string): Promise<{ token: string; user: User }> {
+  const res = await fetch(`${BACKEND}/auth/mobile-session`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${mobileToken}` },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function mobileLogout(mobileToken: string): Promise<void> {
+  await fetch(`${BACKEND}/auth/mobile-logout`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${mobileToken}` },
+  }).catch(() => {});
 }
 
 // --- User ---
