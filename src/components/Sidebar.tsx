@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from 'react';
 import { Hash, Search, Users, GripHorizontal, Plus, X } from 'lucide-react';
+import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import { useFaviconBadge } from '../hooks/useFaviconBadge';
 import { useNotifications } from '../hooks/useNotifications';
+import { useLayoutMode } from '../hooks/useLayoutMode';
 import ChatItem from './ChatItem';
 import SidebarHeader from './SidebarHeader';
 import SidebarFooter from './SidebarFooter';
@@ -102,6 +104,17 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
     const saved = localStorage.getItem('schulchat_sidebar_split');
     return saved ? Number(saved) : 50;
   });
+  // Mobile-only tab state. WhatsApp-style: pick one of the two lists at a time.
+  // Persisted per browser; default = direct messages (matches user request).
+  const [activeTab, setActiveTab] = useState<'channels' | 'direct'>(() => {
+    const saved = localStorage.getItem('schulchat_sidebar_tab');
+    return saved === 'channels' ? 'channels' : 'direct';
+  });
+  useEffect(() => {
+    localStorage.setItem('schulchat_sidebar_tab', activeTab);
+  }, [activeTab]);
+  const layoutMode = useLayoutMode();
+  const isPhone = layoutMode === 'mobile';
   const dragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const activeChatRef = useRef(activeChat);
@@ -640,74 +653,176 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
         </div>
       </div>
 
-      {/* Split panels */}
-      <div ref={containerRef} className="flex min-h-0 flex-1 flex-col">
-        {/* Channels panel */}
-        <div className="flex min-h-0 flex-col" style={{ height: `${splitPct}%` }}>
-          <div className="shrink-0 px-4 py-1.5">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => setShowChannelDiscovery(true)}
-                className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-surface-500 transition hover:text-primary-600 dark:hover:text-primary-400"
-                title="Alle Channels anzeigen"
-              >
-                <Hash size={13} /> Channels ({channels.length})
-              </button>
-              <button
-                onClick={() => setShowNewChannel(true)}
-                disabled={!primaryCompanyId}
-                className="rounded-md p-0.5 text-surface-500 transition hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 dark:hover:text-surface-300 disabled:opacity-30"
-                title="Neuen Channel erstellen"
-              >
-                <Plus size={14} />
-              </button>
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto px-2 pb-1">
-            {renderChannelTree(channelRoots, channelOrphans)}
-          </div>
-        </div>
-
-        {/* Drag handle — desktop only */}
-        <div
-          onMouseDown={onMouseDown}
-          className="group hidden cursor-row-resize items-center justify-center border-y border-surface-200 py-0.5 hover:bg-surface-200 dark:border-surface-700 dark:hover:bg-surface-800 md:flex"
-        >
-          <GripHorizontal size={16} className="text-surface-300 group-hover:text-surface-500 dark:text-surface-400 dark:group-hover:text-surface-500" />
-        </div>
-
-        {/* Conversations panel */}
+      {/* Split panels (desktop/tablet) — WhatsApp-style tabs (phone) */}
+      {isPhone ? (
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="shrink-0 px-4 py-1.5">
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-surface-500">
-                <Users size={13} /> Direktnachrichten ({filtered(conversations).length})
-              </span>
-              <button
-                onClick={() => setShowNewChat(true)}
-                disabled={!primaryCompanyId}
-                className="rounded-md p-0.5 text-surface-500 transition hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 dark:hover:text-surface-300 disabled:opacity-30"
-                title="Neue Direktnachricht starten"
-              >
-                <Plus size={14} />
-              </button>
+          {/* Tab bar */}
+          <div className="flex shrink-0 border-b border-surface-200 dark:border-surface-700">
+            <button
+              onClick={() => setActiveTab('direct')}
+              className={clsx(
+                'relative flex flex-1 items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wider transition',
+                'min-h-[44px]',
+                activeTab === 'direct'
+                  ? 'border-b-2 border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400'
+                  : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300',
+              )}
+            >
+              <Users size={14} />
+              <span>Direktnachrichten ({filtered(conversations).length})</span>
+              {unreadConversations.length > 0 && activeTab !== 'direct' && (
+                <span className="ml-1 rounded-full bg-primary-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white dark:bg-primary-500">
+                  {unreadConversations.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('channels')}
+              className={clsx(
+                'relative flex flex-1 items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wider transition',
+                'min-h-[44px]',
+                activeTab === 'channels'
+                  ? 'border-b-2 border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400'
+                  : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300',
+              )}
+            >
+              <Hash size={14} />
+              <span>Channels ({channels.length})</span>
+              {unreadChannels.length > 0 && activeTab !== 'channels' && (
+                <span className="ml-1 rounded-full bg-primary-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white dark:bg-primary-500">
+                  {unreadChannels.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Active tab content */}
+          {activeTab === 'channels' ? (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="shrink-0 px-4 py-1.5">
+                <div className="flex items-center justify-end">
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setShowChannelDiscovery(true)}
+                      className="rounded-md p-1 text-surface-500 transition hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 dark:hover:text-surface-300"
+                      title="Alle Channels anzeigen"
+                    >
+                      <Search size={14} />
+                    </button>
+                    <button
+                      onClick={() => setShowNewChannel(true)}
+                      disabled={!primaryCompanyId}
+                      className="rounded-md p-1 text-surface-500 transition hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 dark:hover:text-surface-300 disabled:opacity-30"
+                      title="Neuen Channel erstellen"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto px-2 pb-1">
+                {renderChannelTree(channelRoots, channelOrphans)}
+              </div>
+            </div>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="shrink-0 px-4 py-1.5">
+                <div className="flex items-center justify-end">
+                  <button
+                    onClick={() => setShowNewChat(true)}
+                    disabled={!primaryCompanyId}
+                    className="rounded-md p-1 text-surface-500 transition hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 dark:hover:text-surface-300 disabled:opacity-30"
+                    title="Neue Direktnachricht starten"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto px-2 pb-1">
+                {filtered(conversations).map((conv) => (
+                  <ChatItem
+                    key={`conv-${conv.id}`}
+                    target={conv}
+                    active={activeChat?.id === conv.id && activeChat?.type === 'conversation'}
+                    onSelect={handleSelect}
+                    onToggleFavorite={handleToggleFavorite}
+                    onMarkUnread={handleMarkUnread}
+                    onConversationArchived={handleConversationArchived}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div ref={containerRef} className="flex min-h-0 flex-1 flex-col">
+          {/* Channels panel */}
+          <div className="flex min-h-0 flex-col" style={{ height: `${splitPct}%` }}>
+            <div className="shrink-0 px-4 py-1.5">
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setShowChannelDiscovery(true)}
+                  className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-surface-500 transition hover:text-primary-600 dark:hover:text-primary-400"
+                  title="Alle Channels anzeigen"
+                >
+                  <Hash size={13} /> Channels ({channels.length})
+                </button>
+                <button
+                  onClick={() => setShowNewChannel(true)}
+                  disabled={!primaryCompanyId}
+                  className="rounded-md p-0.5 text-surface-500 transition hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 dark:hover:text-surface-300 disabled:opacity-30"
+                  title="Neuen Channel erstellen"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 pb-1">
+              {renderChannelTree(channelRoots, channelOrphans)}
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto px-2 pb-1">
-            {filtered(conversations).map((conv) => (
-              <ChatItem
-                key={`conv-${conv.id}`}
-                target={conv}
-                active={activeChat?.id === conv.id && activeChat?.type === 'conversation'}
-                onSelect={handleSelect}
-                onToggleFavorite={handleToggleFavorite}
-                onMarkUnread={handleMarkUnread}
-                onConversationArchived={handleConversationArchived}
-              />
-            ))}
+
+          {/* Drag handle — desktop only */}
+          <div
+            onMouseDown={onMouseDown}
+            className="group hidden cursor-row-resize items-center justify-center border-y border-surface-200 py-0.5 hover:bg-surface-200 dark:border-surface-700 dark:hover:bg-surface-800 md:flex"
+          >
+            <GripHorizontal size={16} className="text-surface-300 group-hover:text-surface-500 dark:text-surface-400 dark:group-hover:text-surface-500" />
+          </div>
+
+          {/* Conversations panel */}
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="shrink-0 px-4 py-1.5">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-surface-500">
+                  <Users size={13} /> Direktnachrichten ({filtered(conversations).length})
+                </span>
+                <button
+                  onClick={() => setShowNewChat(true)}
+                  disabled={!primaryCompanyId}
+                  className="rounded-md p-0.5 text-surface-500 transition hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700 dark:hover:text-surface-300 disabled:opacity-30"
+                  title="Neue Direktnachricht starten"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 pb-1">
+              {filtered(conversations).map((conv) => (
+                <ChatItem
+                  key={`conv-${conv.id}`}
+                  target={conv}
+                  active={activeChat?.id === conv.id && activeChat?.type === 'conversation'}
+                  onSelect={handleSelect}
+                  onToggleFavorite={handleToggleFavorite}
+                  onMarkUnread={handleMarkUnread}
+                  onConversationArchived={handleConversationArchived}
+                />
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* SidebarFooter — mobile only; desktop uses TopBar */}
       <div className="md:hidden">
