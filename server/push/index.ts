@@ -59,7 +59,11 @@ router.post('/push-tokens', async (req: Request, res: Response) => {
 
 router.delete('/push-tokens/:token', async (req: Request, res: Response) => {
   try {
-    await removeToken(req.params.token);
+    const token = req.params.token;
+    if (typeof token !== 'string' || !token) {
+      return res.status(400).json({ error: 'token param required' });
+    }
+    await removeToken(token);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
