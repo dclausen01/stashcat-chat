@@ -1,6 +1,11 @@
 import { Radio, CalendarDays, BarChart3 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { usePanels } from '../context/PanelContext';
+import { useAuth } from '../context/AuthContext';
+
+function isStudentEmail(email?: string): boolean {
+  return !!email && email.toLowerCase().endsWith('@sus.bbz-rd-eck.de');
+}
 
 export default function SidebarFooter() {
   const {
@@ -10,24 +15,30 @@ export default function SidebarFooter() {
     openCalendar,
     openPolls,
   } = usePanels();
+  const { user } = useAuth();
   const calendarOpen = activeView === 'calendar';
   const pollsOpen = activeView === 'polls';
+  const hideBroadcasts = isStudentEmail(user?.email);
   return (
     <div className="flex shrink-0 items-center border-t border-surface-200 dark:border-surface-700">
-      <button
-        onClick={toggleBroadcasts}
-        className={clsx(
-          'flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition',
-          broadcastsOpen
-            ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
-            : 'text-surface-500 hover:bg-surface-200 hover:text-surface-700 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-200',
-        )}
-        title="Broadcasts"
-      >
-        <Radio size={15} />
-        <span>Broadcasts</span>
-      </button>
-      <div className="h-6 w-px bg-surface-200 dark:bg-surface-700" />
+      {!hideBroadcasts && (
+        <>
+          <button
+            onClick={toggleBroadcasts}
+            className={clsx(
+              'flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition',
+              broadcastsOpen
+                ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
+                : 'text-surface-500 hover:bg-surface-200 hover:text-surface-700 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-200',
+            )}
+            title="Broadcasts"
+          >
+            <Radio size={15} />
+            <span>Broadcasts</span>
+          </button>
+          <div className="h-6 w-px bg-surface-200 dark:bg-surface-700" />
+        </>
+      )}
       <button
         onClick={openCalendar}
         className={clsx(
