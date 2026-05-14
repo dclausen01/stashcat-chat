@@ -575,8 +575,8 @@ export default function MessageInput({
         </div>
       )}
 
-      {/* Formatting toolbar */}
-      <div className="mb-2 flex flex-wrap items-center gap-0.5">
+      {/* Formatting toolbar — horizontal scroll on narrow screens to avoid wrapping. */}
+      <div className="mb-2 flex items-center gap-0.5 overflow-x-auto md:flex-wrap [&::-webkit-scrollbar]:hidden">
         {FORMAT_BUTTONS.map((btn) => (
           <button
             key={btn.label}
@@ -587,14 +587,14 @@ export default function MessageInput({
               if (editor) btn.command(editor);
             }}
             className={clsx(
-              'flex min-h-[44px] min-w-[44px] items-center justify-center rounded p-1.5 text-surface-500 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-800 dark:hover:text-surface-300 sm:min-h-7 sm:min-w-7',
+              'flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded p-1.5 text-surface-500 hover:bg-surface-200 hover:text-surface-700 dark:hover:bg-surface-800 dark:hover:text-surface-300 sm:min-h-7 sm:min-w-7',
               editor && btn.isActive?.(editor) && 'bg-surface-200 text-surface-800 dark:bg-surface-700 dark:text-surface-100',
             )}
           >
             {btn.icon}
           </button>
         ))}
-        <div className="ml-auto shrink-0 whitespace-nowrap text-xs text-surface-600 dark:text-surface-400">
+        <div className="ml-auto hidden shrink-0 whitespace-nowrap text-xs text-surface-600 dark:text-surface-400 md:block">
           {enterSendsMessage ? (
             <>
               <kbd className="rounded bg-surface-100 px-1.5 py-0.5 font-mono text-[11px] dark:bg-surface-800">Enter</kbd>{' '}Senden{' · '}
