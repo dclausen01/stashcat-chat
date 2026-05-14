@@ -49,6 +49,19 @@ export interface PickedFileMeta {
   base64: string;
 }
 
+/**
+ * Haptic-Feedback-Intensitäten. Werden vom Flutter-Layer auf die
+ * passenden plattformspezifischen Patterns gemappt (HapticFeedback.*).
+ */
+export type HapticStyle =
+  | 'selection'   // leichtes Tippen, z.B. Tab-Wechsel
+  | 'light'       // kleine Aktion, z.B. Button-Tap
+  | 'medium'      // bestätigende Aktion, z.B. Long-Press, Send
+  | 'heavy'       // gewichtige Aktion, z.B. Delete-Konfirmation
+  | 'success'     // erfolgreiche Aktion (z.B. Nachricht gesendet)
+  | 'warning'
+  | 'error';
+
 /** Outgoing API — Chat → Flutter. All calls no-op outside the bridge. */
 export const bridge = {
   /** Signal that the Web app is mounted and authenticated (or anonymous). */
@@ -68,6 +81,32 @@ export const bridge = {
   logout: () => call('logout'),
   jitsi: (url: string) => call('jitsi', url),
   setBadge: (count: number) => call('setBadge', count),
+  /**
+   * Native Haptic-Feedback. No-op außerhalb des Bridges UND im
+   * Web-Fallback (Vibration-API) wenn `Vibration` verfügbar.
+   */
+  haptic: (style: HapticStyle = 'selection') => {
+    if (isMobileBridge()) return call('haptic', style);
+    // Fallback: Web Vibration API (Android Chrome). iOS Safari ignoriert es.
+    try {
+      const nav = navigator as Navigator & { vibrate?: (p: number | number[]) => boolean };
+      if (typeof nav.vibrate === 'function') {
+        const pattern: Record<HapticStyle, number | number[]> = {
+          selection: 8,
+          light: 10,
+          medium: 20,
+          heavy: 35,
+          success: [10, 30, 10],
+          warning: [20, 40, 20],
+          error: [30, 60, 30, 60, 30],
+        };
+        nav.vibrate(pattern[style] ?? 10);
+      }
+    } catch {
+      /* manche Browser blocken vibrate() ohne User-Gesture — egal */
+    }
+    return Promise.resolve(undefined);
+  },
 };
 
 // ── File-Picker-Wrapper ──────────────────────────────────────────────────────

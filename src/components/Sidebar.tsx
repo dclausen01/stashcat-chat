@@ -7,6 +7,7 @@ import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import { useFaviconBadge } from '../hooks/useFaviconBadge';
 import { useNotifications } from '../hooks/useNotifications';
 import { useLayoutMode } from '../hooks/useLayoutMode';
+import { bridge } from '../lib/flutterBridge';
 import ChatItem from './ChatItem';
 import SidebarHeader from './SidebarHeader';
 import SidebarFooter from './SidebarFooter';
@@ -668,7 +669,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
               )}
             >
               <button
-                onClick={() => setActiveTab('direct')}
+                onClick={() => { bridge.haptic('selection'); setActiveTab('direct'); }}
                 className={clsx(
                   'flex min-h-[44px] flex-1 items-center justify-center gap-1.5 px-2 text-xs font-semibold uppercase tracking-wider transition',
                   activeTab === 'direct'
@@ -710,7 +711,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
               )}
             >
               <button
-                onClick={() => setActiveTab('channels')}
+                onClick={() => { bridge.haptic('selection'); setActiveTab('channels'); }}
                 className={clsx(
                   'flex min-h-[44px] flex-1 items-center justify-center gap-1.5 px-2 text-xs font-semibold uppercase tracking-wider transition',
                   activeTab === 'channels'

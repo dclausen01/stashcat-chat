@@ -33,7 +33,7 @@ import {
 import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react';
 import { clsx } from 'clsx';
 import { isMobileBridge } from '../lib/mobileBridge';
-import { pickFilesNative } from '../lib/flutterBridge';
+import { pickFilesNative, bridge } from '../lib/flutterBridge';
 import { useTheme } from '../context/ThemeContext';
 import { useSettings } from '../context/SettingsContext';
 
@@ -235,6 +235,7 @@ export default function MessageInput({
 
   const handleSend = useCallback(async () => {
     if (sending) return;
+    bridge.haptic('light');
     const currentFiles = pendingFilesRef.current;
     if (currentFiles.length > 0) {
       setSending(true);
