@@ -39,7 +39,7 @@ export default function SidebarHeader({
   const hasAnyUnreadList = unreadChannels.length > 0 || unreadConversations.length > 0;
 
   return (
-    <div className="shrink-0 border-b border-surface-200 px-3 py-2 dark:border-surface-700">
+    <div className="app-bar bridge-sticky-top shrink-0 border-b border-surface-200 px-3 py-2 dark:border-surface-700">
       {/* Row 1: Avatar, Name, BBZ Logo */}
       <div className="flex items-center gap-2">
         <button

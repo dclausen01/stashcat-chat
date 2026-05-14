@@ -32,6 +32,18 @@
     min-height: 44px;
     min-width: 44px;
   }
+  /* App-Bar-Konvention: einheitliche Mindesthöhe für sticky Top-Bars,
+     damit Sidebar-Header und ChatView-Header beim Wechsel nicht springen. */
+  .app-bar {
+    min-height: 56px;
+  }
+}
+
+/* iOS-Notch / Android-Statusbar im Flutter-WebView. Wird nur aktiv, wenn
+   das Page-Root das data-bridge-Attribut trägt — im normalen Mobile-Browser
+   greift's nicht (Safari verteilt safe-area dort bereits sinnvoll). */
+[data-bridge="mobile"] .bridge-sticky-top {
+  padding-top: env(safe-area-inset-top);
 }
 
 @theme {

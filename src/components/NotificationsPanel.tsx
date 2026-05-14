@@ -342,7 +342,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
   return (
     <div className="flex h-full w-full shrink-0 flex-col border-l border-surface-200 bg-white md:w-80 dark:border-surface-700 dark:bg-surface-900">
       {/* Header */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
+      <div className="bridge-sticky-top flex shrink-0 items-center gap-3 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
         <button
           onClick={onClose}
           aria-label="Zurück"

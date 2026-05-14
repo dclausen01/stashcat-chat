@@ -448,7 +448,7 @@ export default function CalendarView({ eventIdToOpen, onEventOpened, onClose }: 
       {/* Main calendar area */}
       <div className="flex min-w-0 flex-1 flex-col bg-white dark:bg-surface-950">
         {/* Toolbar */}
-        <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 px-4 py-2.5 dark:border-surface-700">
+        <div className="bridge-sticky-top flex shrink-0 items-center gap-3 border-b border-surface-200 px-4 py-2.5 dark:border-surface-700">
           {onClose && (
             <button
               onClick={onClose}

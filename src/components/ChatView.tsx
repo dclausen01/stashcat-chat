@@ -1312,7 +1312,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
         </div>
       )}
       {/* Header */}
-      <div className="relative flex shrink-0 items-center gap-3 overflow-visible border-b border-surface-200 px-4 py-3 sm:px-6 dark:border-surface-700">
+      <div className="app-bar bridge-sticky-top relative flex shrink-0 items-center gap-3 overflow-visible border-b border-surface-200 px-4 py-3 sm:px-6 dark:border-surface-700">
         {/* Mobile: Back button */}
         <button
           onClick={onGoHome}

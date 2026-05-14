@@ -374,7 +374,7 @@ export default function BroadcastsPanel({ onClose }: BroadcastsPanelProps) {
   return (
     <div className="flex h-full w-full shrink-0 flex-col border-l border-surface-200 bg-surface-50 dark:border-surface-700 dark:bg-surface-900 md:w-96">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
+      <div className="bridge-sticky-top flex shrink-0 items-center gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
         {activeBroadcast ? (
           <>
             <button onClick={() => { setActiveBroadcast(null); setShowAddMembers(false); }}
