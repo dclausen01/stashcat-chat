@@ -32,6 +32,8 @@ import {
 } from 'lucide-react';
 import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react';
 import { clsx } from 'clsx';
+import { isMobileBridge } from '../lib/mobileBridge';
+import { pickFilesNative } from '../lib/flutterBridge';
 import { useTheme } from '../context/ThemeContext';
 import { useSettings } from '../context/SettingsContext';
 
@@ -431,6 +433,29 @@ export default function MessageInput({
     e.target.value = '';
   };
 
+  /**
+   * Datei-Auswahl. Im Mobile-Bridge-Modus über den nativen Picker
+   * (Flutter); sonst klassischer <input type=file>-Pfad.
+   * type: 'any' | 'image' | 'video' | 'audio' — steuert beide Pfade.
+   */
+  const pickAttachments = async (type: 'any' | 'image' | 'video' | 'audio' = 'any') => {
+    if (isMobileBridge()) {
+      const files = await pickFilesNative({ allowMultiple: true, type });
+      if (files.length > 0) setPendingFiles((prev) => [...prev, ...files]);
+      return;
+    }
+    // Web/Desktop-Fallback: <input>-Picker, ggf. mit Accept-Filter
+    const input = fileInputRef.current;
+    if (!input) return;
+    const accept = type === 'image' ? 'image/*'
+      : type === 'video' ? 'video/*'
+      : type === 'audio' ? 'audio/*'
+      : '';
+    if (accept) input.setAttribute('accept', accept);
+    else input.removeAttribute('accept');
+    input.click();
+  };
+
   const openLinkDialog = useCallback(() => {
     if (!editor) return;
     const { from, to, empty } = editor.state.selection;
@@ -701,7 +726,7 @@ export default function MessageInput({
             <div className="absolute bottom-10 left-0 z-50 min-w-[240px] whitespace-nowrap overflow-hidden rounded-xl border border-surface-200 bg-white shadow-lg dark:border-surface-700 dark:bg-surface-800">
               <button
                 type="button"
-                onClick={() => { setShowAttachMenu(false); fileInputRef.current?.click(); }}
+                onClick={() => { setShowAttachMenu(false); void pickAttachments('any'); }}
                 className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
               >
                 <Paperclip size={15} className="text-surface-500" />
