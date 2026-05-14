@@ -656,7 +656,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
 
       {/* Split panels (desktop/tablet) — WhatsApp-style tabs (phone) */}
       {isPhone ? (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="relative flex min-h-0 flex-1 flex-col">
           {/* Tab bar — tabs split a row, with inline action icons on the active tab */}
           <div className="flex shrink-0 items-stretch border-b border-surface-200 dark:border-surface-700">
             {/* Direct tab */}
@@ -775,6 +775,24 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
               </div>
             </div>
           )}
+
+          {/* Floating Action Button — bedient den aktiven Tab. Bleibt über dem
+              SidebarFooter (bottom-20) und respektiert iOS-Safe-Area. */}
+          <button
+            type="button"
+            onClick={() => {
+              bridge.haptic('medium');
+              if (activeTab === 'channels') setShowNewChannel(true);
+              else setShowNewChat(true);
+            }}
+            disabled={!primaryCompanyId}
+            aria-label={activeTab === 'channels' ? 'Neuen Channel erstellen' : 'Neue Direktnachricht starten'}
+            title={activeTab === 'channels' ? 'Neuen Channel erstellen' : 'Neue Direktnachricht starten'}
+            style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}
+            className="absolute right-4 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-primary-600 text-white shadow-lg ring-1 ring-black/5 transition hover:bg-primary-700 active:scale-95 disabled:opacity-50 dark:bg-primary-500 dark:hover:bg-primary-600"
+          >
+            <Plus size={26} strokeWidth={2.4} />
+          </button>
         </div>
       ) : (
         <div ref={containerRef} className="flex min-h-0 flex-1 flex-col">
