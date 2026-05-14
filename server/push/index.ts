@@ -8,43 +8,36 @@
  *   PATCH  /api/account/push-preferences   — set push preview mode
  *   GET    /api/account/push-preferences   — read push preview mode
  *
+ * All routes accept *either* the legacy session token OR the mobile token
+ * returned by `/api/auth/mobile-login` as Bearer. The auth-resolution helper
+ * lives in `./auth.ts`; these routes are listed in `OPEN_PATH_PREFIXES` so
+ * the global `authenticate` middleware (which only handles session tokens)
+ * leaves them alone.
+ *
  * The dispatcher itself listens on the existing per-session Realtime events
  * (see `connectRealtime` in `server/index.ts`) via the `notifyPush()` helper
  * exported from here. We don't subscribe globally to avoid duplicate handlers.
  */
 import { Router, type Request, type Response } from 'express';
-import { extractToken } from '../lib/get-client';
-import { decryptSession } from '../token-crypto';
 import { upsertToken, removeToken, listForUser, pruneOlderThan, type Platform } from './token-store';
 import { queueMessageEvent, type IncomingMessageEvent } from './dispatcher';
 import { isFcmConfigured } from './fcm-client';
-import {
-  loadMobileToken,
-  updatePushPreview,
-  extractMobileToken,
-  type PushPreviewMode,
-} from '../mobile-auth';
+import { resolveAuth, loadMobileTokenFromRequest } from './auth';
+import { loadMobileToken, updatePushPreview, type PushPreviewMode } from '../mobile-auth';
 
 const router = Router();
 
-function userIdFromSession(req: Request): string {
-  const token = extractToken(req);
-  const payload = decryptSession(token);
-  // Stashcat user identity is *not* directly in the session — but the
-  // clientKey is a stable per-user value and serves as our routing key.
-  return payload.clientKey;
-}
-
 router.post('/push-tokens', async (req: Request, res: Response) => {
   try {
-    const userId = userIdFromSession(req);
+    const auth = await resolveAuth(req);
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' });
     const { token, platform, appVersion, locale } = req.body || {};
     if (!token || (platform !== 'android' && platform !== 'ios')) {
       return res.status(400).json({ error: 'token + platform (android|ios) required' });
     }
     await upsertToken({
       token,
-      userId,
+      userId: auth.userId,
       platform: platform as Platform,
       appVersion,
       locale,
@@ -59,6 +52,8 @@ router.post('/push-tokens', async (req: Request, res: Response) => {
 
 router.delete('/push-tokens/:token', async (req: Request, res: Response) => {
   try {
+    const auth = await resolveAuth(req);
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' });
     const token = req.params.token;
     if (typeof token !== 'string' || !token) {
       return res.status(400).json({ error: 'token param required' });
@@ -72,8 +67,9 @@ router.delete('/push-tokens/:token', async (req: Request, res: Response) => {
 
 router.get('/push-tokens', async (req: Request, res: Response) => {
   try {
-    const userId = userIdFromSession(req);
-    const list = await listForUser(userId);
+    const auth = await resolveAuth(req);
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+    const list = await listForUser(auth.userId);
     // Don't leak the raw token; surface a hash-ish prefix only.
     res.json(list.map((r) => ({ ...r, token: r.token.slice(0, 12) + '…' })));
   } catch (err) {
@@ -83,9 +79,12 @@ router.get('/push-tokens', async (req: Request, res: Response) => {
 
 router.get('/account/push-preferences', async (req: Request, res: Response) => {
   try {
-    const mobileToken = extractMobileToken(req as unknown as { headers: Record<string, string | string[] | undefined> });
-    if (mobileToken) {
-      const rec = await loadMobileToken(mobileToken);
+    // Both authentication paths are accepted, but only mobile-token sessions
+    // actually have a stored preference. Desktop callers always get 'full'.
+    const auth = await resolveAuth(req);
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+    if (auth.isMobile && auth.mobileToken) {
+      const rec = await loadMobileToken(auth.mobileToken);
       return res.json({ pushPreviewMode: rec?.pushPreviewMode ?? 'full' });
     }
     res.json({ pushPreviewMode: 'full' });
@@ -96,13 +95,14 @@ router.get('/account/push-preferences', async (req: Request, res: Response) => {
 
 router.patch('/account/push-preferences', async (req: Request, res: Response) => {
   try {
+    const auth = await resolveAuth(req);
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' });
     const mode = (req.body?.pushPreviewMode || 'full') as PushPreviewMode;
     if (mode !== 'full' && mode !== 'silent') {
       return res.status(400).json({ error: 'pushPreviewMode must be full|silent' });
     }
-    const mobileToken = extractMobileToken(req as unknown as { headers: Record<string, string | string[] | undefined> });
-    if (mobileToken) {
-      await updatePushPreview(mobileToken, mode);
+    if (auth.isMobile && auth.mobileToken) {
+      await updatePushPreview(auth.mobileToken, mode);
       return res.json({ ok: true, pushPreviewMode: mode });
     }
     // No mobile token: silently no-op (desktop sessions don't need this).
@@ -138,5 +138,8 @@ export function initPushDispatcher(): void {
       .catch(() => {});
   }, DAY).unref?.();
 }
+
+// Re-export so callers (e.g. dispatcher tests) can still grab a mobile token.
+export { loadMobileTokenFromRequest };
 
 export default router;

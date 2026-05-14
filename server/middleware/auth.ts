@@ -39,6 +39,16 @@ const OPEN_PATHS = new Set<string>([
 ]);
 
 /**
+ * Paths that accept *either* the legacy session token or the mobile token
+ * issued by `/api/auth/mobile-login`. The route handler is responsible for
+ * resolving the bearer token itself (see `server/push/auth.ts`).
+ */
+const OPEN_PATH_PREFIXES = [
+  '/api/push-tokens',
+  '/api/account/push-preferences',
+];
+
+/**
  * Resolves the session's StashcatClient via the Bearer token (or `?token=`
  * query fallback) and attaches it to `req.client`. On any failure responds
  * 401 — the route handler never runs.
@@ -48,7 +58,11 @@ export async function authenticate(
   res: express.Response,
   next: express.NextFunction,
 ): Promise<void> {
-  if (!req.path.startsWith('/api/') || OPEN_PATHS.has(req.path)) {
+  if (
+    !req.path.startsWith('/api/') ||
+    OPEN_PATHS.has(req.path) ||
+    OPEN_PATH_PREFIXES.some((p) => req.path === p || req.path.startsWith(`${p}/`))
+  ) {
     return next();
   }
   try {

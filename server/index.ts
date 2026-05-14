@@ -354,7 +354,10 @@ app.post('/api/auth/mobile-login', async (req, res) => {
     cacheClient(serialized.clientKey, client);
 
     const me = await client.getMe();
-    const userId = String((me as unknown as { id?: string | number }).id ?? '');
+    // We key everything (push tokens, dispatcher fan-out, mobile sessions) by
+    // the Stashcat `clientKey` so the lookup paths stay consistent. The
+    // Stashcat user id is not exposed here intentionally.
+    const userId = serialized.clientKey;
 
     const mobileToken = generateMobileToken();
     await saveMobileToken(mobileToken, {
