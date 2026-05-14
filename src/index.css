@@ -46,6 +46,11 @@
   padding-top: env(safe-area-inset-top);
 }
 
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
 @theme {
   --color-primary-50: #f0f5fc;
   --color-primary-100: #dce8f7;
