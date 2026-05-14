@@ -76,7 +76,19 @@ export const bridge = {
    */
   pickFiles: (opts: PickFilesOptions = {}) =>
     call<string[]>('pickFiles', opts as unknown as BridgePayload),
-  /** Liest eine via `pickFiles` zurückgegebene URI als Base64. */
+  /**
+   * Öffnet die System-Kamera für eine Foto-Aufnahme. Liefert die URI des
+   * gespeicherten Bildes (oder `null`/leeren String, wenn der User
+   * abbricht). Bytes anschließend wie üblich über `readFile` holen.
+   */
+  captureImage: () => call<string | null>('captureImage'),
+  /**
+   * Öffnet die System-Kamera für eine Video-Aufnahme. Liefert die URI des
+   * gespeicherten Videos (oder `null`/leeren String, wenn abgebrochen).
+   */
+  captureVideo: () => call<string | null>('captureVideo'),
+  /** Liest eine via `pickFiles` / `captureImage` / `captureVideo`
+   *  zurückgegebene URI als Base64. */
   readFile: (uri: string) => call<PickedFileMeta | null>('readFile', uri),
   logout: () => call('logout'),
   jitsi: (url: string) => call('jitsi', url),
@@ -156,6 +168,30 @@ export async function pickFilesNative(opts: PickFilesOptions = {}): Promise<File
   const uris = (await bridge.pickFiles(opts)) ?? [];
   if (!Array.isArray(uris) || uris.length === 0) return [];
 
+  return urisToFiles(uris);
+}
+
+/**
+ * Öffnet die System-Kamera (Foto oder Video, je nach `kind`) und gibt das
+ * Resultat als ein-Element-`File[]` zurück. Außerhalb des Bridges bzw. wenn
+ * der User abbricht: leeres Array.
+ *
+ * Die zugrunde liegende Bridge muss den passenden Handler (`captureImage` /
+ * `captureVideo`) bereitstellen.
+ */
+export async function captureFromCameraNative(kind: 'image' | 'video'): Promise<File[]> {
+  if (!isMobileBridge()) return [];
+  const inAppWebView = (window as unknown as { flutter_inappwebview?: InAppWebViewBridge }).flutter_inappwebview;
+  if (!inAppWebView?.callHandler) return [];
+
+  const uri = kind === 'image' ? await bridge.captureImage() : await bridge.captureVideo();
+  if (!uri || typeof uri !== 'string') return [];
+
+  return urisToFiles([uri]);
+}
+
+/** URIs (via Bridge) → File[] (lokal lesbar) — gemeinsame Pipeline. */
+async function urisToFiles(uris: string[]): Promise<File[]> {
   const files: File[] = [];
   for (const uri of uris) {
     try {
@@ -163,8 +199,6 @@ export async function pickFilesNative(opts: PickFilesOptions = {}): Promise<File
       if (!meta || !meta.base64) continue;
       const bytes = base64ToUint8(meta.base64);
       const mime = guessMime(meta.name);
-      // Slice in einen neuen ArrayBuffer kopieren, damit der BlobPart-Typ
-      // unter TS strict eindeutig ist (vermeidet ArrayBufferLike-Diskrepanz).
       const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
       const blob = new Blob([buf], { type: mime });
       files.push(new File([blob], meta.name, { type: mime }));
