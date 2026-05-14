@@ -29,11 +29,12 @@ import {
   Heading2, Quote, Link as LinkIcon, ListTodo, Code2,
   X, Loader2, Reply, BarChart3, CalendarPlus, Presentation, FilePlus,
   Mic, StopCircle, Type as TypeIcon, Image as ImageIcon, Film, Music,
+  Camera, Video,
 } from 'lucide-react';
 import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react';
 import { clsx } from 'clsx';
 import { isMobileBridge } from '../lib/mobileBridge';
-import { pickFilesNative } from '../lib/flutterBridge';
+import { pickFilesNative, captureFromCameraNative, bridge } from '../lib/flutterBridge';
 import { useTheme } from '../context/ThemeContext';
 import { useSettings } from '../context/SettingsContext';
 
@@ -235,6 +236,7 @@ export default function MessageInput({
 
   const handleSend = useCallback(async () => {
     if (sending) return;
+    bridge.haptic('light');
     const currentFiles = pendingFilesRef.current;
     if (currentFiles.length > 0) {
       setSending(true);
@@ -431,6 +433,14 @@ export default function MessageInput({
     const files = Array.from(e.target.files ?? []);
     if (files.length > 0) setPendingFiles((prev) => [...prev, ...files]);
     e.target.value = '';
+  };
+
+  /** Live-Aufnahme über die System-Kamera (nur im Bridge-Modus). */
+  const captureMedia = async (kind: 'image' | 'video') => {
+    if (!isMobileBridge()) return;
+    bridge.haptic('light');
+    const files = await captureFromCameraNative(kind);
+    if (files.length > 0) setPendingFiles((prev) => [...prev, ...files]);
   };
 
   /**
@@ -732,11 +742,28 @@ export default function MessageInput({
                 <>
                   <button
                     type="button"
+                    onClick={() => { setShowAttachMenu(false); void captureMedia('image'); }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
+                  >
+                    <Camera size={15} className="text-emerald-500" />
+                    Foto aufnehmen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowAttachMenu(false); void captureMedia('video'); }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
+                  >
+                    <Video size={15} className="text-rose-500" />
+                    Video aufnehmen
+                  </button>
+                  <div className="my-1 h-px bg-surface-200 dark:bg-surface-700" />
+                  <button
+                    type="button"
                     onClick={() => { setShowAttachMenu(false); void pickAttachments('image'); }}
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
                   >
                     <ImageIcon size={15} className="text-blue-500" />
-                    Bild auswählen
+                    Bild aus Galerie
                   </button>
                   <button
                     type="button"
@@ -744,7 +771,7 @@ export default function MessageInput({
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
                   >
                     <Film size={15} className="text-pink-500" />
-                    Video auswählen
+                    Video aus Galerie
                   </button>
                   <button
                     type="button"
