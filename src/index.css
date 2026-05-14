@@ -24,6 +24,16 @@
   min-width: 44px;
 }
 
+/* Phase-1 Mobile-UX-Polish:
+   - Einheitliche 44 px Touch-Targets nur unter dem md-Breakpoint (= Phone).
+   - Desktop und Portrait-Tablet bleiben mit ihren kompakten Buttons. */
+@media (max-width: 767.9px) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 @theme {
   --color-primary-50: #f0f5fc;
   --color-primary-100: #dce8f7;

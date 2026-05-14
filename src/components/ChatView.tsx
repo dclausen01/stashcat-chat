@@ -1491,7 +1491,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
             }}
             disabled={meetingLoading}
             className={clsx(
-              'rounded-lg p-2 transition',
+              'touch-target inline-flex items-center justify-center rounded-lg p-2 transition',
               meetingLoading
                 ? 'animate-pulse text-primary-500'
                 : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',
@@ -1512,7 +1512,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
                 };
                 onStartCall(chat.userId!, chat.id, callee);
               }}
-              className="rounded-lg p-2 text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800"
+              className="touch-target inline-flex items-center justify-center rounded-lg p-2 text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800"
               title="Audioanruf starten"
             >
               <Phone size={22} />
@@ -1561,7 +1561,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
             <button
               onClick={() => setMembersOpen((o) => !o)}
               className={clsx(
-                'rounded-lg p-2 transition',
+                'touch-target inline-flex items-center justify-center rounded-lg p-2 transition',
                 membersOpen
                   ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
                   : 'text-surface-600 hover:bg-surface-200 dark:text-surface-300 dark:hover:bg-surface-800',

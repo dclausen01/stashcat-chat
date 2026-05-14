@@ -670,7 +670,7 @@ export default function MessageInput({
             type="button"
             title="Anhang"
             onClick={() => setShowAttachMenu((v) => !v)}
-            className="rounded-lg p-1.5 text-surface-500 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
+            className="touch-target inline-flex items-center justify-center rounded-lg p-1.5 text-surface-500 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
           >
             <Paperclip size={18} />
           </button>
