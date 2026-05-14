@@ -28,7 +28,7 @@ import {
   Send, Paperclip, Bold, Italic, Strikethrough, Code, List, ListOrdered,
   Heading2, Quote, Link as LinkIcon, ListTodo, Code2,
   X, Loader2, Reply, BarChart3, CalendarPlus, Presentation, FilePlus,
-  Mic, StopCircle, Type as TypeIcon,
+  Mic, StopCircle, Type as TypeIcon, Image as ImageIcon, Film, Music,
 } from 'lucide-react';
 import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react';
 import { clsx } from 'clsx';
@@ -724,6 +724,39 @@ export default function MessageInput({
           </button>
           {showAttachMenu && (
             <div className="absolute bottom-10 left-0 z-50 min-w-[240px] whitespace-nowrap overflow-hidden rounded-xl border border-surface-200 bg-white shadow-lg dark:border-surface-700 dark:bg-surface-800">
+              {/* Schnellauswahl-Filter — nur im Mobile-Bridge-Modus,
+                  weil der native Picker den passenden Medien-Tab direkt
+                  öffnen kann. Im Web/Desktop ist "Datei anhängen" + OS-Dialog
+                  schon ausreichend. */}
+              {isMobileBridge() && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => { setShowAttachMenu(false); void pickAttachments('image'); }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
+                  >
+                    <ImageIcon size={15} className="text-blue-500" />
+                    Bild auswählen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowAttachMenu(false); void pickAttachments('video'); }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
+                  >
+                    <Film size={15} className="text-pink-500" />
+                    Video auswählen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowAttachMenu(false); void pickAttachments('audio'); }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 dark:text-surface-200 dark:hover:bg-surface-700"
+                  >
+                    <Music size={15} className="text-amber-500" />
+                    Audio-Datei auswählen
+                  </button>
+                  <div className="my-1 h-px bg-surface-200 dark:bg-surface-700" />
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => { setShowAttachMenu(false); void pickAttachments('any'); }}
