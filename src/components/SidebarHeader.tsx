@@ -39,7 +39,7 @@ export default function SidebarHeader({
   const hasAnyUnreadList = unreadChannels.length > 0 || unreadConversations.length > 0;
 
   return (
-    <div className="shrink-0 border-b border-surface-200 px-3 py-2 dark:border-surface-700">
+    <div className="app-bar bridge-sticky-top shrink-0 border-b border-surface-200 px-3 py-2 dark:border-surface-700">
       {/* Row 1: Avatar, Name, BBZ Logo */}
       <div className="flex items-center gap-2">
         <button
@@ -64,7 +64,7 @@ export default function SidebarHeader({
         {onGoHome && (
           <button
             onClick={onGoHome}
-            className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
+            className="touch-target inline-flex items-center justify-center rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
             title="Zur Startseite"
             aria-label="Zur Startseite"
           >
@@ -75,7 +75,7 @@ export default function SidebarHeader({
           <button
             onClick={toggleNotifications}
             className={clsx(
-              'relative rounded-lg p-1.5 transition',
+              'touch-target relative inline-flex items-center justify-center rounded-lg p-1.5 transition',
               notificationsOpen
                 ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
                 : 'text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700',
@@ -152,24 +152,24 @@ export default function SidebarHeader({
         </div>
         <button
           onClick={toggleFileBrowser}
-          className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
+          className="touch-target inline-flex items-center justify-center rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
           title="Meine Dateien"
           aria-label="Meine Dateien"
         >
           <FolderOpen size={16} />
         </button>
-        <button onClick={toggle} aria-label={theme === 'dark' ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren'} title={theme === 'dark' ? 'Helles Design' : 'Dunkles Design'} className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
+        <button onClick={toggle} aria-label={theme === 'dark' ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren'} title={theme === 'dark' ? 'Helles Design' : 'Dunkles Design'} className="touch-target inline-flex items-center justify-center rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
         </button>
         <button
           onClick={toggleSettings}
-          className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
+          className="touch-target inline-flex items-center justify-center rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700"
           title="Einstellungen"
           aria-label="Einstellungen"
         >
           <Settings size={16} />
         </button>
-        <button onClick={logout} aria-label="Abmelden" title="Abmelden" className="rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
+        <button onClick={logout} aria-label="Abmelden" title="Abmelden" className="touch-target inline-flex items-center justify-center rounded-lg p-1.5 text-surface-400 hover:bg-surface-200 dark:hover:bg-surface-700">
           <LogOut size={16} />
         </button>
       </div>

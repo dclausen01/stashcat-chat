@@ -722,7 +722,7 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
       )}
 
       {/* Header */}
-      <div className="shrink-0 border-b border-surface-200 dark:border-surface-700">
+      <div className="bridge-sticky-top shrink-0 border-b border-surface-200 dark:border-surface-700">
         <div className="flex items-center gap-2 px-4 pt-3 pb-2">
           {!fullscreen && (
             <button

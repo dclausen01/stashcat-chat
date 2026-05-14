@@ -177,7 +177,7 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
         className="absolute left-0 top-0 z-20 hidden h-full w-1 cursor-col-resize border-l border-surface-200 transition-colors hover:border-primary-400 hover:border-l-2 dark:border-surface-700 dark:hover:border-primary-600 md:block"
         title="Breite anpassen"
       />
-      <div className="flex shrink-0 items-center gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
+      <div className="bridge-sticky-top flex shrink-0 items-center gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
         <button
           onClick={onClose}
           aria-label="Zurück"

@@ -124,7 +124,7 @@ function PollDetail({ poll, companyId, onBack, onRefresh, onDelete }: { poll: Po
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Sub-header */}
-      <div className="flex items-center gap-3 border-b border-surface-200 px-6 py-3 dark:border-surface-700">
+      <div className="bridge-sticky-top flex items-center gap-3 border-b border-surface-200 px-6 py-3 dark:border-surface-700">
         <button onClick={onBack} className="rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800">
           <ChevronLeft size={18} />
         </button>
@@ -414,7 +414,7 @@ export default function PollsView({ pollIdToOpen, onPollOpened, onClose }: Polls
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-white dark:bg-surface-900">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-surface-200 px-4 py-4 sm:px-6 dark:border-surface-700">
+      <div className="bridge-sticky-top flex items-center gap-3 border-b border-surface-200 px-4 py-4 sm:px-6 dark:border-surface-700">
         {onClose && (
           <button
             onClick={onClose}
