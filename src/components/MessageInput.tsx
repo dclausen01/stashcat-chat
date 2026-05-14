@@ -28,7 +28,7 @@ import {
   Send, Paperclip, Bold, Italic, Strikethrough, Code, List, ListOrdered,
   Heading2, Quote, Link as LinkIcon, ListTodo, Code2,
   X, Loader2, Reply, BarChart3, CalendarPlus, Presentation, FilePlus,
-  Mic, StopCircle,
+  Mic, StopCircle, Type as TypeIcon,
 } from 'lucide-react';
 import EmojiPicker, { type EmojiClickData, Theme } from 'emoji-picker-react';
 import { clsx } from 'clsx';
@@ -84,6 +84,24 @@ export default function MessageInput({
   const [showEmoji, setShowEmoji] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  // Formatting toolbar visibility. On Mobile (< md) sie kostet vertikalen Raum
+  // und ist selten gebraucht → standardmäßig eingeklappt; Toggle merkt sich
+  // die Wahl pro Browser. Auf Desktop bleibt sie wie bisher immer sichtbar.
+  const [toolbarOpen, setToolbarOpen] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('schulchat_compose_toolbar');
+      if (saved === 'open') return true;
+      if (saved === 'closed') return false;
+    } catch { /* noop */ }
+    // Default: open on desktop, closed on phones
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      return window.matchMedia('(min-width: 768px)').matches;
+    }
+    return true;
+  });
+  useEffect(() => {
+    try { localStorage.setItem('schulchat_compose_toolbar', toolbarOpen ? 'open' : 'closed'); } catch { /* noop */ }
+  }, [toolbarOpen]);
   const [linkDialog, setLinkDialog] = useState<LinkDialogState | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -575,8 +593,13 @@ export default function MessageInput({
         </div>
       )}
 
-      {/* Formatting toolbar — horizontal scroll on narrow screens to avoid wrapping. */}
-      <div className="mb-2 flex items-center gap-0.5 overflow-x-auto md:flex-wrap [&::-webkit-scrollbar]:hidden">
+      {/* Formatting toolbar — collapsible on Mobile (default closed), always
+          visible on Desktop. md:!flex forces visibility from md upwards even
+          when the user collapsed it via the toggle below. */}
+      <div className={clsx(
+        'mb-2 items-center gap-0.5 overflow-x-auto md:flex-wrap md:!flex [&::-webkit-scrollbar]:hidden',
+        toolbarOpen ? 'flex' : 'hidden',
+      )}>
         {FORMAT_BUTTONS.map((btn) => (
           <button
             key={btn.label}
@@ -736,6 +759,23 @@ export default function MessageInput({
           )}
         </div>
 
+        {/* Mobile-only: Toggle für die Format-Toolbar (eingeklappt = mehr Platz) */}
+        <button
+          type="button"
+          onClick={() => setToolbarOpen((v) => !v)}
+          title={toolbarOpen ? 'Formatierung ausblenden' : 'Formatierung einblenden'}
+          aria-label={toolbarOpen ? 'Formatierung ausblenden' : 'Formatierung einblenden'}
+          aria-pressed={toolbarOpen}
+          className={clsx(
+            'touch-target inline-flex shrink-0 items-center justify-center rounded-lg p-1.5 md:hidden',
+            toolbarOpen
+              ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+              : 'text-surface-500 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700',
+          )}
+        >
+          <TypeIcon size={18} />
+        </button>
+
         {/* Emoji picker — desktop only; on mobile, the OS keyboard provides emojis */}
         <div ref={emojiRef} className="relative hidden shrink-0 md:block">
           <button
@@ -795,7 +835,7 @@ export default function MessageInput({
           disabled={!canSend}
           title="Senden"
           aria-label="Senden"
-          className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg bg-ci-red-500 p-1.5 text-white transition hover:bg-ci-red-600 disabled:opacity-40 sm:min-h-[34px] sm:min-w-[34px]"
+          className="flex min-h-[48px] min-w-[48px] shrink-0 items-center justify-center rounded-full bg-ci-red-500 p-1.5 text-white shadow-md transition hover:bg-ci-red-600 active:scale-95 disabled:opacity-40 disabled:shadow-none md:min-h-[34px] md:min-w-[34px] md:rounded-lg md:shadow-none md:active:scale-100"
         >
           {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
         </button>
