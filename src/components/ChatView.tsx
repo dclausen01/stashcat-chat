@@ -1635,7 +1635,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
         {/* Mobile: More menu dropdown — opens from the title button */}
         {mobileMenuOpen && (
           <>
-            <div className="pointer-events-none fixed inset-0 z-40 bg-black/50 md:hidden portrait-tablet:!block portrait-tablet:!pointer-events-auto" onClick={() => { setMobileMenuOpen(false); setMuteMenuOpen(false); }} />
+            <div className="fixed inset-0 z-40 bg-black/50 md:hidden portrait-tablet:!block" onClick={() => { setMobileMenuOpen(false); setMuteMenuOpen(false); }} />
             <div className="pointer-events-auto fixed left-4 right-4 top-20 z-50 mx-auto w-full max-w-sm rounded-lg border border-surface-200 bg-white py-1 shadow-lg dark:border-surface-700 dark:bg-surface-800 md:hidden portrait-tablet:!block">
               {/* Favorite toggle */}
               {onToggleFavorite && (

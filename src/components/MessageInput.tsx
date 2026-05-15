@@ -715,7 +715,7 @@ export default function MessageInput({
       {/* Input area */}
       <div
         className={clsx(
-          'relative flex items-end gap-2 rounded-xl border bg-surface-50 px-3 py-1.5 transition',
+          'relative flex items-end gap-1 rounded-xl border bg-surface-50 px-2 py-1.5 transition md:gap-2 md:px-3',
           'border-surface-200 focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500/20',
           'dark:border-surface-600 dark:bg-surface-800',
         )}
@@ -844,7 +844,9 @@ export default function MessageInput({
           )}
         </div>
 
-        {/* Mobile-only: Toggle für die Format-Toolbar (eingeklappt = mehr Platz) */}
+        {/* Mobile-only: Toggle für die Format-Toolbar (eingeklappt = mehr Platz).
+            Bewusst kompakter als die touch-target-Konvention (36×36 statt 44×44),
+            damit das Eingabefeld auf engen Screens nicht umbricht. */}
         <button
           type="button"
           onClick={() => setToolbarOpen((v) => !v)}
@@ -852,13 +854,13 @@ export default function MessageInput({
           aria-label={toolbarOpen ? 'Formatierung ausblenden' : 'Formatierung einblenden'}
           aria-pressed={toolbarOpen}
           className={clsx(
-            'touch-target inline-flex shrink-0 items-center justify-center rounded-lg p-1.5 md:hidden',
+            'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg md:hidden',
             toolbarOpen
               ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
               : 'text-surface-500 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700',
           )}
         >
-          <TypeIcon size={18} />
+          <TypeIcon size={16} />
         </button>
 
         {/* Emoji picker — desktop only; on mobile, the OS keyboard provides emojis */}
