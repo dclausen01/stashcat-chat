@@ -37,6 +37,8 @@ import type { CallParty } from '../api/calls';
 import { getCleanName, getParentId } from '../utils/subchannels';
 import { isMobileBridge } from '../lib/mobileBridge';
 import { bridge } from '../lib/flutterBridge';
+import { useLayoutMode } from '../hooks/useLayoutMode';
+import MobileSheet from './MobileSheet';
 
 interface ChatViewProps {
   chat: ChatTarget;
@@ -2518,6 +2520,36 @@ function MessageGroup({
   const { theme } = useTheme();
   const senderName = sender ? `${sender.first_name ?? ''} ${sender.last_name ?? ''}`.trim() || 'Unbekannt' : 'Unbekannt';
   const [mobileActionMsgId, setMobileActionMsgId] = useState<string | null>(null);
+  const layoutMode = useLayoutMode();
+  const isPhone = layoutMode === 'mobile';
+
+  // Long-press handlers — auf Phone öffnet langes Halten direkt die Action-Sheet.
+  // 500ms Threshold, Touchmove > 6px bricht ab (Scrollen ist kein Long-Press).
+  const longPressTimer = useRef<number | null>(null);
+  const longPressStart = useRef<{ x: number; y: number } | null>(null);
+  const cancelLongPress = () => {
+    if (longPressTimer.current != null) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    longPressStart.current = null;
+  };
+  const startLongPress = (msgId: string, x: number, y: number) => {
+    if (!isPhone) return;
+    cancelLongPress();
+    longPressStart.current = { x, y };
+    longPressTimer.current = window.setTimeout(() => {
+      bridge.haptic('medium');
+      setMobileActionMsgId(msgId);
+      longPressTimer.current = null;
+    }, 500);
+  };
+  const moveLongPress = (x: number, y: number) => {
+    if (!longPressStart.current) return;
+    const dx = Math.abs(x - longPressStart.current.x);
+    const dy = Math.abs(y - longPressStart.current.y);
+    if (dx > 6 || dy > 6) cancelLongPress();
+  };
 
   return (
     <>
@@ -2615,6 +2647,21 @@ function MessageGroup({
                     backgroundColor: isOwn ? ownBubbleColor : otherBubbleColor,
                     color: isOwn || theme === 'dark' ? '#fff' : undefined,
                   }}
+                  onTouchStart={(e) => {
+                    const t = e.touches[0];
+                    if (t) startLongPress(String(msg.id), t.clientX, t.clientY);
+                  }}
+                  onTouchMove={(e) => {
+                    const t = e.touches[0];
+                    if (t) moveLongPress(t.clientX, t.clientY);
+                  }}
+                  onTouchEnd={cancelLongPress}
+                  onTouchCancel={cancelLongPress}
+                  onContextMenu={(e) => {
+                    // Auf Phone: nativer Context-Menu unterdrücken (Long-Press
+                    // soll unseren Action-Sheet öffnen, nicht das Browser-Menü).
+                    if (isPhone) e.preventDefault();
+                  }}
                 >
                   {replyTo && <ReplyQuote msg={replyTo} isOwn={isOwn} />}
                   {msg.is_forwarded && (
@@ -2638,12 +2685,15 @@ function MessageGroup({
                 >
                   <MoreHorizontal size={16} />
                 </button>
-                {/* Action popup — desktop: shown on bubble or popup hover (peer/bubble); mobile: toggled via ⋯ */}
+                {/* Action popup — desktop only: shown on bubble or popup hover.
+                    Phone nutzt den Long-Press → MobileSheet weiter unten. */}
                 <div className={clsx(
                   'absolute bottom-full mb-1 z-20 items-center gap-0.5 rounded-lg bg-white/95 p-1 shadow-md ring-1 ring-surface-200 backdrop-blur dark:bg-surface-800/95 dark:ring-surface-700',
                   'before:absolute before:-bottom-1.5 before:left-0 before:right-0 before:h-1.5',
                   isOwn ? 'right-0' : 'left-0',
-                  mobileActionMsgId === String(msg.id) ? 'flex' : 'hidden peer-hover/bubble:flex hover:flex',
+                  isPhone
+                    ? 'hidden'
+                    : (mobileActionMsgId === String(msg.id) ? 'flex' : 'hidden peer-hover/bubble:flex hover:flex'),
                 )}>
                   <button
                     onClick={() => onLike(String(msg.id), Boolean(msg.liked))}
@@ -2730,6 +2780,80 @@ function MessageGroup({
         })}
       </div>
     </div>
+    {/* Bottom-Sheet mit Nachrichten-Aktionen (Phone, ausgelöst per Long-Press
+        oder ⋯-Button). Eine Sheet-Instanz pro Group; sucht die aktive Nachricht
+        anhand der msg-ID. */}
+    {isPhone && mobileActionMsgId !== null && (() => {
+      const activeMsg = messages.find((m) => String(m.id) === mobileActionMsgId);
+      if (!activeMsg) return null;
+      const canDel = isOwn || canDeleteAll;
+      const closeSheet = () => setMobileActionMsgId(null);
+      const ActionRow = ({
+        icon, label, onClick, danger, active,
+      }: {
+        icon: ReactNode; label: string; onClick: () => void;
+        danger?: boolean; active?: boolean;
+      }) => (
+        <button
+          type="button"
+          onClick={() => { bridge.haptic('light'); onClick(); closeSheet(); }}
+          className={clsx(
+            'flex w-full items-center gap-3 px-5 py-3.5 text-left text-sm transition',
+            danger
+              ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20'
+              : active
+                ? 'text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20'
+                : 'text-surface-700 hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700',
+          )}
+        >
+          <span className="shrink-0">{icon}</span>
+          <span>{label}</span>
+        </button>
+      );
+      return (
+        <MobileSheet open onClose={closeSheet} ariaLabel="Nachrichten-Aktionen" forceModal={false}>
+          <div className="flex flex-col py-1">
+            <ActionRow
+              icon={<ThumbsUp size={18} />}
+              label={activeMsg.liked ? 'Like entfernen' : 'Gefällt mir'}
+              active={Boolean(activeMsg.liked)}
+              onClick={() => onLike(String(activeMsg.id), Boolean(activeMsg.liked))}
+            />
+            <ActionRow
+              icon={<Reply size={18} />}
+              label="Antworten"
+              onClick={() => onReply(activeMsg)}
+            />
+            {activeMsg.text && (
+              <ActionRow
+                icon={<Copy size={18} />}
+                label="Text kopieren"
+                onClick={() => { navigator.clipboard.writeText(activeMsg.text || '').catch(() => {}); }}
+              />
+            )}
+            <ActionRow
+              icon={<Forward size={18} />}
+              label="Weiterleiten"
+              onClick={() => onForward(activeMsg)}
+            />
+            <ActionRow
+              icon={<Bookmark size={18} fill={activeMsg.flagged ? 'currentColor' : 'none'} />}
+              label={activeMsg.flagged ? 'Markierung entfernen' : 'Markieren'}
+              active={Boolean(activeMsg.flagged)}
+              onClick={() => onFlag(String(activeMsg.id), Boolean(activeMsg.flagged))}
+            />
+            {canDel && (
+              <ActionRow
+                icon={<Trash2 size={18} />}
+                label="Löschen"
+                danger
+                onClick={() => onDelete(String(activeMsg.id))}
+              />
+            )}
+          </div>
+        </MobileSheet>
+      );
+    })()}
     </>
   );
 }
