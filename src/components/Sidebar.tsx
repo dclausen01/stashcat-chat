@@ -775,36 +775,59 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
             </div>
           </div>
 
-          {/* Active tab content */}
-          {activeTab === 'channels' ? (
-            <div className="flex min-h-0 flex-1 flex-col">
-              <div ref={channelsPullToRefresh.containerRef as React.RefCallback<HTMLDivElement>} className="flex-1 overflow-y-auto px-2 py-1">
-                {channelsPullToRefresh.indicator}
-                {!initialLoaded && channels.length === 0
-                  ? <SkeletonList />
-                  : renderChannelTree(channelRoots, channelOrphans)}
+          {/* Tab-Container: horizontaler Slide zwischen Direkt und Channels.
+              Beide Tabs sind immer im DOM, nur ihre X-Position wird über
+              translate animiert (220 ms ease-out). Reihenfolge fest:
+              direct (links, translateX(0)) ←→ channels (rechts, translateX(-100%)). */}
+          <div className="relative flex min-h-0 flex-1 overflow-hidden">
+            <div
+              className="flex w-[200%] min-h-0 flex-1 transition-transform duration-[220ms] ease-out"
+              style={{ transform: activeTab === 'channels' ? 'translateX(-50%)' : 'translateX(0%)' }}
+            >
+              {/* Direkt-Tab */}
+              <div className="flex w-1/2 min-h-0 flex-col">
+                <div
+                  ref={directPullToRefresh.containerRef as React.RefCallback<HTMLDivElement>}
+                  className={clsx(
+                    'flex-1 overflow-y-auto px-2 py-1',
+                    activeTab !== 'direct' && 'pointer-events-none',
+                  )}
+                  aria-hidden={activeTab !== 'direct'}
+                >
+                  {directPullToRefresh.indicator}
+                  {!initialLoaded && conversations.length === 0
+                    ? <SkeletonList />
+                    : filtered(conversations).map((conv) => (
+                      <ChatItem
+                        key={`conv-${conv.id}`}
+                        target={conv}
+                        active={activeChat?.id === conv.id && activeChat?.type === 'conversation'}
+                        onSelect={handleSelect}
+                        onToggleFavorite={handleToggleFavorite}
+                        onMarkUnread={handleMarkUnread}
+                        onConversationArchived={handleConversationArchived}
+                      />
+                    ))}
+                </div>
+              </div>
+              {/* Channels-Tab */}
+              <div className="flex w-1/2 min-h-0 flex-col">
+                <div
+                  ref={channelsPullToRefresh.containerRef as React.RefCallback<HTMLDivElement>}
+                  className={clsx(
+                    'flex-1 overflow-y-auto px-2 py-1',
+                    activeTab !== 'channels' && 'pointer-events-none',
+                  )}
+                  aria-hidden={activeTab !== 'channels'}
+                >
+                  {channelsPullToRefresh.indicator}
+                  {!initialLoaded && channels.length === 0
+                    ? <SkeletonList />
+                    : renderChannelTree(channelRoots, channelOrphans)}
+                </div>
               </div>
             </div>
-          ) : (
-            <div className="flex min-h-0 flex-1 flex-col">
-              <div ref={directPullToRefresh.containerRef as React.RefCallback<HTMLDivElement>} className="flex-1 overflow-y-auto px-2 py-1">
-                {directPullToRefresh.indicator}
-                {!initialLoaded && conversations.length === 0
-                  ? <SkeletonList />
-                  : filtered(conversations).map((conv) => (
-                  <ChatItem
-                    key={`conv-${conv.id}`}
-                    target={conv}
-                    active={activeChat?.id === conv.id && activeChat?.type === 'conversation'}
-                    onSelect={handleSelect}
-                    onToggleFavorite={handleToggleFavorite}
-                    onMarkUnread={handleMarkUnread}
-                    onConversationArchived={handleConversationArchived}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          </div>
 
           {/* Floating Action Button — bedient den aktiven Tab. Bleibt über dem
               SidebarFooter (bottom-20) und respektiert iOS-Safe-Area. */}
