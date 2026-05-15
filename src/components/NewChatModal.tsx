@@ -6,6 +6,7 @@ import * as api from '../api';
 import type { Conversation, RawUser } from '../types';
 import Avatar from './Avatar';
 import { formatUserName as userName } from '../utils/userName';
+import MobileSheet from './MobileSheet';
 
 interface NewChatModalProps {
   companyId: string;
@@ -78,13 +79,9 @@ export default function NewChatModal({ companyId, myUserId, onClose, onCreate }:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <MobileSheet open onClose={onClose} ariaLabel="Neue Direktnachricht">
       <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true }}>
-      <div
-        className="flex w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl dark:bg-surface-900"
-        style={{ maxHeight: '80vh' }}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="flex flex-col">
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-surface-200 px-5 py-4 dark:border-surface-700">
           <MessageSquarePlus size={18} className="text-primary-500" />
@@ -189,6 +186,6 @@ export default function NewChatModal({ companyId, myUserId, onClose, onCreate }:
         </div>
       </div>
       </FocusTrap>
-    </div>
+    </MobileSheet>
   );
 }
