@@ -7,6 +7,7 @@ import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import { useFaviconBadge } from '../hooks/useFaviconBadge';
 import { useNotifications } from '../hooks/useNotifications';
 import { useLayoutMode } from '../hooks/useLayoutMode';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { bridge } from '../lib/flutterBridge';
 import ChatItem from './ChatItem';
 import SidebarHeader from './SidebarHeader';
@@ -126,6 +127,11 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
   conversationsRef.current = conversations;
 
   useEffect(() => { (async () => { await loadData(); })(); onRegisterRefresh?.(loadData); onRegisterToggleFavorite?.(handleToggleFavorite); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pull-to-refresh — wird auf Desktop/Tablet automatisch no-op.
+  // Eigene Instanz pro Tab-Liste; nur die sichtbare zieht.
+  const channelsPullToRefresh = usePullToRefresh(async () => { await loadData(); });
+  const directPullToRefresh = usePullToRefresh(async () => { await loadData(); });
   useEffect(() => { onChannelsLoaded?.(channels); }, [channels, onChannelsLoaded]);
 
   async function loadData() {
@@ -754,13 +760,15 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
           {/* Active tab content */}
           {activeTab === 'channels' ? (
             <div className="flex min-h-0 flex-1 flex-col">
-              <div className="flex-1 overflow-y-auto px-2 py-1">
+              <div ref={channelsPullToRefresh.containerRef as React.RefCallback<HTMLDivElement>} className="flex-1 overflow-y-auto px-2 py-1">
+                {channelsPullToRefresh.indicator}
                 {renderChannelTree(channelRoots, channelOrphans)}
               </div>
             </div>
           ) : (
             <div className="flex min-h-0 flex-1 flex-col">
-              <div className="flex-1 overflow-y-auto px-2 py-1">
+              <div ref={directPullToRefresh.containerRef as React.RefCallback<HTMLDivElement>} className="flex-1 overflow-y-auto px-2 py-1">
+                {directPullToRefresh.indicator}
                 {filtered(conversations).map((conv) => (
                   <ChatItem
                     key={`conv-${conv.id}`}
