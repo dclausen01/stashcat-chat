@@ -50,6 +50,7 @@ import {
   extractMobileToken,
 } from './mobile-auth';
 import pushRouter, { initPushDispatcher, notifyPush } from './push';
+import { listForUser as listPushTokensForUser } from './push/token-store';
 
 const app = express();
 app.set('trust proxy', 1); // Trust first proxy (e.g. nginx) to get correct client IP for rate limiting
@@ -160,17 +161,32 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
 
     rt.on('disconnect', () => {
       serverLog(`[Realtime] Disconnected for clientKey ${clientKey.slice(0, 8)} — attempting reconnect`);
-      // Auto-reconnect: if the SSE connection still has clients, re-establish the RealtimeManager
-      setTimeout(() => {
+      // Auto-reconnect: SSE-Clients ODER registrierte Push-Tokens halten die
+      // Stashcat-Realtime-Connection am Leben. Push-User dürfen die App
+      // backgrounden, ohne dass wir ihre Push-Pipeline kappen.
+      setTimeout(async () => {
         const conn = activeSSE.get(clientKey);
-        if (conn && conn.sseClients.size > 0) {
+        if (!conn) {
+          serverLog(`[Realtime] Skipping reconnect for ${clientKey.slice(0, 8)} (SSE entry gone)`);
+          return;
+        }
+        if (conn.sseClients.size > 0) {
           serverLog(`[Realtime] Reconnecting for clientKey ${clientKey.slice(0, 8)} (still has ${conn.sseClients.size} SSE clients)`);
-          conn.realtime = undefined; // Clear stale reference
+          conn.realtime = undefined;
+          connectRealtime(conn.client, clientKey).catch((err) => {
+            serverLog(`[Realtime] Reconnect failed for ${clientKey.slice(0, 8)}:`, errorMessage(err));
+          });
+          return;
+        }
+        const pushTokens = await listPushTokensForUser(clientKey).catch(() => []);
+        if (pushTokens.length > 0) {
+          serverLog(`[Realtime] Reconnecting for clientKey ${clientKey.slice(0, 8)} (no SSE but ${pushTokens.length} push token(s))`);
+          conn.realtime = undefined;
           connectRealtime(conn.client, clientKey).catch((err) => {
             serverLog(`[Realtime] Reconnect failed for ${clientKey.slice(0, 8)}:`, errorMessage(err));
           });
         } else {
-          serverLog(`[Realtime] Skipping reconnect for ${clientKey.slice(0, 8)} (no more SSE clients)`);
+          serverLog(`[Realtime] Skipping reconnect for ${clientKey.slice(0, 8)} (no SSE clients, no push tokens)`);
         }
       }, 3000); // 3s delay to avoid rapid reconnect loops
     });
@@ -802,16 +818,35 @@ app.get('/api/events', async (req, res) => {
     serverLog(`[SSE] Client disconnected for clientKey: ${clientKey.slice(0, 8)}...`);
     clearInterval(hb);
     const c = activeSSE.get(clientKey);
-    if (c) {
-      c.sseClients.delete(res);
-      serverLog(`[SSE] Client removed. Remaining clients: ${c.sseClients.size}`);
-      // If no more SSE clients, disconnect realtime and clean up
-      if (c.sseClients.size === 0) {
-        serverLog(`[SSE] No more clients, disconnecting realtime for clientKey: ${clientKey.slice(0, 8)}...`);
+    if (!c) return;
+    c.sseClients.delete(res);
+    serverLog(`[SSE] Client removed. Remaining clients: ${c.sseClients.size}`);
+    if (c.sseClients.size > 0) return;
+
+    // Keine SSE-Clients mehr — aber Push-User dürfen die App schließen, ohne
+    // dass wir ihre Realtime-Connection killen. Wir prüfen async, ob diese
+    // Session FCM-Tokens hat: ja → Realtime weiter laufen lassen; nein →
+    // Realtime trennen und Eintrag verwerfen.
+    listPushTokensForUser(clientKey)
+      .then((tokens) => {
+        const stillNoSseClients = (activeSSE.get(clientKey)?.sseClients.size ?? 0) === 0;
+        if (!stillNoSseClients) {
+          serverLog(`[SSE] Re-checked clientKey ${clientKey.slice(0, 8)}: SSE-Client kam zurück, behalte Realtime.`);
+          return;
+        }
+        if (tokens.length > 0) {
+          serverLog(`[SSE] Keeping realtime alive for clientKey ${clientKey.slice(0, 8)} (push delivery, ${tokens.length} token(s))`);
+          return;
+        }
+        serverLog(`[SSE] No SSE clients + no push tokens for clientKey: ${clientKey.slice(0, 8)} → disconnecting realtime`);
         c.realtime?.disconnect();
         activeSSE.delete(clientKey);
-      }
-    }
+      })
+      .catch((err) => {
+        serverLog('[SSE] Push-Token-Lookup fehlgeschlagen, halte Realtime trotzdem an:', errorMessage(err));
+        c.realtime?.disconnect();
+        activeSSE.delete(clientKey);
+      });
   });
 });
 
