@@ -26,6 +26,15 @@ interface ServiceAccount {
 let serviceAccount: ServiceAccount | null = null;
 let accessToken: { value: string; expiresAt: number } | null = null;
 
+/** Reasons the FCM dispatcher might be inactive — surfaced at startup so the
+ *  ops team can debug ohne Quelltext zu lesen. */
+export type FcmConfigStatus =
+  | { ok: true }
+  | { ok: false; reason: 'env-missing' }
+  | { ok: false; reason: 'file-missing'; path: string }
+  | { ok: false; reason: 'file-unreadable'; path: string; error: string }
+  | { ok: false; reason: 'disabled' };
+
 function loadServiceAccount(): ServiceAccount | null {
   if (serviceAccount) return serviceAccount;
   if (!SERVICE_ACCOUNT_PATH || !existsSync(SERVICE_ACCOUNT_PATH)) return null;
@@ -35,6 +44,25 @@ function loadServiceAccount(): ServiceAccount | null {
   } catch (err) {
     console.warn('[FCM] Failed to read service account:', (err as Error).message);
     return null;
+  }
+}
+
+export function describeFcmConfig(): FcmConfigStatus {
+  if (process.env.PUSH_ENABLED === 'false') return { ok: false, reason: 'disabled' };
+  if (!SERVICE_ACCOUNT_PATH) return { ok: false, reason: 'env-missing' };
+  if (!existsSync(SERVICE_ACCOUNT_PATH)) {
+    return { ok: false, reason: 'file-missing', path: SERVICE_ACCOUNT_PATH };
+  }
+  try {
+    JSON.parse(readFileSync(SERVICE_ACCOUNT_PATH, 'utf8'));
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      reason: 'file-unreadable',
+      path: SERVICE_ACCOUNT_PATH,
+      error: (err as Error).message,
+    };
   }
 }
 
@@ -163,6 +191,7 @@ export async function sendFcm(input: FcmMessageInput): Promise<boolean> {
       logError(`FCM send failed (${res.status}) for token ${input.token.slice(0, 12)}…: ${text.slice(0, 400)}`);
       return false;
     }
+    console.log(`[FCM] sent ${input.platform} → token ${input.token.slice(0, 12)}… ("${input.title}")`);
     return true;
   } catch (err) {
     logError(`FCM send threw: ${(err as Error).message}`);

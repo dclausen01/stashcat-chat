@@ -22,6 +22,8 @@ some-command > /tmp/out.txt 2>&1   # dann mit Read lesen
 
 **Code-Verifikation**: Änderungen werden überprüft durch `yarn build` (muss fehlerfrei durchlaufen) und anschließend Live-Test auf dem Server, den der User durchführt. Kein automatischer Preview-Browser-Test.
 
+**Production-Hosting**: Plesk-NodeJS-Plugin (Phusion Passenger) auf `chat.bbz-rd-eck.com`. App-Root liegt unter `/var/www/vhosts/bbz-rd-eck.com/chat.bbz-rd-eck.com`. Der Node-Prozess wird von Passenger verwaltet (Start/Restart über die Plesk-UI oder `touch tmp/restart.txt` im App-Root). Logs **nicht** an klassischen Plesk-Pfaden — siehe README-Abschnitt „Logs".
+
 ---
 
 ## Dev Commands
