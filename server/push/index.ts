@@ -21,7 +21,7 @@
 import { Router, type Request, type Response } from 'express';
 import { upsertToken, removeToken, listForUser, pruneOlderThan, type Platform } from './token-store';
 import { queueMessageEvent, type IncomingMessageEvent } from './dispatcher';
-import { isFcmConfigured } from './fcm-client';
+import { isFcmConfigured, describeFcmConfig } from './fcm-client';
 import { resolveAuth, loadMobileTokenFromRequest } from './auth';
 import { loadMobileToken, updatePushPreview, type PushPreviewMode } from '../mobile-auth';
 
@@ -126,8 +126,25 @@ const DAY = 24 * 60 * 60 * 1000;
 const PRUNE_TTL = 90 * DAY;
 
 export function initPushDispatcher(): void {
-  if (!isFcmConfigured()) {
-    console.log('[Push] FCM not configured — dispatcher disabled.');
+  const cfg = describeFcmConfig();
+  if (!cfg.ok) {
+    switch (cfg.reason) {
+      case 'disabled':
+        console.log('[Push] PUSH_ENABLED=false → dispatcher disabled.');
+        break;
+      case 'env-missing':
+        console.log('[Push] FCM_SERVICE_ACCOUNT env not set → dispatcher disabled. ' +
+          'Im Plesk-Panel unter Node.js → Custom Environment Variables setzen.');
+        break;
+      case 'file-missing':
+        console.log(`[Push] Service-Account-Datei nicht gefunden: ${cfg.path}. ` +
+          'Pfad in FCM_SERVICE_ACCOUNT prüfen oder Datei dort ablegen (chmod 640).');
+        break;
+      case 'file-unreadable':
+        console.log(`[Push] Service-Account-Datei nicht lesbar/parsebar: ${cfg.path} ` +
+          `— ${cfg.error}`);
+        break;
+    }
     return;
   }
   console.log('[Push] FCM configured. Batch window:', process.env.PUSH_BATCH_MS || 2000, 'ms');
