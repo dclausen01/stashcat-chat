@@ -2523,32 +2523,90 @@ function MessageGroup({
   const layoutMode = useLayoutMode();
   const isPhone = layoutMode === 'mobile';
 
-  // Long-press handlers — auf Phone öffnet langes Halten direkt die Action-Sheet.
-  // 500ms Threshold, Touchmove > 6px bricht ab (Scrollen ist kein Long-Press).
+  // Touch-Gesten auf Phone:
+  //  - Long-Press (500 ms, ohne Bewegung > 6 px) → Action-Sheet öffnen
+  //  - Swipe horizontal in Antwortrichtung (Receiver: rechts / Sender: links)
+  //    → ab 60 px Reply-Trigger; bei Release < 60 px snap-back
+  const SWIPE_REPLY_THRESHOLD = 60;
+  const SWIPE_MAX = 100; // visuell harter Stop, danach nur noch gedämpft
   const longPressTimer = useRef<number | null>(null);
-  const longPressStart = useRef<{ x: number; y: number } | null>(null);
-  const cancelLongPress = () => {
+  const touchStart = useRef<{ x: number; y: number; msgId: string } | null>(null);
+  const [swipeState, setSwipeState] = useState<{ msgId: string; dx: number } | null>(null);
+  const swipeHapticFired = useRef(false);
+  const swipeActive = useRef(false);
+
+  const clearTouch = () => {
     if (longPressTimer.current != null) {
       window.clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-    longPressStart.current = null;
+    touchStart.current = null;
+    swipeActive.current = false;
+    swipeHapticFired.current = false;
   };
-  const startLongPress = (msgId: string, x: number, y: number) => {
+
+  const startTouch = (msgId: string, x: number, y: number) => {
     if (!isPhone) return;
-    cancelLongPress();
-    longPressStart.current = { x, y };
+    clearTouch();
+    touchStart.current = { x, y, msgId };
     longPressTimer.current = window.setTimeout(() => {
       bridge.haptic('medium');
       setMobileActionMsgId(msgId);
       longPressTimer.current = null;
     }, 500);
   };
-  const moveLongPress = (x: number, y: number) => {
-    if (!longPressStart.current) return;
-    const dx = Math.abs(x - longPressStart.current.x);
-    const dy = Math.abs(y - longPressStart.current.y);
-    if (dx > 6 || dy > 6) cancelLongPress();
+
+  const moveTouch = (msgId: string, x: number, y: number, msgIsOwn: boolean) => {
+    const start = touchStart.current;
+    if (!start || start.msgId !== msgId) return;
+    const dx = x - start.x;
+    const dy = y - start.y;
+    const adx = Math.abs(dx);
+    const ady = Math.abs(dy);
+
+    // Long-press abbrechen, sobald sich der Finger bewegt
+    if (adx > 6 || ady > 6) {
+      if (longPressTimer.current != null) {
+        window.clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+    }
+
+    // Swipe-to-Reply: horizontale Bewegung dominant, Richtung passt zur Bubble-Seite
+    // (eigene Bubble = rechts → Swipe nach links; fremde = links → Swipe nach rechts)
+    const expectedSign = msgIsOwn ? -1 : 1;
+    const directional = dx * expectedSign;
+    if (!swipeActive.current && adx > 10 && adx > ady * 1.4 && directional > 0) {
+      swipeActive.current = true;
+    }
+    if (swipeActive.current) {
+      const capped = Math.min(directional, SWIPE_MAX) + (directional > SWIPE_MAX ? (directional - SWIPE_MAX) * 0.2 : 0);
+      const renderDx = Math.max(0, capped) * expectedSign;
+      setSwipeState({ msgId, dx: renderDx });
+      if (!swipeHapticFired.current && directional >= SWIPE_REPLY_THRESHOLD) {
+        bridge.haptic('selection');
+        swipeHapticFired.current = true;
+      } else if (swipeHapticFired.current && directional < SWIPE_REPLY_THRESHOLD) {
+        swipeHapticFired.current = false;
+      }
+    }
+  };
+
+  const endTouch = (msgId: string, msg: Message) => {
+    if (longPressTimer.current != null) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    const wasSwiping = swipeActive.current;
+    const state = swipeState;
+    swipeActive.current = false;
+    touchStart.current = null;
+    if (wasSwiping && state && state.msgId === msgId && Math.abs(state.dx) >= SWIPE_REPLY_THRESHOLD) {
+      bridge.haptic('medium');
+      onReply(msg);
+    }
+    setSwipeState(null);
+    swipeHapticFired.current = false;
   };
 
   return (
@@ -2634,6 +2692,30 @@ function MessageGroup({
 
               {/* Bubble row: bubble + mobile ⋯ trigger */}
               <div className={clsx('relative flex items-end gap-1', isOwn ? 'flex-row-reverse' : 'flex-row')}>
+                {/* Swipe-to-Reply Indicator — taucht hinter der Bubble auf,
+                    sobald der User in die Antwort-Richtung wischt. Wird auf
+                    Schwelle 60 px voll sichtbar. */}
+                {isPhone && swipeState?.msgId === String(msg.id) && Math.abs(swipeState.dx) > 8 && (
+                  <div
+                    className={clsx(
+                      'pointer-events-none absolute inset-y-0 flex items-center text-primary-600 dark:text-primary-400',
+                      isOwn ? 'right-0' : 'left-0',
+                    )}
+                    style={{ opacity: Math.min(1, Math.abs(swipeState.dx) / SWIPE_REPLY_THRESHOLD) }}
+                  >
+                    <div
+                      className={clsx(
+                        'flex h-9 w-9 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/40',
+                        isOwn ? '-mr-1' : '-ml-1',
+                      )}
+                      style={{
+                        transform: `scale(${Math.min(1.1, 0.6 + Math.abs(swipeState.dx) / SWIPE_REPLY_THRESHOLD * 0.5)})`,
+                      }}
+                    >
+                      <Reply size={18} />
+                    </div>
+                  </div>
+                )}
                 <div
                   className={clsx(
                     'peer/bubble relative max-w-full rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed select-text',
@@ -2646,17 +2728,23 @@ function MessageGroup({
                   style={{
                     backgroundColor: isOwn ? ownBubbleColor : otherBubbleColor,
                     color: isOwn || theme === 'dark' ? '#fff' : undefined,
+                    transform: swipeState?.msgId === String(msg.id)
+                      ? `translateX(${swipeState.dx}px)`
+                      : undefined,
+                    transition: swipeState?.msgId === String(msg.id)
+                      ? 'none'
+                      : 'transform 200ms ease-out',
                   }}
                   onTouchStart={(e) => {
                     const t = e.touches[0];
-                    if (t) startLongPress(String(msg.id), t.clientX, t.clientY);
+                    if (t) startTouch(String(msg.id), t.clientX, t.clientY);
                   }}
                   onTouchMove={(e) => {
                     const t = e.touches[0];
-                    if (t) moveLongPress(t.clientX, t.clientY);
+                    if (t) moveTouch(String(msg.id), t.clientX, t.clientY, isOwn);
                   }}
-                  onTouchEnd={cancelLongPress}
-                  onTouchCancel={cancelLongPress}
+                  onTouchEnd={() => endTouch(String(msg.id), msg)}
+                  onTouchCancel={() => endTouch(String(msg.id), msg)}
                   onContextMenu={(e) => {
                     // Auf Phone: nativer Context-Menu unterdrücken (Long-Press
                     // soll unseren Action-Sheet öffnen, nicht das Browser-Menü).

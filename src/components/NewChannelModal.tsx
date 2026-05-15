@@ -6,6 +6,7 @@ import { clsx } from 'clsx';
 import * as api from '../api';
 import type { Channel, ChatTarget } from '../types';
 import { encodeSubchannelName, getCleanName, getParentId } from '../utils/subchannels';
+import MobileSheet from './MobileSheet';
 
 interface NewChannelModalProps {
   companyId: string;
@@ -203,16 +204,9 @@ export default function NewChannelModal({ companyId, onClose, onCreate, channels
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
+    <MobileSheet open onClose={onClose} ariaLabel="Neuen Channel erstellen">
       <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true }}>
-      <div
-        className="flex w-full max-w-lg flex-col rounded-2xl bg-white shadow-2xl dark:bg-surface-900"
-        style={{ maxHeight: '90vh' }}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="flex flex-col">
         {/* Header */}
         <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 px-5 py-4 dark:border-surface-700">
           <Hash size={18} className="text-primary-500" />
@@ -461,6 +455,6 @@ export default function NewChannelModal({ companyId, onClose, onCreate, channels
         </form>
       </div>
       </FocusTrap>
-    </div>
+    </MobileSheet>
   );
 }
