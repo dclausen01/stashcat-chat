@@ -191,6 +191,7 @@ export async function sendFcm(input: FcmMessageInput): Promise<boolean> {
       logError(`FCM send failed (${res.status}) for token ${input.token.slice(0, 12)}…: ${text.slice(0, 400)}`);
       return false;
     }
+    console.log(`[FCM] sent ${input.platform} → token ${input.token.slice(0, 12)}… ("${input.title}")`);
     return true;
   } catch (err) {
     logError(`FCM send threw: ${(err as Error).message}`);

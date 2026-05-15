@@ -47,6 +47,7 @@ async function flush(userId: string): Promise<void> {
   pending.delete(userId);
 
   const tokens = await listForUser(userId);
+  console.log(`[Push] flush userId=${userId.slice(0,8)} events=${entry.events.length} tokens=${tokens.length}`);
   if (tokens.length === 0) return;
 
   const silent = await silentForUser(userId);
@@ -94,6 +95,7 @@ async function flush(userId: string): Promise<void> {
 
 export function queueMessageEvent(evt: IncomingMessageEvent): void {
   const key = evt.userId;
+  console.log(`[Push] queue userId=${key.slice(0,8)} channelId=${evt.channelId ?? '-'} convId=${evt.conversationId ?? '-'} sender=${evt.senderName ?? '-'}`);
   const existing = pending.get(key);
   const target = evt.channelId ? `c/${evt.channelId}` : evt.conversationId ? `d/${evt.conversationId}` : '';
   const deeplink = evt.channelId
