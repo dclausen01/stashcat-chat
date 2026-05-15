@@ -26,7 +26,7 @@ export default function SidebarFooter() {
           <button
             onClick={toggleBroadcasts}
             className={clsx(
-              'flex flex-1 items-center justify-center gap-1.5 py-3.5 text-xs font-medium transition',
+              'flex flex-1 items-center justify-center gap-1.5 py-4 text-xs font-medium transition md:py-3',
               broadcastsOpen
                 ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
                 : 'text-surface-500 hover:bg-surface-200 hover:text-surface-700 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-200',
@@ -42,7 +42,7 @@ export default function SidebarFooter() {
       <button
         onClick={openCalendar}
         className={clsx(
-          'flex flex-1 items-center justify-center gap-1.5 py-3.5 text-xs font-medium transition',
+          'flex flex-1 items-center justify-center gap-1.5 py-4 text-xs font-medium transition md:py-3',
           calendarOpen
             ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
             : 'text-surface-500 hover:bg-surface-200 hover:text-surface-700 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-200',
@@ -56,7 +56,7 @@ export default function SidebarFooter() {
       <button
         onClick={openPolls}
         className={clsx(
-          'flex flex-1 items-center justify-center gap-1.5 py-3.5 text-xs font-medium transition',
+          'flex flex-1 items-center justify-center gap-1.5 py-4 text-xs font-medium transition md:py-3',
           pollsOpen
             ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
             : 'text-surface-500 hover:bg-surface-200 hover:text-surface-700 dark:text-surface-500 dark:hover:bg-surface-800 dark:hover:text-surface-200',

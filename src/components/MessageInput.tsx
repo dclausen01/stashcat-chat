@@ -129,13 +129,16 @@ export default function MessageInput({
   useEffect(() => { enterSendsRef.current = enterSendsMessage; }, [enterSendsMessage]);
   useEffect(() => { pendingFilesRef.current = pendingFiles; }, [pendingFiles]);
 
-  // Dynamic placeholder — ref so the Placeholder extension reads the current value on each render
+  // Dynamic placeholder — ref so the Placeholder extension reads the current value on each render.
+  // Auf Phone bewusst kurze Varianten — der Chat-Name steht eh oben im Header.
+  const isNarrow = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    && window.matchMedia('(max-width: 767.9px)').matches;
   const placeholderRef = useRef('');
   placeholderRef.current = pendingFiles.length > 0
-    ? 'Optionale Nachricht zu den Dateien...'
+    ? (isNarrow ? 'Optionaler Text…' : 'Optionale Nachricht zu den Dateien...')
     : replyTo
-    ? 'Antwort schreiben...'
-    : `Nachricht an ${chatName}...`;
+    ? (isNarrow ? 'Antworten…' : 'Antwort schreiben...')
+    : (isNarrow ? 'Nachricht schreiben…' : `Nachricht an ${chatName}...`);
 
   // Custom extension — created once on mount; reads from refs to avoid stale closures
   const EnterBehaviorExtension = useRef(
@@ -854,7 +857,7 @@ export default function MessageInput({
           aria-label={toolbarOpen ? 'Formatierung ausblenden' : 'Formatierung einblenden'}
           aria-pressed={toolbarOpen}
           className={clsx(
-            'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg md:hidden',
+            'inline-flex h-11 w-9 shrink-0 items-center justify-center rounded-lg md:hidden',
             toolbarOpen
               ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
               : 'text-surface-500 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700',
