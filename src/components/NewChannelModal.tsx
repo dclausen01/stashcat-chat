@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { X, Hash, Lock, KeyRound, Loader2, ChevronDown, Upload, ImageIcon, Trash2 } from 'lucide-react';
+import { Hash, Lock, KeyRound, Loader2, ChevronDown, Upload, ImageIcon, Trash2 } from 'lucide-react';
 import { FocusTrap } from 'focus-trap-react';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';
@@ -210,14 +210,7 @@ export default function NewChannelModal({ companyId, onClose, onCreate, channels
         {/* Header */}
         <div className="flex shrink-0 items-center gap-3 border-b border-surface-200 px-5 py-4 dark:border-surface-700">
           <Hash size={18} className="text-primary-500" />
-          <h2 className="flex-1 text-base font-semibold text-surface-900 dark:text-white">Neuer Channel</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800"
-          >
-            <X size={18} />
-          </button>
+          <h2 className="text-base font-semibold text-surface-900 dark:text-white">Neuer Channel</h2>
         </div>
 
         {/* Scrollable body */}

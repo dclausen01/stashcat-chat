@@ -18,6 +18,38 @@ import ChannelDiscoveryModal from './ChannelDiscoveryModal';
 import type { ChatTarget } from '../types';
 import { buildChannelTree, getCleanName, getParentId, type ChannelNode } from '../utils/subchannels';
 
+// --- Sidebar SWR cache (stale-while-revalidate via localStorage) ---
+const SIDEBAR_CACHE_KEY = 'schulchat_sidebar_cache';
+const SIDEBAR_CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 h
+
+interface SidebarCacheEntry {
+  ts: number;
+  channels: ChatTarget[];
+  conversations: ChatTarget[];
+  primaryCompanyId: string;
+}
+
+function loadSidebarCache(): Omit<SidebarCacheEntry, 'ts'> | null {
+  try {
+    const raw = localStorage.getItem(SIDEBAR_CACHE_KEY);
+    if (!raw) return null;
+    const entry = JSON.parse(raw) as SidebarCacheEntry;
+    if (Date.now() - entry.ts > SIDEBAR_CACHE_MAX_AGE) return null;
+    return { channels: entry.channels, conversations: entry.conversations, primaryCompanyId: entry.primaryCompanyId };
+  } catch {
+    return null;
+  }
+}
+
+function saveSidebarCache(channels: ChatTarget[], conversations: ChatTarget[], primaryCompanyId: string) {
+  try {
+    const entry: SidebarCacheEntry = { ts: Date.now(), channels, conversations, primaryCompanyId };
+    localStorage.setItem(SIDEBAR_CACHE_KEY, JSON.stringify(entry));
+  } catch {
+    // localStorage quota exceeded — ignore
+  }
+}
+
 /** Sort: favorites first, non-favorites second. Within each group: by lastActivity desc. */
 function sortChats(items: ChatTarget[]): ChatTarget[] {
   return [...items].sort((a, b) => {
@@ -127,7 +159,23 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
   channelsRef.current = channels;
   conversationsRef.current = conversations;
 
-  useEffect(() => { (async () => { await loadData(); })(); onRegisterRefresh?.(loadData); onRegisterToggleFavorite?.(handleToggleFavorite); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    // Preload from cache so the sidebar appears instantly, then fetch fresh data
+    const cached = loadSidebarCache();
+    if (cached) {
+      channelsRef.current = cached.channels;
+      conversationsRef.current = cached.conversations;
+      setChannels(cached.channels);
+      setConversations(cached.conversations);
+      setPrimaryCompanyId(cached.primaryCompanyId);
+      setInitialLoaded(true);
+      onChannelsLoaded?.(cached.channels);
+      onConversationsLoaded?.(cached.conversations);
+    }
+    (async () => { await loadData(); })();
+    onRegisterRefresh?.(loadData);
+    onRegisterToggleFavorite?.(handleToggleFavorite);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pull-to-refresh — wird auf Desktop/Tablet automatisch no-op.
   // Eigene Instanz pro Tab-Liste; nur die sichtbare zieht.
@@ -245,6 +293,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
       setConversations(sortedConvs);
       onConversationsLoaded?.(sortedConvs);
       setInitialLoaded(true);
+      saveSidebarCache(sortedChannels, sortedConvs, firstCompanyId);
     } catch (err) {
       console.error('Failed to load sidebar data:', err);
     }
@@ -709,17 +758,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
                   </span>
                 )}
               </button>
-              {activeTab === 'direct' && (
-                <button
-                  onClick={() => setShowNewChat(true)}
-                  disabled={!primaryCompanyId}
-                  className="mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-primary-600 transition hover:bg-surface-200 dark:text-primary-400 dark:hover:bg-surface-700 disabled:opacity-30"
-                  title="Neue Direktnachricht starten"
-                  aria-label="Neue Direktnachricht starten"
-                >
-                  <Plus size={18} />
-                </button>
-              )}
             </div>
 
             {/* Vertical divider between tabs */}
@@ -752,25 +790,14 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
                 )}
               </button>
               {activeTab === 'channels' && (
-                <>
-                  <button
-                    onClick={() => setShowChannelDiscovery(true)}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-primary-600 transition hover:bg-surface-200 dark:text-primary-400 dark:hover:bg-surface-700"
-                    title="Alle Channels anzeigen"
-                    aria-label="Alle Channels anzeigen"
-                  >
-                    <Search size={18} />
-                  </button>
-                  <button
-                    onClick={() => setShowNewChannel(true)}
-                    disabled={!primaryCompanyId}
-                    className="mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-primary-600 transition hover:bg-surface-200 dark:text-primary-400 dark:hover:bg-surface-700 disabled:opacity-30"
-                    title="Neuen Channel erstellen"
-                    aria-label="Neuen Channel erstellen"
-                  >
-                    <Plus size={18} />
-                  </button>
-                </>
+                <button
+                  onClick={() => setShowChannelDiscovery(true)}
+                  className="mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-primary-600 transition hover:bg-surface-200 dark:text-primary-400 dark:hover:bg-surface-700"
+                  title="Alle Channels anzeigen"
+                  aria-label="Alle Channels anzeigen"
+                >
+                  <Search size={18} />
+                </button>
               )}
             </div>
           </div>
