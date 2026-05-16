@@ -2796,10 +2796,9 @@ function MessageGroup({
                       <Forward size={10} /> Weitergeleitet
                     </div>
                   )}
-                  {/* Scrollable content area for long text without spaces */}
-                  <div className="min-w-0 overflow-x-auto">
+                  <div className="min-w-0 overflow-hidden">
                     {searchQuery && content.toLowerCase().includes(searchQuery.toLowerCase())
-                      ? <p className="whitespace-pre-wrap break-words"><HighlightedText text={content} query={searchQuery} /></p>
+                      ? <p className="whitespace-pre-wrap [overflow-wrap:anywhere]"><HighlightedText text={content} query={searchQuery} /></p>
                       : <MarkdownContent content={content} isOwn={isOwn} isEmojiOnly={msgIsEmojiOnly} />}
                     <FileList files={msg.files} isOwn={isOwn} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />
                   </div>
@@ -3077,11 +3076,10 @@ function PlainTextMessage({
             <Forward size={10} /> Weitergeleitet
           </div>
         )}
-        {/* Scrollable content area for long text without spaces */}
-        <div className="min-w-0 overflow-x-auto">
+        <div className="min-w-0 overflow-hidden">
           <div className={clsx('text-sm text-surface-800 dark:text-surface-200', msgIsEmojiOnly && 'text-5xl leading-tight')}>
             {searchQuery && content.toLowerCase().includes(searchQuery.toLowerCase())
-              ? <p className="whitespace-pre-wrap break-words"><HighlightedText text={content} query={searchQuery} /></p>
+              ? <p className="whitespace-pre-wrap [overflow-wrap:anywhere]"><HighlightedText text={content} query={searchQuery} /></p>
               : <MarkdownContent content={content} isOwn={false} isEmojiOnly={msgIsEmojiOnly} />}
           </div>
           <FileList files={msg.files} isOwn={false} showImagesInline={showImagesInline} onImageClick={onImageClick} onPdfClick={onPdfClick} />

@@ -63,7 +63,7 @@ export default function MarkdownContent({
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          p: ({ children }) => <p className={clsx('m-0 break-words', isEmojiOnly && 'text-5xl leading-tight')}>{children}</p>,
+          p: ({ children }) => <p className={clsx('m-0 [overflow-wrap:anywhere]', isEmojiOnly && 'text-5xl leading-tight')}>{children}</p>,
           strong: ({ children }) => <strong className="font-bold">{children}</strong>,
           em: ({ children }) => <em className="italic">{children}</em>,
           del: ({ children }) => <del className="line-through opacity-75">{children}</del>,
