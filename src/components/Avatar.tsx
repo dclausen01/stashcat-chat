@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { clsx } from 'clsx';
 
 interface AvatarProps {
@@ -44,7 +45,12 @@ function getColor(name: string): string {
 }
 
 export default function Avatar({ name, image, size = 'md', online, availability }: AvatarProps) {
-  // Determine dot color: availability takes precedence over online
+  const [imgError, setImgError] = useState(false);
+
+  // Reset error state when image URL changes
+  useEffect(() => { setImgError(false); }, [image]);
+
+  // Determine dot color
   let dotColor: string | undefined;
   let isPulsing = false;
   if (availability === 'available') {
@@ -57,25 +63,32 @@ export default function Avatar({ name, image, size = 'md', online, availability 
   }
 
   const dotSize = dotSizeClasses[size] || dotSizeClasses.md;
+  const showImage = !!image && !imgError;
 
   return (
     <div className="relative inline-flex shrink-0">
-      {image ? (
+      {/*
+       * Initials layer: always rendered, acts as an instant placeholder
+       * while the image loads over the network. Once the image is ready,
+       * it covers this layer completely via absolute positioning.
+       */}
+      <div
+        className={clsx(
+          'flex items-center justify-center rounded-full font-medium text-white',
+          sizeClasses[size],
+          getColor(name),
+        )}
+        aria-hidden={showImage}
+      >
+        {!showImage && getInitials(name)}
+      </div>
+      {showImage && (
         <img
           src={image}
           alt={name}
-          className={clsx('rounded-full object-cover', sizeClasses[size])}
+          onError={() => setImgError(true)}
+          className="absolute inset-0 h-full w-full rounded-full object-cover"
         />
-      ) : (
-        <div
-          className={clsx(
-            'flex items-center justify-center rounded-full font-medium text-white',
-            sizeClasses[size],
-            getColor(name),
-          )}
-        >
-          {getInitials(name)}
-        </div>
       )}
       {dotColor && (
         <span className={clsx('absolute bottom-0 right-0 rounded-full border-2 border-white dark:border-surface-800', dotSize)}>
