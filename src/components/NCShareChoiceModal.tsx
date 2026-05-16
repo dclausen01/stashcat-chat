@@ -93,7 +93,7 @@ export default function NCShareChoiceModal({
           </div>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700"
+            className="hidden md:flex items-center justify-center rounded-md p-1 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700"
           >
             <X size={16} />
           </button>

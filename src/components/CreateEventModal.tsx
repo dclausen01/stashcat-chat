@@ -322,7 +322,7 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
           <h3 className="text-lg font-semibold text-surface-900 dark:text-white">
             {isEdit ? 'Termin bearbeiten' : 'Neuer Termin'}
           </h3>
-          <button onClick={onClose} className="rounded-lg p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800">
+          <button onClick={onClose} className="hidden md:flex items-center justify-center rounded-lg p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800">
             <X size={18} />
           </button>
         </div>

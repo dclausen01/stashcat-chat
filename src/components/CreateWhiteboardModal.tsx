@@ -32,7 +32,7 @@ export default function CreateWhiteboardModal({ onConfirm, onClose }: Props) {
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-surface-500 hover:bg-surface-100 hover:text-surface-700 dark:hover:bg-surface-800"
+            className="hidden md:flex items-center justify-center rounded-lg p-1 text-surface-500 hover:bg-surface-100 hover:text-surface-700 dark:hover:bg-surface-800"
           >
             <X size={18} />
           </button>
