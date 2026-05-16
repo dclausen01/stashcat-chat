@@ -709,17 +709,6 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
                   </span>
                 )}
               </button>
-              {activeTab === 'direct' && (
-                <button
-                  onClick={() => setShowNewChat(true)}
-                  disabled={!primaryCompanyId}
-                  className="mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-primary-600 transition hover:bg-surface-200 dark:text-primary-400 dark:hover:bg-surface-700 disabled:opacity-30"
-                  title="Neue Direktnachricht starten"
-                  aria-label="Neue Direktnachricht starten"
-                >
-                  <Plus size={18} />
-                </button>
-              )}
             </div>
 
             {/* Vertical divider between tabs */}
@@ -752,25 +741,14 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
                 )}
               </button>
               {activeTab === 'channels' && (
-                <>
-                  <button
-                    onClick={() => setShowChannelDiscovery(true)}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-primary-600 transition hover:bg-surface-200 dark:text-primary-400 dark:hover:bg-surface-700"
-                    title="Alle Channels anzeigen"
-                    aria-label="Alle Channels anzeigen"
-                  >
-                    <Search size={18} />
-                  </button>
-                  <button
-                    onClick={() => setShowNewChannel(true)}
-                    disabled={!primaryCompanyId}
-                    className="mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-primary-600 transition hover:bg-surface-200 dark:text-primary-400 dark:hover:bg-surface-700 disabled:opacity-30"
-                    title="Neuen Channel erstellen"
-                    aria-label="Neuen Channel erstellen"
-                  >
-                    <Plus size={18} />
-                  </button>
-                </>
+                <button
+                  onClick={() => setShowChannelDiscovery(true)}
+                  className="mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-primary-600 transition hover:bg-surface-200 dark:text-primary-400 dark:hover:bg-surface-700"
+                  title="Alle Channels anzeigen"
+                  aria-label="Alle Channels anzeigen"
+                >
+                  <Search size={18} />
+                </button>
               )}
             </div>
           </div>

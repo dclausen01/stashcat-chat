@@ -718,7 +718,7 @@ export default function MessageInput({
       {/* Input area */}
       <div
         className={clsx(
-          'relative flex items-end gap-1 rounded-xl border bg-surface-50 px-2 py-1.5 transition md:gap-2 md:px-3',
+          'relative flex items-center gap-1 rounded-xl border bg-surface-50 px-2 py-1.5 transition md:gap-2 md:px-3',
           'border-surface-200 focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-500/20',
           'dark:border-surface-600 dark:bg-surface-800',
         )}
