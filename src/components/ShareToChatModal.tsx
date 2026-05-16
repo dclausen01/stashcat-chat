@@ -3,6 +3,7 @@ import { X, Search, Loader2, Send, Link2, Paperclip, KeyRound, RefreshCw } from 
 import * as api from '../api';
 import { clsx } from 'clsx';
 import type { Channel, Conversation } from '../types';
+import MobileSheet from './MobileSheet';
 
 interface ShareToChatModalProps {
   file: {
@@ -110,14 +111,8 @@ export default function ShareToChatModal({ file, onClose }: ShareToChatModalProp
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="w-80 max-h-[70vh] flex flex-col rounded-xl border border-surface-200 bg-surface-50 shadow-xl dark:border-surface-700 dark:bg-surface-900"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <MobileSheet open onClose={onClose} ariaLabel="In Chat teilen">
+      <div className="flex flex-col">
         {/* Header */}
         <div className="flex shrink-0 items-center gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
           <Send size={16} className="text-teal-600 dark:text-teal-400" />
@@ -301,6 +296,6 @@ export default function ShareToChatModal({ file, onClose }: ShareToChatModalProp
           </>
         )}
       </div>
-    </div>
+    </MobileSheet>
   );
 }

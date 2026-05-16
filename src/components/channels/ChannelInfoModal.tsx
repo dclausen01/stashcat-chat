@@ -5,6 +5,7 @@ import * as api from '../../api';
 import type { ChatTarget, Channel } from '../../types';
 import { getCleanName, getParentId, encodeSubchannelName } from '../../utils/subchannels';
 import { getErrorMessage } from '../../utils/errorMessage';
+import MobileSheet from '../MobileSheet';
 
 function typeLabel(type: string): string {
   switch (type) {
@@ -115,14 +116,8 @@ export function ChannelInfoModal({ chat, channels, onClose }: { chat: ChatTarget
     : 'Unbekannt';
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl dark:bg-surface-900"
-        onClick={e => e.stopPropagation()}
-      >
+    <MobileSheet open onClose={onClose} ariaLabel="Channel-Info">
+      <div className="relative flex flex-col">
         <div className="flex items-center justify-between border-b border-surface-200 px-6 py-4 dark:border-surface-700">
           <div className="flex items-center gap-2">
             <Info size={18} className="text-primary-500" />
@@ -221,6 +216,6 @@ export function ChannelInfoModal({ chat, channels, onClose }: { chat: ChatTarget
           )}
         </div>
       </div>
-    </div>
+    </MobileSheet>
   );
 }

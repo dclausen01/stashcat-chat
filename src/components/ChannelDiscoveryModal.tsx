@@ -6,6 +6,7 @@ import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
 import { getCleanName } from '../utils/subchannels';
+import MobileSheet from './MobileSheet';
 
 interface ChannelDiscoveryModalProps {
   companyId: string;
@@ -72,12 +73,9 @@ export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClos
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <MobileSheet open onClose={onClose} ariaLabel="Channels entdecken">
       <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true }}>
-      <div
-        className="relative flex max-h-[80vh] w-full max-w-lg flex-col rounded-2xl bg-white shadow-2xl dark:bg-surface-900"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="relative flex flex-col">
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-surface-200 px-5 py-4 dark:border-surface-700">
           <Hash size={20} className="text-primary-500" />
@@ -168,6 +166,6 @@ export default function ChannelDiscoveryModal({ companyId, subscribedIds, onClos
         </div>
       </div>
       </FocusTrap>
-    </div>
+    </MobileSheet>
   );
 }

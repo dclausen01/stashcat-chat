@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Presentation } from 'lucide-react';
+import MobileSheet from './MobileSheet';
 
 interface Props {
   onConfirm: (title: string) => void;
@@ -19,8 +20,8 @@ export default function CreateWhiteboardModal({ onConfirm, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl dark:bg-surface-900">
+    <MobileSheet open onClose={onClose} ariaLabel="Kollaboratives Whiteboard erstellen">
+      <div className="flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-surface-200 px-5 py-4 dark:border-surface-700">
           <div className="flex items-center gap-2">
@@ -73,6 +74,6 @@ export default function CreateWhiteboardModal({ onConfirm, onClose }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </MobileSheet>
   );
 }

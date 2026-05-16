@@ -5,6 +5,7 @@ import * as api from '../../api';
 import type { ChatTarget } from '../../types';
 import { getCleanName, getParentId } from '../../utils/subchannels';
 import { getErrorMessage } from '../../utils/errorMessage';
+import MobileSheet from '../MobileSheet';
 
 export function DeleteConfirmModal({ chat, channels, onClose, onDeleted }: {
   chat: ChatTarget;
@@ -51,14 +52,8 @@ export function DeleteConfirmModal({ chat, channels, onClose, onDeleted }: {
 
   if (hasSubchannels && subchannelAction === 'ask') {
     return (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      >
-        <div
-          className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl dark:bg-surface-900"
-          onClick={e => e.stopPropagation()}
-        >
+      <MobileSheet open onClose={onClose} ariaLabel="Subkanäle behandeln">
+        <div className="relative flex flex-col">
           <div className="flex flex-col items-center px-6 pt-6 pb-2 text-center">
             <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
               <GitBranch size={28} className="text-amber-500" />
@@ -89,19 +84,13 @@ export function DeleteConfirmModal({ chat, channels, onClose, onDeleted }: {
             </button>
           </div>
         </div>
-      </div>
+      </MobileSheet>
     );
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl dark:bg-surface-900"
-        onClick={e => e.stopPropagation()}
-      >
+    <MobileSheet open onClose={onClose} ariaLabel="Channel löschen">
+      <div className="relative flex flex-col">
         <div className="flex flex-col items-center px-6 pt-6 pb-2 text-center">
           <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
             <Trash2 size={28} className="text-red-500" />
@@ -139,6 +128,6 @@ export function DeleteConfirmModal({ chat, channels, onClose, onDeleted }: {
           </button>
         </div>
       </div>
-    </div>
+    </MobileSheet>
   );
 }

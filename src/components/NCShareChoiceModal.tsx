@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, Link2, Paperclip, Loader2, KeyRound, RefreshCw, Eye, Pencil } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
+import MobileSheet from './MobileSheet';
 
 interface NCShareChoiceModalProps {
   fileName: string;
@@ -81,14 +82,8 @@ export default function NCShareChoiceModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="w-96 max-w-[90vw] rounded-xl border border-surface-200 bg-surface-50 shadow-xl dark:border-surface-700 dark:bg-surface-900"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <MobileSheet open onClose={onClose} ariaLabel="Datei teilen">
+      <div className="flex flex-col">
         {/* Header */}
         <div className="flex shrink-0 items-center gap-2 border-b border-surface-200 px-4 py-3 dark:border-surface-700">
           <Link2 size={16} className="text-teal-600 dark:text-teal-400" />
@@ -265,6 +260,6 @@ export default function NCShareChoiceModal({
           </div>
         </div>
       </div>
-    </div>
+    </MobileSheet>
   );
 }

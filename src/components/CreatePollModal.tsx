@@ -7,6 +7,7 @@ import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
 import type { ChatTarget, Channel, Conversation } from '../types';
 import { getCleanName } from '../utils/subchannels';
+import MobileSheet from './MobileSheet';
 
 interface Question {
   name: string;
@@ -211,9 +212,9 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <MobileSheet open onClose={onClose} ariaLabel="Neue Umfrage erstellen">
       <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true }}>
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-surface-900">
+      <div className="flex flex-col">
 
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-surface-200 px-6 py-4 dark:border-surface-700">
@@ -415,6 +416,6 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
         </form>
       </div>
       </FocusTrap>
-    </div>
+    </MobileSheet>
   );
 }
