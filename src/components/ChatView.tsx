@@ -2527,13 +2527,38 @@ function MessageGroup({
   //  - Long-Press (500 ms, ohne Bewegung > 6 px) → Action-Sheet öffnen
   //  - Swipe horizontal in Antwortrichtung (Receiver: rechts / Sender: links)
   //    → ab 60 px Reply-Trigger; bei Release < 60 px snap-back
+  //
+  // Performance-kritisch: das Touchmove läuft mit ~60 Hz. setState würde die
+  // gesamte MessageGroup re-rendern (alle 20+ Bubbles, inkl. Markdown/
+  // FileList) und auf älteren/inhaltsreichen Nachrichten merklich ruckeln.
+  // Daher: während des Drags rein DOM-direkt anschreiben, React-State erst
+  // beim Loslassen anfassen.
   const SWIPE_REPLY_THRESHOLD = 60;
   const SWIPE_MAX = 100; // visuell harter Stop, danach nur noch gedämpft
   const longPressTimer = useRef<number | null>(null);
-  const touchStart = useRef<{ x: number; y: number; msgId: string } | null>(null);
-  const [swipeState, setSwipeState] = useState<{ msgId: string; dx: number } | null>(null);
+  const touchStart = useRef<{ x: number; y: number; msgId: string; bubble: HTMLElement | null; indicator: HTMLElement | null } | null>(null);
   const swipeHapticFired = useRef(false);
   const swipeActive = useRef(false);
+  const lastDirectional = useRef(0);
+
+  const findIndicator = (bubble: HTMLElement | null): HTMLElement | null => {
+    if (!bubble) return null;
+    const row = bubble.parentElement;
+    if (!row) return null;
+    return row.querySelector<HTMLElement>('[data-reply-indicator]');
+  };
+
+  const resetBubble = (bubble: HTMLElement | null, indicator: HTMLElement | null) => {
+    if (bubble) {
+      bubble.style.transition = 'transform 200ms ease-out';
+      bubble.style.transform = '';
+    }
+    if (indicator) {
+      indicator.style.transition = 'opacity 200ms ease-out, transform 200ms ease-out';
+      indicator.style.opacity = '0';
+      indicator.style.transform = 'scale(0.6)';
+    }
+  };
 
   const clearTouch = () => {
     if (longPressTimer.current != null) {
@@ -2543,12 +2568,17 @@ function MessageGroup({
     touchStart.current = null;
     swipeActive.current = false;
     swipeHapticFired.current = false;
+    lastDirectional.current = 0;
   };
 
-  const startTouch = (msgId: string, x: number, y: number) => {
+  const startTouch = (msgId: string, x: number, y: number, bubble: HTMLElement) => {
     if (!isPhone) return;
     clearTouch();
-    touchStart.current = { x, y, msgId };
+    const indicator = findIndicator(bubble);
+    touchStart.current = { x, y, msgId, bubble, indicator };
+    // Während der aktiven Geste keine transition — direkte Updates pro Frame
+    bubble.style.transition = '';
+    if (indicator) indicator.style.transition = '';
     longPressTimer.current = window.setTimeout(() => {
       bridge.haptic('medium');
       setMobileActionMsgId(msgId);
@@ -2573,22 +2603,32 @@ function MessageGroup({
     }
 
     // Swipe-to-Reply: horizontale Bewegung dominant, Richtung passt zur Bubble-Seite
-    // (eigene Bubble = rechts → Swipe nach links; fremde = links → Swipe nach rechts)
     const expectedSign = msgIsOwn ? -1 : 1;
     const directional = dx * expectedSign;
     if (!swipeActive.current && adx > 10 && adx > ady * 1.4 && directional > 0) {
       swipeActive.current = true;
     }
-    if (swipeActive.current) {
-      const capped = Math.min(directional, SWIPE_MAX) + (directional > SWIPE_MAX ? (directional - SWIPE_MAX) * 0.2 : 0);
-      const renderDx = Math.max(0, capped) * expectedSign;
-      setSwipeState({ msgId, dx: renderDx });
-      if (!swipeHapticFired.current && directional >= SWIPE_REPLY_THRESHOLD) {
-        bridge.haptic('selection');
-        swipeHapticFired.current = true;
-      } else if (swipeHapticFired.current && directional < SWIPE_REPLY_THRESHOLD) {
-        swipeHapticFired.current = false;
-      }
+    if (!swipeActive.current) return;
+
+    lastDirectional.current = directional;
+    const capped = Math.min(directional, SWIPE_MAX) + (directional > SWIPE_MAX ? (directional - SWIPE_MAX) * 0.2 : 0);
+    const renderDx = Math.max(0, capped) * expectedSign;
+
+    // Direkte Style-Updates — KEIN setState, kein Re-Render
+    if (start.bubble) {
+      start.bubble.style.transform = `translateX(${renderDx}px)`;
+    }
+    if (start.indicator) {
+      const progress = Math.min(1, Math.max(0, directional) / SWIPE_REPLY_THRESHOLD);
+      start.indicator.style.opacity = String(progress);
+      start.indicator.style.transform = `scale(${0.6 + progress * 0.5})`;
+    }
+
+    if (!swipeHapticFired.current && directional >= SWIPE_REPLY_THRESHOLD) {
+      bridge.haptic('selection');
+      swipeHapticFired.current = true;
+    } else if (swipeHapticFired.current && directional < SWIPE_REPLY_THRESHOLD) {
+      swipeHapticFired.current = false;
     }
   };
 
@@ -2597,16 +2637,22 @@ function MessageGroup({
       window.clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
+    const start = touchStart.current;
     const wasSwiping = swipeActive.current;
-    const state = swipeState;
+    const directional = lastDirectional.current;
     swipeActive.current = false;
     touchStart.current = null;
-    if (wasSwiping && state && state.msgId === msgId && Math.abs(state.dx) >= SWIPE_REPLY_THRESHOLD) {
+    lastDirectional.current = 0;
+    swipeHapticFired.current = false;
+
+    if (start) {
+      resetBubble(start.bubble, start.indicator);
+    }
+
+    if (wasSwiping && start && start.msgId === msgId && directional >= SWIPE_REPLY_THRESHOLD) {
       bridge.haptic('medium');
       onReply(msg);
     }
-    setSwipeState(null);
-    swipeHapticFired.current = false;
   };
 
   return (
@@ -2692,25 +2738,24 @@ function MessageGroup({
 
               {/* Bubble row: bubble + mobile ⋯ trigger */}
               <div className={clsx('relative flex items-end gap-1', isOwn ? 'flex-row-reverse' : 'flex-row')}>
-                {/* Swipe-to-Reply Indicator — taucht hinter der Bubble auf,
-                    sobald der User in die Antwort-Richtung wischt. Wird auf
-                    Schwelle 60 px voll sichtbar. */}
-                {isPhone && swipeState?.msgId === String(msg.id) && Math.abs(swipeState.dx) > 8 && (
+                {/* Swipe-to-Reply Indicator — auf Phone permanent gerendert (opacity 0),
+                    wird per direkter DOM-Manipulation im Touchmove ein-/ausgeblendet.
+                    Kein React-Re-Render während des Drags. */}
+                {isPhone && (
                   <div
+                    data-reply-indicator
                     className={clsx(
                       'pointer-events-none absolute inset-y-0 flex items-center text-primary-600 dark:text-primary-400',
                       isOwn ? 'right-0' : 'left-0',
                     )}
-                    style={{ opacity: Math.min(1, Math.abs(swipeState.dx) / SWIPE_REPLY_THRESHOLD) }}
+                    style={{ opacity: 0 }}
                   >
                     <div
                       className={clsx(
                         'flex h-9 w-9 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/40',
                         isOwn ? '-mr-1' : '-ml-1',
                       )}
-                      style={{
-                        transform: `scale(${Math.min(1.1, 0.6 + Math.abs(swipeState.dx) / SWIPE_REPLY_THRESHOLD * 0.5)})`,
-                      }}
+                      style={{ transform: 'scale(0.6)' }}
                     >
                       <Reply size={18} />
                     </div>
@@ -2728,16 +2773,10 @@ function MessageGroup({
                   style={{
                     backgroundColor: isOwn ? ownBubbleColor : otherBubbleColor,
                     color: isOwn || theme === 'dark' ? '#fff' : undefined,
-                    transform: swipeState?.msgId === String(msg.id)
-                      ? `translateX(${swipeState.dx}px)`
-                      : undefined,
-                    transition: swipeState?.msgId === String(msg.id)
-                      ? 'none'
-                      : 'transform 200ms ease-out',
                   }}
                   onTouchStart={(e) => {
                     const t = e.touches[0];
-                    if (t) startTouch(String(msg.id), t.clientX, t.clientY);
+                    if (t) startTouch(String(msg.id), t.clientX, t.clientY, e.currentTarget);
                   }}
                   onTouchMove={(e) => {
                     const t = e.touches[0];
