@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { X, Hash, Lock, KeyRound, Loader2, ChevronDown, Upload, ImageIcon, Trash2 } from 'lucide-react';
+import { Hash, Lock, KeyRound, Loader2, ChevronDown, Upload, ImageIcon, Trash2 } from 'lucide-react';
 import { FocusTrap } from 'focus-trap-react';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { clsx } from 'clsx';

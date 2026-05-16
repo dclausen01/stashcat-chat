@@ -174,8 +174,13 @@ router.get('/file/:fileId', async (req, res) => {
 
     const disposition = req.query.view === '1' ? 'inline' : 'attachment';
     res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(fileName)}"`);
-    res.setHeader('Content-Type', info.mime || 'application/octet-stream');
+    const mime = info.mime || 'application/octet-stream';
+    res.setHeader('Content-Type', mime);
     res.setHeader('Accept-Ranges', 'bytes');
+    // Cache static assets (images, audio) for 1 h — file IDs are permanent
+    if (mime.startsWith('image/') || mime.startsWith('audio/')) {
+      res.setHeader('Cache-Control', 'private, max-age=3600, immutable');
+    }
 
     if (!info.encrypted) {
       const rawToken = ((req.headers['authorization'] as string | undefined)?.split(' ')[1] ?? req.query.token) as string;
