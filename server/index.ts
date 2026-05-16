@@ -280,18 +280,28 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
 
       // Fan out to FCM for registered mobile devices.
       try {
-        const senderRaw = (payload as Record<string, unknown>).sender as Record<string, unknown> | undefined;
+        const p = payload as Record<string, unknown>;
+        const senderRaw = p.sender as Record<string, unknown> | undefined;
         const senderName = senderRaw
           ? `${(senderRaw.first_name as string | undefined) ?? ''} ${(senderRaw.last_name as string | undefined) ?? ''}`.trim() || undefined
           : undefined;
-        const rawText = (payload as Record<string, unknown>).text;
+        // Best-effort channelName-Extraktion aus dem Stashcat-Payload.
+        // Stashcat embed-Format variiert; wir probieren die üblichen Pfade
+        // und nehmen den ersten Treffer. Wenn keiner liefert, fällt Flutter
+        // auf seine Default-Anzeige zurück.
+        const channelRaw = (p.channel ?? p.target) as Record<string, unknown> | undefined;
+        const channelName = (typeof channelRaw?.name === 'string' ? channelRaw.name : undefined)
+          ?? (typeof p.channel_name === 'string' ? p.channel_name : undefined)
+          ?? undefined;
+        const rawText = p.text;
         const text = typeof rawText === 'string' ? rawText : '';
-        const rawId = (payload as Record<string, unknown>).id;
+        const rawId = p.id;
         notifyPush({
           userId: clientKey,
           msgId: rawId != null ? String(rawId) : undefined,
           channelId: msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null,
           conversationId: msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null,
+          channelName,
           senderName,
           preview: text.slice(0, 200),
         });
