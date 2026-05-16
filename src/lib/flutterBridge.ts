@@ -93,6 +93,10 @@ export const bridge = {
   logout: () => call('logout'),
   jitsi: (url: string) => call('jitsi', url),
   setBadge: (count: number) => call('setBadge', count),
+  /** Signal an die Mobile-Shell, dass sich die "Route" (Active-View /
+   *  -Chat) geändert hat — Shell kann darauf z.B. den nächsten Back-Tap
+   *  vorab anders behandeln. No-op außerhalb der Bridge. */
+  notifyRouteChange: (path: string) => call('notifyRouteChange', path),
   /**
    * Native Haptic-Feedback. No-op außerhalb des Bridges UND im
    * Web-Fallback (Vibration-API) wenn `Vibration` verfügbar.
@@ -237,8 +241,42 @@ declare global {
       setToken(token: string): void;
       navigate(path: string): void;
       reload(): void;
+      handleBack(): boolean;
     };
   }
+}
+
+// ── Back-Handler-Stack ───────────────────────────────────────────────────────
+// LIFO: zuletzt registrierter Handler bekommt den Back-Tap zuerst.
+// Komponenten (Bottom-Sheets, Modals, Bubble-Action-Sheet) registrieren ihren
+// eigenen Handler in useEffect, App.tsx registriert einen Fallback ganz unten
+// im Stack.
+const backHandlers: Array<() => boolean> = [];
+
+/**
+ * Registriert einen synchronen Back-Handler. Gibt der Handler `true` zurück,
+ * gilt der Back-Gestus als konsumiert. Der Rückgabewert der Funktion ist
+ * ein Unsubscribe-Callback, mit dem der Handler entfernt wird (typisch in
+ * der Cleanup-Function eines useEffect).
+ */
+export function pushBackHandler(handler: () => boolean): () => void {
+  backHandlers.push(handler);
+  return () => {
+    const idx = backHandlers.indexOf(handler);
+    if (idx >= 0) backHandlers.splice(idx, 1);
+  };
+}
+
+/** Wird ausschließlich von `window.bbzChat.handleBack()` aufgerufen. */
+function runBackHandlers(): boolean {
+  for (let i = backHandlers.length - 1; i >= 0; i--) {
+    try {
+      if (backHandlers[i]() === true) return true;
+    } catch {
+      /* defensiver Skip — nicht den ganzen Stack abbrechen */
+    }
+  }
+  return false;
 }
 
 /**
@@ -266,6 +304,9 @@ export function installBbzChatGlobal(): void {
       } catch {
         /* noop */
       }
+    },
+    handleBack(): boolean {
+      return runBackHandlers();
     },
   };
 }

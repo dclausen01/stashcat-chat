@@ -5,6 +5,7 @@ import * as api from '../../api';
 import type { ChatTarget } from '../../types';
 import { getCleanName, getParentId, encodeSubchannelName } from '../../utils/subchannels';
 import { getErrorMessage } from '../../utils/errorMessage';
+import MobileSheet from '../MobileSheet';
 
 export function RenameChannelModal({ chat, onClose, onRenamed }: {
   chat: ChatTarget;
@@ -36,14 +37,8 @@ export function RenameChannelModal({ chat, onClose, onRenamed }: {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl dark:bg-surface-900"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <MobileSheet open onClose={onClose} ariaLabel="Channel umbenennen">
+      <div className="relative flex flex-col">
         <div className="flex items-center justify-between border-b border-surface-200 px-6 py-4 dark:border-surface-700">
           <div className="flex items-center gap-2">
             <Type size={18} className="text-primary-500" />
@@ -86,6 +81,6 @@ export function RenameChannelModal({ chat, onClose, onRenamed }: {
           </button>
         </div>
       </div>
-    </div>
+    </MobileSheet>
   );
 }

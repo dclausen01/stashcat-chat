@@ -5,6 +5,7 @@ import * as api from '../../api';
 import type { ChatTarget } from '../../types';
 import { getCleanName } from '../../utils/subchannels';
 import { getErrorMessage } from '../../utils/errorMessage';
+import MobileSheet from '../MobileSheet';
 
 export function LeaveConfirmModal({ chat, onClose, onLeft }: {
   chat: ChatTarget;
@@ -25,14 +26,8 @@ export function LeaveConfirmModal({ chat, onClose, onLeft }: {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl dark:bg-surface-900"
-        onClick={e => e.stopPropagation()}
-      >
+    <MobileSheet open onClose={onClose} ariaLabel="Channel verlassen">
+      <div className="relative flex flex-col">
         <div className="flex flex-col items-center px-6 pt-6 pb-2 text-center">
           <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
             <LogOut size={28} className="text-amber-500" />
@@ -64,6 +59,6 @@ export function LeaveConfirmModal({ chat, onClose, onLeft }: {
           </button>
         </div>
       </div>
-    </div>
+    </MobileSheet>
   );
 }

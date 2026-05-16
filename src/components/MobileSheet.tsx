@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { isMobileBridge } from '../lib/mobileBridge';
 import { useLayoutMode } from '../hooks/useLayoutMode';
-import { bridge } from '../lib/flutterBridge';
+import { bridge, pushBackHandler } from '../lib/flutterBridge';
 
 /**
  * Generischer Bottom-Sheet-Wrapper für Mobile.
@@ -52,6 +52,14 @@ export default function MobileSheet({
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  // Android-Back / iOS-Edge-Swipe (über window.bbzChat.handleBack()):
+  // Sheet schließt den Tap und konsumiert die Geste, damit die App nicht
+  // in den Hintergrund springt.
+  useEffect(() => {
+    if (!open) return;
+    return pushBackHandler(() => { onClose(); return true; });
   }, [open, onClose]);
 
   // Body-Scroll auf Mobile pausieren, solange das Sheet offen ist

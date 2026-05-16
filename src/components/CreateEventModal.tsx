@@ -9,6 +9,7 @@ import * as api from '../api';
 import type { CalendarEvent } from '../api';
 import type { ChatTarget, RawUser } from '../types';
 import { getCleanName } from '../utils/subchannels';
+import MobileSheet from './MobileSheet';
 
 interface RawChannel {
   id?: string;
@@ -314,9 +315,9 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+    <MobileSheet open onClose={onClose} ariaLabel={isEdit ? 'Termin bearbeiten' : 'Neuer Termin'}>
       <FocusTrap focusTrapOptions={{ escapeDeactivates: false, allowOutsideClick: true }}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl dark:bg-surface-900">
+      <div className="flex flex-col p-6">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-surface-900 dark:text-white">
             {isEdit ? 'Termin bearbeiten' : 'Neuer Termin'}
@@ -637,6 +638,6 @@ export default function CreateEventModal({ initialDate, editingEvent, preselecte
         </div>
       </div>
       </FocusTrap>
-    </div>
+    </MobileSheet>
   );
 }
