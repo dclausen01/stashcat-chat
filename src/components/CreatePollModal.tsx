@@ -220,7 +220,7 @@ export default function CreatePollModal({ preselectedChat, onClose, onCreated }:
         <div className="flex items-center gap-3 border-b border-surface-200 px-6 py-4 dark:border-surface-700">
           <BarChart3 size={22} className="text-primary-500" />
           <h2 className="flex-1 text-lg font-semibold text-surface-900 dark:text-white">Neue Umfrage</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800">
+          <button onClick={onClose} className="hidden md:flex items-center justify-center rounded-lg p-1.5 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-800">
             <X size={18} />
           </button>
         </div>

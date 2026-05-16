@@ -194,7 +194,7 @@ export default function CreateNCDocumentModal({ chatId, chatType, onClose, onCre
           <h2 className="text-lg font-semibold text-surface-900 dark:text-white">
             Neues Dokument erstellen
           </h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors">
+          <button onClick={onClose} className="hidden md:flex items-center justify-center p-1 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors">
             <X size={18} className="text-surface-500" />
           </button>
         </div>

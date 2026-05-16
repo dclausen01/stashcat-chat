@@ -44,7 +44,7 @@ export function RenameChannelModal({ chat, onClose, onRenamed }: {
             <Type size={18} className="text-primary-500" />
             <h2 className="text-base font-semibold text-surface-900 dark:text-white">Channel umbenennen</h2>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700">
+          <button onClick={onClose} className="hidden md:flex items-center justify-center rounded-lg p-1.5 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700">
             <X size={18} />
           </button>
         </div>

@@ -120,7 +120,7 @@ export default function ShareToChatModal({ file, onClose }: ShareToChatModalProp
             <p className="text-sm font-semibold text-surface-900 dark:text-white">In Chat teilen</p>
             <p className="text-xs text-surface-500 truncate">{file.name}</p>
           </div>
-          <button onClick={onClose} className="rounded-md p-1 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700">
+          <button onClick={onClose} className="hidden md:flex items-center justify-center rounded-md p-1 text-surface-500 hover:bg-surface-200 dark:hover:bg-surface-700">
             <X size={16} />
           </button>
         </div>
