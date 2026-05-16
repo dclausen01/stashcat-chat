@@ -1,17 +1,16 @@
 import { WifiOff, CheckCircle } from 'lucide-react';
+import type { ConnectionStatus } from '../hooks/useConnectionState';
 
 type Props = {
-  status: 'connected' | 'disconnected' | 'reconnected';
+  status: ConnectionStatus;
 };
 
 /**
- * Connection state indicator.
+ * Connection state indicator — floating pill, always at the bottom.
+ * Never covers the top navigation bar or back button.
  *
- * Layout:
- * - Desktop / Tablet (md+): bottom-floating Pill, wie bisher.
- * - Mobile (< md): Full-width Top-Banner unter safe-area-top. Liegt damit
- *   nicht über dem sticky Composer, und ist auf engem Screen deutlich
- *   sichtbarer.
+ * Only appears for genuine unexpected disconnects (not during normal
+ * post-background SSE reconnect, which is suppressed by useConnectionState).
  */
 export default function ConnectionBanner({ status }: Props) {
   if (status === 'connected') return null;
@@ -21,15 +20,13 @@ export default function ConnectionBanner({ status }: Props) {
   return (
     <div
       className={[
-        // Mobile: top sticky banner, full width.
-        'fixed left-0 right-0 top-0 z-50 flex items-center justify-center gap-2 px-4 py-2',
-        'bridge-sticky-top text-sm font-medium shadow-md transition-all duration-300',
-        // Desktop reset: bottom-floating pill (unchanged from before).
-        'md:left-1/2 md:right-auto md:top-auto md:bottom-4 md:-translate-x-1/2',
-        'md:rounded-full md:shadow-lg md:px-4',
+        'fixed bottom-6 left-1/2 z-50 -translate-x-1/2',
+        'flex items-center gap-2 rounded-full px-4 py-2',
+        'text-sm font-medium text-white shadow-lg',
+        'transition-all duration-300 animate-in fade-in slide-in-from-bottom-2',
         isDisconnected
-          ? 'bg-amber-500 text-white dark:bg-amber-600'
-          : 'bg-green-500 text-white dark:bg-green-600',
+          ? 'bg-amber-500 dark:bg-amber-600'
+          : 'bg-green-500 dark:bg-green-600',
       ].join(' ')}
       role="status"
       aria-live="polite"
@@ -37,8 +34,7 @@ export default function ConnectionBanner({ status }: Props) {
       {isDisconnected ? (
         <>
           <WifiOff className="size-4 shrink-0" />
-          <span>Verbindung unterbrochen – wird wiederhergestellt …</span>
-          {/* Pulsing dot to indicate active reconnect attempt */}
+          <span>Verbindung unterbrochen …</span>
           <span className="size-2 rounded-full bg-white/60 animate-pulse shrink-0" />
         </>
       ) : (
