@@ -25,7 +25,7 @@ import ShortcutsModal from './components/ShortcutsModal';
 import ConnectionBanner from './components/ConnectionBanner';
 import { useConnectionState } from './hooks/useConnectionState';
 import { on, BridgeEvents } from './lib/bridgeBus';
-import type { Deeplink } from './lib/flutterBridge';
+import { type Deeplink, pushBackHandler, bridge } from './lib/flutterBridge';
 import type { ChatTarget } from './types';
 import type { CallParty } from './api/calls';
 
@@ -141,6 +141,43 @@ export default function App() {
       }
     });
   }, [loggedIn, channels, conversations, handleSelectChat, openCalendar, openPolls, goToChat]);
+
+  // App-Level Back-Handler — wird vom Flutter-PopScope-Handler über
+  // window.bbzChat.handleBack() aufgerufen. Bottom-Sheets/Modals registrieren
+  // ihren eigenen Handler weiter oben im Stack (LIFO), wir sind der Fallback.
+  useEffect(() => {
+    if (!loggedIn) return;
+    return pushBackHandler(() => {
+      // Reihenfolge spiegelt visuelle "Tiefe": Profil > sonstige Panels >
+      // Sonderansichten (Kalender/Polls) > offener Chat > Root.
+      if (profileOpen) { closeProfile(); return true; }
+      if (settingsOpen) { closeSettings(); return true; }
+      if (fileBrowserOpen) { closeFileBrowser(); return true; }
+      if (broadcastsOpen) { closeBroadcasts(); return true; }
+      if (notificationsOpen) { closeNotifications(); return true; }
+      if (flaggedOpen) { closeFlagged(); return true; }
+      if (activeView !== 'chat') { goToChat(); return true; }
+      if (activeChat) { setActiveChat(null); return true; }
+      return false; // Root — Mobile-Shell soll die App in den Hintergrund schicken
+    });
+  }, [
+    loggedIn, profileOpen, settingsOpen, fileBrowserOpen, broadcastsOpen,
+    notificationsOpen, flaggedOpen, activeView, activeChat,
+    closeProfile, closeSettings, closeFileBrowser, closeBroadcasts,
+    closeNotifications, closeFlagged, goToChat,
+  ]);
+
+  // notifyRouteChange: Mobile-Shell weiß so jederzeit, "wo wir sind".
+  // Pfad-Schema spiegelt die parseDeeplink-Konvention.
+  useEffect(() => {
+    if (!loggedIn) return;
+    let path = '/';
+    if (activeView === 'calendar') path = '/calendar';
+    else if (activeView === 'polls') path = '/polls';
+    else if (activeChat?.type === 'channel') path = `/c/${activeChat.id}`;
+    else if (activeChat?.type === 'conversation') path = `/d/${activeChat.id}`;
+    bridge.notifyRouteChange(path);
+  }, [loggedIn, activeView, activeChat]);
 
   // Keyboard shortcuts (only when logged in). Hotkeys *always* open the target
   // panel; the matching toolbar buttons toggle. Preserved from before the
