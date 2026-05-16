@@ -114,6 +114,8 @@ export default function ChatItem({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggered = useRef(false);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -128,10 +130,36 @@ export default function ChatItem({
   const hasChannelActions = target.type === 'channel' && (onChannelDeleted || onChannelLeft || canAddSubchannel);
   const hasConvActions = target.type === 'conversation' && !!onConversationArchived;
 
+  const handleTouchStart = () => {
+    if (!hasMenu) return;
+    longPressTriggered.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true;
+      setMenuOpen(true);
+    }, 500);
+  };
+  const cancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
   return (
     <>
       <button
-        onClick={() => onSelect(target)}
+        onClick={(e) => {
+          if (longPressTriggered.current) {
+            longPressTriggered.current = false;
+            e.preventDefault();
+            return;
+          }
+          onSelect(target);
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={cancelLongPress}
+        onTouchMove={cancelLongPress}
+        onContextMenu={(e) => e.preventDefault()}
         className={clsx(
           'group/item relative flex w-full items-center rounded-lg text-left transition',
           compact ? 'gap-2 px-2 py-1' : 'gap-3 px-3 py-2',
@@ -148,39 +176,19 @@ export default function ChatItem({
           <Avatar name={target.name} image={target.image} size={compact ? 'xs' : 'sm'} availability={target.userAvailability} />
         )}
         <span className={clsx('min-w-0 flex-1 truncate font-medium', compact ? 'text-xs' : 'text-sm')}>{target.name}</span>
-        {onToggleExpand && (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
-            title={expanded ? 'Subkanäle einklappen' : 'Subkanäle ausklappen'}
-            aria-label={expanded ? 'Subkanäle einklappen' : 'Subkanäle ausklappen'}
-            aria-expanded={!!expanded}
-            className="shrink-0 rounded text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 min-h-[36px] min-w-[28px] flex items-center justify-center md:min-h-0 md:min-w-0 md:p-0.5"
-          >
-            <ChevronDown size={14} className={clsx('transition-transform', expanded && 'rotate-180')} />
-          </button>
-        )}
-        {onToggleFavorite && (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onToggleFavorite(target); }}
-            title={target.favorite ? 'Favorit entfernen' : 'Als Favorit markieren'}
-            aria-label={target.favorite ? 'Favorit entfernen' : 'Als Favorit markieren'}
-            aria-pressed={target.favorite}
-            className={clsx(
-              'shrink-0 rounded transition min-h-[44px] min-w-[44px] flex items-center justify-center md:min-h-0 md:min-w-0',
-              target.favorite
-                ? 'text-yellow-400'
-                : 'text-transparent group-hover/item:text-surface-400 dark:group-hover/item:text-surface-600',
-            )}
-          >
-            <Star size={13} className={target.favorite ? 'fill-yellow-400' : ''} />
-          </button>
-        )}
         {hasMenu && (
           <div
             ref={menuRef}
-            className={clsx('relative shrink-0', menuOpen ? '' : 'hidden group-hover/item:block')}
+            className={clsx(
+              'relative shrink-0 md:transition-opacity md:duration-150',
+              menuOpen
+                ? ''
+                : [
+                    'hidden md:block',
+                    'md:opacity-0 md:pointer-events-none',
+                    'md:group-hover/item:opacity-100 md:group-hover/item:pointer-events-auto',
+                  ],
+            )}
           >
             <button
               type="button"
@@ -309,6 +317,35 @@ export default function ChatItem({
               </div>
             )}
           </div>
+        )}
+        {onToggleExpand && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
+            title={expanded ? 'Subkanäle einklappen' : 'Subkanäle ausklappen'}
+            aria-label={expanded ? 'Subkanäle einklappen' : 'Subkanäle ausklappen'}
+            aria-expanded={!!expanded}
+            className="shrink-0 rounded text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 min-h-[36px] min-w-[28px] flex items-center justify-center md:min-h-0 md:min-w-0 md:p-0.5"
+          >
+            <ChevronDown size={14} className={clsx('transition-transform', expanded && 'rotate-180')} />
+          </button>
+        )}
+        {onToggleFavorite && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleFavorite(target); }}
+            title={target.favorite ? 'Favorit entfernen' : 'Als Favorit markieren'}
+            aria-label={target.favorite ? 'Favorit entfernen' : 'Als Favorit markieren'}
+            aria-pressed={target.favorite}
+            className={clsx(
+              'shrink-0 rounded transition min-h-[44px] min-w-[44px] flex items-center justify-center md:min-h-0 md:min-w-0',
+              target.favorite
+                ? 'text-yellow-400'
+                : 'text-transparent group-hover/item:text-surface-400 dark:group-hover/item:text-surface-600',
+            )}
+          >
+            <Star size={13} className={target.favorite ? 'fill-yellow-400' : ''} />
+          </button>
         )}
         {(target.unread_count ?? 0) > 0 && (
           <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-ci-red-500 px-1.5 text-xs font-bold text-white">
