@@ -91,6 +91,24 @@ app.use('/api', pushRouter);
 // Bootstrap the push dispatcher once the realtime listeners are wired below.
 initPushDispatcher();
 
+// Periodisches Health-Log der Realtime/Push-Pipeline (alle 60 s).
+// Damit sehen wir, ob "Push-only"-Verbindungen tatsächlich am Leben bleiben.
+setInterval(() => {
+  let total = 0;
+  let withSse = 0;
+  let pushOnly = 0;
+  let realtimeAlive = 0;
+  for (const conn of activeSSE.values()) {
+    total += 1;
+    if (conn.sseClients.size > 0) withSse += 1;
+    else pushOnly += 1;
+    if (conn.realtime) realtimeAlive += 1;
+  }
+  if (total > 0) {
+    serverLog(`[Health] activeSSE=${total} (sse=${withSse}, push-only=${pushOnly}, realtime-alive=${realtimeAlive})`);
+  }
+}, 60_000).unref?.();
+
 // Shared state and helpers moved to ./lib/state.ts
 
 // ── Realtime setup ───────────────────────────────────────────────────────────
@@ -178,9 +196,23 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
           });
           return;
         }
-        const pushTokens = await listPushTokensForUser(clientKey).catch(() => []);
-        if (pushTokens.length > 0) {
-          serverLog(`[Realtime] Reconnecting for clientKey ${clientKey.slice(0, 8)} (no SSE but ${pushTokens.length} push token(s))`);
+        // Konservativ: Bei einem Lookup-Fehler reconnecten wir trotzdem.
+        // Lieber unnötig eine Verbindung mehr als pro Disk-Glitch einen
+        // Push-User in den Push-Verlust schicken.
+        let pushTokens: { token: string }[] | null = null;
+        try {
+          pushTokens = await listPushTokensForUser(clientKey);
+        } catch (err) {
+          serverLog(
+            `[Realtime] Push-Token-Lookup für ${clientKey.slice(0, 8)} fehlgeschlagen — reconnecte vorsorglich:`,
+            errorMessage(err),
+          );
+        }
+        if (pushTokens === null || pushTokens.length > 0) {
+          const reason = pushTokens === null
+            ? '(no SSE, push-lookup failed → conservative reconnect)'
+            : `(no SSE but ${pushTokens.length} push token(s))`;
+          serverLog(`[Realtime] Reconnecting for clientKey ${clientKey.slice(0, 8)} ${reason}`);
           conn.realtime = undefined;
           connectRealtime(conn.client, clientKey).catch((err) => {
             serverLog(`[Realtime] Reconnect failed for ${clientKey.slice(0, 8)}:`, errorMessage(err));
@@ -843,9 +875,14 @@ app.get('/api/events', async (req, res) => {
         activeSSE.delete(clientKey);
       })
       .catch((err) => {
-        serverLog('[SSE] Push-Token-Lookup fehlgeschlagen, halte Realtime trotzdem an:', errorMessage(err));
-        c.realtime?.disconnect();
-        activeSSE.delete(clientKey);
+        // Konservativ: Bei einem transienten Token-Store-I/O-Fehler die
+        // Realtime-Connection NICHT killen — sonst verlieren Push-User
+        // ihre Pipeline wegen eines kurzen Disk-Glitches. Lieber eine
+        // Verbindung 10 Minuten "leaken", als 30 Minuten lang keine Pushes.
+        serverLog(
+          `[SSE] Push-Token-Lookup für ${clientKey.slice(0, 8)} fehlgeschlagen — halte Realtime vorsorglich am Leben:`,
+          errorMessage(err),
+        );
       });
   });
 });
