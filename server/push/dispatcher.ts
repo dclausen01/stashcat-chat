@@ -15,7 +15,15 @@ const BATCH_MS = Number(process.env.PUSH_BATCH_MS || 2000);
 
 interface PendingEntry {
   userId: string;
-  events: Array<{ title: string; body: string; deeplink?: string; msgId?: string }>;
+  events: Array<{
+    title: string;
+    body: string;
+    deeplink?: string;
+    msgId?: string;
+    channelName?: string;
+    senderName?: string;
+    preview?: string;
+  }>;
   timer: NodeJS.Timeout;
   unreadCount: number;
 }
@@ -67,10 +75,17 @@ async function flush(userId: string): Promise<void> {
     body = last.body;
   }
 
+  // Datenfelder, die Flutter für die Banner-Formatierung + Tap-Routing
+  // erwartet. Jedes Feld ist optional → nur senden wenn vorhanden, damit
+  // der Mobile-Code die Default-Behandlung greift wenn etwas fehlt.
   const data: Record<string, string> = {};
   if (last.deeplink) data.deeplink = last.deeplink;
   if (last.msgId) data.msgId = last.msgId;
-  if (typeof entry.unreadCount === 'number') data.unreadCount = String(entry.unreadCount);
+  if (last.channelName) data.channelName = last.channelName;
+  if (last.senderName) data.senderName = last.senderName;
+  if (!silent && last.preview) data.preview = last.preview;
+  if (count > 1) data.coalescedCount = String(count);
+  data.unreadCount = String(entry.unreadCount ?? 0);
 
   await Promise.all(
     tokens.map(async (tok) => {
@@ -109,6 +124,9 @@ export function queueMessageEvent(evt: IncomingMessageEvent): void {
     body: evt.senderName ? `${evt.senderName}: ${evt.preview}` : evt.preview,
     deeplink,
     msgId: evt.msgId,
+    channelName: evt.channelName,
+    senderName: evt.senderName,
+    preview: evt.preview,
     target,
   };
 
