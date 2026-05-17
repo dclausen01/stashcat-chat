@@ -100,8 +100,10 @@ export default function MobileSheet({
         aria-label={ariaLabel}
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
-        <div className="w-full max-w-md max-h-[90vh] overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-surface-800">
-          {children}
+        <div className="w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-surface-800">
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {children}
+          </div>
         </div>
       </div>
     );
@@ -119,7 +121,7 @@ export default function MobileSheet({
       <div
         ref={sheetRef}
         className={[
-          'relative w-full overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-surface-800',
+          'relative w-full flex flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl dark:bg-surface-800',
           'animate-[slide-up_220ms_ease-out]',
           compact ? '' : maxHeightClass,
         ].join(' ')}
@@ -133,7 +135,7 @@ export default function MobileSheet({
         onTouchEnd={onTouchEnd}
       >
         {/* Drag-Handle */}
-        <div className="flex items-center justify-center pt-2 pb-1">
+        <div className="flex shrink-0 items-center justify-center pt-2 pb-1">
           <div className="h-1.5 w-12 rounded-full bg-surface-300 dark:bg-surface-600" />
         </div>
         {/* Close-X für Accessibility (Drag funktioniert auch ohne) */}
@@ -145,7 +147,7 @@ export default function MobileSheet({
         >
           <X size={18} />
         </button>
-        <div className="overflow-y-auto overscroll-contain">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           {children}
         </div>
       </div>
