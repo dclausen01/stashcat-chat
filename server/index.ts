@@ -163,6 +163,20 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
     
     serverLog(`[Realtime] RealtimeManager fully connected for clientKey ${clientKey.slice(0, 8)}`);
 
+    // Diagnose: jeden vom Stashcat-Server kommenden Event protokollieren —
+    // hilft, wenn wir Events erwarten (z.B. 'notification' bei neuer Nachricht)
+    // aber nichts in unseren Spezial-Handlern feuert. Args werden auf 400
+    // Zeichen gekürzt damit das Log nicht explodiert.
+    const sockAny = (rt as unknown as { socket?: { onAny?: (cb: (event: string, ...args: unknown[]) => void) => void } }).socket;
+    if (sockAny && typeof sockAny.onAny === 'function') {
+      sockAny.onAny((event: string, ...args: unknown[]) => {
+        // 'connect'/'disconnect'/'ping'/'pong' sind Socket.io-Internals — uninteressant
+        if (event === 'connect' || event === 'disconnect' || event === 'ping' || event === 'pong') return;
+        const preview = JSON.stringify(args).slice(0, 400);
+        serverLog(`[Realtime] 📡 ${clientKey.slice(0, 8)} "${event}" ${preview}`);
+      });
+    }
+
     // Handle connection errors
     rt.on('error', (err: Error) => {
       serverLog(`[Realtime] Error for clientKey ${clientKey.slice(0, 8)}:`, err.message);
