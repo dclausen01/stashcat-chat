@@ -24,6 +24,7 @@ import {
   consumePreAuthToken,
   activeSSE,
   pushSSE,
+  stashcatUserIdByClientKey,
 } from './lib/state';
 import notificationsRouter from './routes/notifications';
 import calendarRouter from './routes/calendar';
@@ -177,6 +178,23 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
       });
     }
 
+    // Stashcat-User-ID einmalig cachen — wird für Token-Routing benötigt,
+    // damit eine `notification` an Web-Session A trotzdem die FCM-Tokens
+    // findet, die Mobile-Session B desselben Users registriert hat.
+    // getMe() schlägt fehl wenn die Session abgelaufen ist; in dem Fall
+    // fällt notifyPush einfach auf clientKey als Schlüssel zurück.
+    try {
+      const meRaw = await client.getMe();
+      const stashcatUserId = String((meRaw as unknown as { id?: string | number }).id ?? '');
+      if (stashcatUserId) {
+        conn.stashcatUserId = stashcatUserId;
+        stashcatUserIdByClientKey.set(clientKey, stashcatUserId);
+        serverLog(`[Realtime] stashcatUserId für ${clientKey.slice(0, 8)} = ${stashcatUserId}`);
+      }
+    } catch (err) {
+      serverLog(`[Realtime] getMe für ${clientKey.slice(0, 8)} fehlgeschlagen:`, errorMessage(err));
+    }
+
     // Handle connection errors
     rt.on('error', (err: Error) => {
       serverLog(`[Realtime] Error for clientKey ${clientKey.slice(0, 8)}:`, err.message);
@@ -310,8 +328,15 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
         const rawText = p.text;
         const text = typeof rawText === 'string' ? rawText : '';
         const rawId = p.id;
+        // Token-Routing geht über die Stashcat-User-ID, nicht über den
+        // per-Session clientKey. Damit findet ein notification-Event an
+        // Session A (z.B. Web) trotzdem die FCM-Tokens, die unter Session B
+        // (z.B. Mobile-App) registriert wurden.
+        const pushUserId = activeSSE.get(clientKey)?.stashcatUserId
+          || stashcatUserIdByClientKey.get(clientKey)
+          || clientKey;
         notifyPush({
-          userId: clientKey,
+          userId: pushUserId,
           msgId: rawId != null ? String(rawId) : undefined,
           channelId: msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null,
           conversationId: msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null,
