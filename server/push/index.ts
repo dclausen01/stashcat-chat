@@ -33,15 +33,17 @@ const router = Router();
  * Resolve the routing-userId for push-tokens. Prefer the Stashcat user id
  * (stable across sessions of the same user — Phone + Web teilen sich diese
  * ID), fall back to clientKey if we don't have a cache entry yet.
- *
- * `getMe()` ist im StashcatClient gecached, also kein zusätzlicher API-Call
- * unter normalen Bedingungen.
+ * Wichtig: Wenn der Caller mit einem mobileToken (64-hex) authentifiziert ist,
+ * würde `getClient(req)` an `decryptSession` scheitern. Daher nutzen wir den
+ * `sessionToken` aus dem aufgelösten Auth-Record und bauen damit ein
+ * fake-req, das `getClient` versteht.
  */
-async function resolveRoutingUserId(req: Request, clientKey: string): Promise<string> {
+async function resolveRoutingUserId(_req: Request, clientKey: string, sessionToken: string): Promise<string> {
   const cached = stashcatUserIdByClientKey.get(clientKey);
   if (cached) return cached;
   try {
-    const client = await getClient(req);
+    const fakeReq = { headers: { authorization: `Bearer ${sessionToken}` }, query: {} } as unknown as Request;
+    const client = await getClient(fakeReq);
     const me = await client.getMe();
     const id = String((me as unknown as { id?: string | number }).id ?? '');
     if (id) {
