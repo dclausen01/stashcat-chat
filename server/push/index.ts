@@ -64,7 +64,7 @@ router.post('/push-tokens', async (req: Request, res: Response) => {
     if (!token || (platform !== 'android' && platform !== 'ios')) {
       return res.status(400).json({ error: 'token + platform (android|ios) required' });
     }
-    const routingUserId = await resolveRoutingUserId(req, auth.userId);
+    const routingUserId = await resolveRoutingUserId(req, auth.userId, auth.sessionToken);
     await upsertToken({
       token,
       userId: routingUserId,
@@ -99,7 +99,7 @@ router.get('/push-tokens', async (req: Request, res: Response) => {
   try {
     const auth = await resolveAuth(req);
     if (!auth) return res.status(401).json({ error: 'Unauthorized' });
-    const routingUserId = await resolveRoutingUserId(req, auth.userId);
+    const routingUserId = await resolveRoutingUserId(req, auth.userId, auth.sessionToken);
     const list = await listForUser(routingUserId);
     // Don't leak the raw token; surface a hash-ish prefix only.
     res.json(list.map((r) => ({ ...r, token: r.token.slice(0, 12) + '…' })));
