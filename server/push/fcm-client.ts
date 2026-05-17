@@ -140,8 +140,10 @@ function buildPayload(input: FcmMessageInput): Record<string, unknown> {
   const data: Record<string, string> = { ...(input.data ?? {}) };
   // Always include title/body in data so Android can render the banner from
   // data-only messages (high priority, works when app is killed).
-  data.title = input.title;
-  data.body = input.silent ? '' : input.body;
+  // Defensive defaults — FCM weigert sich, JSON mit `undefined`-Werten zu
+  // akzeptieren, und Flutter würde sonst leeren Banner-Title sehen.
+  data.title = input.title || 'Neue Nachricht';
+  data.body = input.silent ? '' : (input.body || '');
 
   if (input.platform === 'ios') {
     return {

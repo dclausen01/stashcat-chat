@@ -118,10 +118,16 @@ export function queueMessageEvent(evt: IncomingMessageEvent): void {
     : evt.conversationId
     ? `/d/${evt.conversationId}`
     : undefined;
+  // Title/Body-Konvention (WhatsApp-like):
+  //  - DM      → title = Sender,   body = "<preview>"
+  //  - Channel → title = Channel,  body = "Sender: <preview>"
   const headline = evt.channelName || evt.senderName || 'Neue Nachricht';
+  const body = evt.channelName
+    ? (evt.senderName ? `${evt.senderName}: ${evt.preview}` : evt.preview)
+    : evt.preview;
   const eventEntry = {
     title: headline,
-    body: evt.senderName ? `${evt.senderName}: ${evt.preview}` : evt.preview,
+    body,
     deeplink,
     msgId: evt.msgId,
     channelName: evt.channelName,

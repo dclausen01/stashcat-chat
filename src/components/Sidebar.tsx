@@ -286,11 +286,13 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
     if (channelId) {
       const isActive = active?.type === 'channel' && active.id === channelId;
       const shouldIncrement = (!isInForeground || !isActive) && !isOwnMessage;
+      let bumpedParentId: string | null = null;
       setChannels((prev) => {
         // If this channel is a subchannel, bump the parent's lastActivity too
         // so the parent floats up in the sidebar order.
         const target = prev.find((c) => c.id === channelId);
         const parentId = target ? getParentId(target.name) : null;
+        bumpedParentId = shouldIncrement ? parentId : null;
         return sortChats(prev.map((ch) => {
           if (ch.id === channelId) {
             return { ...ch, lastActivity: time || ch.lastActivity, unread_count: shouldIncrement ? (ch.unread_count ?? 0) + 1 : ch.unread_count };
@@ -301,6 +303,18 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
           return ch;
         }));
       });
+      // Wenn die Nachricht in einem Sub-Channel landet, klappen wir den
+      // Parent automatisch auf — sonst sieht der User die Unread-Badge nicht
+      // (sie steckt unter einem zugeklappten Knoten). Idempotent: setExpanded
+      // mit einem schon enthaltenen Key liefert die alte Set-Referenz zurück.
+      if (bumpedParentId) {
+        setExpandedParents((prev) => {
+          if (prev.has(bumpedParentId!)) return prev;
+          const next = new Set(prev);
+          next.add(bumpedParentId!);
+          return next;
+        });
+      }
       // Keep prevUnreadsRef in sync so background poll doesn't re-notify
       if (shouldIncrement) {
         prevUnreadsRef.current?.set(channelId, (prevUnreadsRef.current.get(channelId) ?? 0) + 1);
@@ -703,7 +717,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
               >
                 <Users size={14} />
                 <span>Direktnachrichten</span>
-                {unreadConversations.length > 0 && activeTab !== 'direct' && (
+                {unreadConversations.length > 0 && (
                   <span className="ml-1 rounded-full bg-primary-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white dark:bg-primary-500">
                     {unreadConversations.length}
                   </span>
@@ -745,7 +759,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
               >
                 <Hash size={14} />
                 <span>Channels</span>
-                {unreadChannels.length > 0 && activeTab !== 'channels' && (
+                {unreadChannels.length > 0 && (
                   <span className="ml-1 rounded-full bg-primary-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white dark:bg-primary-500">
                     {unreadChannels.length}
                   </span>
