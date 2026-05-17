@@ -46,9 +46,25 @@ export interface SSEConnection {
   client: StashcatClient;
   realtime?: RealtimeManager;
   sseClients: Set<express.Response>;
+  /**
+   * Stashcat-User-ID (`me.id`) — wird beim ersten `connectRealtime` einmal
+   * gecached. Wir routen Push-Tokens und FCM-Fan-out über diese ID statt über
+   * den per-Session `clientKey`, damit eine `notification` an Session A (z.B.
+   * Web-Browser) trotzdem die FCM-Tokens findet, die unter Session B (z.B.
+   * Mobile-App) registriert wurden.
+   */
+  stashcatUserId?: string;
 }
 /** keyed by clientKey */
 export const activeSSE = new Map<string, SSEConnection>();
+
+/**
+ * Globaler Lookup `clientKey → stashcatUserId`. Wird parallel zu activeSSE
+ * gepflegt, damit Push-Token-Routes (die nicht über activeSSE laufen)
+ * trotzdem an die User-ID kommen, ohne pro Request einen `getMe()`-Call
+ * machen zu müssen.
+ */
+export const stashcatUserIdByClientKey = new Map<string, string>();
 
 export function pushSSE(clientKey: string, event: string, data: unknown) {
   const conn = activeSSE.get(clientKey);

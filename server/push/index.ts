@@ -24,8 +24,35 @@ import { queueMessageEvent, type IncomingMessageEvent } from './dispatcher';
 import { isFcmConfigured, describeFcmConfig } from './fcm-client';
 import { resolveAuth, loadMobileTokenFromRequest } from './auth';
 import { loadMobileToken, updatePushPreview, type PushPreviewMode } from '../mobile-auth';
+import { stashcatUserIdByClientKey } from '../lib/state';
+import { getClient } from '../lib/get-client';
 
 const router = Router();
+
+/**
+ * Resolve the routing-userId for push-tokens. Prefer the Stashcat user id
+ * (stable across sessions of the same user — Phone + Web teilen sich diese
+ * ID), fall back to clientKey if we don't have a cache entry yet.
+ *
+ * `getMe()` ist im StashcatClient gecached, also kein zusätzlicher API-Call
+ * unter normalen Bedingungen.
+ */
+async function resolveRoutingUserId(req: Request, clientKey: string): Promise<string> {
+  const cached = stashcatUserIdByClientKey.get(clientKey);
+  if (cached) return cached;
+  try {
+    const client = await getClient(req);
+    const me = await client.getMe();
+    const id = String((me as unknown as { id?: string | number }).id ?? '');
+    if (id) {
+      stashcatUserIdByClientKey.set(clientKey, id);
+      return id;
+    }
+  } catch {
+    /* getClient/getMe can fail when session is expired; we silently fall back */
+  }
+  return clientKey;
+}
 
 router.post('/push-tokens', async (req: Request, res: Response) => {
   try {
@@ -35,9 +62,10 @@ router.post('/push-tokens', async (req: Request, res: Response) => {
     if (!token || (platform !== 'android' && platform !== 'ios')) {
       return res.status(400).json({ error: 'token + platform (android|ios) required' });
     }
+    const routingUserId = await resolveRoutingUserId(req, auth.userId);
     await upsertToken({
       token,
-      userId: auth.userId,
+      userId: routingUserId,
       platform: platform as Platform,
       appVersion,
       locale,
@@ -69,7 +97,8 @@ router.get('/push-tokens', async (req: Request, res: Response) => {
   try {
     const auth = await resolveAuth(req);
     if (!auth) return res.status(401).json({ error: 'Unauthorized' });
-    const list = await listForUser(auth.userId);
+    const routingUserId = await resolveRoutingUserId(req, auth.userId);
+    const list = await listForUser(routingUserId);
     // Don't leak the raw token; surface a hash-ish prefix only.
     res.json(list.map((r) => ({ ...r, token: r.token.slice(0, 12) + '…' })));
   } catch (err) {
