@@ -136,6 +136,11 @@ export interface FcmMessageInput {
   silent?: boolean;
 }
 
+// 24 Stunden TTL — FCM hält die Nachricht für offline Devices länger vor.
+// Default ist 4 Wochen, aber wir wollen alte Backlogs nicht durchspielen
+// (User loggt sich nach 1 Woche Urlaub ein → keine 100 alten Banner).
+const TTL_SECONDS = 24 * 60 * 60;
+
 function buildPayload(input: FcmMessageInput): Record<string, unknown> {
   const data: Record<string, string> = { ...(input.data ?? {}) };
   // Always include title/body in data so Android can render the banner from
@@ -144,16 +149,26 @@ function buildPayload(input: FcmMessageInput): Record<string, unknown> {
   // akzeptieren, und Flutter würde sonst leeren Banner-Title sehen.
   data.title = input.title || 'Neue Nachricht';
   data.body = input.silent ? '' : (input.body || '');
+  // Marker, damit Flutter im Background-Handler entscheiden kann, ob es
+  // selbst eine Local-Notification anzeigen muss oder die System-Notification
+  // (notification-Block) schon angezeigt wurde.
+  data.hasNotification = 'true';
+
+  const title = input.title || 'Neue Nachricht';
+  const body = input.silent ? '' : (input.body || '');
 
   if (input.platform === 'ios') {
+    // iOS: notification-Block sorgt für Lockscreen-Rendering. APNs hält das
+    // bei Offline-Devices länger vor als reine data-only-Pushes.
+    const expirationSeconds = Math.floor(Date.now() / 1000) + TTL_SECONDS;
     return {
       token: input.token,
-      notification: {
-        title: input.title,
-        body: input.silent ? '' : input.body,
-      },
+      notification: { title, body },
       apns: {
-        headers: { 'apns-priority': '10' },
+        headers: {
+          'apns-priority': '10',
+          'apns-expiration': String(expirationSeconds),
+        },
         payload: {
           aps: {
             'mutable-content': 1,
@@ -165,10 +180,29 @@ function buildPayload(input: FcmMessageInput): Record<string, unknown> {
       data,
     };
   }
-  // Android: data-only, high priority. Flutter renders the local notification.
+  // Android: hybrid notification + data.
+  // - System rendert das Banner aus dem notification-Block (zuverlässig auch
+  //   nach längerer Offline-Zeit, weil FCM notification-Payloads länger hält
+  //   als data-only).
+  // - data enthält die strukturierten Felder (deeplink, channelName, …) und
+  //   einen `hasNotification`-Marker, damit Flutter weiß: System rendert das
+  //   schon — nicht zusätzlich eine Local-Notification rendern, sonst Doppel-
+  //   Banner.
+  // - android.ttl: 24h, damit Pushs nach Flugmodus / längerer Offline-Phase
+  //   noch zugestellt werden, statt von FCM verworfen zu werden.
   return {
     token: input.token,
-    android: { priority: 'HIGH' },
+    notification: { title, body },
+    android: {
+      priority: 'HIGH',
+      ttl: `${TTL_SECONDS}s`,
+      notification: {
+        // Auf einen einzigen "tag" mappen, damit aufeinanderfolgende Pushs
+        // den vorherigen Eintrag ersetzen statt zu stapeln. Tap-Routing über
+        // den deeplink in data bleibt unverändert.
+        tag: 'bbz-chat-msg',
+      },
+    },
     data,
   };
 }
