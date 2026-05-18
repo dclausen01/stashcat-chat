@@ -855,7 +855,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
               direct (links, translateX(0)) ←→ channels (rechts, translateX(-100%)). */}
           <div className="relative flex min-h-0 flex-1 overflow-hidden">
             <div
-              className="flex w-[200%] min-h-0 flex-1 transition-transform duration-[220ms] ease-out"
+              className="flex w-[200%] min-h-0 shrink-0 transition-transform duration-[220ms] ease-out"
               style={{ transform: activeTab === 'channels' ? 'translateX(-50%)' : 'translateX(0%)' }}
             >
               {/* Direkt-Tab */}
