@@ -33,6 +33,7 @@ const router = Router();
  * Resolve the routing-userId for push-tokens. Prefer the Stashcat user id
  * (stable across sessions of the same user — Phone + Web teilen sich diese
  * ID), fall back to clientKey if we don't have a cache entry yet.
+ *
  * Wichtig: Wenn der Caller mit einem mobileToken (64-hex) authentifiziert ist,
  * würde `getClient(req)` an `decryptSession` scheitern. Daher nutzen wir den
  * `sessionToken` aus dem aufgelösten Auth-Record und bauen damit ein
