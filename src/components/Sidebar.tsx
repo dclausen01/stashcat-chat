@@ -796,61 +796,42 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
       {/* Split panels (desktop/tablet) — WhatsApp-style tabs (phone) */}
       {isPhone ? (
         <div className="relative flex min-h-0 flex-1 flex-col">
-          {/* Tab bar — tabs split a row, with inline action icons on the active tab */}
-          <div className="flex shrink-0 items-stretch border-b border-surface-200 dark:border-surface-700">
+          {/* Tab bar — segmented control pill style */}
+          <div className="mx-3 mt-2.5 mb-1.5 flex shrink-0 items-center gap-1 rounded-xl bg-surface-100 p-1 dark:bg-surface-800">
             {/* Direct tab */}
-            <div
+            <button
+              onClick={() => { bridge.haptic('selection'); setActiveTab('direct'); }}
               className={clsx(
-                'flex flex-1 items-center justify-center gap-1',
+                'flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold uppercase tracking-wider transition-all duration-150',
                 activeTab === 'direct'
-                  ? 'border-b-2 border-primary-600 dark:border-primary-400'
-                  : '',
+                  ? 'bg-white text-primary-600 shadow-sm dark:bg-surface-700 dark:text-primary-400'
+                  : 'text-surface-500 dark:text-surface-400',
               )}
             >
-              <button
-                onClick={() => { bridge.haptic('selection'); setActiveTab('direct'); }}
-                className={clsx(
-                  'flex min-h-[44px] flex-1 items-center justify-center gap-1.5 px-2 text-xs font-semibold uppercase tracking-wider transition',
-                  activeTab === 'direct'
-                    ? 'text-primary-600 dark:text-primary-400'
-                    : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300',
-                )}
-              >
-                <Users size={14} />
-                <span>Direktnachrichten</span>
-                {unreadConversations.length > 0 && (
-                  <span className="ml-1 rounded-full bg-primary-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white dark:bg-primary-500">
-                    {unreadConversations.length}
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {/* Vertical divider between tabs */}
-            <div className="my-2 w-px shrink-0 bg-surface-200 dark:bg-surface-700" />
+              <Users size={14} />
+              <span>Direktnachrichten</span>
+              {unreadConversations.length > 0 && activeTab !== 'direct' && (
+                <span className="ml-0.5 rounded-full bg-primary-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white dark:bg-primary-500">
+                  {unreadConversations.length}
+                </span>
+              )}
+            </button>
 
             {/* Channels tab */}
-            <div
-              className={clsx(
-                'flex flex-1 items-center justify-center gap-1',
-                activeTab === 'channels'
-                  ? 'border-b-2 border-primary-600 dark:border-primary-400'
-                  : '',
-              )}
-            >
+            <div className="flex flex-1 items-center">
               <button
                 onClick={() => { bridge.haptic('selection'); setActiveTab('channels'); }}
                 className={clsx(
-                  'flex min-h-[44px] flex-1 items-center justify-center gap-1.5 px-2 text-xs font-semibold uppercase tracking-wider transition',
+                  'flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold uppercase tracking-wider transition-all duration-150',
                   activeTab === 'channels'
-                    ? 'text-primary-600 dark:text-primary-400'
-                    : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300',
+                    ? 'bg-white text-primary-600 shadow-sm dark:bg-surface-700 dark:text-primary-400'
+                    : 'text-surface-500 dark:text-surface-400',
                 )}
               >
                 <Hash size={14} />
                 <span>Channels</span>
-                {unreadChannels.length > 0 && (
-                  <span className="ml-1 rounded-full bg-primary-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white dark:bg-primary-500">
+                {unreadChannels.length > 0 && activeTab !== 'channels' && (
+                  <span className="ml-0.5 rounded-full bg-primary-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white dark:bg-primary-500">
                     {unreadChannels.length}
                   </span>
                 )}
@@ -858,11 +839,11 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
               {activeTab === 'channels' && (
                 <button
                   onClick={() => setShowChannelDiscovery(true)}
-                  className="mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-primary-600 transition hover:bg-surface-200 dark:text-primary-400 dark:hover:bg-surface-700"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-primary-600 transition hover:bg-surface-200 dark:text-primary-400 dark:hover:bg-surface-600"
                   title="Alle Channels anzeigen"
                   aria-label="Alle Channels anzeigen"
                 >
-                  <Search size={18} />
+                  <Search size={16} />
                 </button>
               )}
             </div>
