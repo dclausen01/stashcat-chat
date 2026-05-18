@@ -730,7 +730,7 @@ export default function MessageInput({
           <button
             type="button"
             title="Anhang"
-            onClick={() => setShowAttachMenu((v) => !v)}
+            onClick={(e) => { e.stopPropagation(); setShowAttachMenu((v) => !v); }}
             className="touch-target inline-flex items-center justify-center rounded-lg p-1.5 text-surface-500 hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
           >
             <Paperclip size={18} />
@@ -852,7 +852,7 @@ export default function MessageInput({
             damit das Eingabefeld auf engen Screens nicht umbricht. */}
         <button
           type="button"
-          onClick={() => setToolbarOpen((v) => !v)}
+          onClick={(e) => { e.stopPropagation(); setToolbarOpen((v) => !v); }}
           title={toolbarOpen ? 'Formatierung ausblenden' : 'Formatierung einblenden'}
           aria-label={toolbarOpen ? 'Formatierung ausblenden' : 'Formatierung einblenden'}
           aria-pressed={toolbarOpen}
