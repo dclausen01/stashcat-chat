@@ -23,6 +23,8 @@ interface PendingEntry {
     channelName?: string;
     senderName?: string;
     preview?: string;
+    /** Stable chat identifier for FCM collapse/grouping ("c/<id>" or "d/<id>"). */
+    target?: string;
   }>;
   timer: NodeJS.Timeout;
   unreadCount: number;
@@ -87,6 +89,12 @@ async function flush(userId: string): Promise<void> {
   if (count > 1) data.coalescedCount = String(count);
   data.unreadCount = String(entry.unreadCount ?? 0);
 
+  // collapseKey = stabile Chat-ID — z.B. "c/12345" oder "d/67890".
+  // Damit gruppieren/ersetzen Android und iOS Notifications PRO Chat:
+  // mehrere Pushs im selben Channel → einer im Notification-Drawer.
+  // Verschiedene Chats → eigene Einträge.
+  const collapseKey = last.target || undefined;
+
   await Promise.all(
     tokens.map(async (tok) => {
       const ok = await sendFcm({
@@ -97,6 +105,7 @@ async function flush(userId: string): Promise<void> {
         data,
         badge: entry.unreadCount,
         silent,
+        collapseKey,
       });
       // Don't remove on first failure — FCM transient errors are common.
       // A proper cleanup is wired through periodic prune in token-store.
