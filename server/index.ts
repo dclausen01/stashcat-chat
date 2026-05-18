@@ -24,6 +24,7 @@ import {
   consumePreAuthToken,
   activeSSE,
   pushSSE,
+  stashcatUserIdByClientKey,
 } from './lib/state';
 import notificationsRouter from './routes/notifications';
 import calendarRouter from './routes/calendar';
@@ -163,6 +164,37 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
     
     serverLog(`[Realtime] RealtimeManager fully connected for clientKey ${clientKey.slice(0, 8)}`);
 
+    // Diagnose: jeden vom Stashcat-Server kommenden Event protokollieren —
+    // hilft, wenn wir Events erwarten (z.B. 'notification' bei neuer Nachricht)
+    // aber nichts in unseren Spezial-Handlern feuert. Args werden auf 400
+    // Zeichen gekürzt damit das Log nicht explodiert.
+    const sockAny = (rt as unknown as { socket?: { onAny?: (cb: (event: string, ...args: unknown[]) => void) => void } }).socket;
+    if (sockAny && typeof sockAny.onAny === 'function') {
+      sockAny.onAny((event: string, ...args: unknown[]) => {
+        // 'connect'/'disconnect'/'ping'/'pong' sind Socket.io-Internals — uninteressant
+        if (event === 'connect' || event === 'disconnect' || event === 'ping' || event === 'pong') return;
+        const preview = JSON.stringify(args).slice(0, 400);
+        serverLog(`[Realtime] 📡 ${clientKey.slice(0, 8)} "${event}" ${preview}`);
+      });
+    }
+
+    // Stashcat-User-ID einmalig cachen — wird für Token-Routing benötigt,
+    // damit eine `notification` an Web-Session A trotzdem die FCM-Tokens
+    // findet, die Mobile-Session B desselben Users registriert hat.
+    // getMe() schlägt fehl wenn die Session abgelaufen ist; in dem Fall
+    // fällt notifyPush einfach auf clientKey als Schlüssel zurück.
+    try {
+      const meRaw = await client.getMe();
+      const stashcatUserId = String((meRaw as unknown as { id?: string | number }).id ?? '');
+      if (stashcatUserId) {
+        conn.stashcatUserId = stashcatUserId;
+        stashcatUserIdByClientKey.set(clientKey, stashcatUserId);
+        serverLog(`[Realtime] stashcatUserId für ${clientKey.slice(0, 8)} = ${stashcatUserId}`);
+      }
+    } catch (err) {
+      serverLog(`[Realtime] getMe für ${clientKey.slice(0, 8)} fehlgeschlagen:`, errorMessage(err));
+    }
+
     // Handle connection errors
     rt.on('error', (err: Error) => {
       serverLog(`[Realtime] Error for clientKey ${clientKey.slice(0, 8)}:`, err.message);
@@ -280,18 +312,35 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
 
       // Fan out to FCM for registered mobile devices.
       try {
-        const senderRaw = (payload as Record<string, unknown>).sender as Record<string, unknown> | undefined;
+        const p = payload as Record<string, unknown>;
+        const senderRaw = p.sender as Record<string, unknown> | undefined;
         const senderName = senderRaw
           ? `${(senderRaw.first_name as string | undefined) ?? ''} ${(senderRaw.last_name as string | undefined) ?? ''}`.trim() || undefined
           : undefined;
-        const rawText = (payload as Record<string, unknown>).text;
+        // Best-effort channelName-Extraktion aus dem Stashcat-Payload.
+        // Stashcat embed-Format variiert; wir probieren die üblichen Pfade
+        // und nehmen den ersten Treffer. Wenn keiner liefert, fällt Flutter
+        // auf seine Default-Anzeige zurück.
+        const channelRaw = (p.channel ?? p.target) as Record<string, unknown> | undefined;
+        const channelName = (typeof channelRaw?.name === 'string' ? channelRaw.name : undefined)
+          ?? (typeof p.channel_name === 'string' ? p.channel_name : undefined)
+          ?? undefined;
+        const rawText = p.text;
         const text = typeof rawText === 'string' ? rawText : '';
-        const rawId = (payload as Record<string, unknown>).id;
+        const rawId = p.id;
+        // Token-Routing geht über die Stashcat-User-ID, nicht über den
+        // per-Session clientKey. Damit findet ein notification-Event an
+        // Session A (z.B. Web) trotzdem die FCM-Tokens, die unter Session B
+        // (z.B. Mobile-App) registriert wurden.
+        const pushUserId = activeSSE.get(clientKey)?.stashcatUserId
+          || stashcatUserIdByClientKey.get(clientKey)
+          || clientKey;
         notifyPush({
-          userId: clientKey,
+          userId: pushUserId,
           msgId: rawId != null ? String(rawId) : undefined,
           channelId: msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null,
           conversationId: msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null,
+          channelName,
           senderName,
           preview: text.slice(0, 200),
         });

@@ -15,7 +15,17 @@ const BATCH_MS = Number(process.env.PUSH_BATCH_MS || 2000);
 
 interface PendingEntry {
   userId: string;
-  events: Array<{ title: string; body: string; deeplink?: string; msgId?: string }>;
+  events: Array<{
+    title: string;
+    body: string;
+    deeplink?: string;
+    msgId?: string;
+    channelName?: string;
+    senderName?: string;
+    preview?: string;
+    /** Stable chat identifier for FCM collapse/grouping ("c/<id>" or "d/<id>"). */
+    target?: string;
+  }>;
   timer: NodeJS.Timeout;
   unreadCount: number;
 }
@@ -67,10 +77,23 @@ async function flush(userId: string): Promise<void> {
     body = last.body;
   }
 
+  // Datenfelder, die Flutter für die Banner-Formatierung + Tap-Routing
+  // erwartet. Jedes Feld ist optional → nur senden wenn vorhanden, damit
+  // der Mobile-Code die Default-Behandlung greift wenn etwas fehlt.
   const data: Record<string, string> = {};
   if (last.deeplink) data.deeplink = last.deeplink;
   if (last.msgId) data.msgId = last.msgId;
-  if (typeof entry.unreadCount === 'number') data.unreadCount = String(entry.unreadCount);
+  if (last.channelName) data.channelName = last.channelName;
+  if (last.senderName) data.senderName = last.senderName;
+  if (!silent && last.preview) data.preview = last.preview;
+  if (count > 1) data.coalescedCount = String(count);
+  data.unreadCount = String(entry.unreadCount ?? 0);
+
+  // collapseKey = stabile Chat-ID — z.B. "c/12345" oder "d/67890".
+  // Damit gruppieren/ersetzen Android und iOS Notifications PRO Chat:
+  // mehrere Pushs im selben Channel → einer im Notification-Drawer.
+  // Verschiedene Chats → eigene Einträge.
+  const collapseKey = last.target || undefined;
 
   await Promise.all(
     tokens.map(async (tok) => {
@@ -82,6 +105,7 @@ async function flush(userId: string): Promise<void> {
         data,
         badge: entry.unreadCount,
         silent,
+        collapseKey,
       });
       // Don't remove on first failure — FCM transient errors are common.
       // A proper cleanup is wired through periodic prune in token-store.
@@ -103,12 +127,21 @@ export function queueMessageEvent(evt: IncomingMessageEvent): void {
     : evt.conversationId
     ? `/d/${evt.conversationId}`
     : undefined;
+  // Title/Body-Konvention (WhatsApp-like):
+  //  - DM      → title = Sender,   body = "<preview>"
+  //  - Channel → title = Channel,  body = "Sender: <preview>"
   const headline = evt.channelName || evt.senderName || 'Neue Nachricht';
+  const body = evt.channelName
+    ? (evt.senderName ? `${evt.senderName}: ${evt.preview}` : evt.preview)
+    : evt.preview;
   const eventEntry = {
     title: headline,
-    body: evt.senderName ? `${evt.senderName}: ${evt.preview}` : evt.preview,
+    body,
     deeplink,
     msgId: evt.msgId,
+    channelName: evt.channelName,
+    senderName: evt.senderName,
+    preview: evt.preview,
     target,
   };
 

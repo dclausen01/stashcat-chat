@@ -104,6 +104,11 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
   // Mirror of current state for async helpers (avoids stale closure).
   const channelsRef = useRef<ChatTarget[]>([]);
   const conversationsRef = useRef<ChatTarget[]>([]);
+  // Zählt SSE-Increments seit der letzten erfolgreichen loadData()-Antwort.
+  // loadData() nutzt diese Deltas, um Server-`unread`-Counts (die das Lesen
+  // auf anderen Geräten widerspiegeln) durchzureichen, ohne lokal eingegangene
+  // SSE-Increments während des Roundtrips zu verlieren.
+  const sseDeltaRef = useRef<Map<string, number>>(new Map());
 
   // Sidebar width (horizontal resize)
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -185,6 +190,12 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
 
   async function loadData() {
     try {
+      // Snapshot der aktuellen SSE-Deltas: alles was BIS HIER reinkam, ist im
+      // serverseitigen `unread` enthalten (bzw. wird es spätestens dann sein,
+      // wenn der Server den Stream verarbeitet hat). Increments, die zwischen
+      // Snapshot und API-Response noch eintreffen, addieren wir nach dem Merge
+      // wieder hinzu — so geht währen des Roundtrips nichts verloren.
+      const deltaSnapshot = new Map(sseDeltaRef.current);
       const [companies, convList] = await Promise.all([
         api.getCompanies(),
         api.getConversations(),
@@ -245,20 +256,33 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
         };
       });
 
-      // ── Merge API unread_count with current state ───────────────────────
-      // Preserve SSE-tracked unread_count if higher than API (handles live case).
-      // Only markAsRead/handleSelect can reset unread_count to 0.
+      // ── Merge API unread_count with state ───────────────────────────────
+      // Wir vertrauen dem Server-`unread`-Wert (das ist die einzige Quelle,
+      // die "auf anderem Gerät gelesen" mitbekommt). Nur SSE-Increments, die
+      // WÄHREND des Roundtrips reinkamen und im Server-Snapshot noch nicht
+      // enthalten waren, addieren wir oben drauf. Aktive Chats halten ihre 0,
+      // damit ein eigenes Lesen nicht für einen Moment "aufflackert", falls
+      // der Server-Wert noch nicht aktualisiert wurde.
+      const active = activeChatRef.current;
+      const mergeUnread = (id: string, apiUnread: number, kind: 'channel' | 'conversation'): number => {
+        if (active?.type === kind && active.id === id) return 0;
+        const deltaAtStart = deltaSnapshot.get(id) ?? 0;
+        const deltaNow = sseDeltaRef.current.get(id) ?? 0;
+        const incrementsDuringFetch = Math.max(0, deltaNow - deltaAtStart);
+        // Delta-Buffer entsprechend zurücksetzen: alles bis zum Snapshot ist
+        // erledigt, nur die "während Fetch"-Increments bleiben.
+        if (incrementsDuringFetch > 0) {
+          sseDeltaRef.current.set(id, incrementsDuringFetch);
+        } else {
+          sseDeltaRef.current.delete(id);
+        }
+        return apiUnread + incrementsDuringFetch;
+      };
       for (const ch of allChannels) {
-        const prev = channelsRef.current.find((c) => c.id === ch.id);
-        const apiUnread = ch.unread_count ?? 0;
-        const sseUnread = prev?.unread_count ?? 0;
-        ch.unread_count = Math.max(apiUnread, sseUnread);
+        ch.unread_count = mergeUnread(ch.id, ch.unread_count ?? 0, 'channel');
       }
       for (const cv of convTargets) {
-        const prev = conversationsRef.current.find((c) => c.id === cv.id);
-        const apiUnread = cv.unread_count ?? 0;
-        const sseUnread = prev?.unread_count ?? 0;
-        cv.unread_count = Math.max(apiUnread, sseUnread);
+        cv.unread_count = mergeUnread(cv.id, cv.unread_count ?? 0, 'conversation');
       }
 
       // Detect newly unread chats and show OS notifications.
@@ -302,17 +326,36 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
   // Periodic sidebar sync: refresh unread counts and detect missed messages.
   // Runs regardless of tab visibility so background notifications work even
   // when the SSE connection has silently dropped (browser throttling, standby).
-  // Uses a shorter interval (60s) to catch missed messages promptly.
-  // loadData() preserves SSE-tracked unread counts (never overwrites with
-  // a lower API value), so only new unreads from the API or mark-as-read
-  // resets can change the count.
+  // 20 s + Jitter halten Multi-Device-Read-Status zeitnah konsistent: Liest
+  // ein anderes Gerät desselben Users eine Nachricht, sendet Stashcat dafür
+  // kein Realtime-Event — wir müssen den serverseitigen `unread`-Wert pollen.
+  // loadData() reicht jetzt fallende API-Werte durch (Delta-Tracking statt
+  // Math.max), sodass dieses Polling den Badge tatsächlich zurücksetzen kann.
   useEffect(() => {
     if (!loggedIn) return;
-    const SYNC_INTERVAL = 60 * 1000; // 60 seconds
-    const intervalId = setInterval(() => {
-      loadData();
-    }, SYNC_INTERVAL);
-    return () => clearInterval(intervalId);
+    const BASE_INTERVAL = 20_000;
+    const jitter = () => Math.random() * 4_000;
+    let timeoutId: number;
+    const tick = () => {
+      loadData().finally(() => {
+        timeoutId = window.setTimeout(tick, BASE_INTERVAL + jitter());
+      });
+    };
+    timeoutId = window.setTimeout(tick, BASE_INTERVAL + jitter());
+    return () => window.clearTimeout(timeoutId);
+  }, [loggedIn]);
+
+  // Sofort-Sync, wenn der Tab in den Vordergrund kommt: deckt den Fall ab,
+  // dass der Nutzer auf einem anderen Gerät gelesen hat, ohne dass die SSE-
+  // Verbindung dabei abriss. handleReconnect kümmert sich um den Disconnect-
+  // Fall, dieser Hook hier um "Tab war nur ausgeblendet".
+  useEffect(() => {
+    if (!loggedIn) return;
+    const onVisibility = () => {
+      if (!document.hidden) loadData();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
   }, [loggedIn]);
 
   // Stable handler refs for useRealtimeEvents — prevents handler replacement on every render
@@ -335,11 +378,13 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
     if (channelId) {
       const isActive = active?.type === 'channel' && active.id === channelId;
       const shouldIncrement = (!isInForeground || !isActive) && !isOwnMessage;
+      let bumpedParentId: string | null = null;
       setChannels((prev) => {
         // If this channel is a subchannel, bump the parent's lastActivity too
         // so the parent floats up in the sidebar order.
         const target = prev.find((c) => c.id === channelId);
         const parentId = target ? getParentId(target.name) : null;
+        bumpedParentId = shouldIncrement ? parentId : null;
         return sortChats(prev.map((ch) => {
           if (ch.id === channelId) {
             return { ...ch, lastActivity: time || ch.lastActivity, unread_count: shouldIncrement ? (ch.unread_count ?? 0) + 1 : ch.unread_count };
@@ -350,9 +395,22 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
           return ch;
         }));
       });
+      // Wenn die Nachricht in einem Sub-Channel landet, klappen wir den
+      // Parent automatisch auf — sonst sieht der User die Unread-Badge nicht
+      // (sie steckt unter einem zugeklappten Knoten). Idempotent: setExpanded
+      // mit einem schon enthaltenen Key liefert die alte Set-Referenz zurück.
+      if (bumpedParentId) {
+        setExpandedParents((prev) => {
+          if (prev.has(bumpedParentId!)) return prev;
+          const next = new Set(prev);
+          next.add(bumpedParentId!);
+          return next;
+        });
+      }
       // Keep prevUnreadsRef in sync so background poll doesn't re-notify
       if (shouldIncrement) {
         prevUnreadsRef.current?.set(channelId, (prevUnreadsRef.current.get(channelId) ?? 0) + 1);
+        sseDeltaRef.current.set(channelId, (sseDeltaRef.current.get(channelId) ?? 0) + 1);
       }
     } else if (convId) {
       const isActive = active?.type === 'conversation' && active.id === convId;
@@ -364,6 +422,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
       )));
       if (shouldIncrement) {
         prevUnreadsRef.current?.set(convId, (prevUnreadsRef.current.get(convId) ?? 0) + 1);
+        sseDeltaRef.current.set(convId, (sseDeltaRef.current.get(convId) ?? 0) + 1);
       }
     }
 
@@ -416,6 +475,10 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
     }
     // Keep prevUnreadsRef in sync so background poll doesn't re-notify
     prevUnreadsRef.current?.set(chatId, 0);
+    // Lokales Lesen invalidiert das SSE-Delta — der Server kennt jetzt den
+    // korrekten Stand, und beim nächsten loadData() soll der Server-Wert (0)
+    // direkt durchgereicht werden.
+    sseDeltaRef.current.delete(chatId);
   }, []);
 
   // Mark chat as unread (triggered from ChatItem three-dot menu)
@@ -439,18 +502,21 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
   const handleChannelDeleted = useCallback((target: ChatTarget) => {
     setChannels((prev) => prev.filter((ch) => ch.id !== target.id));
     prevUnreadsRef.current?.delete(target.id);
+    sseDeltaRef.current.delete(target.id);
   }, []);
 
   // Channel left from ChatItem three-dot menu
   const handleChannelLeft = useCallback((target: ChatTarget) => {
     setChannels((prev) => prev.filter((ch) => ch.id !== target.id));
     prevUnreadsRef.current?.delete(target.id);
+    sseDeltaRef.current.delete(target.id);
   }, []);
 
   // Conversation archived from ChatItem three-dot menu
   const handleConversationArchived = useCallback((target: ChatTarget) => {
     setConversations((prev) => prev.filter((c) => c.id !== target.id));
     prevUnreadsRef.current?.delete(target.id);
+    sseDeltaRef.current.delete(target.id);
   }, []);
 
   // Listen for mark-read events from ChatView
