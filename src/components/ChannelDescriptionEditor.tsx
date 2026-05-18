@@ -1,20 +1,44 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { X, Loader2, Save, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
+import { useConfig } from '../context/ConfigContext';
 import type { ChatTarget } from '../types';
 
-/** Preset link types with emoji and label */
-const LINK_PRESETS = [
-  { emoji: '📹', label: 'BBB', placeholder: 'https://bbb.bbz-rd-eck.de/b/...' },
-  { emoji: '📚', label: 'Moodle', placeholder: 'https://portal.bbz-rd-eck.com/course/...' },
-  { emoji: '📌', label: 'TaskCards', placeholder: 'https://bbzrdeck.taskcards.app/board/...' },
-  { emoji: '📝', label: 'Dokument', placeholder: 'https://cloud.bbz-rd-eck.de/...' },
-  { emoji: '📊', label: 'Tabelle', placeholder: 'https://cloud.bbz-rd-eck.de/...' },
-  { emoji: '📓', label: 'Notizbuch', placeholder: 'https://onenote.com/...' },
-  { emoji: '📂', label: 'Ordner', placeholder: 'https://cloud.bbz-rd-eck.de/...' },
-  { emoji: '🔗', label: 'Link', placeholder: 'https://...' },
-] as const;
+interface LinkPreset {
+  emoji: string;
+  label: string;
+  placeholder: string;
+}
+
+/** Preset link types with emoji and label. Nextcloud-Platzhalter werden zur
+ *  Laufzeit mit der konfigurierten NEXTCLOUD_URL gefüllt — siehe useLinkPresets. */
+function buildLinkPresets(nextcloudUrl: string): LinkPreset[] {
+  const nc = nextcloudUrl.replace(/\/+$/, '');
+  return [
+    { emoji: '📹', label: 'BBB', placeholder: 'https://bbb.bbz-rd-eck.de/b/...' },
+    { emoji: '📚', label: 'Moodle', placeholder: 'https://portal.bbz-rd-eck.com/course/...' },
+    { emoji: '📌', label: 'TaskCards', placeholder: 'https://bbzrdeck.taskcards.app/board/...' },
+    { emoji: '📝', label: 'Dokument', placeholder: `${nc}/...` },
+    { emoji: '📊', label: 'Tabelle', placeholder: `${nc}/...` },
+    { emoji: '📓', label: 'Notizbuch', placeholder: 'https://onenote.com/...' },
+    { emoji: '📂', label: 'Ordner', placeholder: `${nc}/...` },
+    { emoji: '🔗', label: 'Link', placeholder: 'https://...' },
+  ];
+}
+
+// Stabile Liste für Stellen, die nur Emoji/Label brauchen (z. B. Label-Lookup
+// beim Parsen) — placeholder ist hier irrelevant.
+const PRESET_META: ReadonlyArray<{ emoji: string; label: string }> = [
+  { emoji: '📹', label: 'BBB' },
+  { emoji: '📚', label: 'Moodle' },
+  { emoji: '📌', label: 'TaskCards' },
+  { emoji: '📝', label: 'Dokument' },
+  { emoji: '📊', label: 'Tabelle' },
+  { emoji: '📓', label: 'Notizbuch' },
+  { emoji: '📂', label: 'Ordner' },
+  { emoji: '🔗', label: 'Link' },
+];
 
 interface LinkRow {
   emoji: string;
@@ -41,7 +65,7 @@ function parseDescription(desc: string): { freeText: string; links: LinkRow[] } 
     if (match) {
       const [, emoji, rawLabel, url] = match;
       const label = rawLabel?.replace(/:?\s*$/, '').trim()
-        || LINK_PRESETS.find((p) => p.emoji === emoji)?.label
+        || PRESET_META.find((p) => p.emoji === emoji)?.label
         || '';
       linkLines.push({ emoji, label, url });
     } else {
@@ -76,6 +100,8 @@ function buildDescription(freeText: string, links: LinkRow[]): string {
 }
 
 export default function ChannelDescriptionEditor({ chat, onClose, onSaved }: ChannelDescriptionEditorProps) {
+  const { nextcloudUrl } = useConfig();
+  const LINK_PRESETS = useMemo(() => buildLinkPresets(nextcloudUrl), [nextcloudUrl]);
   const parsed = parseDescription(chat.description || '');
 
   const [freeText, setFreeText] = useState(parsed.freeText);

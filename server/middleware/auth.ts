@@ -36,6 +36,9 @@ const OPEN_PATHS = new Set<string>([
   '/api/events',
   '/api/onlyoffice/dl',
   '/api/onlyoffice/dl-nc',
+  // Public runtime config — keine sensitiven Daten, vor Login lesbar damit
+  // das Frontend schon auf der Loginseite konsistente URLs verwenden kann.
+  '/api/config',
 ]);
 
 /**

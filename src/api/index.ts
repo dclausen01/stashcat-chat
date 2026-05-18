@@ -207,3 +207,7 @@ export {
   ncOpenInOnlyOffice,
 } from './nextcloud';
 export type { NCEntry, NCQuota, NCStatus } from './nextcloud';
+
+// Public runtime config
+export { getPublicConfig } from './config';
+export type { PublicConfig } from './config';

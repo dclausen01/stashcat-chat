@@ -8,6 +8,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { useAnnouncer } from '../context/AnnouncerContext';
 import { usePanels } from '../context/PanelContext';
+import { useConfig } from '../context/ConfigContext';
 import { useChatMeta } from '../hooks/chat/useChatMeta';
 import { DateSeparator } from './chat/DateSeparator';
 import { SystemMessage } from './chat/SystemMessage';
@@ -109,7 +110,7 @@ const SERVICE_LINK_DEFAULTS: Record<ExternalServiceLink['type'], string> = {
   link: 'Link',
 };
 
-function detectLinkType(url: string, emoji?: string): ExternalServiceLink['type'] {
+function detectLinkType(url: string, nextcloudHost: string, emoji?: string): ExternalServiceLink['type'] {
   if (emoji) {
     const fromEmoji = EMOJI_TO_TYPE[emoji];
     if (fromEmoji) return fromEmoji;
@@ -117,13 +118,19 @@ function detectLinkType(url: string, emoji?: string): ExternalServiceLink['type'
   if (/moodle\.bbz|portal\.bbz/i.test(url)) return 'moodle';
   if (/bbb\.bbz/i.test(url)) return 'bbb';
   if (/taskcards/i.test(url)) return 'taskcards';
-  if (/cloud\.bbz/i.test(url)) return 'nextcloud';
+  if (nextcloudHost) {
+    try {
+      if (new URL(url).host === nextcloudHost) return 'nextcloud';
+    } catch {
+      // Ungültige URL — kein Match
+    }
+  }
   if (/onenote\.com/i.test(url)) return 'onenote';
   return 'link';
 }
 
 /** Extract service links from description and return cleaned text + link objects. */
-function extractServiceLinks(description: string): { cleanDescription: string; links: ExternalServiceLink[] } {
+function extractServiceLinks(description: string, nextcloudHost: string): { cleanDescription: string; links: ExternalServiceLink[] } {
   const links: ExternalServiceLink[] = [];
   const removedLines = new Set<string>();
 
@@ -133,7 +140,7 @@ function extractServiceLinks(description: string): { cleanDescription: string; l
     if (emojiMatch) {
       const [, emoji, rawLabel, url] = emojiMatch;
       links.push({
-        type: detectLinkType(url, emoji),
+        type: detectLinkType(url, nextcloudHost, emoji),
         url,
         label: rawLabel?.replace(/:?\s*$/, '').trim() ?? '',
       });
@@ -394,9 +401,11 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
     setMuted: setNotificationsMuted,
   } = useChatMeta(chat, userId);
 
-  // Extract service links (Moodle, BBB, TaskCards) from channel description
+  // Extract service links (Moodle, BBB, TaskCards, Nextcloud) from channel description.
+  // Nextcloud-Host kommt aus der Server-Config (NEXTCLOUD_URL) statt hardcoded.
+  const { nextcloudHost } = useConfig();
   const { cleanDescription, links: serviceLinks } = chatDescription
-    ? extractServiceLinks(chatDescription)
+    ? extractServiceLinks(chatDescription, nextcloudHost)
     : { cleanDescription: '', links: [] };
 
   // Search: IDs of messages matching the query (always search in currently displayed messages)

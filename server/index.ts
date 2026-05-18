@@ -41,6 +41,7 @@ import accountRouter from './routes/account';
 import keySyncRouter from './routes/key-sync';
 import onlyOfficeRouter from './routes/onlyoffice';
 import nextcloudRouter from './routes/nextcloud';
+import configRouter from './routes/config';
 import { isBotConversation } from './lib/bot';
 import {
   generateMobileToken,
@@ -87,6 +88,7 @@ app.use('/api', accountRouter);
 app.use('/api', keySyncRouter);
 app.use('/api', onlyOfficeRouter);
 app.use('/api', nextcloudRouter);
+app.use('/api', configRouter);
 app.use('/api', pushRouter);
 
 // Bootstrap the push dispatcher once the realtime listeners are wired below.
