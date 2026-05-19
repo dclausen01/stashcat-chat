@@ -124,23 +124,58 @@ export default function App() {
   }, []);
 
   // Flutter shell deeplinks (e.g. tapping a push notification).
+  //
+  // Wichtig: Wenn der User per Push-Tap aus dem Killed-State kommt, kann das
+  // `navigate`-Event BEVOR die Sidebar-Daten geladen sind. `channels.find(...)`
+  // würde dann undefined liefern und der Chat bliebe ungeöffnet (sichtbarer
+  // Bug: User landet auf der Sidebar-Home-Ansicht). Wir merken uns deshalb
+  // einen Deeplink, der gerade nicht aufgelöst werden kann, und versuchen
+  // ihn erneut sobald die passende Liste geladen ist.
+  const [pendingDeeplink, setPendingDeeplink] = useState<Deeplink | null>(null);
+
+  const tryResolveDeeplink = useCallback((link: Deeplink): boolean => {
+    if (!link) return true;
+    if (link.kind === 'channel') {
+      const ch = channels.find((c) => c.id === link.id);
+      if (!ch) return false;
+      handleSelectChat(ch);
+      return true;
+    }
+    if (link.kind === 'conversation') {
+      const cv = conversations.find((c) => c.id === link.id);
+      if (!cv) return false;
+      handleSelectChat(cv);
+      return true;
+    }
+    if (link.kind === 'view') {
+      if (link.view === 'calendar') openCalendar();
+      else if (link.view === 'polls') openPolls();
+      else if (link.view === 'chat') goToChat();
+      return true;
+    }
+    return true; // 'unknown' → nichts zu tun, aber auch nichts zu warten
+  }, [channels, conversations, handleSelectChat, openCalendar, openPolls, goToChat]);
+
   useEffect(() => {
     if (!loggedIn) return;
     return on<Deeplink>(BridgeEvents.navigate, (link) => {
       if (!link) return;
-      if (link.kind === 'channel') {
-        const ch = channels.find((c) => c.id === link.id);
-        if (ch) handleSelectChat(ch);
-      } else if (link.kind === 'conversation') {
-        const cv = conversations.find((c) => c.id === link.id);
-        if (cv) handleSelectChat(cv);
-      } else if (link.kind === 'view') {
-        if (link.view === 'calendar') openCalendar();
-        else if (link.view === 'polls') openPolls();
-        else if (link.view === 'chat') goToChat();
+      const resolved = tryResolveDeeplink(link);
+      if (!resolved) {
+        // Daten noch nicht da — speichern und beim nächsten channels/
+        // conversations-Update erneut versuchen.
+        setPendingDeeplink(link);
       }
     });
-  }, [loggedIn, channels, conversations, handleSelectChat, openCalendar, openPolls, goToChat]);
+  }, [loggedIn, tryResolveDeeplink]);
+
+  // Sobald channels/conversations geladen sind, einen wartenden Deeplink
+  // einlösen. Wird durch tryResolveDeeplink-Identität (deps oben) bei jedem
+  // Listen-Update neu evaluiert.
+  useEffect(() => {
+    if (!pendingDeeplink) return;
+    if (tryResolveDeeplink(pendingDeeplink)) setPendingDeeplink(null);
+  }, [pendingDeeplink, tryResolveDeeplink]);
 
   // App-Level Back-Handler — wird vom Flutter-PopScope-Handler über
   // window.bbzChat.handleBack() aufgerufen. Bottom-Sheets/Modals registrieren
