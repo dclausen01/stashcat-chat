@@ -114,6 +114,29 @@ setInterval(() => {
 
 // Shared state and helpers moved to ./lib/state.ts
 
+// ── Push-Dedup-Cache ─────────────────────────────────────────────────────────
+// Stashcat schickt eine eingehende Nachricht je nach Online-Status mal als
+// 'notification', mal als 'message_sync'. Wir wollen aus beiden Handlern
+// notifyPush() rufen (damit Push auch im Background-mit-aktiver-SSE-Fall
+// rauskommt), aber jede Message nur EINMAL pushen. Dedup-Key = "<userId>:<msgId>".
+const recentPushKeys = new Map<string, number>(); // key → timestamp
+const PUSH_DEDUP_WINDOW_MS = 60_000;
+
+function shouldPushOnce(userId: string, msgId: string | undefined): boolean {
+  if (!msgId) return true; // ohne ID gar nicht erst deduplizieren
+  const key = `${userId}:${msgId}`;
+  const now = Date.now();
+  // Periodisches Cleanup (lazy — beim nächsten Aufruf)
+  if (recentPushKeys.size > 500) {
+    for (const [k, ts] of recentPushKeys) {
+      if (now - ts > PUSH_DEDUP_WINDOW_MS) recentPushKeys.delete(k);
+    }
+  }
+  if (recentPushKeys.has(key)) return false;
+  recentPushKeys.set(key, now);
+  return true;
+}
+
 // ── Realtime setup ───────────────────────────────────────────────────────────
 
 async function connectRealtime(client: StashcatClient, clientKey: string) {
@@ -280,6 +303,47 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
 
       serverLog(`[Realtime] Pushing message_sync to SSE for clientKey ${clientKey.slice(0, 8)}`);
       pushSSE(clientKey, 'message_sync', payload);
+
+      // Fan out to FCM auch bei message_sync, falls Stashcat das Event statt
+      // 'notification' geliefert hat (typisch wenn der User noch "online" gilt
+      // — also App im Hintergrund, aber WebView/SSE noch nicht pausiert).
+      // Self-Echo (eigene Nachrichten) wird per Sender-Check übersprungen.
+      try {
+        const p = payload as Record<string, unknown>;
+        const senderRaw = p.sender as Record<string, unknown> | undefined;
+        const senderIdRaw = senderRaw?.id;
+        const senderId = senderIdRaw != null ? String(senderIdRaw) : '';
+        const conn = activeSSE.get(clientKey);
+        const ownId = conn?.stashcatUserId || stashcatUserIdByClientKey.get(clientKey);
+        if (!ownId || !senderId || senderId === ownId) return;
+        const rawIdMs = p.id;
+        const msgIdMs = rawIdMs != null ? String(rawIdMs) : undefined;
+        const routeUserIdMs = ownId;
+        if (!shouldPushOnce(routeUserIdMs, msgIdMs)) {
+          serverLog(`[Realtime] message_sync push deduped (msgId=${msgIdMs})`);
+          return;
+        }
+        const senderName = senderRaw
+          ? `${(senderRaw.first_name as string | undefined) ?? ''} ${(senderRaw.last_name as string | undefined) ?? ''}`.trim() || undefined
+          : undefined;
+        const channelRawMs = (p.channel ?? p.target) as Record<string, unknown> | undefined;
+        const channelNameMs = (typeof channelRawMs?.name === 'string' ? channelRawMs.name : undefined)
+          ?? (typeof p.channel_name === 'string' ? p.channel_name : undefined)
+          ?? undefined;
+        const rawTextMs = p.text;
+        const textMs = typeof rawTextMs === 'string' ? rawTextMs : '';
+        notifyPush({
+          userId: routeUserIdMs,
+          msgId: msgIdMs,
+          channelId: data.channel_id && data.channel_id !== 0 ? String(data.channel_id) : null,
+          conversationId: data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null,
+          channelName: channelNameMs,
+          senderName,
+          preview: textMs.slice(0, 200),
+        });
+      } catch (err) {
+        serverLog('[Realtime] message_sync notifyPush failed:', errorMessage(err));
+      }
     });
 
     // Incoming messages from others arrive as 'notification', not 'message_sync'.
@@ -330,6 +394,7 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
         const rawText = p.text;
         const text = typeof rawText === 'string' ? rawText : '';
         const rawId = p.id;
+        const msgIdN = rawId != null ? String(rawId) : undefined;
         // Token-Routing geht über die Stashcat-User-ID, nicht über den
         // per-Session clientKey. Damit findet ein notification-Event an
         // Session A (z.B. Web) trotzdem die FCM-Tokens, die unter Session B
@@ -337,9 +402,15 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
         const pushUserId = activeSSE.get(clientKey)?.stashcatUserId
           || stashcatUserIdByClientKey.get(clientKey)
           || clientKey;
+        // Dedup: falls dasselbe msgId schon über den message_sync-Pfad
+        // gepush wurde, hier nicht ein zweites Mal feuern.
+        if (!shouldPushOnce(pushUserId, msgIdN)) {
+          serverLog(`[Realtime] notification push deduped (msgId=${msgIdN})`);
+          return;
+        }
         notifyPush({
           userId: pushUserId,
-          msgId: rawId != null ? String(rawId) : undefined,
+          msgId: msgIdN,
           channelId: msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null,
           conversationId: msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null,
           channelName,
