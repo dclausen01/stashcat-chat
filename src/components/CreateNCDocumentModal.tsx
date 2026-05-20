@@ -157,10 +157,10 @@ export default function CreateNCDocumentModal({ chatId, chatType, onClose, onCre
       const finalFileName = fileName.endsWith(`.${officeType}`) ? fileName : `${fileName}.${officeType}`;
       const file = new File([bytes], finalFileName, { type: mime });
 
-      // 2. Upload to Nextcloud
-      await api.ncUpload(currentFolderPath, file);
-
-      const filePath = `${currentFolderPath}/${finalFileName}`.replace(/^\/+/, '/');
+      // 2. Upload to Nextcloud — use the server-returned path to avoid any
+      // filename encoding discrepancies between client and server (e.g. multer
+      // latin-1 vs JS UTF-16 for filenames with non-ASCII characters).
+      const { path: filePath } = await api.ncUpload(currentFolderPath, file);
 
       setCreatedFilePath(filePath);
 
