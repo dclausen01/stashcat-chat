@@ -619,14 +619,16 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
         ? node.children.some((c) => c.displayName.toLowerCase().includes(q))
         : false;
       const isActiveParent = isParent && activeParentId === node.id;
-      const effectivelyExpanded =
-        expandedParents.has(node.id) || hasMatchingChild || isActiveParent;
 
       // Filter by search
       const nameMatches = !q || node.displayName.toLowerCase().includes(q);
+      // If the parent itself matches, show all children; otherwise filter to matching children only
       const childrenToShow = q
-        ? node.children.filter((c) => c.displayName.toLowerCase().includes(q))
+        ? (nameMatches ? node.children : node.children.filter((c) => c.displayName.toLowerCase().includes(q)))
         : node.children;
+
+      const effectivelyExpanded =
+        expandedParents.has(node.id) || hasMatchingChild || isActiveParent || (!!q && nameMatches && isParent);
 
       if (!nameMatches && childrenToShow.length === 0) return null;
 
