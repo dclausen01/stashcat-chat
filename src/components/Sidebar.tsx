@@ -613,7 +613,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
   const renderChannelTree = (roots: ChannelNode[], orphans: ChannelNode[]) => {
     const q = search.toLowerCase();
 
-    const renderNode = (node: ChannelNode, depth = 0) => {
+    const renderNode = (node: ChannelNode, depth = 0, forceShow = false) => {
       const isParent = node.children.length > 0;
       const hasMatchingChild = isParent && q
         ? node.children.some((c) => c.displayName.toLowerCase().includes(q))
@@ -630,7 +630,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
       const effectivelyExpanded =
         expandedParents.has(node.id) || hasMatchingChild || isActiveParent || (!!q && nameMatches && isParent);
 
-      if (!nameMatches && childrenToShow.length === 0) return null;
+      if (!forceShow && !nameMatches && childrenToShow.length === 0) return null;
 
       return (
         <div key={node.id}>
@@ -653,7 +653,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
           />
           {isParent && effectivelyExpanded && childrenToShow.length > 0 && (
             <div className="ml-3 border-l-2 border-surface-200 pl-3 dark:border-surface-700">
-              {childrenToShow.map((child) => renderNode(child, depth + 1))}
+              {childrenToShow.map((child) => renderNode(child, depth + 1, !!q && nameMatches))}
             </div>
           )}
         </div>
