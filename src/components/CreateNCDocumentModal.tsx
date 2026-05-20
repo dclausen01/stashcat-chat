@@ -79,10 +79,14 @@ export default function CreateNCDocumentModal({ chatId, chatType, onClose, onCre
   const [suggestedName, setSuggestedName] = useState<string | null>(null);
   const [editedSuggestion, setEditedSuggestion] = useState('');
   const suggestionPanelRef = useRef<HTMLDivElement>(null);
+  const scrollBodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (suggestedName !== null) {
-      suggestionPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (suggestedName !== null && suggestionPanelRef.current && scrollBodyRef.current) {
+      const body = scrollBodyRef.current;
+      const panel = suggestionPanelRef.current;
+      const panelTop = panel.offsetTop - body.offsetTop;
+      body.scrollTo({ top: panelTop - 16, behavior: 'smooth' });
     }
   }, [suggestedName]);
 
@@ -258,7 +262,7 @@ export default function CreateNCDocumentModal({ chatId, chatType, onClose, onCre
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        <div ref={scrollBodyRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
 
           {/* 1. Dokumenttyp */}
           <div>
