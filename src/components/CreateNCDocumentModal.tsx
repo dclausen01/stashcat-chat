@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, FileText, Table2, Presentation, FolderOpen, ChevronRight, Home,
   Loader2, Search, CheckCircle, AlertCircle, Check, AlertTriangle,
@@ -78,6 +78,13 @@ export default function CreateNCDocumentModal({ chatId, chatType, onClose, onCre
   // Filename sanitization suggestion state
   const [suggestedName, setSuggestedName] = useState<string | null>(null);
   const [editedSuggestion, setEditedSuggestion] = useState('');
+  const suggestionPanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (suggestedName !== null) {
+      suggestionPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [suggestedName]);
 
   // Folder picker state
   const [crumbs, setCrumbs] = useState<Crumb[]>([{ id: null, name: 'Alle Dateien' }]);
@@ -295,7 +302,7 @@ export default function CreateNCDocumentModal({ chatId, chatType, onClose, onCre
 
           {/* Filename suggestion panel — shown when invalid chars detected */}
           {suggestedName !== null && (
-            <div className="rounded-xl border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-4 space-y-3">
+            <div ref={suggestionPanelRef} className="rounded-xl border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-4 space-y-3">
               <div className="flex items-start gap-2">
                 <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                 <p className="text-sm text-amber-800 dark:text-amber-300">
