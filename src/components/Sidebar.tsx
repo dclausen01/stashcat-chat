@@ -812,7 +812,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
             >
               <Users size={14} />
               <span>Direktnachrichten</span>
-              {unreadConversations.length > 0 && activeTab !== 'direct' && (
+              {unreadConversations.length > 0 && (
                 <span className="ml-0.5 rounded-full bg-primary-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white dark:bg-primary-500">
                   {unreadConversations.length}
                 </span>
@@ -832,7 +832,7 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
               >
                 <Hash size={14} />
                 <span>Channels</span>
-                {unreadChannels.length > 0 && activeTab !== 'channels' && (
+                {unreadChannels.length > 0 && (
                   <span className="ml-0.5 rounded-full bg-primary-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white dark:bg-primary-500">
                     {unreadChannels.length}
                   </span>
