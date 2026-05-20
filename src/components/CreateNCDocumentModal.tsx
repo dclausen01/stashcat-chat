@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   X, FileText, Table2, Presentation, FolderOpen, ChevronRight, Home,
-  Loader2, Search, CheckCircle, AlertCircle, Check,
+  Loader2, Search, CheckCircle, AlertCircle, Check, AlertTriangle,
 } from 'lucide-react';
 import * as api from '../api';
 import { DOCX_TEMPLATE, XLSX_TEMPLATE, PPTX_TEMPLATE } from '../utils/documentTemplates';
@@ -9,6 +9,27 @@ import { clsx } from 'clsx';
 import MobileSheet from './MobileSheet';
 import type { Channel, Conversation } from '../types';
 import { getCleanName } from '../utils/subchannels';
+
+// Characters that cause issues with Nextcloud / filesystem
+const INVALID_CHARS_RE = /[ßäöüÄÖÜ/\\:*?"'<>|#%]/;
+
+function sanitizeFilename(stem: string): string {
+  // Replace German special characters before NFD normalization
+  let s = stem
+    .replace(/ß/g, 'ss')          // ß
+    .replace(/ä/g, 'ae')          // ä
+    .replace(/Ä/g, 'Ae')          // Ä
+    .replace(/ö/g, 'oe')          // ö
+    .replace(/Ö/g, 'Oe')          // Ö
+    .replace(/ü/g, 'ue')          // ü
+    .replace(/Ü/g, 'Ue');         // Ü
+  // Strip remaining diacritics (NFD decomposes accented chars; ̀-ͯ = combining marks)
+  s = s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+  // Replace filesystem-unsafe characters with dash
+  s = s.replace(/[/\\:*?"'<>|#%]/g, '-').replace(/-{2,}/g, '-');
+  // Trim leading/trailing dashes, dots, spaces
+  return s.trim().replace(/^[-.\s]+|[-.\s]+$/g, '');
+}
 
 interface Crumb {
   id: string | null;
@@ -53,6 +74,10 @@ interface ChatOption {
 export default function CreateNCDocumentModal({ chatId, chatType, onClose, onCreated }: CreateNCDocumentModalProps) {
   const [officeType, setOfficeType] = useState<OfficeType>('docx');
   const [fileName, setFileName] = useState('Neues Dokument');
+
+  // Filename sanitization suggestion state
+  const [suggestedName, setSuggestedName] = useState<string | null>(null);
+  const [editedSuggestion, setEditedSuggestion] = useState('');
 
   // Folder picker state
   const [crumbs, setCrumbs] = useState<Crumb[]>([{ id: null, name: 'Alle Dateien' }]);
@@ -141,9 +166,10 @@ export default function CreateNCDocumentModal({ chatId, chatType, onClose, onCre
   const handleTypeChange = (type: OfficeType) => {
     setOfficeType(type);
     setFileName(OFFICE_TYPES.find(t => t.type === type)?.defaultName ?? '');
+    setSuggestedName(null);
   };
 
-  const handleCreate = async () => {
+  const doCreate = async (stem: string) => {
     setCreating(true);
     setError(null);
     try {
@@ -154,13 +180,13 @@ export default function CreateNCDocumentModal({ chatId, chatType, onClose, onCre
       for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
 
       const mime = MimeByType[officeType];
-      const finalFileName = fileName.endsWith(`.${officeType}`) ? fileName : `${fileName}.${officeType}`;
+      const finalFileName = stem.endsWith(`.${officeType}`) ? stem : `${stem}.${officeType}`;
       const file = new File([bytes], finalFileName, { type: mime });
 
-      // 2. Upload to Nextcloud
-      await api.ncUpload(currentFolderPath, file);
-
-      const filePath = `${currentFolderPath}/${finalFileName}`.replace(/^\/+/, '/');
+      // 2. Upload to Nextcloud — use the server-returned path to avoid any
+      // filename encoding discrepancies between client and server (e.g. multer
+      // latin-1 vs JS UTF-16 for filenames with non-ASCII characters).
+      const { path: filePath } = await api.ncUpload(currentFolderPath, file);
 
       setCreatedFilePath(filePath);
 
@@ -184,6 +210,31 @@ export default function CreateNCDocumentModal({ chatId, chatType, onClose, onCre
     } finally {
       setCreating(false);
     }
+  };
+
+  const handleCreate = async () => {
+    // Strip extension to get the stem for validation
+    const ext = `.${officeType}`;
+    const stem = fileName.endsWith(ext) ? fileName.slice(0, -ext.length) : fileName;
+
+    if (INVALID_CHARS_RE.test(stem)) {
+      const suggestion = sanitizeFilename(stem);
+      setSuggestedName(suggestion);
+      setEditedSuggestion(suggestion);
+      return;
+    }
+
+    await doCreate(fileName);
+  };
+
+  const handleAcceptSuggestion = async () => {
+    setSuggestedName(null);
+    setFileName(editedSuggestion);
+    await doCreate(editedSuggestion);
+  };
+
+  const handleDismissSuggestion = () => {
+    setSuggestedName(null);
   };
 
   return (
@@ -236,11 +287,45 @@ export default function CreateNCDocumentModal({ chatId, chatType, onClose, onCre
             <input
               type="text"
               value={fileName}
-              onChange={e => setFileName(e.target.value)}
+              onChange={e => { setFileName(e.target.value); setSuggestedName(null); }}
               className="w-full px-3 py-2 rounded-xl border border-surface-300 dark:border-surface-600 bg-white dark:bg-surface-800 text-surface-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               placeholder="z.B. Neues Dokument"
             />
           </div>
+
+          {/* Filename suggestion panel — shown when invalid chars detected */}
+          {suggestedName !== null && (
+            <div className="rounded-xl border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                <p className="text-sm text-amber-800 dark:text-amber-300">
+                  Der Dateiname enthält Zeichen, die in Nextcloud Probleme verursachen können (z.&thinsp;B. Umlaute, Sonderzeichen). Bitte wähle einen angepassten Namen:
+                </p>
+              </div>
+              <input
+                type="text"
+                value={editedSuggestion}
+                onChange={e => setEditedSuggestion(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-amber-300 dark:border-amber-600 bg-white dark:bg-surface-800 text-surface-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleAcceptSuggestion}
+                  disabled={!editedSuggestion.trim() || creating}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {creating ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  Vorschlag übernehmen
+                </button>
+                <button
+                  onClick={handleDismissSuggestion}
+                  className="px-3 py-1.5 rounded-lg text-sm text-surface-600 dark:text-surface-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                >
+                  Selbst anpassen
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* 3. Ordner-Auswahl */}
           <div>
@@ -418,7 +503,7 @@ export default function CreateNCDocumentModal({ chatId, chatType, onClose, onCre
           </button>
           <button
             onClick={handleCreate}
-            disabled={creating || !fileName.trim()}
+            disabled={creating || !fileName.trim() || suggestedName !== null}
             className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium text-white bg-primary-500 hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {creating ? <Loader2 size={16} className="animate-spin" /> : <Check size={15} />}

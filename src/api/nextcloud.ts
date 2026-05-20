@@ -124,7 +124,7 @@ export async function ncList(path: string): Promise<NCEntry[]> {
   return ncGet<NCEntry[]>(`/nextcloud/folder?path=${encodeURIComponent(path)}`);
 }
 
-export async function ncUpload(folderPath: string, file: File): Promise<void> {
+export async function ncUpload(folderPath: string, file: File): Promise<{ path: string }> {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('path', folderPath);
@@ -138,6 +138,9 @@ export async function ncUpload(folderPath: string, file: File): Promise<void> {
     const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
     throw new Error(typeof err.error === 'string' ? err.error : `NC upload failed: ${res.status}`);
   }
+  const data = await res.json() as { ok: boolean; path?: string };
+  // Fall back to client-side path if server doesn't return one (older backend)
+  return { path: data.path ?? `${folderPath.replace(/\/$/, '')}/${file.name}` };
 }
 
 export async function ncDelete(paths: string[]): Promise<void> {
