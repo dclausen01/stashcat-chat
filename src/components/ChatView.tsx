@@ -382,6 +382,11 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   const paginationOffsetRef = useRef(0);
   const loadingMoreRef = useRef(false);
   const hasMoreRef = useRef(true);
+  // Tracks the currently active chat id so async fetches can detect a chat
+  // switch that happened during their in-flight network request and discard
+  // their stale result instead of writing it into the new chat's state.
+  const activeChatIdRef = useRef(chat.id);
+  activeChatIdRef.current = chat.id;
 
   // Track messages that are currently being sent (between sendMessage and SSE delivery).
   // Each entry is pure UI state — never inserted into messages[]. This prevents duplicates.
@@ -453,11 +458,16 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   }, []);
 
   const loadMessages = useCallback(async () => {
+    const requestedChatId = chat.id;
     dispatchMessages({ type: 'load-start' });
     hasMoreRef.current = true;
     paginationOffsetRef.current = 0;
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
+      // Chat switched during fetch — discard stale result so it doesn't
+      // overwrite the new chat's state (race when tapping push notifications
+      // or switching channels quickly while a load is in flight).
+      if (requestedChatId !== activeChatIdRef.current) return;
       const msgs = res;
 
       // Determine first unread message BEFORE we mark them as read
@@ -499,6 +509,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
       const last = msgs[msgs.length - 1];
       if (last) api.markAsRead(chat.id, chat.type, String(last.id)).catch(() => {});
     } catch {
+      if (requestedChatId !== activeChatIdRef.current) return;
       dispatchMessages({ type: 'load-failure' });
     }
   }, [chat.id, chat.type]);
@@ -508,12 +519,17 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
     const container = containerRef.current;
     if (!container) return;
 
+    const requestedChatId = chat.id;
     loadingMoreRef.current = true;
     dispatchMessages({ type: 'load-more-start' });
     const prevHeight = container.scrollHeight;
 
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, paginationOffsetRef.current);
+      if (requestedChatId !== activeChatIdRef.current) {
+        dispatchMessages({ type: 'load-more-end' });
+        return;
+      }
       const older = res;
 
       const exhausted = older.length < PAGE_SIZE;
@@ -557,14 +573,17 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   // Date-range search: call server endpoint
   const runDateSearch = useCallback(async () => {
     if (!dateStart || !dateEnd) return;
+    const requestedChatId = chat.id;
     dispatchDateSearch({ type: 'search-start' });
     try {
       const startTs = Math.floor(new Date(dateStart).getTime() / 1000);
       const endTs = Math.floor(new Date(dateEnd + 'T23:59:59').getTime() / 1000);
       const res = await api.searchMessages(chat.id, chat.type, startTs, endTs, searchQuery || undefined);
+      if (requestedChatId !== activeChatIdRef.current) return;
       dispatchDateSearch({ type: 'search-success', results: res.messages });
     } catch (err) {
       console.error('Date search failed:', err);
+      if (requestedChatId !== activeChatIdRef.current) return;
       dispatchDateSearch({ type: 'search-success', results: [] });
     }
   }, [chat.id, chat.type, dateStart, dateEnd, searchQuery]);
@@ -842,11 +861,6 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
     lastMarkedMsgIdRef.current = null;
   }, [chat.id]);
 
-  // Track the currently active chat ID to prevent stale refreshes from
-  // triggering API calls for the wrong chat after a quick chat switch.
-  const activeChatIdRef = useRef(chat.id);
-  activeChatIdRef.current = chat.id;
-
   // Guard to prevent parallel silentRefresh calls (e.g., when visibilitychange
   // and focus fire nearly simultaneously, or staggered timers overlap).
   const refreshingRef = useRef(false);
@@ -862,9 +876,13 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
     if (chat.id !== activeChatIdRef.current) return;
     if (viewingAlternateRef.current) return;
 
+    const requestedChatId = chat.id;
     refreshingRef.current = true;
     try {
       const res = await api.getMessages(chat.id, chat.type, PAGE_SIZE, 0);
+      // Chat switched mid-fetch — discard so we don't merge this chat's
+      // messages into the now-active chat's state.
+      if (requestedChatId !== activeChatIdRef.current) return;
       const msgs = res;
       let hadNewOwnMessages = false;
       setMessages((prev) => {
