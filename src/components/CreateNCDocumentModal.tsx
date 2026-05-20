@@ -79,15 +79,23 @@ export default function CreateNCDocumentModal({ chatId, chatType, onClose, onCre
   const [suggestedName, setSuggestedName] = useState<string | null>(null);
   const [editedSuggestion, setEditedSuggestion] = useState('');
   const suggestionPanelRef = useRef<HTMLDivElement>(null);
-  const scrollBodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (suggestedName !== null && suggestionPanelRef.current && scrollBodyRef.current) {
-      const body = scrollBodyRef.current;
-      const panel = suggestionPanelRef.current;
-      const panelTop = panel.offsetTop - body.offsetTop;
-      body.scrollTo({ top: panelTop - 16, behavior: 'smooth' });
+    if (suggestedName === null || !suggestionPanelRef.current) return;
+    const panel = suggestionPanelRef.current;
+    // MobileSheet wraps children in its own overflow-y-auto container, so the
+    // actual scrollable ancestor lives above our modal body. Walk up to find it.
+    let scroller: HTMLElement | null = panel.parentElement;
+    while (scroller) {
+      const style = getComputedStyle(scroller);
+      if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && scroller.scrollHeight > scroller.clientHeight) {
+        break;
+      }
+      scroller = scroller.parentElement;
     }
+    if (!scroller) return;
+    const top = panel.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - 16;
+    scroller.scrollTo({ top, behavior: 'smooth' });
   }, [suggestedName]);
 
   // Folder picker state
@@ -262,7 +270,7 @@ export default function CreateNCDocumentModal({ chatId, chatType, onClose, onCre
         </div>
 
         {/* Body */}
-        <div ref={scrollBodyRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
 
           {/* 1. Dokumenttyp */}
           <div>
