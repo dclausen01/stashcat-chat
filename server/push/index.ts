@@ -22,7 +22,7 @@ import { Router, type Request, type Response } from 'express';
 import { upsertToken, removeToken, listForUser, pruneOlderThan, type Platform } from './token-store';
 import { queueMessageEvent, type IncomingMessageEvent } from './dispatcher';
 import { isFcmConfigured, describeFcmConfig } from './fcm-client';
-import { resolveAuth, loadMobileTokenFromRequest } from './auth';
+import { resolveAuth } from './auth';
 import { loadMobileToken, updatePushPreview, type PushPreviewMode } from '../mobile-auth';
 import { stashcatUserIdByClientKey } from '../lib/state';
 import { getClient } from '../lib/get-client';
@@ -187,8 +187,5 @@ export function initPushDispatcher(): void {
       .catch(() => {});
   }, DAY).unref?.();
 }
-
-// Re-export so callers (e.g. dispatcher tests) can still grab a mobile token.
-export { loadMobileTokenFromRequest };
 
 export default router;

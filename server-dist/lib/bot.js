@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.looksLikeChatBot = looksLikeChatBot;
 exports.findChatBot = findChatBot;
 exports.isBotConversation = isBotConversation;
-exports.isBotMessage = isBotMessage;
 exports.extractSenderId = extractSenderId;
 exports.extractMeetingLinks = extractMeetingLinks;
 const state_1 = require("./state");
@@ -84,10 +83,6 @@ async function findChatBot(client, clientKey) {
 function isBotConversation(convId, clientKey) {
     const bot = state_1.botCache.get(clientKey);
     return bot ? bot.botConvId === convId : false;
-}
-function isBotMessage(senderId, clientKey) {
-    const bot = state_1.botCache.get(clientKey);
-    return bot ? bot.botUserId === senderId : false;
 }
 function extractSenderId(msg) {
     const sender = msg.sender;

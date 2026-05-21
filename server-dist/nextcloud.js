@@ -175,7 +175,11 @@ async function ncQuota(creds) {
         available: availM ? Number(availM[1]) : -1,
     };
 }
-/** Test credentials: returns true if PROPFIND on root succeeds. */
+/**
+ * Test credentials. Distinguishes auth failures (401/403) from
+ * brute-force throttling (429) and network errors so the UI can
+ * show meaningful messages.
+ */
 async function ncProbe(creds) {
     try {
         const url = davUrl(creds, '/');
@@ -188,10 +192,16 @@ async function ncProbe(creds) {
             },
             body: `<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/></d:prop></d:propfind>`,
         });
-        return res.status === 207 || res.ok;
+        if (res.status === 207 || res.ok)
+            return { ok: true };
+        if (res.status === 401 || res.status === 403)
+            return { ok: false, reason: 'auth', status: res.status };
+        if (res.status === 429)
+            return { ok: false, reason: 'throttled', status: 429 };
+        return { ok: false, reason: 'other', status: res.status };
     }
     catch {
-        return false;
+        return { ok: false, reason: 'network' };
     }
 }
 // ── OCS Share API ─────────────────────────────────────────────────────────────

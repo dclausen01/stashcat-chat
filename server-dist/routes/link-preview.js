@@ -4,6 +4,16 @@ const express_1 = require("express");
 const router = (0, express_1.Router)();
 const linkPreviewCache = new Map();
 const PREVIEW_TTL = 3600_000; // 1 hour
+const PREVIEW_MAX_ENTRIES = 500;
+function cachePreview(url, entry) {
+    // LRU-style eviction: when at capacity, drop the oldest entry (Map preserves insertion order).
+    if (linkPreviewCache.size >= PREVIEW_MAX_ENTRIES && !linkPreviewCache.has(url)) {
+        const oldestKey = linkPreviewCache.keys().next().value;
+        if (oldestKey !== undefined)
+            linkPreviewCache.delete(oldestKey);
+    }
+    linkPreviewCache.set(url, entry);
+}
 function isBlockedHost(hostname) {
     return /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|0\.|169\.254\.|localhost|::1|\[::1\]|fc|fd)/i.test(hostname);
 }
@@ -54,7 +64,7 @@ async function extractAndRespondPreview(response, url, res) {
         siteName: decode(siteName),
         fetchedAt: Date.now(),
     };
-    linkPreviewCache.set(url, result);
+    cachePreview(url, result);
     res.json(result);
 }
 router.get('/link-preview', async (req, res) => {

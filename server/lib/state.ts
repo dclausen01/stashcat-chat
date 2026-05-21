@@ -66,6 +66,20 @@ export const activeSSE = new Map<string, SSEConnection>();
  */
 export const stashcatUserIdByClientKey = new Map<string, string>();
 
+/**
+ * Liefert die Achse, unter der Push-Tokens für diese Session indiziert sind:
+ * primaer die Stashcat-User-ID (stabil ueber Sessions desselben Users),
+ * Fallback auf den per-Session clientKey, wenn die User-ID noch nicht
+ * gecached wurde. MUSS sowohl beim Speichern als auch beim Lookup verwendet
+ * werden — sonst greift „realtime fuer push-only halten" nie und Mobile-User
+ * verlieren ihre Push-Pipeline, sobald die Web-Session geschlossen wird.
+ */
+export function getRoutingUserId(clientKey: string): string {
+  return activeSSE.get(clientKey)?.stashcatUserId
+    ?? stashcatUserIdByClientKey.get(clientKey)
+    ?? clientKey;
+}
+
 export function pushSSE(clientKey: string, event: string, data: unknown) {
   const conn = activeSSE.get(clientKey);
   if (!conn) return;

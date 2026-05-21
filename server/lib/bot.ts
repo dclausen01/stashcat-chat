@@ -86,11 +86,6 @@ export function isBotConversation(convId: string, clientKey: string): boolean {
   return bot ? bot.botConvId === convId : false;
 }
 
-export function isBotMessage(senderId: string, clientKey: string): boolean {
-  const bot = botCache.get(clientKey);
-  return bot ? bot.botUserId === senderId : false;
-}
-
 export function extractSenderId(msg: Record<string, unknown>): string {
   const sender = msg.sender;
   if (typeof sender === 'string') return sender;
