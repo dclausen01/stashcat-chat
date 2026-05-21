@@ -664,7 +664,12 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
               setShowNewChannel(true);
             } : undefined}
             expanded={isParent && !q ? effectivelyExpanded : undefined}
-            onToggleExpand={isParent && !q ? () => toggleExpand(node.id) : undefined}
+            onToggleExpand={isParent && !q ? () => {
+              if (isActiveParent) {
+                handleSelect({ ...node, name: node.name });
+              }
+              toggleExpand(node.id);
+            } : undefined}
           />
           {isParent && effectivelyExpanded && childrenToShow.length > 0 && (
             <div className="ml-3 border-l-2 border-surface-200 pl-3 dark:border-surface-700">
