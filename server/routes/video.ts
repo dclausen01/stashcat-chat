@@ -2,11 +2,17 @@ import { Router } from 'express';
 import { decryptSession } from '../token-crypto';
 import { extractToken } from '../lib/get-client';
 import { findChatBot, extractSenderId, extractMeetingLinks } from '../lib/bot';
-import { errorMessage } from '../lib/logging';
+import { errorMessage, serverLog } from '../lib/logging';
 
 const router = Router();
 
 router.post('/video/start-meeting', async (req, res) => {
+  // Wenn der Browser die Verbindung abbricht (z.B. User schliesst Tab waehrend
+  // wir den Bot pollen), brechen wir den 30s-Wartepoll ab statt sinnlos
+  // weiterzulaufen.
+  let aborted = false;
+  req.on('close', () => { aborted = true; });
+
   let clientKey = '';
   try {
     const token = extractToken(req);
@@ -21,20 +27,25 @@ router.post('/video/start-meeting', async (req, res) => {
 
     const existingMsgs = await client.getMessages(botInfo.botConvId, 'conversation', { limit: 10, offset: 0 }) as unknown as Array<Record<string, unknown>>;
     const existingIds = new Set(existingMsgs.map((m) => String(m.id)));
-    console.log(`[Video] Existing message IDs: ${[...existingIds].join(', ')}`);
+    serverLog(`[Video] Existing message IDs: ${[...existingIds].join(', ')}`);
 
     await client.sendMessage({
       target: botInfo.botConvId,
       target_type: 'conversation',
       text: '/meet',
     });
-    console.log(`[Video] Sent /meet to bot conv ${botInfo.botConvId}`);
+    serverLog(`[Video] Sent /meet to bot conv ${botInfo.botConvId}`);
 
     let inviteLink: string | null = null;
     let moderatorLink: string | null = null;
 
     for (let attempt = 0; attempt < 60; attempt++) {
+      if (aborted) {
+        serverLog(`[Video] Client disconnected, aborting bot poll`);
+        return;
+      }
       await new Promise((r) => setTimeout(r, 500));
+      if (aborted) return;
 
       const messages = await client.getMessages(botInfo.botConvId, 'conversation', { limit: 10, offset: 0 }) as unknown as Array<Record<string, unknown>>;
 
@@ -47,7 +58,7 @@ router.post('/video/start-meeting', async (req, res) => {
 
         const text = String(msg.text || '');
         const links = extractMeetingLinks(text);
-        console.log(`[Video] Attempt ${attempt + 1} — new bot msg id=${msgId}, links=${JSON.stringify(links)}, text=${text.slice(0, 150)}`);
+        serverLog(`[Video] Attempt ${attempt + 1} — new bot msg id=${msgId}, links=${JSON.stringify(links)}, text=${text.slice(0, 150)}`);
 
         if (links.length === 0) continue;
 
@@ -72,15 +83,18 @@ router.post('/video/start-meeting', async (req, res) => {
       if (inviteLink && moderatorLink) break;
     }
 
+    if (aborted) return;
+
     if (!inviteLink && !moderatorLink) {
       return res.status(504).json({ error: 'Chat Bot hat nicht rechtzeitig geantwortet. Bitte versuche es erneut.' });
     }
 
-    console.log(`[Video] Meeting ready — invite=${inviteLink}, moderator=${moderatorLink}`);
+    serverLog(`[Video] Meeting ready — invite=${inviteLink}, moderator=${moderatorLink}`);
     res.json({ inviteLink, moderatorLink });
 
   } catch (err) {
-    console.error('[Video] Error:', err);
+    if (aborted) return;
+    serverLog('[Video] Error:', errorMessage(err));
     res.status(500).json({ error: errorMessage(err, 'Videokonferenz konnte nicht erstellt werden') });
   }
 });

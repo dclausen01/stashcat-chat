@@ -116,6 +116,11 @@ export default function MessageInput({
   const typingThrottle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftsRef = useRef<Map<string, string>>(new Map());
   const prevChatIdRef = useRef(chatId);
+  // Aktueller chatId fuer in-flight Sends/Uploads. Wird im useEffect synchron
+  // mit dem prop aktualisiert, damit handleSend nach Chat-Switch erkennt,
+  // ob es noch im Ursprungs-Chat ist (sonst loescht es z.B. den frisch
+  // geladenen Draft des neuen Chats).
+  const chatIdRef = useRef(chatId);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -240,6 +245,12 @@ export default function MessageInput({
   const handleSend = useCallback(async () => {
     if (sending) return;
     bridge.haptic('light');
+    // chatId beim Start des Sends festhalten — der Editor ist ein Singleton,
+    // der nach Chat-Switch bereits den NEUEN Chat zeigt. Ohne dieses Snapshot
+    // wuerden wir nach erfolgreichem Upload den Editor-Inhalt + Pending-Files
+    // des falschen Chats loeschen.
+    const startChatId = chatIdRef.current;
+    const stillOnSameChat = () => chatIdRef.current === startChatId;
     const currentFiles = pendingFilesRef.current;
     if (currentFiles.length > 0) {
       setSending(true);
@@ -265,9 +276,12 @@ export default function MessageInput({
           ? '1 Datei konnte nicht hochgeladen werden.'
           : `${failCount} Dateien konnten nicht hochgeladen werden.`);
       }
-      setPendingFiles([]);
-      editor?.commands.clearContent();
-      draftsRef.current.delete(chatId);
+      // Quell-Chat-Draft immer aufraeumen (Message wurde dort gesendet).
+      draftsRef.current.delete(startChatId);
+      if (stillOnSameChat()) {
+        setPendingFiles([]);
+        editor?.commands.clearContent();
+      }
       setSending(false);
     } else {
       const md = (editor ? getMd(editor) : '').trim();
@@ -275,18 +289,25 @@ export default function MessageInput({
       setSending(true);
       try {
         await onSend(md);
-        editor?.commands.clearContent();
-        draftsRef.current.delete(chatId);
+        draftsRef.current.delete(startChatId);
+        if (stillOnSameChat()) {
+          editor?.commands.clearContent();
+        }
       } finally {
         setSending(false);
       }
     }
-  }, [sending, editor, onSend, onUpload, chatId]);
+  }, [sending, editor, onSend, onUpload]);
 
   // Keep handleSendRef current so the Tiptap extension always calls the latest version
   handleSendRef.current = handleSend;
 
   const startRecording = async () => {
+    // Doppelt-Start verhindern — sonst geht der erste Timer-Handle verloren
+    // und das Interval feuert weiter, ohne dass es jemand stoppen kann.
+    if (mediaRecorderRef.current || recordingTimerRef.current) {
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       // Prefer mp4/m4a (stashcat-compatible); fall back to webm for Chrome/Firefox
@@ -315,6 +336,9 @@ export default function MessageInput({
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
       setRecordingSeconds(0);
+      // Defensiver Clear — falls aus irgendeinem Grund ein alter Timer-Handle
+      // ueberlebt hat, vor dem neuen setInterval aufraeumen.
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
       recordingTimerRef.current = setInterval(() => {
         setRecordingSeconds((s) => s + 1);
       }, 1000);
@@ -354,6 +378,7 @@ export default function MessageInput({
 
   // Save/restore draft on chat switch
   useEffect(() => {
+    chatIdRef.current = chatId;
     if (!editor || prevChatIdRef.current === chatId) return;
     draftsRef.current.set(prevChatIdRef.current, getMd(editor));
     editor.commands.setContent(draftsRef.current.get(chatId) ?? '');

@@ -8,8 +8,12 @@ router.get('/calendar/events', async (req, res) => {
         const client = req.client;
         const start = Number(req.query.start);
         const end = Number(req.query.end);
-        if (!start || !end)
-            return res.status(400).json({ error: 'start and end required' });
+        // NaN-strikt pruefen: `!start` wuerde 0 (= Unix-Epoche) faelschlicherweise
+        // als „fehlt" ablehnen, und `Number('blubb')` faellt auf NaN, das von
+        // `!` nicht erkannt wird.
+        if (!Number.isFinite(start) || !Number.isFinite(end)) {
+            return res.status(400).json({ error: 'start and end must be numeric (unix timestamp)' });
+        }
         res.json(await client.listEvents({ start, end }));
     }
     catch (err) {

@@ -116,11 +116,12 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
     return saved ? Number(saved) : 280;
   });
   const sidebarWidthRef = useRef(sidebarWidth);
-  const resizingWidth = useRef(false);
+  // Sammelt Cleanups laufender Drag-Operationen, damit ein Unmount mitten im
+  // Drag (z. B. Logout) die window-Listener nicht stehenlaesst.
+  const dragCleanupsRef = useRef<Set<() => void>>(new Set());
 
   const onWidthMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    resizingWidth.current = true;
     const startX = e.clientX;
     const startW = sidebarWidthRef.current;
     const onMove = (ev: MouseEvent) => {
@@ -128,14 +129,26 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
       setSidebarWidth(newW);
       sidebarWidthRef.current = newW;
     };
-    const onUp = () => {
-      resizingWidth.current = false;
-      localStorage.setItem('schulchat_sidebar_width', String(sidebarWidthRef.current));
+    const cleanup = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      dragCleanupsRef.current.delete(cleanup);
+    };
+    const onUp = () => {
+      localStorage.setItem('schulchat_sidebar_width', String(sidebarWidthRef.current));
+      cleanup();
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+    dragCleanupsRef.current.add(cleanup);
+  }, []);
+
+  useEffect(() => {
+    const cleanups = dragCleanupsRef.current;
+    return () => {
+      for (const c of cleanups) c();
+      cleanups.clear();
+    };
   }, []);
 
   // Split ratio: percentage for channels panel (top), rest goes to conversations
@@ -426,7 +439,9 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
       }
     }
 
-    // OS notification for messages from other users when tab is in background
+    // OS notification for messages from other users — fires regardless of tab
+    // visibility. `useNotifications` itself respects the user setting + permission;
+    // the OS handles dedup/grouping (we use a shared notification tag).
     if (senderId && senderId !== String(user?.id ?? '')) {
       const senderName = `${sender?.first_name ?? ''} ${sender?.last_name ?? ''}`.trim() || 'Neue Nachricht';
       const text = payload.text ? String(payload.text) : '';
@@ -738,14 +753,19 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
       localStorage.setItem('schulchat_sidebar_split', String(newPct));
     };
 
-    const onUp = () => {
-      dragging.current = false;
+    const cleanup = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      dragCleanupsRef.current.delete(cleanup);
+    };
+    const onUp = () => {
+      dragging.current = false;
+      cleanup();
     };
 
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+    dragCleanupsRef.current.add(cleanup);
   }, []);
 
   return (

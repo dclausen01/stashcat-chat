@@ -146,11 +146,13 @@ router.get('/messages/:type/:targetId', async (req, res) => {
         res.json(sorted);
     }
     catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        (0, logging_1.debugLog)(`[getMessages:route] ERROR: ${error.message}\n${error.stack}`);
-        res.status(500).json({
-            error: error.message,
-        });
+        if (err instanceof Error) {
+            (0, logging_1.debugLog)(`[getMessages:route] ERROR: ${err.message}\n${err.stack}`);
+        }
+        else {
+            (0, logging_1.debugLog)(`[getMessages:route] ERROR: ${String(err)}`);
+        }
+        res.status(500).json({ error: (0, logging_1.errorMessage)(err) });
     }
 });
 router.post('/messages/:type/:targetId', async (req, res) => {

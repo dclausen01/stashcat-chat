@@ -53,14 +53,20 @@ export function useChatMeta(chat: ChatTarget, userId: string): ChatMeta {
   useEffect(() => {
     setIsManager(false);
     if (chat.type !== 'channel') return;
+    // Cancel-Flag verhindert, dass das Promise eines abgewaehlten Channels
+    // den Manager-Status des aktuell aktiven Channels ueberschreibt, wenn der
+    // User schnell durch mehrere Channels klickt.
+    let cancelled = false;
     api.getChannelMembers(chat.id)
       .then((members) => {
+        if (cancelled) return;
         const raw = members as Array<Record<string, unknown>>;
         const me = raw.find((m) => String(m.user_id ?? m.id) === userId);
         const isMgr = me?.manager === true || (me?.role !== undefined && me?.role !== 'member');
         setIsManager(!!me && isMgr);
       })
       .catch(() => {});
+    return () => { cancelled = true; };
   }, [chat.id, chat.type, userId]);
 
   return {

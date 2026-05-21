@@ -17,6 +17,7 @@ export {
   del,
   patch,
   put,
+  ApiError,
 } from './core';
 
 // Auth & Account
