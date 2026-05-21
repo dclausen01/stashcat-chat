@@ -72,7 +72,10 @@ router.get('/files/personal', async (req, res) => {
     }
 });
 router.post('/files/upload', upload.single('file'), async (req, res) => {
-    const tmpPath = req.file?.path;
+    // currentPath always points at the on-disk temp file (whether the original
+    // multer path or the renamed path) so the finally cleanup is correct even
+    // if uploadFile rejects after the rename.
+    let currentPath = req.file?.path;
     try {
         const client = req.client;
         if (!req.file)
@@ -80,8 +83,9 @@ router.post('/files/upload', upload.single('file'), async (req, res) => {
         const { type, typeId, folderId } = req.body;
         const originalName = req.file.originalname;
         const ext = path_1.default.extname(originalName);
-        const namedPath = tmpPath + ext;
-        await promises_1.default.rename(tmpPath, namedPath);
+        const namedPath = currentPath + ext;
+        await promises_1.default.rename(currentPath, namedPath);
+        currentPath = namedPath;
         let resolvedTypeId = typeId;
         if (type === 'personal' && !resolvedTypeId) {
             const me = await client.getMe();
@@ -94,16 +98,17 @@ router.post('/files/upload', upload.single('file'), async (req, res) => {
             folder: folderIdNum,
             filename: originalName,
         });
-        await promises_1.default.unlink(namedPath).catch(() => { });
         res.json({ ok: true });
     }
     catch (err) {
-        if (tmpPath)
-            await promises_1.default.unlink(tmpPath).catch(() => { });
         const message = (0, logging_1.errorMessage)(err, String(err));
         if (err instanceof Error)
             (0, logging_1.debugLog)(`[files/upload] ERROR: ${err.message}\n${err.stack}`);
         res.status(500).json({ error: message });
+    }
+    finally {
+        if (currentPath)
+            await promises_1.default.unlink(currentPath).catch(() => { });
     }
 });
 router.post('/files/:fileId/move', async (req, res) => {
@@ -169,7 +174,13 @@ router.get('/file/:fileId', async (req, res) => {
         const info = await client.getFileInfo(fileId);
         const disposition = req.query.view === '1' ? 'inline' : 'attachment';
         res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(fileName)}"`);
-        res.setHeader('Content-Type', info.mime || 'application/octet-stream');
+        const mime = info.mime || 'application/octet-stream';
+        res.setHeader('Content-Type', mime);
+        res.setHeader('Accept-Ranges', 'bytes');
+        // Cache static assets (images, audio) for 1 h — file IDs are permanent
+        if (mime.startsWith('image/') || mime.startsWith('audio/')) {
+            res.setHeader('Cache-Control', 'private, max-age=3600, immutable');
+        }
         if (!info.encrypted) {
             const rawToken = (req.headers['authorization']?.split(' ')[1] ?? req.query.token);
             const { baseUrl } = (0, token_crypto_1.decryptSession)(rawToken);
@@ -197,6 +208,26 @@ router.get('/file/:fileId', async (req, res) => {
                 encrypted: info.encrypted,
                 e2e_iv: info.e2e_iv ?? null,
             });
+            // Range support for the encrypted-buffer path. The whole file must be
+            // decrypted server-side, but we can serve byte slices to the client so
+            // mobile WebView downloads of large files behave well.
+            const range = req.headers['range'];
+            if (typeof range === 'string') {
+                const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+                if (match) {
+                    const total = buf.length;
+                    const start = match[1] === '' ? Math.max(0, total - Number(match[2])) : Number(match[1]);
+                    const end = match[2] === '' ? total - 1 : Math.min(total - 1, Number(match[2]));
+                    if (Number.isFinite(start) && Number.isFinite(end) && start <= end) {
+                        res.status(206);
+                        res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
+                        res.setHeader('Content-Length', String(end - start + 1));
+                        res.end(buf.subarray(start, end + 1));
+                        return;
+                    }
+                }
+            }
+            res.setHeader('Content-Length', String(buf.length));
             res.send(buf);
         }
     }
@@ -205,7 +236,7 @@ router.get('/file/:fileId', async (req, res) => {
     }
 });
 router.post('/upload/:type/:targetId', upload.single('file'), async (req, res) => {
-    const tmpPath = req.file?.path;
+    let currentPath = req.file?.path;
     try {
         const client = req.client;
         const { type, targetId } = req.params;
@@ -214,14 +245,14 @@ router.post('/upload/:type/:targetId', upload.single('file'), async (req, res) =
             throw new Error('No file received');
         const originalName = req.file.originalname;
         const ext = path_1.default.extname(originalName);
-        const namedPath = tmpPath + ext;
-        await promises_1.default.rename(tmpPath, namedPath);
+        const namedPath = currentPath + ext;
+        await promises_1.default.rename(currentPath, namedPath);
+        currentPath = namedPath;
         const fileInfo = await client.uploadFile(namedPath, {
             type: chatType,
             type_id: targetId,
             filename: originalName,
         });
-        await promises_1.default.unlink(namedPath).catch(() => { });
         await client.sendMessage({
             target: targetId,
             target_type: chatType,
@@ -231,9 +262,11 @@ router.post('/upload/:type/:targetId', upload.single('file'), async (req, res) =
         res.json({ ok: true, file: fileInfo });
     }
     catch (err) {
-        if (tmpPath)
-            await promises_1.default.unlink(tmpPath).catch(() => { });
         res.status(500).json({ error: (0, logging_1.errorMessage)(err, 'Upload failed') });
+    }
+    finally {
+        if (currentPath)
+            await promises_1.default.unlink(currentPath).catch(() => { });
     }
 });
 exports.default = router;

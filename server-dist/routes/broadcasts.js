@@ -109,7 +109,7 @@ router.post('/broadcasts/:id/members', async (req, res) => {
     }
 });
 router.post('/broadcasts/:listId/upload', upload.single('file'), async (req, res) => {
-    const tmpPath = req.file?.path;
+    let currentPath = req.file?.path;
     try {
         const client = req.client;
         if (!req.file)
@@ -118,14 +118,14 @@ router.post('/broadcasts/:listId/upload', upload.single('file'), async (req, res
         const userId = String(me.id);
         const originalName = req.file.originalname;
         const ext = path_1.default.extname(originalName);
-        const namedPath = tmpPath + ext;
-        await promises_1.default.rename(tmpPath, namedPath);
+        const namedPath = currentPath + ext;
+        await promises_1.default.rename(currentPath, namedPath);
+        currentPath = namedPath;
         const fileInfo = await client.uploadFile(namedPath, {
             type: 'personal',
             type_id: userId,
             filename: originalName,
         });
-        await promises_1.default.unlink(namedPath).catch(() => { });
         const fileId = String(fileInfo.id);
         const msg = await client.sendBroadcastMessage({
             list_id: String(req.params.listId),
@@ -136,9 +136,11 @@ router.post('/broadcasts/:listId/upload', upload.single('file'), async (req, res
         res.json({ ok: true, message: msg, file: fileInfo });
     }
     catch (err) {
-        if (tmpPath)
-            await promises_1.default.unlink(tmpPath).catch(() => { });
         res.status(500).json({ error: (0, logging_1.errorMessage)(err, 'Upload failed') });
+    }
+    finally {
+        if (currentPath)
+            await promises_1.default.unlink(currentPath).catch(() => { });
     }
 });
 router.delete('/broadcasts/:id/members', async (req, res) => {

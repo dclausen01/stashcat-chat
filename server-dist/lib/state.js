@@ -1,7 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.pendingKeyRequests = exports.activeSSE = exports.PREAUTH_MAX_ENTRIES = exports.PREAUTH_TTL = exports.preAuthCache = exports.botCache = void 0;
+exports.stashcatUserIdByClientKey = exports.activeSSE = exports.PREAUTH_MAX_ENTRIES = exports.PREAUTH_TTL = exports.preAuthCache = exports.botCache = void 0;
 exports.consumePreAuthToken = consumePreAuthToken;
+exports.getRoutingUserId = getRoutingUserId;
 exports.pushSSE = pushSSE;
 /** keyed by clientKey */
 exports.botCache = new Map();
@@ -30,8 +31,26 @@ function consumePreAuthToken(preAuthToken) {
 }
 /** keyed by clientKey */
 exports.activeSSE = new Map();
-/** Pending key_sync_request events received via Socket.io, keyed by clientKey → userId → event payload */
-exports.pendingKeyRequests = new Map();
+/**
+ * Globaler Lookup `clientKey → stashcatUserId`. Wird parallel zu activeSSE
+ * gepflegt, damit Push-Token-Routes (die nicht über activeSSE laufen)
+ * trotzdem an die User-ID kommen, ohne pro Request einen `getMe()`-Call
+ * machen zu müssen.
+ */
+exports.stashcatUserIdByClientKey = new Map();
+/**
+ * Liefert die Achse, unter der Push-Tokens für diese Session indiziert sind:
+ * primaer die Stashcat-User-ID (stabil ueber Sessions desselben Users),
+ * Fallback auf den per-Session clientKey, wenn die User-ID noch nicht
+ * gecached wurde. MUSS sowohl beim Speichern als auch beim Lookup verwendet
+ * werden — sonst greift „realtime fuer push-only halten" nie und Mobile-User
+ * verlieren ihre Push-Pipeline, sobald die Web-Session geschlossen wird.
+ */
+function getRoutingUserId(clientKey) {
+    return exports.activeSSE.get(clientKey)?.stashcatUserId
+        ?? exports.stashcatUserIdByClientKey.get(clientKey)
+        ?? clientKey;
+}
 function pushSSE(clientKey, event, data) {
     const conn = exports.activeSSE.get(clientKey);
     if (!conn)

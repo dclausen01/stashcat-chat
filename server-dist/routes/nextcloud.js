@@ -93,7 +93,7 @@ router.post('/nextcloud/upload', upload.single('file'), async (req, res) => {
         const targetPath = folderPath.replace(/\/$/, '') + '/' + originalName;
         const buf = await promises_1.default.readFile(tmpPath);
         await (0, nextcloud_1.ncUpload)(creds, targetPath, buf, req.file.mimetype || 'application/octet-stream');
-        res.json({ ok: true });
+        res.json({ ok: true, path: targetPath });
     }
     catch (err) {
         res.status(500).json({ error: (0, logging_1.errorMessage)(err) });
