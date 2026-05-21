@@ -318,21 +318,39 @@ export function useCallManager(enabled: boolean) {
         break;
 
       case 'answer':
-        // Caller receives answer → set remote description
+        // Caller receives answer → set remote description.
+        // WICHTIG: `call` ist ein Snapshot von oben. Zwischen Promise-Start und
+        // -Resolution kann der User aufgelegt haben (activeCallRef.current = null)
+        // oder ein neuer Call angefangen haben (andere callId). Vor jeder
+        // State-Mutation neu pruefen, sonst ueberschreiben wir „ended" mit
+        // einem zombiehaften „connected".
         if (call.direction === 'outgoing' && peerRef.current && signal.sdp) {
-          peerRef.current.setRemoteDescription({ type: 'answer', sdp: signal.sdp })
-            .then(() => sendCallSignal({
-              call_id: call.callId,
-              fromUserId: Number(user?.id),
-              toUserId: Number(call.otherParty.id),
-              signalType: 'answer_received',
-            }))
+          const pc = peerRef.current;
+          pc.setRemoteDescription({ type: 'answer', sdp: signal.sdp })
             .then(() => {
+              if (activeCallRef.current?.callId !== call.callId) return;
+              return sendCallSignal({
+                call_id: call.callId,
+                fromUserId: Number(user?.id),
+                toUserId: Number(call.otherParty.id),
+                signalType: 'answer_received',
+              });
+            })
+            .then(() => {
+              if (activeCallRef.current?.callId !== call.callId) return;
               const connected: ActiveCall = { ...call, status: 'connected', startedAt: Date.now() };
               setActiveCall(connected);
               activeCallRef.current = connected;
             })
-            .catch(() => { /* silently ignore connection errors */ });
+            .catch((err) => {
+              console.warn('[Call] Answer-Setup fehlgeschlagen:', err);
+              if (activeCallRef.current?.callId !== call.callId) return;
+              const msg = err instanceof Error ? err.message : 'Verbindung fehlgeschlagen';
+              cleanup();
+              setActiveCall((prev) => prev ? { ...prev, status: 'ended', error: msg } : null);
+              activeCallRef.current = null;
+              setTimeout(() => setActiveCall(null), 3000);
+            });
         }
         break;
 

@@ -27,7 +27,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ loggedIn: false, user: null });
 
-  const finishLoginInternal = useCallback((user: User) => {
+  const finishLogin = useCallback((user: User) => {
     const availability = api.deriveAvailability(user.status);
     setState({ loggedIn: true, user: { ...user, availability } });
     bridge.ready({ user: user.email || `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim(), locale: 'de' });
@@ -41,44 +41,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const { token, user } = await api.mobileSession(mobileToken);
         api.persistToken(token);
-        finishLoginInternal(user);
+        finishLogin(user);
       } catch {
         api.clearSession();
         setState({ loggedIn: false, user: null });
       }
     });
-  }, [finishLoginInternal]);
+  }, [finishLogin]);
 
   useEffect(() => {
     api.restoreToken();
     if (api.isLoggedIn()) {
       api.getMe().then((user) => {
-        // Derive availability from status text
-        const availability = api.deriveAvailability(user.status);
-        setState({ loggedIn: true, user: { ...user, availability } });
-        bridge.ready({ user: user.email || `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim(), locale: 'de' });
-      }).catch((error) => {
-        // Only clear session on explicit authentication errors (401/403)
-        // Don't clear session on temporary network/server errors
-        const isAuthError = error?.message?.includes('401') || 
-                           error?.message?.includes('403') ||
-                           error?.message?.includes('Unauthorized') ||
-                           error?.message?.includes('Forbidden');
+        finishLogin(user);
+      }).catch((error: { status?: number; message?: string }) => {
+        // Nur bei echtem 401/403 Token verwerfen — bei transienten Netzwerkfehlern
+        // (Backend down, Offline, …) den Token behalten, damit der naechste Refresh
+        // wieder funktioniert.
+        const isAuthError = error?.status === 401 || error?.status === 403;
         if (isAuthError) {
-          // console.log('[Auth] Authentication failed, clearing session');
           api.clearSession();
-        } else {
-          // For temporary errors, keep the token but show logged out state
-          // The user can refresh to try again
-          // console.log('[Auth] Temporary error, keeping token for retry:', error?.message);
         }
+        // sonst: Token behalten, App bleibt "logged-out" bis User refresht.
       });
     }
-  }, []);
-
-  const finishLogin = useCallback((user: User) => {
-    setState({ loggedIn: true, user });
-    bridge.ready({ user: user.email || `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim(), locale: 'de' });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const logout = useCallback(async () => {

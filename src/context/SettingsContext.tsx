@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 
 interface Settings {
   showImagesInline: boolean;
@@ -114,38 +114,51 @@ const SettingsContext = createContext<SettingsContextValue>({
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<Settings>(loadSettings);
 
-  function update(patch: Partial<Settings>) {
+  // localStorage-Persistenz aus dem setState-Updater rausziehen — Updater
+  // koennen unter Strict-Mode doppelt feuern, was zu doppelten Writes fuehrte.
+  // Jetzt: Setter berechnet `next` einmal, schreibt einmal und dispatcht
+  // einmal.
+  const update = useCallback((patch: Partial<Settings>) => {
     setSettings((prev) => {
       const next = { ...prev, ...patch };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch { /* quota / private mode — egal */ }
       return next;
     });
-  }
+  }, []);
+
+  // Stabile Setter-Referenzen, damit Consumer mit useEffect-Deps auf einzelne
+  // Setter sich nicht unnoetig neu binden.
+  const setters = useMemo(() => ({
+    setShowImagesInline: (v: boolean) => update({ showImagesInline: v }),
+    setBubbleView: (v: boolean) => update({ bubbleView: v }),
+    setOwnBubbleColor: (v: string) => update({ ownBubbleColor: v }),
+    setOwnBubbleColorDark: (v: string) => update({ ownBubbleColorDark: v }),
+    setOtherBubbleColor: (v: string) => update({ otherBubbleColor: v }),
+    setOtherBubbleColorDark: (v: string) => update({ otherBubbleColorDark: v }),
+    setHomeView: (v: 'info' | 'cards') => update({ homeView: v }),
+    setFileBrowserViewMode: (v: 'grid' | 'list') => update({ fileBrowserViewMode: v }),
+    setFileBrowserTab: (v: 'context' | 'personal' | 'nextcloud') => update({ fileBrowserTab: v }),
+    setNotificationsEnabled: (v: boolean) => update({ notificationsEnabled: v }),
+    setAutoAcceptKeySync: (v: boolean) => update({ autoAcceptKeySync: v }),
+    setEnterSendsMessage: (v: boolean) => update({ enterSendsMessage: v }),
+    setFavoriteCardsSortMode: (v: 'sidebar' | 'alphabetical' | 'manual') => update({ favoriteCardsSortMode: v }),
+    setThickScrollbars: (v: boolean) => update({ thickScrollbars: v }),
+    setSpellcheckLang: (v: 'off' | 'de' | 'en' | 'de,en') => update({ spellcheckLang: v }),
+  }), [update]);
 
   // Apply the thick-scrollbar class on <html> so CSS can target it globally
   useEffect(() => {
     document.documentElement.classList.toggle('scrollbars-thick', settings.thickScrollbars);
   }, [settings.thickScrollbars]);
 
+  // Context-Value memoisieren — sonst rerendert *jeder* useSettings()-Consumer
+  // auf jedem Parent-Render, weil das Object-Literal eine neue Identitaet hat.
+  const value = useMemo(() => ({ ...settings, ...setters }), [settings, setters]);
+
   return (
-    <SettingsContext.Provider value={{
-      ...settings,
-      setShowImagesInline: (v) => update({ showImagesInline: v }),
-      setBubbleView: (v) => update({ bubbleView: v }),
-      setOwnBubbleColor: (v) => update({ ownBubbleColor: v }),
-      setOwnBubbleColorDark: (v) => update({ ownBubbleColorDark: v }),
-      setOtherBubbleColor: (v) => update({ otherBubbleColor: v }),
-      setOtherBubbleColorDark: (v) => update({ otherBubbleColorDark: v }),
-      setHomeView: (v) => update({ homeView: v }),
-      setFileBrowserViewMode: (v) => update({ fileBrowserViewMode: v }),
-      setFileBrowserTab: (v) => update({ fileBrowserTab: v }),
-      setNotificationsEnabled: (v) => update({ notificationsEnabled: v }),
-      setAutoAcceptKeySync: (v) => update({ autoAcceptKeySync: v }),
-      setEnterSendsMessage: (v) => update({ enterSendsMessage: v }),
-      setFavoriteCardsSortMode: (v) => update({ favoriteCardsSortMode: v }),
-      setThickScrollbars: (v) => update({ thickScrollbars: v }),
-      setSpellcheckLang: (v) => update({ spellcheckLang: v }),
-    }}>
+    <SettingsContext.Provider value={value}>
       {children}
     </SettingsContext.Provider>
   );

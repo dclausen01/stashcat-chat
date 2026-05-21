@@ -65,8 +65,9 @@ router.post('/call/end', async (req, res) => {
         await client.api.post('/call/end', data);
         res.json({ ok: true });
     }
-    catch {
-        res.json({ ok: true });
+    catch (err) {
+        (0, logging_1.serverLog)(`[Call] end failed for call_id=${req.body?.call_id}: ${(0, logging_1.errorMessage)(err)}`);
+        res.status(500).json({ error: (0, logging_1.errorMessage)(err, 'Call end failed') });
     }
 });
 exports.default = router;

@@ -66,8 +66,9 @@ router.post('/call/end', async (req, res) => {
     const data = client.api.createAuthenticatedRequestData({ call_id: String(call_id) });
     await client.api.post('/call/end', data);
     res.json({ ok: true });
-  } catch {
-    res.json({ ok: true });
+  } catch (err) {
+    serverLog(`[Call] end failed for call_id=${(req.body as { call_id?: unknown })?.call_id}: ${errorMessage(err)}`);
+    res.status(500).json({ error: errorMessage(err, 'Call end failed') });
   }
 });
 
