@@ -10,7 +10,7 @@
  */
 import type { Request } from 'express';
 import { decryptSession } from '../token-crypto';
-import { loadMobileToken, touchMobileToken } from '../mobile-auth';
+import { touchMobileToken } from '../mobile-auth';
 
 const SESSION_TOKEN_RE = /^[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/i;
 const MOBILE_TOKEN_RE = /^[0-9a-f]{64}$/i;
@@ -79,13 +79,3 @@ export async function resolveAuth(req: Request): Promise<ResolvedAuth | null> {
   return null;
 }
 
-/**
- * Convenience helper for endpoints that only want the mobile token (e.g. for
- * persisting per-device prefs that don't make sense on desktop sessions).
- */
-export async function loadMobileTokenFromRequest(req: Request): Promise<string | null> {
-  const bearer = extractBearer(req);
-  if (!bearer || !MOBILE_TOKEN_RE.test(bearer)) return null;
-  const record = await loadMobileToken(bearer);
-  return record ? bearer : null;
-}

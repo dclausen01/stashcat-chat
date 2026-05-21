@@ -25,6 +25,7 @@ import {
   activeSSE,
   pushSSE,
   stashcatUserIdByClientKey,
+  getRoutingUserId,
 } from './lib/state';
 import notificationsRouter from './routes/notifications';
 import calendarRouter from './routes/calendar';
@@ -42,7 +43,7 @@ import keySyncRouter from './routes/key-sync';
 import onlyOfficeRouter from './routes/onlyoffice';
 import nextcloudRouter from './routes/nextcloud';
 import configRouter from './routes/config';
-import { isBotConversation } from './lib/bot';
+import { isBotConversation, findChatBot } from './lib/bot';
 import {
   generateMobileToken,
   saveMobileToken,
@@ -141,21 +142,294 @@ function shouldPushOnce(userId: string, msgId: string | undefined): boolean {
 
 async function connectRealtime(client: StashcatClient, clientKey: string) {
   serverLog(`[Realtime] Connecting for clientKey ${clientKey.slice(0, 8)}…`);
+
+  // `reconnect: false` — wir verwalten Reconnects ausschliesslich in unserem
+  // disconnect-Handler. Socket.io-internes Auto-Reconnect plus unser eigenes
+  // wuerden bei jedem Drop parallel zwei RealtimeManager am Leben halten und
+  // pro Message zwei SSE-/Push-Events feuern.
+  let rt;
   try {
-    const rt = await client.createRealtimeManager({ reconnect: true, debug: true });
-    const conn = activeSSE.get(clientKey);
-    if (!conn) { 
-      serverLog(`[Realtime] No SSE connection found, disconnecting RealtimeManager`);
-      rt.disconnect(); 
-      return; 
+    rt = await client.createRealtimeManager({ reconnect: false, debug: true });
+  } catch (err) {
+    serverLog(`[Realtime] createRealtimeManager failed for ${clientKey.slice(0, 8)}:`, errorMessage(err));
+    return;
+  }
+
+  const conn = activeSSE.get(clientKey);
+  if (!conn) {
+    serverLog(`[Realtime] No SSE connection found, disconnecting RealtimeManager`);
+    try { rt.disconnect(); } catch { /* noop */ }
+    return;
+  }
+  conn.realtime = rt;
+
+  // Gibt den Realtime-Slot frei, aber nur wenn wir noch der Besitzer sind.
+  // Verhindert, dass eine spaete Cleanup-Aktion die *neue* Realtime-Verbindung
+  // eines parallelen connectRealtime-Aufrufs aushaengt.
+  const releaseRtSlot = () => {
+    const c = activeSSE.get(clientKey);
+    if (c && c.realtime === rt) c.realtime = undefined;
+  };
+
+  // Trennt unsere rt-Instanz sauber. WICHTIG: erst den Slot freigeben, dann
+  // disconnect() rufen — sonst sieht der disconnect-Handler beim Owner-Check
+  // immer noch sich selbst als „aktiv" und stoesst einen Reconnect an.
+  const teardownRt = () => {
+    releaseRtSlot();
+    try { rt.disconnect(); } catch { /* noop */ }
+  };
+
+  // ── Handler VOR connect() registrieren ───────────────────────────────────
+  // Stashcat schickt zwischen Socket-Connect und new_device_connected bereits
+  // Events. Wenn die Handler erst nach `await new Promise(...)` haengen, gehen
+  // diese Messages verloren — was sich nach Standby/Reconnect wie „eine
+  // Nachricht ist verschwunden" anfuehlt.
+
+  rt.on('message_sync', async (data: MessageSyncPayload) => {
+    serverLog(`[Realtime] Received message_sync:`, {
+      channel_id: data.channel_id,
+      conversation_id: data.conversation_id,
+      id: data.id,
+      hasText: !!data.text,
+    });
+
+    // Suppress Chat Bot conversation messages from reaching the frontend
+    const convId = data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null;
+    if (convId && isBotConversation(convId, clientKey)) {
+      serverLog(`[Realtime] Dropping bot message`);
+      return;
     }
-    conn.realtime = rt;
-    
-    // Wait for new_device_connected (the critical auth event from Stashcat server)
+
+    const payload: Record<string, unknown> = { ...data };
+    await decryptMessageInPlace(client, payload, {
+      fallback: '[Nachricht konnte nicht entschlüsselt werden]',
+      onError: (err) => serverLog('[Realtime] Failed to decrypt message_sync:', errorMessage(err)),
+    });
+
+    serverLog(`[Realtime] Pushing message_sync to SSE for clientKey ${clientKey.slice(0, 8)}`);
+    pushSSE(clientKey, 'message_sync', payload);
+
+    // Fan out to FCM auch bei message_sync, falls Stashcat das Event statt
+    // 'notification' geliefert hat (typisch wenn der User noch "online" gilt
+    // — also App im Hintergrund, aber WebView/SSE noch nicht pausiert).
+    // Self-Echo (eigene Nachrichten) wird per Sender-Check übersprungen.
+    try {
+      const p = payload as Record<string, unknown>;
+      const senderRaw = p.sender as Record<string, unknown> | undefined;
+      const senderIdRaw = senderRaw?.id;
+      const senderId = senderIdRaw != null ? String(senderIdRaw) : '';
+      const ownId = getRoutingUserId(clientKey);
+      // Wenn die User-ID noch nicht gecached ist (ownId === clientKey),
+      // fehlt der Self-Echo-Vergleich — sicherheitshalber nichts pushen,
+      // um eigene Nachrichten nicht als Push an sich selbst zu schicken.
+      if (ownId === clientKey || !senderId || senderId === ownId) return;
+      const rawIdMs = p.id;
+      const msgIdMs = rawIdMs != null ? String(rawIdMs) : undefined;
+      if (!shouldPushOnce(ownId, msgIdMs)) {
+        serverLog(`[Realtime] message_sync push deduped (msgId=${msgIdMs})`);
+        return;
+      }
+      const senderName = senderRaw
+        ? `${(senderRaw.first_name as string | undefined) ?? ''} ${(senderRaw.last_name as string | undefined) ?? ''}`.trim() || undefined
+        : undefined;
+      const channelRawMs = (p.channel ?? p.target) as Record<string, unknown> | undefined;
+      const channelNameMs = (typeof channelRawMs?.name === 'string' ? channelRawMs.name : undefined)
+        ?? (typeof p.channel_name === 'string' ? p.channel_name : undefined)
+        ?? undefined;
+      const rawTextMs = p.text;
+      const textMs = typeof rawTextMs === 'string' ? rawTextMs : '';
+      notifyPush({
+        userId: ownId,
+        msgId: msgIdMs,
+        channelId: data.channel_id && data.channel_id !== 0 ? String(data.channel_id) : null,
+        conversationId: data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null,
+        channelName: channelNameMs,
+        senderName,
+        preview: textMs.slice(0, 200),
+      });
+    } catch (err) {
+      serverLog('[Realtime] message_sync notifyPush failed:', errorMessage(err));
+    }
+  });
+
+  // Incoming messages from others arrive as 'notification', not 'message_sync'.
+  // 'message_sync' is only the sender's echo. Payload: { message: MessageSyncPayload }
+  rt.on('notification', async (data: unknown) => {
+    const raw = data as Record<string, unknown>;
+    const msg = raw.message as MessageSyncPayload | undefined;
+    if (!msg) {
+      serverLog(`[Realtime] Non-message notification received (keys: ${Object.keys(raw).join(', ')}):`, JSON.stringify(raw).slice(0, 500));
+      return;
+    }
+
+    serverLog(`[Realtime] Received notification (new message):`, {
+      channel_id: msg.channel_id,
+      conversation_id: msg.conversation_id,
+      id: msg.id,
+    });
+
+    const convId = msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null;
+    if (convId && isBotConversation(convId, clientKey)) return;
+
+    const payload: Record<string, unknown> = { ...msg };
+    await decryptMessageInPlace(client, payload, {
+      fallback: '[Nachricht konnte nicht entschlüsselt werden]',
+      onError: (err) => serverLog('[Realtime] Failed to decrypt notification:', errorMessage(err)),
+    });
+
+    serverLog(`[Realtime] Pushing notification as message_sync to SSE`);
+    pushSSE(clientKey, 'message_sync', payload);
+
+    try {
+      const p = payload as Record<string, unknown>;
+      const senderRaw = p.sender as Record<string, unknown> | undefined;
+      const senderName = senderRaw
+        ? `${(senderRaw.first_name as string | undefined) ?? ''} ${(senderRaw.last_name as string | undefined) ?? ''}`.trim() || undefined
+        : undefined;
+      const channelRaw = (p.channel ?? p.target) as Record<string, unknown> | undefined;
+      const channelName = (typeof channelRaw?.name === 'string' ? channelRaw.name : undefined)
+        ?? (typeof p.channel_name === 'string' ? p.channel_name : undefined)
+        ?? undefined;
+      const rawText = p.text;
+      const text = typeof rawText === 'string' ? rawText : '';
+      const rawId = p.id;
+      const msgIdN = rawId != null ? String(rawId) : undefined;
+      const pushUserId = getRoutingUserId(clientKey);
+      if (!shouldPushOnce(pushUserId, msgIdN)) {
+        serverLog(`[Realtime] notification push deduped (msgId=${msgIdN})`);
+        return;
+      }
+      notifyPush({
+        userId: pushUserId,
+        msgId: msgIdN,
+        channelId: msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null,
+        conversationId: msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null,
+        channelName,
+        senderName,
+        preview: text.slice(0, 200),
+      });
+    } catch (err) {
+      serverLog('[Realtime] notifyPush failed:', errorMessage(err));
+    }
+  });
+
+  rt.on('user-started-typing', (chatType: string, chatId: number, userId: number) => {
+    serverLog(`[Realtime] Received typing event:`, { chatType, chatId, userId });
+    pushSSE(clientKey, 'typing', { chatType, chatId, userId });
+  });
+
+  rt.on('key_sync_request', (data: unknown) => {
+    serverLog(`[Realtime] Received key_sync_request:`, JSON.stringify(data).slice(0, 300));
+    pushSSE(clientKey, 'key_sync_request', data);
+  });
+
+  rt.on('online_status_change', (data: unknown) => {
+    serverLog(`[Realtime] Received online_status_change:`, JSON.stringify(data).slice(0, 300));
+    pushSSE(clientKey, 'online_status_change', data);
+  });
+
+  rt.on('call_created', (data: unknown) => {
+    serverLog(`[Realtime] call_created for clientKey ${clientKey.slice(0, 8)}`);
+    pushSSE(clientKey, 'call_created', data);
+  });
+
+  rt.on('signal', (data: unknown) => {
+    const sig = data as Record<string, unknown>;
+    serverLog(`[Realtime] signal (${sig?.signalType}) for clientKey ${clientKey.slice(0, 8)}`);
+    pushSSE(clientKey, 'call_signal', data);
+  });
+
+  rt.on('object_change', (data: unknown) => {
+    const change = data as { type?: string };
+    if (change?.type === 'call') {
+      serverLog(`[Realtime] object_change (call) for clientKey ${clientKey.slice(0, 8)}`);
+      pushSSE(clientKey, 'call_change', data);
+    }
+  });
+
+  // ── Lifecycle-Handler ────────────────────────────────────────────────────
+
+  rt.on('error', (err: Error) => {
+    serverLog(`[Realtime] Error for clientKey ${clientKey.slice(0, 8)}:`, err.message);
+  });
+
+  rt.on('connect_error', (err: Error) => {
+    serverLog(`[Realtime] Connect error for clientKey ${clientKey.slice(0, 8)}:`, err.message);
+  });
+
+  // disconnect: entscheidet, ob wir manuell reconnecten — basiert auf
+  // SSE-Clients ODER registrierten Push-Tokens. Ownership-Check verhindert,
+  // dass ein verspaeteter disconnect-Event von einem alten rt eine zweite
+  // Realtime-Connection neben einer schon laufenden anstoesst.
+  rt.on('disconnect', () => {
+    serverLog(`[Realtime] Disconnected for clientKey ${clientKey.slice(0, 8)}`);
+    setTimeout(async () => {
+      const c = activeSSE.get(clientKey);
+      if (!c) {
+        serverLog(`[Realtime] Skipping reconnect for ${clientKey.slice(0, 8)} (SSE entry gone)`);
+        return;
+      }
+      // Ownership: nur wenn wir noch der aktive rt sind, sind wir fuer
+      // Reconnects zustaendig. Sonst hat eine parallele Logik schon einen
+      // neuen rt installiert.
+      if (c.realtime !== rt && c.realtime !== undefined) {
+        serverLog(`[Realtime] Stale disconnect for ${clientKey.slice(0, 8)} — owned by newer rt, ignoring`);
+        return;
+      }
+      if (c.sseClients.size > 0) {
+        serverLog(`[Realtime] Reconnecting for clientKey ${clientKey.slice(0, 8)} (still has ${c.sseClients.size} SSE clients)`);
+        c.realtime = undefined;
+        connectRealtime(c.client, clientKey).catch((err) => {
+          serverLog(`[Realtime] Reconnect failed for ${clientKey.slice(0, 8)}:`, errorMessage(err));
+        });
+        return;
+      }
+      // Push-Tokens unter stashcatUserId pruefen (NICHT clientKey).
+      const routingUserId = getRoutingUserId(clientKey);
+      let pushTokens: { token: string }[] | null = null;
+      try {
+        pushTokens = await listPushTokensForUser(routingUserId);
+      } catch (err) {
+        serverLog(
+          `[Realtime] Push-Token-Lookup für ${clientKey.slice(0, 8)} fehlgeschlagen — reconnecte vorsorglich:`,
+          errorMessage(err),
+        );
+      }
+      if (pushTokens === null || pushTokens.length > 0) {
+        const reason = pushTokens === null
+          ? '(no SSE, push-lookup failed → conservative reconnect)'
+          : `(no SSE but ${pushTokens.length} push token(s))`;
+        serverLog(`[Realtime] Reconnecting for clientKey ${clientKey.slice(0, 8)} ${reason}`);
+        c.realtime = undefined;
+        connectRealtime(c.client, clientKey).catch((err) => {
+          serverLog(`[Realtime] Reconnect failed for ${clientKey.slice(0, 8)}:`, errorMessage(err));
+        });
+      } else {
+        serverLog(`[Realtime] Skipping reconnect for ${clientKey.slice(0, 8)} (no SSE clients, no push tokens)`);
+        c.realtime = undefined;
+      }
+    }, 3000);
+  });
+
+  // ── Diagnostik-Logger fuer alle eingehenden Events ───────────────────────
+  const sockAny = (rt as unknown as { socket?: { onAny?: (cb: (event: string, ...args: unknown[]) => void) => void } }).socket;
+  if (sockAny && typeof sockAny.onAny === 'function') {
+    sockAny.onAny((event: string, ...args: unknown[]) => {
+      if (event === 'connect' || event === 'disconnect' || event === 'ping' || event === 'pong') return;
+      const preview = JSON.stringify(args).slice(0, 400);
+      serverLog(`[Realtime] 📡 ${clientKey.slice(0, 8)} "${event}" ${preview}`);
+    });
+  }
+
+  // ── Connect + Auth-Bestaetigung ──────────────────────────────────────────
+  // Alle Handler stehen jetzt. Erst JETZT die Verbindung anstossen und auf
+  // `new_device_connected` warten. Bei Timeout: rt sauber teardown, sonst
+  // bleibt eine halb-konfigurierte Verbindung in conn.realtime haengen und
+  // blockiert spaetere SSE-Connects (isNewConnection = false).
+  try {
     await new Promise<void>((resolve, reject) => {
       let resolved = false;
-      
-      // The server confirmation is the critical event
+
       rt.once('new_device_connected', () => {
         if (!resolved) {
           resolved = true;
@@ -163,306 +437,51 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
           resolve();
         }
       });
-      
-      // Also listen for connect as fallback
+
       rt.once('connect', () => {
         serverLog(`[Realtime] Socket connected for clientKey ${clientKey.slice(0, 8)}`);
-        // Don't resolve here - wait for new_device_connected
       });
-      
-      // Start connection
+
       rt.connect().catch((err) => {
         if (!resolved) {
           resolved = true;
           reject(err);
         }
       });
-      
-      // Timeout after 15 seconds (longer timeout for slow connections)
+
       setTimeout(() => {
         if (!resolved) {
           resolved = true;
-          reject(new Error(`Connection timeout: new_device_connected event not received`));
+          reject(new Error('Connection timeout: new_device_connected event not received'));
         }
       }, 15000);
     });
-    
-    serverLog(`[Realtime] RealtimeManager fully connected for clientKey ${clientKey.slice(0, 8)}`);
-
-    // Diagnose: jeden vom Stashcat-Server kommenden Event protokollieren —
-    // hilft, wenn wir Events erwarten (z.B. 'notification' bei neuer Nachricht)
-    // aber nichts in unseren Spezial-Handlern feuert. Args werden auf 400
-    // Zeichen gekürzt damit das Log nicht explodiert.
-    const sockAny = (rt as unknown as { socket?: { onAny?: (cb: (event: string, ...args: unknown[]) => void) => void } }).socket;
-    if (sockAny && typeof sockAny.onAny === 'function') {
-      sockAny.onAny((event: string, ...args: unknown[]) => {
-        // 'connect'/'disconnect'/'ping'/'pong' sind Socket.io-Internals — uninteressant
-        if (event === 'connect' || event === 'disconnect' || event === 'ping' || event === 'pong') return;
-        const preview = JSON.stringify(args).slice(0, 400);
-        serverLog(`[Realtime] 📡 ${clientKey.slice(0, 8)} "${event}" ${preview}`);
-      });
-    }
-
-    // Stashcat-User-ID einmalig cachen — wird für Token-Routing benötigt,
-    // damit eine `notification` an Web-Session A trotzdem die FCM-Tokens
-    // findet, die Mobile-Session B desselben Users registriert hat.
-    // getMe() schlägt fehl wenn die Session abgelaufen ist; in dem Fall
-    // fällt notifyPush einfach auf clientKey als Schlüssel zurück.
-    try {
-      const meRaw = await client.getMe();
-      const stashcatUserId = String((meRaw as unknown as { id?: string | number }).id ?? '');
-      if (stashcatUserId) {
-        conn.stashcatUserId = stashcatUserId;
-        stashcatUserIdByClientKey.set(clientKey, stashcatUserId);
-        serverLog(`[Realtime] stashcatUserId für ${clientKey.slice(0, 8)} = ${stashcatUserId}`);
-      }
-    } catch (err) {
-      serverLog(`[Realtime] getMe für ${clientKey.slice(0, 8)} fehlgeschlagen:`, errorMessage(err));
-    }
-
-    // Handle connection errors
-    rt.on('error', (err: Error) => {
-      serverLog(`[Realtime] Error for clientKey ${clientKey.slice(0, 8)}:`, err.message);
-    });
-
-    // Handle connect_error — Socket.io fires this when it fails to establish
-    // a connection. Without this handler, the server would never know that
-    // the Socket.io client gave up, and the disconnect handler wouldn't fire.
-    rt.on('connect_error', (err: Error) => {
-      serverLog(`[Realtime] Connect error for clientKey ${clientKey.slice(0, 8)}:`, err.message);
-      // Socket.io will auto-retry (reconnectionAttempts: Infinity after our fix),
-      // so we don't need to manually reconnect here. But log it for diagnostics.
-    });
-
-    rt.on('disconnect', () => {
-      serverLog(`[Realtime] Disconnected for clientKey ${clientKey.slice(0, 8)} — attempting reconnect`);
-      // Auto-reconnect: SSE-Clients ODER registrierte Push-Tokens halten die
-      // Stashcat-Realtime-Connection am Leben. Push-User dürfen die App
-      // backgrounden, ohne dass wir ihre Push-Pipeline kappen.
-      setTimeout(async () => {
-        const conn = activeSSE.get(clientKey);
-        if (!conn) {
-          serverLog(`[Realtime] Skipping reconnect for ${clientKey.slice(0, 8)} (SSE entry gone)`);
-          return;
-        }
-        if (conn.sseClients.size > 0) {
-          serverLog(`[Realtime] Reconnecting for clientKey ${clientKey.slice(0, 8)} (still has ${conn.sseClients.size} SSE clients)`);
-          conn.realtime = undefined;
-          connectRealtime(conn.client, clientKey).catch((err) => {
-            serverLog(`[Realtime] Reconnect failed for ${clientKey.slice(0, 8)}:`, errorMessage(err));
-          });
-          return;
-        }
-        // Konservativ: Bei einem Lookup-Fehler reconnecten wir trotzdem.
-        // Lieber unnötig eine Verbindung mehr als pro Disk-Glitch einen
-        // Push-User in den Push-Verlust schicken.
-        let pushTokens: { token: string }[] | null = null;
-        try {
-          pushTokens = await listPushTokensForUser(clientKey);
-        } catch (err) {
-          serverLog(
-            `[Realtime] Push-Token-Lookup für ${clientKey.slice(0, 8)} fehlgeschlagen — reconnecte vorsorglich:`,
-            errorMessage(err),
-          );
-        }
-        if (pushTokens === null || pushTokens.length > 0) {
-          const reason = pushTokens === null
-            ? '(no SSE, push-lookup failed → conservative reconnect)'
-            : `(no SSE but ${pushTokens.length} push token(s))`;
-          serverLog(`[Realtime] Reconnecting for clientKey ${clientKey.slice(0, 8)} ${reason}`);
-          conn.realtime = undefined;
-          connectRealtime(conn.client, clientKey).catch((err) => {
-            serverLog(`[Realtime] Reconnect failed for ${clientKey.slice(0, 8)}:`, errorMessage(err));
-          });
-        } else {
-          serverLog(`[Realtime] Skipping reconnect for ${clientKey.slice(0, 8)} (no SSE clients, no push tokens)`);
-        }
-      }, 3000); // 3s delay to avoid rapid reconnect loops
-    });
-
-    rt.on('message_sync', async (data: MessageSyncPayload) => {
-      serverLog(`[Realtime] Received message_sync:`, { 
-        channel_id: data.channel_id, 
-        conversation_id: data.conversation_id,
-        id: data.id,
-        hasText: !!data.text 
-      });
-      
-      // Suppress Chat Bot conversation messages from reaching the frontend
-      const convId = data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null;
-      if (convId && isBotConversation(convId, clientKey)) {
-        serverLog(`[Realtime] Dropping bot message`);
-        return; // Silently drop bot messages
-      }
-
-      const payload: Record<string, unknown> = { ...data };
-      await decryptMessageInPlace(client, payload, {
-        fallback: '[Nachricht konnte nicht entschlüsselt werden]',
-        onError: (err) => serverLog('[Realtime] Failed to decrypt message_sync:', errorMessage(err)),
-      });
-
-      serverLog(`[Realtime] Pushing message_sync to SSE for clientKey ${clientKey.slice(0, 8)}`);
-      pushSSE(clientKey, 'message_sync', payload);
-
-      // Fan out to FCM auch bei message_sync, falls Stashcat das Event statt
-      // 'notification' geliefert hat (typisch wenn der User noch "online" gilt
-      // — also App im Hintergrund, aber WebView/SSE noch nicht pausiert).
-      // Self-Echo (eigene Nachrichten) wird per Sender-Check übersprungen.
-      try {
-        const p = payload as Record<string, unknown>;
-        const senderRaw = p.sender as Record<string, unknown> | undefined;
-        const senderIdRaw = senderRaw?.id;
-        const senderId = senderIdRaw != null ? String(senderIdRaw) : '';
-        const conn = activeSSE.get(clientKey);
-        const ownId = conn?.stashcatUserId || stashcatUserIdByClientKey.get(clientKey);
-        if (!ownId || !senderId || senderId === ownId) return;
-        const rawIdMs = p.id;
-        const msgIdMs = rawIdMs != null ? String(rawIdMs) : undefined;
-        const routeUserIdMs = ownId;
-        if (!shouldPushOnce(routeUserIdMs, msgIdMs)) {
-          serverLog(`[Realtime] message_sync push deduped (msgId=${msgIdMs})`);
-          return;
-        }
-        const senderName = senderRaw
-          ? `${(senderRaw.first_name as string | undefined) ?? ''} ${(senderRaw.last_name as string | undefined) ?? ''}`.trim() || undefined
-          : undefined;
-        const channelRawMs = (p.channel ?? p.target) as Record<string, unknown> | undefined;
-        const channelNameMs = (typeof channelRawMs?.name === 'string' ? channelRawMs.name : undefined)
-          ?? (typeof p.channel_name === 'string' ? p.channel_name : undefined)
-          ?? undefined;
-        const rawTextMs = p.text;
-        const textMs = typeof rawTextMs === 'string' ? rawTextMs : '';
-        notifyPush({
-          userId: routeUserIdMs,
-          msgId: msgIdMs,
-          channelId: data.channel_id && data.channel_id !== 0 ? String(data.channel_id) : null,
-          conversationId: data.conversation_id && data.conversation_id !== 0 ? String(data.conversation_id) : null,
-          channelName: channelNameMs,
-          senderName,
-          preview: textMs.slice(0, 200),
-        });
-      } catch (err) {
-        serverLog('[Realtime] message_sync notifyPush failed:', errorMessage(err));
-      }
-    });
-
-    // Incoming messages from others arrive as 'notification', not 'message_sync'.
-    // 'message_sync' is only the sender's echo. Payload: { message: MessageSyncPayload }
-    rt.on('notification', async (data: unknown) => {
-      const raw = data as Record<string, unknown>;
-      const msg = raw.message as MessageSyncPayload | undefined;
-      if (!msg) {
-        // Log non-message notifications so we can diagnose missed events
-        serverLog(`[Realtime] Non-message notification received (keys: ${Object.keys(raw).join(', ')}):`, JSON.stringify(raw).slice(0, 500));
-        return;
-      }
-
-      serverLog(`[Realtime] Received notification (new message):`, {
-        channel_id: msg.channel_id,
-        conversation_id: msg.conversation_id,
-        id: msg.id,
-      });
-
-      // Suppress Chat Bot conversation messages
-      const convId = msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null;
-      if (convId && isBotConversation(convId, clientKey)) return;
-
-      const payload: Record<string, unknown> = { ...msg };
-      await decryptMessageInPlace(client, payload, {
-        fallback: '[Nachricht konnte nicht entschlüsselt werden]',
-        onError: (err) => serverLog('[Realtime] Failed to decrypt notification:', errorMessage(err)),
-      });
-
-      serverLog(`[Realtime] Pushing notification as message_sync to SSE`);
-      pushSSE(clientKey, 'message_sync', payload);
-
-      // Fan out to FCM for registered mobile devices.
-      try {
-        const p = payload as Record<string, unknown>;
-        const senderRaw = p.sender as Record<string, unknown> | undefined;
-        const senderName = senderRaw
-          ? `${(senderRaw.first_name as string | undefined) ?? ''} ${(senderRaw.last_name as string | undefined) ?? ''}`.trim() || undefined
-          : undefined;
-        // Best-effort channelName-Extraktion aus dem Stashcat-Payload.
-        // Stashcat embed-Format variiert; wir probieren die üblichen Pfade
-        // und nehmen den ersten Treffer. Wenn keiner liefert, fällt Flutter
-        // auf seine Default-Anzeige zurück.
-        const channelRaw = (p.channel ?? p.target) as Record<string, unknown> | undefined;
-        const channelName = (typeof channelRaw?.name === 'string' ? channelRaw.name : undefined)
-          ?? (typeof p.channel_name === 'string' ? p.channel_name : undefined)
-          ?? undefined;
-        const rawText = p.text;
-        const text = typeof rawText === 'string' ? rawText : '';
-        const rawId = p.id;
-        const msgIdN = rawId != null ? String(rawId) : undefined;
-        // Token-Routing geht über die Stashcat-User-ID, nicht über den
-        // per-Session clientKey. Damit findet ein notification-Event an
-        // Session A (z.B. Web) trotzdem die FCM-Tokens, die unter Session B
-        // (z.B. Mobile-App) registriert wurden.
-        const pushUserId = activeSSE.get(clientKey)?.stashcatUserId
-          || stashcatUserIdByClientKey.get(clientKey)
-          || clientKey;
-        // Dedup: falls dasselbe msgId schon über den message_sync-Pfad
-        // gepush wurde, hier nicht ein zweites Mal feuern.
-        if (!shouldPushOnce(pushUserId, msgIdN)) {
-          serverLog(`[Realtime] notification push deduped (msgId=${msgIdN})`);
-          return;
-        }
-        notifyPush({
-          userId: pushUserId,
-          msgId: msgIdN,
-          channelId: msg.channel_id && msg.channel_id !== 0 ? String(msg.channel_id) : null,
-          conversationId: msg.conversation_id && msg.conversation_id !== 0 ? String(msg.conversation_id) : null,
-          channelName,
-          senderName,
-          preview: text.slice(0, 200),
-        });
-      } catch (err) {
-        serverLog('[Realtime] notifyPush failed:', errorMessage(err));
-      }
-    });
-
-    rt.on('user-started-typing', (chatType: string, chatId: number, userId: number) => {
-      serverLog(`[Realtime] Received typing event:`, { chatType, chatId, userId });
-      pushSSE(clientKey, 'typing', { chatType, chatId, userId });
-    });
-
-    // Forward key_sync_request to SSE so the frontend can display/auto-accept it
-    rt.on('key_sync_request', (data: unknown) => {
-      serverLog(`[Realtime] Received key_sync_request:`, JSON.stringify(data).slice(0, 300));
-      pushSSE(clientKey, 'key_sync_request', data);
-    });
-
-    // Forward online status changes so the Sidebar can update availability dots in real-time
-    rt.on('online_status_change', (data: unknown) => {
-      serverLog(`[Realtime] Received online_status_change:`, JSON.stringify(data).slice(0, 300));
-      pushSSE(clientKey, 'online_status_change', data);
-    });
-
-    // Forward call-related events to SSE so the browser can manage WebRTC
-    rt.on('call_created', (data: unknown) => {
-      serverLog(`[Realtime] call_created for clientKey ${clientKey.slice(0, 8)}`);
-      pushSSE(clientKey, 'call_created', data);
-    });
-
-    rt.on('signal', (data: unknown) => {
-      const sig = data as Record<string, unknown>;
-      serverLog(`[Realtime] signal (${sig?.signalType}) for clientKey ${clientKey.slice(0, 8)}`);
-      pushSSE(clientKey, 'call_signal', data);
-    });
-
-    rt.on('object_change', (data: unknown) => {
-      const change = data as { type?: string };
-      if (change?.type === 'call') {
-        serverLog(`[Realtime] object_change (call) for clientKey ${clientKey.slice(0, 8)}`);
-        pushSSE(clientKey, 'call_change', data);
-      }
-    });
-
-    serverLog(`[Realtime] Connected for clientKey ${clientKey.slice(0, 8)}…`);
   } catch (err) {
-    serverLog(`[Realtime] Connection failed:`, errorMessage(err));
+    serverLog(`[Realtime] Connection failed for ${clientKey.slice(0, 8)}:`, errorMessage(err));
+    teardownRt();
+    return;
   }
+
+  serverLog(`[Realtime] RealtimeManager fully connected for clientKey ${clientKey.slice(0, 8)}`);
+
+  // ── Post-Connect: stashcatUserId cachen + Bot-Cache vorwaermen ───────────
+  // stashcatUserId ist die Achse fuer Push-Token-Routing. Bot-Cache muss
+  // gewaermt sein, bevor erste message_sync/notification reinkommt — sonst
+  // schluepft die erste Bot-Message durch den Filter und triggert einen
+  // unerwuenschten Push.
+  try {
+    const meRaw = await client.getMe();
+    const stashcatUserId = String((meRaw as unknown as { id?: string | number }).id ?? '');
+    if (stashcatUserId) {
+      conn.stashcatUserId = stashcatUserId;
+      stashcatUserIdByClientKey.set(clientKey, stashcatUserId);
+      serverLog(`[Realtime] stashcatUserId für ${clientKey.slice(0, 8)} = ${stashcatUserId}`);
+    }
+  } catch (err) {
+    serverLog(`[Realtime] getMe für ${clientKey.slice(0, 8)} fehlgeschlagen:`, errorMessage(err));
+  }
+
+  findChatBot(client, clientKey).catch(() => { /* best-effort warm-up */ });
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -524,10 +543,15 @@ app.post('/api/auth/mobile-login', async (req, res) => {
     cacheClient(serialized.clientKey, client);
 
     const me = await client.getMe();
-    // We key everything (push tokens, dispatcher fan-out, mobile sessions) by
-    // the Stashcat `clientKey` so the lookup paths stay consistent. The
-    // Stashcat user id is not exposed here intentionally.
-    const userId = serialized.clientKey;
+    // Mobile-Tokens werden — wie Push-Tokens — unter der Stashcat-User-ID
+    // indiziert, damit dispatcher.silentForUser() die per-Geraet gesetzte
+    // Push-Preview-Praeferenz tatsaechlich findet. Fallback auf clientKey
+    // wenn die User-ID aus dem getMe()-Payload nicht extrahierbar war.
+    const stashcatUserId = String((me as unknown as { id?: string | number }).id ?? '');
+    const userId = stashcatUserId || serialized.clientKey;
+    if (stashcatUserId) {
+      stashcatUserIdByClientKey.set(serialized.clientKey, stashcatUserId);
+    }
 
     const mobileToken = generateMobileToken();
     await saveMobileToken(mobileToken, {
@@ -603,23 +627,6 @@ app.post('/api/auth/mobile-logout', async (req, res) => {
 
 // ── Phased Login (multi-step wizard) ─────────────────────────────────────────
 
-/**
- * Helper: connect to push.stashcat.com via Socket.io to trigger device notification.
- * The official web client connects to push.stashcat.com immediately after login.
- * The Stashcat server detects this new connection and notifies all existing devices.
- * We only need to connect and wait briefly for the server to register the device —
- * no need to keep the connection alive.
- */
-/**
- * Helper: connect to push.stashcat.com via Socket.io, then emit
- * key_sync_request to notify existing devices and receive the encrypted key.
- *
- * Reverse-engineered from official web client:
- *   key_sync_request(own_device_id, target_device_id) — sends to EACH existing device
- *
- * Since we don't know which device the user will use, we send to ALL devices
- * sequentially until one responds with key_sync_payload.
- */
 /**
  * Helper: connect to push.stashcat.com, emit key_sync_request,
  * and listen for key_sync_payload in the background.
@@ -981,7 +988,8 @@ app.get('/api/events', async (req, res) => {
     // dass wir ihre Realtime-Connection killen. Wir prüfen async, ob diese
     // Session FCM-Tokens hat: ja → Realtime weiter laufen lassen; nein →
     // Realtime trennen und Eintrag verwerfen.
-    listPushTokensForUser(clientKey)
+    // Push-Tokens sind unter stashcatUserId indiziert, nicht unter clientKey.
+    listPushTokensForUser(getRoutingUserId(clientKey))
       .then((tokens) => {
         const stillNoSseClients = (activeSSE.get(clientKey)?.sseClients.size ?? 0) === 0;
         if (!stillNoSseClients) {
