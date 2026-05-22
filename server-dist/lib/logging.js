@@ -120,7 +120,9 @@ function enqueueWrite(target, line) {
 }
 function format(args) {
     const msg = args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
-    return `[${new Date().toISOString()}] ${msg}\n`;
+    // PID mitloggen — bei Passenger laufen oft mehrere Worker parallel, und
+    // ohne diese Markierung ist nicht erkennbar welcher Prozess geschrieben hat.
+    return `[${new Date().toISOString()}] [pid:${process.pid}] ${msg}\n`;
 }
 async function ensureTargetAndWrite(filename, line) {
     let target = targetsByFilename.get(filename);

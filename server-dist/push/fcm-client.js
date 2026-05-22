@@ -20,6 +20,7 @@ exports.sendFcm = sendFcm;
 const fs_1 = require("fs");
 const jsonwebtoken_1 = require("jsonwebtoken");
 const path_1 = __importDefault(require("path"));
+const logging_1 = require("../lib/logging");
 const SERVICE_ACCOUNT_PATH = process.env.FCM_SERVICE_ACCOUNT || '';
 const PUSH_ERROR_LOG = path_1.default.join(process.cwd(), '.push-errors.log');
 let serviceAccount = null;
@@ -34,7 +35,7 @@ function loadServiceAccount() {
         return serviceAccount;
     }
     catch (err) {
-        console.warn('[FCM] Failed to read service account:', err.message);
+        (0, logging_1.serverLog)('[FCM] Failed to read service account:', err.message);
         return null;
     }
 }
@@ -67,7 +68,9 @@ function logError(msg) {
         (0, fs_1.appendFileSync)(PUSH_ERROR_LOG, `[${new Date().toISOString()}] ${msg}\n`);
     }
     catch { /* noop */ }
-    console.warn('[FCM]', msg);
+    // Doppelt — einmal in der dedizierten Fehlerdatei (Audit), einmal im
+    // server.log via serverLog, damit diagnostische Korrelation moeglich ist.
+    (0, logging_1.serverLog)('[FCM]', msg);
 }
 async function getAccessToken() {
     if (accessToken && accessToken.expiresAt > Date.now() + 60_000) {
@@ -239,7 +242,7 @@ async function sendFcm(input) {
             logError(`FCM send failed (${res.status}, ${permanent ? 'PERMANENT' : 'transient'}) for token ${input.token.slice(0, 12)}…: ${text.slice(0, 400)}`);
             return { ok: false, permanentFailure: permanent };
         }
-        console.log(`[FCM] sent ${input.platform} → token ${input.token.slice(0, 12)}… ("${input.title}")`);
+        (0, logging_1.serverLog)(`[FCM] sent ${input.platform} → token ${input.token.slice(0, 12)}… ("${input.title}")`);
         return { ok: true };
     }
     catch (err) {

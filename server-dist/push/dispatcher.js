@@ -13,6 +13,7 @@ exports.queueMessageEvent = queueMessageEvent;
 const token_store_1 = require("./token-store");
 const fcm_client_1 = require("./fcm-client");
 const mobile_auth_1 = require("../mobile-auth");
+const logging_1 = require("../lib/logging");
 const BATCH_MS = Number(process.env.PUSH_BATCH_MS || 2000);
 const pending = new Map(); // key = userId
 function silentForUser(userId) {
@@ -29,9 +30,11 @@ async function flush(userId) {
         return;
     pending.delete(userId);
     const tokens = await (0, token_store_1.listForUser)(userId);
-    console.log(`[Push] flush userId=${userId.slice(0, 8)} events=${entry.events.length} tokens=${tokens.length}`);
-    if (tokens.length === 0)
+    (0, logging_1.serverLog)(`[Push] flush userId=${userId.slice(0, 8)} events=${entry.events.length} tokens=${tokens.length}`);
+    if (tokens.length === 0) {
+        (0, logging_1.serverLog)(`[Push] flush userId=${userId.slice(0, 8)} aborted — no FCM tokens registered`);
         return;
+    }
     const silent = await silentForUser(userId);
     const count = entry.events.length;
     const last = entry.events[entry.events.length - 1];
@@ -89,7 +92,7 @@ async function flush(userId) {
         // erneut gegen einen Tombstone.
         // Strukturell zu kurz = sicher invalid (best-effort heuristic).
         if (result.permanentFailure || tok.token.length < 20) {
-            console.log(`[Push] removing dead token ${tok.token.slice(0, 12)}…`);
+            (0, logging_1.serverLog)(`[Push] removing dead token ${tok.token.slice(0, 12)}…`);
             await (0, token_store_1.removeToken)(tok.token);
         }
         // Transient — drinlassen, nur logging (steht schon im .push-errors.log).
@@ -97,7 +100,7 @@ async function flush(userId) {
 }
 function queueMessageEvent(evt) {
     const key = evt.userId;
-    console.log(`[Push] queue userId=${key.slice(0, 8)} channelId=${evt.channelId ?? '-'} convId=${evt.conversationId ?? '-'} sender=${evt.senderName ?? '-'}`);
+    (0, logging_1.serverLog)(`[Push] queue userId=${key.slice(0, 8)} channelId=${evt.channelId ?? '-'} convId=${evt.conversationId ?? '-'} sender=${evt.senderName ?? '-'}`);
     const existing = pending.get(key);
     const target = evt.channelId ? `c/${evt.channelId}` : evt.conversationId ? `d/${evt.conversationId}` : '';
     const deeplink = evt.channelId

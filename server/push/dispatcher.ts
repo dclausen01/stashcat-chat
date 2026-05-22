@@ -10,6 +10,7 @@
 import { listForUser, removeToken } from './token-store';
 import { sendFcm } from './fcm-client';
 import { listMobileTokensForUser } from '../mobile-auth';
+import { serverLog } from '../lib/logging';
 
 const BATCH_MS = Number(process.env.PUSH_BATCH_MS || 2000);
 
@@ -57,8 +58,11 @@ async function flush(userId: string): Promise<void> {
   pending.delete(userId);
 
   const tokens = await listForUser(userId);
-  console.log(`[Push] flush userId=${userId.slice(0,8)} events=${entry.events.length} tokens=${tokens.length}`);
-  if (tokens.length === 0) return;
+  serverLog(`[Push] flush userId=${userId.slice(0,8)} events=${entry.events.length} tokens=${tokens.length}`);
+  if (tokens.length === 0) {
+    serverLog(`[Push] flush userId=${userId.slice(0,8)} aborted — no FCM tokens registered`);
+    return;
+  }
 
   const silent = await silentForUser(userId);
   const count = entry.events.length;
@@ -113,7 +117,7 @@ async function flush(userId: string): Promise<void> {
       // erneut gegen einen Tombstone.
       // Strukturell zu kurz = sicher invalid (best-effort heuristic).
       if (result.permanentFailure || tok.token.length < 20) {
-        console.log(`[Push] removing dead token ${tok.token.slice(0, 12)}…`);
+        serverLog(`[Push] removing dead token ${tok.token.slice(0, 12)}…`);
         await removeToken(tok.token);
       }
       // Transient — drinlassen, nur logging (steht schon im .push-errors.log).
@@ -123,7 +127,7 @@ async function flush(userId: string): Promise<void> {
 
 export function queueMessageEvent(evt: IncomingMessageEvent): void {
   const key = evt.userId;
-  console.log(`[Push] queue userId=${key.slice(0,8)} channelId=${evt.channelId ?? '-'} convId=${evt.conversationId ?? '-'} sender=${evt.senderName ?? '-'}`);
+  serverLog(`[Push] queue userId=${key.slice(0,8)} channelId=${evt.channelId ?? '-'} convId=${evt.conversationId ?? '-'} sender=${evt.senderName ?? '-'}`);
   const existing = pending.get(key);
   const target = evt.channelId ? `c/${evt.channelId}` : evt.conversationId ? `d/${evt.conversationId}` : '';
   const deeplink = evt.channelId

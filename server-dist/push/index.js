@@ -30,6 +30,7 @@ const auth_1 = require("./auth");
 const mobile_auth_1 = require("../mobile-auth");
 const state_1 = require("../lib/state");
 const get_client_1 = require("../lib/get-client");
+const logging_1 = require("../lib/logging");
 const router = (0, express_1.Router)();
 /**
  * Resolve the routing-userId for push-tokens. Prefer the Stashcat user id
@@ -154,15 +155,22 @@ router.patch('/account/push-preferences', async (req, res) => {
 });
 /** Called by `connectRealtime()` for every incoming message_sync/notification. */
 function notifyPush(evt) {
-    if (!(0, fcm_client_1.isFcmConfigured)())
+    if (!(0, fcm_client_1.isFcmConfigured)()) {
+        // Einmal pro Prozess loggen — sonst wird das Log geflutet.
+        if (!loggedFcmDisabled) {
+            loggedFcmDisabled = true;
+            (0, logging_1.serverLog)('[Push] notifyPush called but FCM is not configured — pushes disabled.');
+        }
         return;
+    }
     try {
         (0, dispatcher_1.queueMessageEvent)(evt);
     }
     catch (err) {
-        console.warn('[Push] queue failed:', err.message);
+        (0, logging_1.serverLog)('[Push] queue failed:', err.message);
     }
 }
+let loggedFcmDisabled = false;
 const DAY = 24 * 60 * 60 * 1000;
 const PRUNE_TTL = 90 * DAY;
 function initPushDispatcher() {
@@ -170,29 +178,29 @@ function initPushDispatcher() {
     if (!cfg.ok) {
         switch (cfg.reason) {
             case 'disabled':
-                console.log('[Push] PUSH_ENABLED=false → dispatcher disabled.');
+                (0, logging_1.serverLog)('[Push] PUSH_ENABLED=false → dispatcher disabled.');
                 break;
             case 'env-missing':
-                console.log('[Push] FCM_SERVICE_ACCOUNT env not set → dispatcher disabled. ' +
+                (0, logging_1.serverLog)('[Push] FCM_SERVICE_ACCOUNT env not set → dispatcher disabled. ' +
                     'Im Plesk-Panel unter Node.js → Custom Environment Variables setzen.');
                 break;
             case 'file-missing':
-                console.log(`[Push] Service-Account-Datei nicht gefunden: ${cfg.path}. ` +
+                (0, logging_1.serverLog)(`[Push] Service-Account-Datei nicht gefunden: ${cfg.path}. ` +
                     'Pfad in FCM_SERVICE_ACCOUNT prüfen oder Datei dort ablegen (chmod 640).');
                 break;
             case 'file-unreadable':
-                console.log(`[Push] Service-Account-Datei nicht lesbar/parsebar: ${cfg.path} ` +
+                (0, logging_1.serverLog)(`[Push] Service-Account-Datei nicht lesbar/parsebar: ${cfg.path} ` +
                     `— ${cfg.error}`);
                 break;
         }
         return;
     }
-    console.log('[Push] FCM configured. Batch window:', process.env.PUSH_BATCH_MS || 2000, 'ms');
+    (0, logging_1.serverLog)('[Push] FCM configured. Batch window:', String(process.env.PUSH_BATCH_MS || 2000), 'ms');
     // Periodic cleanup of stale tokens (every 24h).
     setInterval(() => {
         (0, token_store_1.pruneOlderThan)(PRUNE_TTL)
             .then((n) => { if (n > 0)
-            console.log(`[Push] Pruned ${n} stale token(s)`); })
+            (0, logging_1.serverLog)(`[Push] Pruned ${n} stale token(s)`); })
             .catch(() => { });
     }, DAY).unref?.();
 }
