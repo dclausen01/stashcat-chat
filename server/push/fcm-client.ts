@@ -232,11 +232,45 @@ function buildPayload(input: FcmMessageInput): Record<string, unknown> {
   };
 }
 
-export async function sendFcm(input: FcmMessageInput): Promise<boolean> {
-  if (!isFcmConfigured()) return false;
+/**
+ * Outcome eines sendFcm-Aufrufs.
+ *
+ * `permanentFailure` bedeutet: der Token ist dauerhaft ungueltig (FCM
+ * `UNREGISTERED`/`INVALID_ARGUMENT`) und sollte vom Caller aus dem Store
+ * entfernt werden. `transientFailure` ist ein temporaerer Fehler (Quota,
+ * 5xx, Netzwerk) — Token behalten, nur loggen.
+ */
+export type FcmSendResult =
+  | { ok: true }
+  | { ok: false; permanentFailure: boolean };
+
+/** FCM-HTTP-v1 Fehler-Codes, die einen Token dauerhaft kaputt machen. */
+const PERMANENT_FAILURE_CODES = new Set([
+  'UNREGISTERED',
+  'INVALID_ARGUMENT',
+  'SENDER_ID_MISMATCH',
+  'NOT_FOUND',
+]);
+
+function isPermanentFcmFailure(status: number, body: string): boolean {
+  // 404 = Token unbekannt (UNREGISTERED). 400 = manchmal INVALID_ARGUMENT
+  // (z.B. korrupter Token).
+  if (status === 404) return true;
+  if (status !== 400) return false;
+  try {
+    const parsed = JSON.parse(body) as { error?: { details?: Array<{ errorCode?: string }> } };
+    const details = parsed?.error?.details ?? [];
+    return details.some((d) => typeof d.errorCode === 'string' && PERMANENT_FAILURE_CODES.has(d.errorCode));
+  } catch {
+    return false;
+  }
+}
+
+export async function sendFcm(input: FcmMessageInput): Promise<FcmSendResult> {
+  if (!isFcmConfigured()) return { ok: false, permanentFailure: false };
   const sa = loadServiceAccount();
   const token = await getAccessToken();
-  if (!sa || !token) return false;
+  if (!sa || !token) return { ok: false, permanentFailure: false };
   const url = `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`;
   try {
     const res = await fetch(url, {
@@ -249,13 +283,14 @@ export async function sendFcm(input: FcmMessageInput): Promise<boolean> {
     });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      logError(`FCM send failed (${res.status}) for token ${input.token.slice(0, 12)}…: ${text.slice(0, 400)}`);
-      return false;
+      const permanent = isPermanentFcmFailure(res.status, text);
+      logError(`FCM send failed (${res.status}, ${permanent ? 'PERMANENT' : 'transient'}) for token ${input.token.slice(0, 12)}…: ${text.slice(0, 400)}`);
+      return { ok: false, permanentFailure: permanent };
     }
     console.log(`[FCM] sent ${input.platform} → token ${input.token.slice(0, 12)}… ("${input.title}")`);
-    return true;
+    return { ok: true };
   } catch (err) {
     logError(`FCM send threw: ${(err as Error).message}`);
-    return false;
+    return { ok: false, permanentFailure: false };
   }
 }

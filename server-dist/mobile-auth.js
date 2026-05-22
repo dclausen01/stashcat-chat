@@ -10,6 +10,7 @@ exports.touchMobileToken = touchMobileToken;
 exports.deleteMobileToken = deleteMobileToken;
 exports.updatePushPreview = updatePushPreview;
 exports.listMobileTokensForUser = listMobileTokensForUser;
+exports.listAllMobileTokens = listAllMobileTokens;
 exports.extractMobileToken = extractMobileToken;
 /**
  * Mobile-token store + helpers.
@@ -182,6 +183,37 @@ async function listMobileTokensForUser(userId) {
                     const rec = JSON.parse(decrypt(entry, key));
                     if (rec.userId === userId)
                         results.push(rec);
+                }
+                catch { /* skip */ }
+            }
+            return results;
+        }
+        catch {
+            return [];
+        }
+    });
+}
+/**
+ * List ALL mobile tokens. Used on boot to reinstate Realtime connections for
+ * every persisted mobile session — without this, pushes go silent after a
+ * Passenger/Plesk restart until a desktop tab reconnects.
+ *
+ * Pro Eintrag erlaubt nicht abgelaufene Sessions; abgelaufene werden hier
+ * implizit ausgesiebt (kein TTL-Refresh, nur Filter).
+ */
+async function listAllMobileTokens() {
+    return withFileLock(async () => {
+        try {
+            const key = await getKey();
+            const store = await loadFile();
+            const now = Date.now();
+            const results = [];
+            for (const entry of Object.values(store)) {
+                try {
+                    const rec = JSON.parse(decrypt(entry, key));
+                    if (now - rec.lastSeenAt > TTL_MS)
+                        continue;
+                    results.push(rec);
                 }
                 catch { /* skip */ }
             }

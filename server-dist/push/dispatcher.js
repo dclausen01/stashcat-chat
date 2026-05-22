@@ -72,7 +72,7 @@ async function flush(userId) {
     // Verschiedene Chats → eigene Einträge.
     const collapseKey = last.target || undefined;
     await Promise.all(tokens.map(async (tok) => {
-        const ok = await (0, fcm_client_1.sendFcm)({
+        const result = await (0, fcm_client_1.sendFcm)({
             token: tok.token,
             platform: tok.platform,
             title,
@@ -82,13 +82,17 @@ async function flush(userId) {
             silent,
             collapseKey,
         });
-        // Don't remove on first failure — FCM transient errors are common.
-        // A proper cleanup is wired through periodic prune in token-store.
-        if (!ok) {
-            // best-effort: if token is structurally invalid (very short), drop.
-            if (tok.token.length < 20)
-                await (0, token_store_1.removeToken)(tok.token);
+        if (result.ok)
+            return;
+        // Permanent broken (FCM `UNREGISTERED`/`INVALID_ARGUMENT`) → Token
+        // sofort verwerfen, sonst senden wir bei jeder weiteren Nachricht
+        // erneut gegen einen Tombstone.
+        // Strukturell zu kurz = sicher invalid (best-effort heuristic).
+        if (result.permanentFailure || tok.token.length < 20) {
+            console.log(`[Push] removing dead token ${tok.token.slice(0, 12)}…`);
+            await (0, token_store_1.removeToken)(tok.token);
         }
+        // Transient — drinlassen, nur logging (steht schon im .push-errors.log).
     }));
 }
 function queueMessageEvent(evt) {
