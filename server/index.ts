@@ -3,6 +3,7 @@ import type { Request as ExpressRequest } from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
+import { existsSync as fsExistsSync, readFileSync as fsReadFileSync, writeFileSync as fsWriteFileSync } from 'fs';
 import { randomBytes, pbkdf2Sync, createDecipheriv } from 'crypto';
 import { StashcatClient, type RsaPrivateKeyJwk } from 'stashcat-api';
 import type { MessageSyncPayload } from 'stashcat-api';
@@ -1125,9 +1126,86 @@ app.post('/api/typing', (req, res) => {
 // (sonst sind die persistierten Tokens nach Restart eh nicht mehr
 // entschluesselbar).
 //
-// Vorsicht beim Stashcat-Server hammern — wir restoren sequenziell mit
-// 500 ms Pause zwischen den Sessions.
+// Cross-Process-Schutz via File-Lock: Passenger spawnt manchmal mehrere
+// Worker (oder laesst beim Deploy einen alten Worker weiterlaufen). Ohne
+// Lock wuerde JEDER Prozess einen Restore-Pass starten, was zu N parallelen
+// Stashcat-Realtime-Connections pro Session fuehrt. Der Lock enthaelt PID
+// und Timestamp; ein anderer Prozess macht den Restore nur, wenn der Lock
+// alt (> 10 min) oder die im Lock stehende PID nicht mehr existiert.
+const BOOT_LOCK_PATH = '.realtime-boot.lock';
+const BOOT_LOCK_STALE_MS = 10 * 60_000;
+
+function writeBootLock(): void {
+  try {
+    fsWriteFileSync(BOOT_LOCK_PATH, `${process.pid}:${Date.now()}`, 'utf8');
+  } catch { /* fail-silent, naechster Heartbeat versucht's wieder */ }
+}
+
+function tryAcquireBootLock(): boolean {
+  try {
+    const existing = fsExistsSync(BOOT_LOCK_PATH) ? fsReadFileSync(BOOT_LOCK_PATH, 'utf8').trim() : '';
+    if (existing) {
+      const [otherPidRaw, otherTsRaw] = existing.split(':');
+      const otherPid = Number(otherPidRaw);
+      const otherTs = Number(otherTsRaw);
+      const ageMs = Date.now() - (Number.isFinite(otherTs) ? otherTs : 0);
+
+      let otherAlive = false;
+      if (Number.isFinite(otherPid) && otherPid > 0 && otherPid !== process.pid) {
+        try {
+          process.kill(otherPid, 0); // signal 0 = nur pruefen ob Prozess lebt
+          otherAlive = true;
+        } catch {
+          otherAlive = false;
+        }
+      }
+
+      if (otherAlive && ageMs < BOOT_LOCK_STALE_MS) {
+        serverLog(`[Boot] Lock held by pid ${otherPid} (age ${Math.round(ageMs/1000)}s) — skipping restore.`);
+        return false;
+      }
+      serverLog(`[Boot] Stale/dead lock (pid ${otherPid}, age ${Math.round(ageMs/1000)}s) — taking over.`);
+    }
+    writeBootLock();
+    return true;
+  } catch (err) {
+    serverLog('[Boot] Lock acquisition error — proceeding without lock:', errorMessage(err));
+    return true; // fail-open, lieber doppelt restoren als gar nicht
+  }
+}
+
+// Lock-Owner refreshet alle 2 Minuten den Timestamp, damit die 10-Min-Stale-
+// Erkennung nicht ueber Lifetime des Prozesses zuschnappt.
+setInterval(() => {
+  try {
+    if (!fsExistsSync(BOOT_LOCK_PATH)) return;
+    const raw = fsReadFileSync(BOOT_LOCK_PATH, 'utf8').trim();
+    const [pidRaw] = raw.split(':');
+    if (Number(pidRaw) === process.pid) writeBootLock();
+  } catch { /* noop */ }
+}, 2 * 60_000).unref?.();
+
+// Lock beim sauberen Shutdown loslassen, damit der Nachfolge-Prozess sofort
+// restoren kann statt 10 Min auf Stale-Detection zu warten.
+function releaseBootLockIfOwned(): void {
+  try {
+    if (!fsExistsSync(BOOT_LOCK_PATH)) return;
+    const raw = fsReadFileSync(BOOT_LOCK_PATH, 'utf8').trim();
+    const [pidRaw] = raw.split(':');
+    if (Number(pidRaw) === process.pid) {
+      // Best-effort delete — kein require('fs').unlinkSync hier, weil
+      // synchroner unlink in SIGTERM-Handler manchmal failt. fs/promises
+      // wuerde async sein und das Programm beendet sich schon.
+      // Daher: PID auf 0 setzen → andere erkennen das als invalid.
+      fsWriteFileSync(BOOT_LOCK_PATH, `0:${Date.now()}`, 'utf8');
+    }
+  } catch { /* noop */ }
+}
+process.on('SIGTERM', releaseBootLockIfOwned);
+process.on('SIGINT', releaseBootLockIfOwned);
+
 async function restoreRealtimeForBoot(): Promise<void> {
+  if (!tryAcquireBootLock()) return;
   let records;
   try {
     records = await listAllMobileTokens();
