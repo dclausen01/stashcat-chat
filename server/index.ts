@@ -51,6 +51,7 @@ import {
   touchMobileToken,
   deleteMobileToken,
   extractMobileToken,
+  listAllMobileTokens,
 } from './mobile-auth';
 import pushRouter, { initPushDispatcher, notifyPush } from './push';
 import { listForUser as listPushTokensForUser } from './push/token-store';
@@ -95,18 +96,66 @@ app.use('/api', pushRouter);
 // Bootstrap the push dispatcher once the realtime listeners are wired below.
 initPushDispatcher();
 
-// Periodisches Health-Log der Realtime/Push-Pipeline (alle 60 s).
-// Damit sehen wir, ob "Push-only"-Verbindungen tatsächlich am Leben bleiben.
+// ── Liveness-Konstanten ──────────────────────────────────────────────────────
+// Wenn `lastEventAt` aelter ist als STALE_AFTER_MS, gilt die Realtime als tot
+// und wird (durch eigene disconnect) zwangs-recovered. Wir probieren erst,
+// per REST-Call den Verdacht zu bestaetigen — Idle-Connections bei stillen
+// Usern sind echt; tote Sockets reagieren auf den Probe nicht.
+const REALTIME_STALE_AFTER_MS = 5 * 60_000;    // 5 Min ohne irgendeinen Event
+const REALTIME_PROBE_TIMEOUT_MS = 10_000;       // getMe-Probe Timeout
+const REALTIME_PROBE_MIN_INTERVAL_MS = 4 * 60_000; // Pro Conn max alle 4 Min probieren
+
+async function probeRealtime(clientKey: string, conn: SSEConnectionLike): Promise<void> {
+  const now = Date.now();
+  if (conn.lastProbeAt && now - conn.lastProbeAt < REALTIME_PROBE_MIN_INTERVAL_MS) return;
+  conn.lastProbeAt = now;
+  try {
+    const result = await Promise.race([
+      conn.client.getMe(),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error('probe timeout')), REALTIME_PROBE_TIMEOUT_MS)),
+    ]);
+    if (result) {
+      // Erfolg = Session lebt. lastEventAt updaten, damit der Health-Loop
+      // diese Conn nicht als stale markiert wenn der User wirklich nichts
+      // schreibt.
+      conn.lastEventAt = Date.now();
+    }
+  } catch (err) {
+    serverLog(`[Health] Probe failed for clientKey ${clientKey.slice(0, 8)} — forcing realtime reconnect:`, errorMessage(err));
+    // Disconnect → unser disconnect-Handler entscheidet, ob ein Reconnect
+    // sinnvoll ist (SSE-Clients oder Push-Tokens vorhanden).
+    try { conn.realtime?.disconnect(); } catch { /* noop */ }
+  }
+}
+
+// Wir importieren SSEConnection-Typ nicht hier hoch — definieren stattdessen
+// eine schmale Sicht auf die Felder, die wir brauchen.
+interface SSEConnectionLike {
+  client: StashcatClient;
+  realtime?: { disconnect: () => void };
+  lastEventAt?: number;
+  lastProbeAt?: number;
+}
+
+// Periodisches Health-Log + aktive Liveness-Probes (alle 60 s).
 setInterval(() => {
+  const now = Date.now();
   let total = 0;
   let withSse = 0;
   let pushOnly = 0;
   let realtimeAlive = 0;
-  for (const conn of activeSSE.values()) {
+  for (const [clientKey, conn] of activeSSE) {
     total += 1;
     if (conn.sseClients.size > 0) withSse += 1;
     else pushOnly += 1;
     if (conn.realtime) realtimeAlive += 1;
+
+    // Stale-Detection: wenn lange kein Event reinkam, einen aktiven Probe
+    // anstossen. Der Probe selbst aktualisiert lastEventAt bei Erfolg, oder
+    // forciert einen Reconnect bei Fehler.
+    if (conn.realtime && conn.lastEventAt && now - conn.lastEventAt > REALTIME_STALE_AFTER_MS) {
+      void probeRealtime(clientKey, conn as unknown as SSEConnectionLike);
+    }
   }
   if (total > 0) {
     serverLog(`[Health] activeSSE=${total} (sse=${withSse}, push-only=${pushOnly}, realtime-alive=${realtimeAlive})`);
@@ -412,9 +461,19 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
   });
 
   // ── Diagnostik-Logger fuer alle eingehenden Events ───────────────────────
+  //
+  // Doppelfunktion: ausser dem Log-Output aktualisieren wir hier `lastEventAt`
+  // pro Connection. Das ist der Anker fuer die Liveness-Detection — wenn
+  // dieser Timestamp lange nicht mehr aktualisiert wurde, gilt die Realtime
+  // als stale und wird vom Health-Loop neu aufgebaut.
   const sockAny = (rt as unknown as { socket?: { onAny?: (cb: (event: string, ...args: unknown[]) => void) => void } }).socket;
   if (sockAny && typeof sockAny.onAny === 'function') {
     sockAny.onAny((event: string, ...args: unknown[]) => {
+      // Jeder Event (auch ping/pong) zaehlt als Lebenszeichen — Socket.io
+      // hebt das nicht raus, also nehmen wir alles ausser unseren eigenen
+      // synthetischen Markern.
+      const c = activeSSE.get(clientKey);
+      if (c) c.lastEventAt = Date.now();
       if (event === 'connect' || event === 'disconnect' || event === 'ping' || event === 'pong') return;
       const preview = JSON.stringify(args).slice(0, 400);
       serverLog(`[Realtime] 📡 ${clientKey.slice(0, 8)} "${event}" ${preview}`);
@@ -463,6 +522,7 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
   }
 
   serverLog(`[Realtime] RealtimeManager fully connected for clientKey ${clientKey.slice(0, 8)}`);
+  conn.lastEventAt = Date.now();
 
   // ── Post-Connect: stashcatUserId cachen + Bot-Cache vorwaermen ───────────
   // stashcatUserId ist die Achse fuer Push-Token-Routing. Bot-Cache muss
@@ -1049,10 +1109,89 @@ app.post('/api/typing', (req, res) => {
   });
 }
 
+// ── Boot: Realtime fuer Mobile-Sessions wiederherstellen ─────────────────────
+//
+// Hintergrund: Realtime-Connections leben ausschliesslich im Speicher (Map
+// `activeSSE`). Wenn Passenger/Plesk den Node-Prozess neu startet (Idle-Timeout,
+// Memory-Limit, Deploy), sind ALLE Realtime-Connections weg — und werden erst
+// neu aufgebaut, sobald ein Web-Client einen SSE-Connect macht. Fuer pure
+// Mobile-User (die nie die Web-Tab oeffnen) heisst das: nach jedem Restart
+// kommen Pushes erst wieder, wenn jemand mit Browser vorbeischaut.
+//
+// Diese Boot-Routine liest die persistierten Mobile-Tokens und stoesst pro
+// gespeichertem Session-Token einen Realtime-Connect an. Damit ist die
+// Push-Pipeline direkt nach Restart wieder live, ohne dass ein Mensch
+// eingreifen muss. Voraussetzung: SESSION_SECRET ist als env-var gesetzt
+// (sonst sind die persistierten Tokens nach Restart eh nicht mehr
+// entschluesselbar).
+//
+// Vorsicht beim Stashcat-Server hammern — wir restoren sequenziell mit
+// 500 ms Pause zwischen den Sessions.
+async function restoreRealtimeForBoot(): Promise<void> {
+  let records;
+  try {
+    records = await listAllMobileTokens();
+  } catch (err) {
+    serverLog('[Boot] listAllMobileTokens failed:', errorMessage(err));
+    return;
+  }
+  if (records.length === 0) {
+    serverLog('[Boot] No mobile tokens to restore — Realtime stays cold until first SSE connect.');
+    return;
+  }
+
+  // Pro distinct sessionToken nur einmal restoren — ein User mit mehreren
+  // Mobile-Geraeten teilt nicht zwingend denselben sessionToken (per Login
+  // generiert), aber zwei Mobile-Tokens, die zum selben sessionToken zeigen,
+  // sind moeglich wenn der User die App reinstalliert hat.
+  const seenSessionTokens = new Set<string>();
+
+  serverLog(`[Boot] Restoring Realtime for ${records.length} mobile session(s)…`);
+  for (const record of records) {
+    if (seenSessionTokens.has(record.sessionToken)) continue;
+    seenSessionTokens.add(record.sessionToken);
+
+    let clientKey: string;
+    try {
+      const payload = decryptSession(record.sessionToken);
+      clientKey = payload.clientKey;
+    } catch (err) {
+      serverLog('[Boot] Skipping mobile token — session decrypt failed (SESSION_SECRET geaendert?):', errorMessage(err));
+      continue;
+    }
+
+    if (activeSSE.has(clientKey)) {
+      // Schon restored (z.B. doppelter mobile-token auf selben sessionToken)
+      continue;
+    }
+
+    try {
+      const fakeReq = { headers: { authorization: `Bearer ${record.sessionToken}` }, query: {} } as unknown as ExpressRequest;
+      const client = await getClient(fakeReq);
+      activeSSE.set(clientKey, { client, sseClients: new Set() });
+      serverLog(`[Boot] Starting Realtime for clientKey ${clientKey.slice(0, 8)}…`);
+      // Fire-and-forget — wir warten nicht auf jeden einzelnen Connect, der
+      // 15-s-Auth-Timeout wuerde sonst den Boot blockieren.
+      connectRealtime(client, clientKey).catch((err) => {
+        serverLog(`[Boot] Realtime restore failed for ${clientKey.slice(0, 8)}:`, errorMessage(err));
+        activeSSE.delete(clientKey);
+      });
+      // Sanftes Pacing — Stashcat-Server nicht mit gleichzeitigen Connects
+      // beballern, falls viele Mobile-Sessions persistiert sind.
+      await new Promise((r) => setTimeout(r, 500));
+    } catch (err) {
+      serverLog(`[Boot] getClient failed for clientKey ${clientKey.slice(0, 8)} — Session abgelaufen?`, errorMessage(err));
+    }
+  }
+  serverLog(`[Boot] Realtime restore pass done (${seenSessionTokens.size} unique session(s)).`);
+}
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 
 const PORT = Number(process.env.PORT) || 3001;
 
 app.listen(PORT, () => {
   console.log(`BBZ Chat backend running on http://localhost:${PORT}`);
+  // Asynchron — soll den Listener nicht blockieren.
+  void restoreRealtimeForBoot();
 });

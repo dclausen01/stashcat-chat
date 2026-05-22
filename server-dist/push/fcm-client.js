@@ -193,13 +193,36 @@ function buildPayload(input) {
         data,
     };
 }
+/** FCM-HTTP-v1 Fehler-Codes, die einen Token dauerhaft kaputt machen. */
+const PERMANENT_FAILURE_CODES = new Set([
+    'UNREGISTERED',
+    'INVALID_ARGUMENT',
+    'SENDER_ID_MISMATCH',
+    'NOT_FOUND',
+]);
+function isPermanentFcmFailure(status, body) {
+    // 404 = Token unbekannt (UNREGISTERED). 400 = manchmal INVALID_ARGUMENT
+    // (z.B. korrupter Token).
+    if (status === 404)
+        return true;
+    if (status !== 400)
+        return false;
+    try {
+        const parsed = JSON.parse(body);
+        const details = parsed?.error?.details ?? [];
+        return details.some((d) => typeof d.errorCode === 'string' && PERMANENT_FAILURE_CODES.has(d.errorCode));
+    }
+    catch {
+        return false;
+    }
+}
 async function sendFcm(input) {
     if (!isFcmConfigured())
-        return false;
+        return { ok: false, permanentFailure: false };
     const sa = loadServiceAccount();
     const token = await getAccessToken();
     if (!sa || !token)
-        return false;
+        return { ok: false, permanentFailure: false };
     const url = `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`;
     try {
         const res = await fetch(url, {
@@ -212,14 +235,15 @@ async function sendFcm(input) {
         });
         if (!res.ok) {
             const text = await res.text().catch(() => '');
-            logError(`FCM send failed (${res.status}) for token ${input.token.slice(0, 12)}…: ${text.slice(0, 400)}`);
-            return false;
+            const permanent = isPermanentFcmFailure(res.status, text);
+            logError(`FCM send failed (${res.status}, ${permanent ? 'PERMANENT' : 'transient'}) for token ${input.token.slice(0, 12)}…: ${text.slice(0, 400)}`);
+            return { ok: false, permanentFailure: permanent };
         }
         console.log(`[FCM] sent ${input.platform} → token ${input.token.slice(0, 12)}… ("${input.title}")`);
-        return true;
+        return { ok: true };
     }
     catch (err) {
         logError(`FCM send threw: ${err.message}`);
-        return false;
+        return { ok: false, permanentFailure: false };
     }
 }

@@ -97,7 +97,7 @@ async function flush(userId: string): Promise<void> {
 
   await Promise.all(
     tokens.map(async (tok) => {
-      const ok = await sendFcm({
+      const result = await sendFcm({
         token: tok.token,
         platform: tok.platform,
         title,
@@ -107,12 +107,16 @@ async function flush(userId: string): Promise<void> {
         silent,
         collapseKey,
       });
-      // Don't remove on first failure — FCM transient errors are common.
-      // A proper cleanup is wired through periodic prune in token-store.
-      if (!ok) {
-        // best-effort: if token is structurally invalid (very short), drop.
-        if (tok.token.length < 20) await removeToken(tok.token);
+      if (result.ok) return;
+      // Permanent broken (FCM `UNREGISTERED`/`INVALID_ARGUMENT`) → Token
+      // sofort verwerfen, sonst senden wir bei jeder weiteren Nachricht
+      // erneut gegen einen Tombstone.
+      // Strukturell zu kurz = sicher invalid (best-effort heuristic).
+      if (result.permanentFailure || tok.token.length < 20) {
+        console.log(`[Push] removing dead token ${tok.token.slice(0, 12)}…`);
+        await removeToken(tok.token);
       }
+      // Transient — drinlassen, nur logging (steht schon im .push-errors.log).
     }),
   );
 }

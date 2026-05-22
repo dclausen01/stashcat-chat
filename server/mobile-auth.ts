@@ -201,6 +201,35 @@ export async function listMobileTokensForUser(userId: string): Promise<MobileTok
   });
 }
 
+/**
+ * List ALL mobile tokens. Used on boot to reinstate Realtime connections for
+ * every persisted mobile session — without this, pushes go silent after a
+ * Passenger/Plesk restart until a desktop tab reconnects.
+ *
+ * Pro Eintrag erlaubt nicht abgelaufene Sessions; abgelaufene werden hier
+ * implizit ausgesiebt (kein TTL-Refresh, nur Filter).
+ */
+export async function listAllMobileTokens(): Promise<MobileTokenRecord[]> {
+  return withFileLock(async () => {
+    try {
+      const key = await getKey();
+      const store = await loadFile();
+      const now = Date.now();
+      const results: MobileTokenRecord[] = [];
+      for (const entry of Object.values(store)) {
+        try {
+          const rec = JSON.parse(decrypt(entry, key)) as MobileTokenRecord;
+          if (now - rec.lastSeenAt > TTL_MS) continue;
+          results.push(rec);
+        } catch { /* skip */ }
+      }
+      return results;
+    } catch {
+      return [];
+    }
+  });
+}
+
 /** Helper: extract mobile token from Authorization header. */
 export function extractMobileToken(req: { headers: Record<string, string | string[] | undefined> }): string | null {
   const auth = req.headers['authorization'];
