@@ -374,7 +374,6 @@ async function connectRealtime(client, clientKey) {
         }
     });
     rt.on('user-started-typing', (chatType, chatId, userId) => {
-        (0, logging_1.serverLog)(`[Realtime] Received typing event:`, { chatType, chatId, userId });
         (0, state_1.pushSSE)(clientKey, 'typing', { chatType, chatId, userId });
     });
     rt.on('key_sync_request', (data) => {
@@ -382,7 +381,10 @@ async function connectRealtime(client, clientKey) {
         (0, state_1.pushSSE)(clientKey, 'key_sync_request', data);
     });
     rt.on('online_status_change', (data) => {
-        (0, logging_1.serverLog)(`[Realtime] Received online_status_change:`, JSON.stringify(data).slice(0, 300));
+        // Bewusst kein serverLog hier — Stashcat fan-outet diese Events an JEDE
+        // aktive Connection mit dem User als Kontakt, das sind pro Status-Change
+        // schnell 20+ Logzeilen. Forwarden tun wir trotzdem, damit der Browser
+        // die Verfuegbarkeits-Dots aktualisieren kann.
         (0, state_1.pushSSE)(clientKey, 'online_status_change', data);
     });
     rt.on('call_created', (data) => {
