@@ -1279,6 +1279,13 @@ async function restoreRealtimeForBoot() {
     // generiert), aber zwei Mobile-Tokens, die zum selben sessionToken zeigen,
     // sind moeglich wenn der User die App reinstalliert hat.
     const seenSessionTokens = new Set();
+    // Per-User-Dedup: pro stashcatUserId bauen wir nur EINE Realtime-Connection
+    // auf, auch wenn der User mehrere Mobile-Tokens hat. Sonst sieht Stashcat
+    // 16 parallele "Devices" fuer denselben Account und drosselt das Event-
+    // Routing — Symptom: notification-Events kommen gar nicht mehr an.
+    const seenUserIds = new Set();
+    let restoredCount = 0;
+    let skippedDuplicateUser = 0;
     (0, logging_1.serverLog)(`[Boot] Restoring Realtime for ${records.length} mobile session(s)…`);
     for (const record of records) {
         if (seenSessionTokens.has(record.sessionToken))
@@ -1297,16 +1304,48 @@ async function restoreRealtimeForBoot() {
             // Schon restored (z.B. doppelter mobile-token auf selben sessionToken)
             continue;
         }
+        // Wenn der Mobile-Token noch im alten Format gespeichert ist
+        // (record.userId === clientKey, also nicht die stashcatUserId), koennen
+        // wir die Dedup-Pruefung erst nach dem getMe-Call durchfuehren — fuer
+        // alle neueren Tokens reicht aber der Record direkt.
+        const recordedUserId = record.userId;
+        const looksLikeStashcatUserId = /^\d+$/.test(recordedUserId);
+        if (looksLikeStashcatUserId && seenUserIds.has(recordedUserId)) {
+            (0, logging_1.serverLog)(`[Boot] Skipping ${clientKey.slice(0, 8)} — Realtime fuer stashcatUserId ${recordedUserId} bereits geplant.`);
+            skippedDuplicateUser++;
+            continue;
+        }
         try {
             const fakeReq = { headers: { authorization: `Bearer ${record.sessionToken}` }, query: {} };
             const client = await (0, get_client_1.getClient)(fakeReq);
+            // Fuer Tokens im alten Format: getMe() ausfuehren, um stashcatUserId
+            // zu ermitteln. Wenn schon eine Realtime fuer diesen User in dieser
+            // Boot-Phase geplant ist, abbrechen.
+            let resolvedUserId = looksLikeStashcatUserId ? recordedUserId : '';
+            if (!resolvedUserId) {
+                try {
+                    const me = await client.getMe();
+                    resolvedUserId = String(me.id ?? '');
+                }
+                catch { /* getMe failed — wir restoren trotzdem, ohne Dedup */ }
+            }
+            if (resolvedUserId && seenUserIds.has(resolvedUserId)) {
+                (0, logging_1.serverLog)(`[Boot] Skipping ${clientKey.slice(0, 8)} — Realtime fuer stashcatUserId ${resolvedUserId} bereits geplant (legacy-token).`);
+                skippedDuplicateUser++;
+                continue;
+            }
+            if (resolvedUserId)
+                seenUserIds.add(resolvedUserId);
             state_1.activeSSE.set(clientKey, { client, sseClients: new Set() });
-            (0, logging_1.serverLog)(`[Boot] Starting Realtime for clientKey ${clientKey.slice(0, 8)}…`);
+            (0, logging_1.serverLog)(`[Boot] Starting Realtime for clientKey ${clientKey.slice(0, 8)} (user ${resolvedUserId || 'unknown'})…`);
+            restoredCount++;
             // Fire-and-forget — wir warten nicht auf jeden einzelnen Connect, der
             // 15-s-Auth-Timeout wuerde sonst den Boot blockieren.
             connectRealtime(client, clientKey).catch((err) => {
                 (0, logging_1.serverLog)(`[Boot] Realtime restore failed for ${clientKey.slice(0, 8)}:`, (0, logging_1.errorMessage)(err));
                 state_1.activeSSE.delete(clientKey);
+                if (resolvedUserId)
+                    seenUserIds.delete(resolvedUserId);
             });
             // Sanftes Pacing — Stashcat-Server nicht mit gleichzeitigen Connects
             // beballern, falls viele Mobile-Sessions persistiert sind.
@@ -1316,7 +1355,7 @@ async function restoreRealtimeForBoot() {
             (0, logging_1.serverLog)(`[Boot] getClient failed for clientKey ${clientKey.slice(0, 8)} — Session abgelaufen?`, (0, logging_1.errorMessage)(err));
         }
     }
-    (0, logging_1.serverLog)(`[Boot] Realtime restore pass done (${seenSessionTokens.size} unique session(s)).`);
+    (0, logging_1.serverLog)(`[Boot] Realtime restore pass done — ${restoredCount} Connection(s) gestartet, ${skippedDuplicateUser} skippt (duplicate user).`);
     bootRestoreDone = true;
 }
 // ── Start ─────────────────────────────────────────────────────────────────────
