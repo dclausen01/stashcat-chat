@@ -161,6 +161,16 @@ setInterval(() => {
   if (total > 0) {
     serverLog(`[Health] activeSSE=${total} (sse=${withSse}, push-only=${pushOnly}, realtime-alive=${realtimeAlive})`);
   }
+
+  // Lock-Inheritance: wenn wir beim Boot den Restore-Pass uebersprungen
+  // haben (Lock von einem anderen Prozess gehalten), pruefen wir hier
+  // wiederholt nach. Stirbt der Lock-Owner (Plesk-Restart, OOM, …) waehrend
+  // unser Prozess weiterlebt, holen wir den Restore nach — sonst stuenden
+  // alle Mobile-Sessions des Vorgaengers ohne Realtime und damit ohne Push da.
+  if (!bootRestoreDone) {
+    serverLog('[Boot] Retry: boot-restore not yet done, checking lock ownership…');
+    void restoreRealtimeForBoot();
+  }
 }, 60_000).unref?.();
 
 // Shared state and helpers moved to ./lib/state.ts
@@ -1135,6 +1145,13 @@ app.post('/api/typing', (req, res) => {
 const BOOT_LOCK_PATH = '.realtime-boot.lock';
 const BOOT_LOCK_STALE_MS = 10 * 60_000;
 
+// Wird nach erfolgreichem (oder bewusst abgebrochenem) Boot-Restore-Pass auf
+// true gesetzt. Der Health-Loop pollt diesen Flag — wenn er false bleibt und
+// der Lock-Owner stirbt, holen wir den Restore nach. Sonst stuende ein
+// frisch gestarteter Survivor-Prozess ohne Realtime-Connections fuer alle
+// Mobile-Sessions da, die der gestorbene Vorgaenger gehalten hatte.
+let bootRestoreDone = false;
+
 function writeBootLock(): void {
   try {
     fsWriteFileSync(BOOT_LOCK_PATH, `${process.pid}:${Date.now()}`, 'utf8');
@@ -1205,16 +1222,22 @@ process.on('SIGTERM', releaseBootLockIfOwned);
 process.on('SIGINT', releaseBootLockIfOwned);
 
 async function restoreRealtimeForBoot(): Promise<void> {
+  if (bootRestoreDone) return;
   if (!tryAcquireBootLock()) return;
+  // Lock erworben — wir sind committed. Auch bei Fehler setzen wir den Flag
+  // am Ende, sonst wuerde der periodische Retry-Loop im Health-Tick endlos
+  // den gleichen kaputten Pass triggern.
   let records;
   try {
     records = await listAllMobileTokens();
   } catch (err) {
     serverLog('[Boot] listAllMobileTokens failed:', errorMessage(err));
+    bootRestoreDone = true;
     return;
   }
   if (records.length === 0) {
     serverLog('[Boot] No mobile tokens to restore — Realtime stays cold until first SSE connect.');
+    bootRestoreDone = true;
     return;
   }
 
@@ -1262,6 +1285,7 @@ async function restoreRealtimeForBoot(): Promise<void> {
     }
   }
   serverLog(`[Boot] Realtime restore pass done (${seenSessionTokens.size} unique session(s)).`);
+  bootRestoreDone = true;
 }
 
 // ── Start ─────────────────────────────────────────────────────────────────────

@@ -164,6 +164,15 @@ setInterval(() => {
     if (total > 0) {
         (0, logging_1.serverLog)(`[Health] activeSSE=${total} (sse=${withSse}, push-only=${pushOnly}, realtime-alive=${realtimeAlive})`);
     }
+    // Lock-Inheritance: wenn wir beim Boot den Restore-Pass uebersprungen
+    // haben (Lock von einem anderen Prozess gehalten), pruefen wir hier
+    // wiederholt nach. Stirbt der Lock-Owner (Plesk-Restart, OOM, …) waehrend
+    // unser Prozess weiterlebt, holen wir den Restore nach — sonst stuenden
+    // alle Mobile-Sessions des Vorgaengers ohne Realtime und damit ohne Push da.
+    if (!bootRestoreDone) {
+        (0, logging_1.serverLog)('[Boot] Retry: boot-restore not yet done, checking lock ownership…');
+        void restoreRealtimeForBoot();
+    }
 }, 60_000).unref?.();
 // Shared state and helpers moved to ./lib/state.ts
 // ── Push-Dedup-Cache ─────────────────────────────────────────────────────────
@@ -1070,6 +1079,12 @@ app.post('/api/typing', (req, res) => {
 // alt (> 10 min) oder die im Lock stehende PID nicht mehr existiert.
 const BOOT_LOCK_PATH = '.realtime-boot.lock';
 const BOOT_LOCK_STALE_MS = 10 * 60_000;
+// Wird nach erfolgreichem (oder bewusst abgebrochenem) Boot-Restore-Pass auf
+// true gesetzt. Der Health-Loop pollt diesen Flag — wenn er false bleibt und
+// der Lock-Owner stirbt, holen wir den Restore nach. Sonst stuende ein
+// frisch gestarteter Survivor-Prozess ohne Realtime-Connections fuer alle
+// Mobile-Sessions da, die der gestorbene Vorgaenger gehalten hatte.
+let bootRestoreDone = false;
 function writeBootLock() {
     try {
         (0, fs_1.writeFileSync)(BOOT_LOCK_PATH, `${process.pid}:${Date.now()}`, 'utf8');
@@ -1142,18 +1157,25 @@ function releaseBootLockIfOwned() {
 process.on('SIGTERM', releaseBootLockIfOwned);
 process.on('SIGINT', releaseBootLockIfOwned);
 async function restoreRealtimeForBoot() {
+    if (bootRestoreDone)
+        return;
     if (!tryAcquireBootLock())
         return;
+    // Lock erworben — wir sind committed. Auch bei Fehler setzen wir den Flag
+    // am Ende, sonst wuerde der periodische Retry-Loop im Health-Tick endlos
+    // den gleichen kaputten Pass triggern.
     let records;
     try {
         records = await (0, mobile_auth_1.listAllMobileTokens)();
     }
     catch (err) {
         (0, logging_1.serverLog)('[Boot] listAllMobileTokens failed:', (0, logging_1.errorMessage)(err));
+        bootRestoreDone = true;
         return;
     }
     if (records.length === 0) {
         (0, logging_1.serverLog)('[Boot] No mobile tokens to restore — Realtime stays cold until first SSE connect.');
+        bootRestoreDone = true;
         return;
     }
     // Pro distinct sessionToken nur einmal restoren — ein User mit mehreren
@@ -1199,6 +1221,7 @@ async function restoreRealtimeForBoot() {
         }
     }
     (0, logging_1.serverLog)(`[Boot] Realtime restore pass done (${seenSessionTokens.size} unique session(s)).`);
+    bootRestoreDone = true;
 }
 // ── Start ─────────────────────────────────────────────────────────────────────
 const PORT = Number(process.env.PORT) || 3001;
