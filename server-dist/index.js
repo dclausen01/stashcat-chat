@@ -173,6 +173,11 @@ setInterval(() => {
         (0, logging_1.serverLog)('[Boot] Retry: boot-restore not yet done, checking lock ownership…');
         void restoreRealtimeForBoot();
     }
+    // Worker-Generation: bin ich obsolet (neuerer Worker da)? Oder schreibe ich
+    // mich falls die Datei verschwunden ist? Diese Checks sind so guenstig,
+    // dass wir sie in den Health-Tick haengen.
+    writeMyGenerationIfNewer();
+    checkObsolete();
 }, 60_000).unref?.();
 // Shared state and helpers moved to ./lib/state.ts
 // ── Push-Dedup-Cache ─────────────────────────────────────────────────────────
@@ -369,7 +374,6 @@ async function connectRealtime(client, clientKey) {
         }
     });
     rt.on('user-started-typing', (chatType, chatId, userId) => {
-        (0, logging_1.serverLog)(`[Realtime] Received typing event:`, { chatType, chatId, userId });
         (0, state_1.pushSSE)(clientKey, 'typing', { chatType, chatId, userId });
     });
     rt.on('key_sync_request', (data) => {
@@ -377,7 +381,10 @@ async function connectRealtime(client, clientKey) {
         (0, state_1.pushSSE)(clientKey, 'key_sync_request', data);
     });
     rt.on('online_status_change', (data) => {
-        (0, logging_1.serverLog)(`[Realtime] Received online_status_change:`, JSON.stringify(data).slice(0, 300));
+        // Bewusst kein serverLog hier — Stashcat fan-outet diese Events an JEDE
+        // aktive Connection mit dem User als Kontakt, das sind pro Status-Change
+        // schnell 20+ Logzeilen. Forwarden tun wir trotzdem, damit der Browser
+        // die Verfuegbarkeits-Dots aktualisieren kann.
         (0, state_1.pushSSE)(clientKey, 'online_status_change', data);
     });
     rt.on('call_created', (data) => {
@@ -1055,6 +1062,95 @@ app.post('/api/typing', (req, res) => {
         res.sendFile(path_1.default.join(distPath, 'index.html'));
     });
 }
+// ── Worker-Generation: Self-Shutdown wenn neuer Worker uebernimmt ───────────
+//
+// Plesk-Passenger kann unter Open-Source keinen per-App Worker-Cap und
+// macht stattdessen graceful restarts — alte Worker bleiben am Leben, bis
+// ihre offenen Connections geschlossen sind. Bei langlebigen SSE-Streams
+// passiert das nie. Resultat: nach jedem Deploy wachsen die parallel
+// laufenden Worker, jeder mit eigener Stashcat-Realtime-Connection, jeder
+// pusht potentiell die gleichen Messages an FCM.
+//
+// Loesung: jeder Worker schreibt beim Boot seinen `bootTime` in
+// `.worker-generation`. Jeder Worker prueft im Health-Tick: gibt es einen
+// neueren Eintrag? Ja → beende dich selbst (graceful: SSE-Clients
+// informieren, Realtime-Connections schliessen, dann process.exit).
+//
+// Grace Period: der alte Worker wartet 2 Min nach Boot des neuen, bevor
+// er aufgibt. Das gibt dem Newer Zeit fuer seinen Boot-Restore-Pass.
+// Sonst gaebe es eine kurze Luecke ohne aktive Realtime.
+const GENERATION_PATH = '.worker-generation';
+const MY_BOOT_TIME = Date.now();
+const SUCCESSOR_GRACE_MS = 2 * 60_000;
+let initiatingShutdown = false;
+function writeMyGenerationIfNewer() {
+    try {
+        if ((0, fs_1.existsSync)(GENERATION_PATH)) {
+            const raw = (0, fs_1.readFileSync)(GENERATION_PATH, 'utf8').trim();
+            const [, tsRaw] = raw.split(':');
+            const otherTs = Number(tsRaw);
+            if (Number.isFinite(otherTs) && otherTs > MY_BOOT_TIME)
+                return;
+        }
+        (0, fs_1.writeFileSync)(GENERATION_PATH, `${process.pid}:${MY_BOOT_TIME}`, 'utf8');
+    }
+    catch { /* noop */ }
+}
+function checkObsolete() {
+    if (initiatingShutdown)
+        return;
+    try {
+        if (!(0, fs_1.existsSync)(GENERATION_PATH))
+            return;
+        const raw = (0, fs_1.readFileSync)(GENERATION_PATH, 'utf8').trim();
+        const [pidRaw, tsRaw] = raw.split(':');
+        const leaderPid = Number(pidRaw);
+        const leaderTs = Number(tsRaw);
+        if (!Number.isFinite(leaderTs) || !Number.isFinite(leaderPid))
+            return;
+        if (leaderPid === process.pid)
+            return; // ich bin der Leader
+        if (leaderTs <= MY_BOOT_TIME)
+            return; // ich bin neuer/gleichalt
+        // Grace Period: gib dem neueren Worker Zeit fuer Boot-Restore.
+        const newerAgeMs = Date.now() - leaderTs;
+        if (newerAgeMs < SUCCESSOR_GRACE_MS) {
+            (0, logging_1.serverLog)(`[Worker] Newer worker pid:${leaderPid} bootet vor ${Math.round(newerAgeMs / 1000)}s — wartet noch in Grace-Period.`);
+            return;
+        }
+        (0, logging_1.serverLog)(`[Worker] Obsolete: newer worker pid:${leaderPid} hat uebernommen (age ${Math.round(newerAgeMs / 1000)}s). Self-shutdown.`);
+        initiatingShutdown = true;
+        void shutdownGracefully();
+    }
+    catch { /* noop */ }
+}
+async function shutdownGracefully() {
+    // SSE-Clients schliessen, damit Frontend reconnected (auf den neuen Worker).
+    // Wir senden noch einen synthetischen 'shutdown'-Event — der Client kann den
+    // optional auswerten, aber wichtiger ist das `res.end()` selbst.
+    for (const conn of state_1.activeSSE.values()) {
+        for (const res of conn.sseClients) {
+            try {
+                res.write('event: shutdown\ndata: {"reason":"worker-rotation"}\n\n');
+                res.end();
+            }
+            catch { /* noop */ }
+        }
+        try {
+            conn.realtime?.disconnect();
+        }
+        catch { /* noop */ }
+    }
+    // Kurze Wartezeit fuer Cleanup, dann exit. Passenger spawnt KEINEN Ersatz,
+    // weil der neuere Worker bereits laeuft — der Pool ist somit nicht
+    // unterbesetzt.
+    setTimeout(() => {
+        (0, logging_1.serverLog)('[Worker] Exiting after graceful self-shutdown.');
+        process.exit(0);
+    }, 2000);
+}
+// Beim Boot meine Generation eintragen (falls ich der neueste bin).
+writeMyGenerationIfNewer();
 // ── Boot: Realtime fuer Mobile-Sessions wiederherstellen ─────────────────────
 //
 // Hintergrund: Realtime-Connections leben ausschliesslich im Speicher (Map
