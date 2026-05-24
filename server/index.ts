@@ -98,68 +98,94 @@ app.use('/api', pushRouter);
 initPushDispatcher();
 
 // ── Liveness-Konstanten ──────────────────────────────────────────────────────
-// Wenn `lastEventAt` aelter ist als STALE_AFTER_MS, gilt die Realtime als tot
-// und wird (durch eigene disconnect) zwangs-recovered. Wir probieren erst,
-// per REST-Call den Verdacht zu bestaetigen — Idle-Connections bei stillen
-// Usern sind echt; tote Sockets reagieren auf den Probe nicht.
-const REALTIME_STALE_AFTER_MS = 5 * 60_000;    // 5 Min ohne irgendeinen Event
-const REALTIME_PROBE_TIMEOUT_MS = 10_000;       // getMe-Probe Timeout
-const REALTIME_PROBE_MIN_INTERVAL_MS = 4 * 60_000; // Pro Conn max alle 4 Min probieren
+//
+// Fix A — globale Event-Stille-Erkennung:
+// `lastRealtimeEventAt` wird von JEDEM echten Stashcat-Socket-Event
+// aktualisiert (message_sync, notification, online_status_change, typing, …).
+// online_status_change kommt bei aktiven Verbindungen quasi im Sekundentakt
+// von Kontakten — wenn ueber ALLE Verbindungen hinweg minutenlang GAR kein
+// Event kommt, obwohl Connections aktiv sind, ist das ein starkes Signal fuer
+// ein systemisches Zustellungsproblem (Stashcat-Drosselung, IP-Ban, tote
+// Sockets). Diesen Indikator hatten wir frueher nicht — er kostet nur einen
+// Timestamp und skaliert auf beliebig viele Verbindungen.
+let lastRealtimeEventAt = Date.now();
+function markRealtimeEvent(): void { lastRealtimeEventAt = Date.now(); }
+const EVENT_SILENCE_WARN_MS = 15 * 60_000;   // 15 Min globale Stille → WARN
+let lastSilenceWarnAt = 0;
 
-async function probeRealtime(clientKey: string, conn: SSEConnectionLike): Promise<void> {
+// Fix B — globale Obergrenze gleichzeitiger Realtime-Connections zum
+// Stashcat-Push-Server. Schuetzt davor, Stashcat mit zu vielen parallelen
+// Sockets zu provozieren (was am 22.05 das Event-Routing gestoppt hat).
+// Per env konfigurierbar; konservativer Default. Achtung: bei wirklich
+// vielen gleichzeitigen Push-Usern (Ziel: ~4000) ist das Ein-Prozess-haelt-
+// alle-Connections-Modell ohnehin nicht tragfaehig — siehe Architektur-Notiz.
+const MAX_REALTIME_CONNECTIONS = Number(process.env.MAX_REALTIME_CONNECTIONS || 800);
+// Pacing zwischen Boot-Restore-Connects — bewusst langsam, um keinen
+// Connection-Sturm gegen Stashcat zu fahren.
+const BOOT_CONNECT_PACING_MS = Number(process.env.BOOT_CONNECT_PACING_MS || 750);
+
+// Canary-Probe: bei globaler Stille EINE Verbindung per getMe testen, um
+// "REST lebt, aber Socket bekommt nichts" (Ban/primary-device) von
+// "Session tot" (→ reconnect) zu unterscheiden. NICHT pro Connection proben —
+// das skaliert bei 4000 Usern nicht (4000 getMe alle paar Minuten wuerde
+// selbst ein Rate-Limit triggern).
+const CANARY_PROBE_TIMEOUT_MS = 10_000;
+let lastCanaryProbeAt = 0;
+const CANARY_PROBE_MIN_INTERVAL_MS = 5 * 60_000;
+
+async function canaryProbe(): Promise<void> {
   const now = Date.now();
-  if (conn.lastProbeAt && now - conn.lastProbeAt < REALTIME_PROBE_MIN_INTERVAL_MS) return;
-  conn.lastProbeAt = now;
+  if (now - lastCanaryProbeAt < CANARY_PROBE_MIN_INTERVAL_MS) return;
+  lastCanaryProbeAt = now;
+  // Erste Connection mit lebendem Client als Canary nehmen.
+  const conn = [...activeSSE.values()].find((c) => c.realtime);
+  if (!conn) return;
   try {
-    const result = await Promise.race([
+    await Promise.race([
       conn.client.getMe(),
-      new Promise<never>((_, rej) => setTimeout(() => rej(new Error('probe timeout')), REALTIME_PROBE_TIMEOUT_MS)),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error('probe timeout')), CANARY_PROBE_TIMEOUT_MS)),
     ]);
-    if (result) {
-      // Erfolg = Session lebt. lastEventAt updaten, damit der Health-Loop
-      // diese Conn nicht als stale markiert wenn der User wirklich nichts
-      // schreibt.
-      conn.lastEventAt = Date.now();
-    }
+    // REST lebt, aber keine Socket-Events → Stashcat liefert nichts, obwohl
+    // die Session gueltig ist. Das ist KEIN totes-Socket-Problem, sondern
+    // hoechstwahrscheinlich Drosselung/primary-device. Reconnecten wuerde
+    // nicht helfen und nur weitere Connection-Last erzeugen.
+    serverLog('[Health] WARN: REST alive but no realtime events — likely Stashcat throttling/ban or another primary device. NOT reconnecting (would worsen connection pressure).');
   } catch (err) {
-    serverLog(`[Health] Probe failed for clientKey ${clientKey.slice(0, 8)} — forcing realtime reconnect:`, errorMessage(err));
-    // Disconnect → unser disconnect-Handler entscheidet, ob ein Reconnect
-    // sinnvoll ist (SSE-Clients oder Push-Tokens vorhanden).
-    try { conn.realtime?.disconnect(); } catch { /* noop */ }
+    serverLog('[Health] Canary probe failed (REST unreachable) — sessions likely dead:', errorMessage(err));
   }
 }
 
-// Wir importieren SSEConnection-Typ nicht hier hoch — definieren stattdessen
-// eine schmale Sicht auf die Felder, die wir brauchen.
-interface SSEConnectionLike {
-  client: StashcatClient;
-  realtime?: { disconnect: () => void };
-  lastEventAt?: number;
-  lastProbeAt?: number;
-}
-
-// Periodisches Health-Log + aktive Liveness-Probes (alle 60 s).
+// Periodisches Health-Log + globale Event-Stille-Erkennung (alle 60 s).
 setInterval(() => {
   const now = Date.now();
   let total = 0;
   let withSse = 0;
   let pushOnly = 0;
   let realtimeAlive = 0;
-  for (const [clientKey, conn] of activeSSE) {
+  for (const conn of activeSSE.values()) {
     total += 1;
     if (conn.sseClients.size > 0) withSse += 1;
     else pushOnly += 1;
     if (conn.realtime) realtimeAlive += 1;
-
-    // Stale-Detection: wenn lange kein Event reinkam, einen aktiven Probe
-    // anstossen. Der Probe selbst aktualisiert lastEventAt bei Erfolg, oder
-    // forciert einen Reconnect bei Fehler.
-    if (conn.realtime && conn.lastEventAt && now - conn.lastEventAt > REALTIME_STALE_AFTER_MS) {
-      void probeRealtime(clientKey, conn as unknown as SSEConnectionLike);
-    }
   }
+
+  const silenceMs = now - lastRealtimeEventAt;
   if (total > 0) {
-    serverLog(`[Health] activeSSE=${total} (sse=${withSse}, push-only=${pushOnly}, realtime-alive=${realtimeAlive})`);
+    const lastEvtAge = Math.round(silenceMs / 1000);
+    serverLog(`[Health] activeSSE=${total} (sse=${withSse}, push-only=${pushOnly}, realtime-alive=${realtimeAlive}) lastEvent=${lastEvtAge}s ago`);
+  }
+
+  // Fix A — globale Event-Stille: aktive Connections, aber lange kein Event?
+  // Das ist der Indikator, der uns die letzten Tage gefehlt hat. WARN +
+  // Canary-Probe (max alle 5 Min), um Ban/Drosselung von toten Sessions zu
+  // unterscheiden. Wir reconnecten NICHT automatisch — bei einer Drosselung
+  // wuerde das die Connection-Last nur erhoehen und den Ban verlaengern.
+  if (realtimeAlive > 0 && silenceMs > EVENT_SILENCE_WARN_MS) {
+    if (now - lastSilenceWarnAt > EVENT_SILENCE_WARN_MS) {
+      lastSilenceWarnAt = now;
+      serverLog(`[Health] WARN: ${realtimeAlive} realtime connection(s) active but NO Stashcat event for ${Math.round(silenceMs/60000)} min. Investigating via canary probe…`);
+    }
+    void canaryProbe();
   }
 
   // Lock-Inheritance: wenn wir beim Boot den Restore-Pass uebersprungen
@@ -209,6 +235,27 @@ function shouldPushOnce(userId: string, msgId: string | undefined): boolean {
 async function connectRealtime(client: StashcatClient, clientKey: string) {
   serverLog(`[Realtime] Connecting for clientKey ${clientKey.slice(0, 8)}…`);
 
+  const conn = activeSSE.get(clientKey);
+  if (!conn) {
+    serverLog(`[Realtime] No SSE entry for ${clientKey.slice(0, 8)} — skipping connect.`);
+    return;
+  }
+
+  // Fix B — Connection-Budget: globale Obergrenze gleichzeitiger Realtime-
+  // Verbindungen. Genau die Connection-Flut (30-50 parallele Sockets durch
+  // Worker-Rotation) hat am 22.05 das Stashcat-Event-Routing gestoppt. Wenn
+  // diese Session noch keine eigene Realtime hat und das Budget voll ist,
+  // verbinden wir NICHT — die Session bleibt im activeSSE registriert und
+  // kann beim naechsten freien Slot nachziehen.
+  if (!conn.realtime) {
+    let aliveCount = 0;
+    for (const c of activeSSE.values()) if (c.realtime) aliveCount++;
+    if (aliveCount >= MAX_REALTIME_CONNECTIONS) {
+      serverLog(`[Realtime] Connection budget reached (${aliveCount}/${MAX_REALTIME_CONNECTIONS}) — deferring realtime for ${clientKey.slice(0, 8)}.`);
+      return;
+    }
+  }
+
   // `reconnect: false` — wir verwalten Reconnects ausschliesslich in unserem
   // disconnect-Handler. Socket.io-internes Auto-Reconnect plus unser eigenes
   // wuerden bei jedem Drop parallel zwei RealtimeManager am Leben halten und
@@ -221,9 +268,9 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
     return;
   }
 
-  const conn = activeSSE.get(clientKey);
-  if (!conn) {
-    serverLog(`[Realtime] No SSE connection found, disconnecting RealtimeManager`);
+  // conn koennte zwischen await und jetzt verschwunden sein (logout/cleanup).
+  if (activeSSE.get(clientKey) !== conn) {
+    serverLog(`[Realtime] SSE entry for ${clientKey.slice(0, 8)} gone/replaced during connect — disconnecting RealtimeManager`);
     try { rt.disconnect(); } catch { /* noop */ }
     return;
   }
@@ -252,6 +299,7 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
   // Nachricht ist verschwunden" anfuehlt.
 
   rt.on('message_sync', async (data: MessageSyncPayload) => {
+    markRealtimeEvent();
     serverLog(`[Realtime] Received message_sync:`, {
       channel_id: data.channel_id,
       conversation_id: data.conversation_id,
@@ -321,6 +369,7 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
   // Incoming messages from others arrive as 'notification', not 'message_sync'.
   // 'message_sync' is only the sender's echo. Payload: { message: MessageSyncPayload }
   rt.on('notification', async (data: unknown) => {
+    markRealtimeEvent();
     const raw = data as Record<string, unknown>;
     const msg = raw.message as MessageSyncPayload | undefined;
     if (!msg) {
@@ -380,10 +429,12 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
   });
 
   rt.on('user-started-typing', (chatType: string, chatId: number, userId: number) => {
+    markRealtimeEvent();
     pushSSE(clientKey, 'typing', { chatType, chatId, userId });
   });
 
   rt.on('key_sync_request', (data: unknown) => {
+    markRealtimeEvent();
     serverLog(`[Realtime] Received key_sync_request:`, JSON.stringify(data).slice(0, 300));
     pushSSE(clientKey, 'key_sync_request', data);
   });
@@ -391,23 +442,29 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
   rt.on('online_status_change', (data: unknown) => {
     // Bewusst kein serverLog hier — Stashcat fan-outet diese Events an JEDE
     // aktive Connection mit dem User als Kontakt, das sind pro Status-Change
-    // schnell 20+ Logzeilen. Forwarden tun wir trotzdem, damit der Browser
-    // die Verfuegbarkeits-Dots aktualisieren kann.
+    // schnell 20+ Logzeilen. Aber markRealtimeEvent() rufen wir trotzdem:
+    // online_status_change ist unser bester Liveness-Indikator (kommt bei
+    // gesunden Verbindungen regelmaessig). Forwarding fuer die Verfuegbarkeits-
+    // Dots im Browser laeuft ebenfalls weiter.
+    markRealtimeEvent();
     pushSSE(clientKey, 'online_status_change', data);
   });
 
   rt.on('call_created', (data: unknown) => {
+    markRealtimeEvent();
     serverLog(`[Realtime] call_created for clientKey ${clientKey.slice(0, 8)}`);
     pushSSE(clientKey, 'call_created', data);
   });
 
   rt.on('signal', (data: unknown) => {
+    markRealtimeEvent();
     const sig = data as Record<string, unknown>;
     serverLog(`[Realtime] signal (${sig?.signalType}) for clientKey ${clientKey.slice(0, 8)}`);
     pushSSE(clientKey, 'call_signal', data);
   });
 
   rt.on('object_change', (data: unknown) => {
+    markRealtimeEvent();
     const change = data as { type?: string };
     if (change?.type === 'call') {
       serverLog(`[Realtime] object_change (call) for clientKey ${clientKey.slice(0, 8)}`);
@@ -480,20 +537,13 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
   });
 
   // ── Diagnostik-Logger fuer alle eingehenden Events ───────────────────────
-  //
-  // Doppelfunktion: ausser dem Log-Output aktualisieren wir hier `lastEventAt`
-  // pro Connection. Das ist der Anker fuer die Liveness-Detection — wenn
-  // dieser Timestamp lange nicht mehr aktualisiert wurde, gilt die Realtime
-  // als stale und wird vom Health-Loop neu aufgebaut.
+  // onAny feuert in der aktuellen stashcat-api-Version praktisch nie (siehe
+  // Logs), aber falls doch: jedes Event zaehlt als globales Lebenszeichen.
   const sockAny = (rt as unknown as { socket?: { onAny?: (cb: (event: string, ...args: unknown[]) => void) => void } }).socket;
   if (sockAny && typeof sockAny.onAny === 'function') {
     sockAny.onAny((event: string, ...args: unknown[]) => {
-      // Jeder Event (auch ping/pong) zaehlt als Lebenszeichen — Socket.io
-      // hebt das nicht raus, also nehmen wir alles ausser unseren eigenen
-      // synthetischen Markern.
-      const c = activeSSE.get(clientKey);
-      if (c) c.lastEventAt = Date.now();
       if (event === 'connect' || event === 'disconnect' || event === 'ping' || event === 'pong') return;
+      markRealtimeEvent();
       const preview = JSON.stringify(args).slice(0, 400);
       serverLog(`[Realtime] 📡 ${clientKey.slice(0, 8)} "${event}" ${preview}`);
     });
@@ -541,7 +591,7 @@ async function connectRealtime(client: StashcatClient, clientKey: string) {
   }
 
   serverLog(`[Realtime] RealtimeManager fully connected for clientKey ${clientKey.slice(0, 8)}`);
-  conn.lastEventAt = Date.now();
+  markRealtimeEvent(); // erfolgreicher Connect zaehlt als Lebenszeichen
 
   // ── Post-Connect: stashcatUserId cachen + Bot-Cache vorwaermen ───────────
   // stashcatUserId ist die Achse fuer Push-Token-Routing. Bot-Cache muss
@@ -1410,7 +1460,7 @@ async function restoreRealtimeForBoot(): Promise<void> {
       });
       // Sanftes Pacing — Stashcat-Server nicht mit gleichzeitigen Connects
       // beballern, falls viele Mobile-Sessions persistiert sind.
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, BOOT_CONNECT_PACING_MS));
     } catch (err) {
       serverLog(`[Boot] getClient failed for clientKey ${clientKey.slice(0, 8)} — Session abgelaufen?`, errorMessage(err));
     }

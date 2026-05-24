@@ -54,19 +54,6 @@ export interface SSEConnection {
    * Mobile-App) registriert wurden.
    */
   stashcatUserId?: string;
-  /**
-   * Timestamp (ms) des letzten reinkommenden Realtime-Events ODER des letzten
-   * erfolgreichen aktiven Liveness-Probes. Wird genutzt, um stille TCP-Drops
-   * zu erkennen — Socket.io feuert manchmal kein `disconnect`, wenn die
-   * Verbindung zwar formal steht, aber keine Pakete mehr durchgehen.
-   */
-  lastEventAt?: number;
-  /**
-   * Timestamp (ms) des letzten aktiven Liveness-Probes (REST-getMe). Verhindert,
-   * dass mehrere Probes gleichzeitig laufen und wir bei Idle-Sessions zu oft
-   * gegen den Stashcat-Server pollen.
-   */
-  lastProbeAt?: number;
 }
 /** keyed by clientKey */
 export const activeSSE = new Map<string, SSEConnection>();
