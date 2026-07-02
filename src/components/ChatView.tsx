@@ -15,6 +15,7 @@ import { SystemMessage } from './chat/SystemMessage';
 import { ReplyQuote } from './chat/ReplyQuote';
 import { HighlightedText, LinkifiedText } from './chat/textRendering';
 import { VideoMeetingCard, isVideoMeetingMessage } from './chat/VideoMeetingCard';
+import { VideoMeetingOverlay } from './chat/VideoMeetingOverlay';
 import { PollInviteMessage, isPollInviteMessage } from './chat/PollInviteMessage';
 import { CalendarEventCard, isCalendarEventMessage } from './chat/CalendarEventCard';
 import { FileList } from './chat/FileList';
@@ -338,6 +339,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   const [imageEditorOpen, setImageEditorOpen] = useState(false);
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const [meetingLoading, setMeetingLoading] = useState(false);
+  const [meetingError, setMeetingError] = useState<string | null>(null);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [muteMenuOpen, setMuteMenuOpen] = useState(false);
 
@@ -513,6 +515,48 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
       dispatchMessages({ type: 'load-failure' });
     }
   }, [chat.id, chat.type]);
+
+  // Videokonferenz starten: zeigt ein In-App-Overlay (statt eines separaten
+  // Warte-Fensters) und schliesst dieses automatisch, sobald der Einladungslink
+  // im Chat gepostet wurde. Der Moderatorenlink wird nach Erhalt geoeffnet
+  // (mobil via Bridge, sonst in neuem Tab; in BBZ Cloud 2 faengt der Electron-
+  // Wrapper die stash.cat/l-URL ab und oeffnet sie extern).
+  const startMeeting = useCallback(async () => {
+    if (meetingLoading) return;
+    setMeetingError(null);
+    setMeetingLoading(true);
+    const mobile = isMobileBridge();
+    try {
+      // Client-seitiger Timeout als Sicherheitsnetz — der Server pollt bis zu
+      // ~30s und liefert dann selbst einen 504-Fehler; dies faengt zusaetzlich
+      // haengende Verbindungen ab.
+      const result = await Promise.race([
+        api.startVideoMeeting(chat.id, chat.type),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error('Zeitüberschreitung: Die Videokonferenz konnte nicht rechtzeitig gestartet werden.')),
+            45000,
+          ),
+        ),
+      ]);
+      const tabLink = result.moderatorLink ?? result.inviteLink;
+      if (tabLink) {
+        if (mobile) bridge.jitsi(tabLink);
+        else window.open(tabLink, '_blank', 'noopener,noreferrer');
+      }
+      if (result.inviteLink) {
+        const now = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        const text = `📹 Videokonferenz gestartet um ${now} Uhr\nJetzt beitreten: ${result.inviteLink}`;
+        await api.sendMessage(chat.id, chat.type, text);
+        await loadMessages();
+      }
+      // Erfolg: Link ist gepostet / Konferenz laeuft → Overlay schliessen.
+      setMeetingLoading(false);
+    } catch (err) {
+      setMeetingLoading(false);
+      setMeetingError(err instanceof Error ? err.message : 'Videokonferenz konnte nicht erstellt werden');
+    }
+  }, [meetingLoading, chat.id, chat.type, loadMessages]);
 
   const loadOlder = useCallback(async () => {
     if (loadingMoreRef.current || !hasMoreRef.current) return;
@@ -1340,6 +1384,13 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
           </div>
         </div>
       )}
+      {(meetingLoading || meetingError) && (
+        <VideoMeetingOverlay
+          state={meetingError ? { status: 'error', message: meetingError } : { status: 'loading' }}
+          onRetry={startMeeting}
+          onClose={() => setMeetingError(null)}
+        />
+      )}
       {/* Header */}
       <div className="app-bar bridge-sticky-top relative flex shrink-0 items-center gap-3 overflow-visible border-b border-surface-200 px-4 py-3 sm:px-6 dark:border-surface-700">
         {/* Mobile: Back button */}
@@ -1485,39 +1536,7 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
         <div className="hidden md:flex md:items-center md:gap-1 portrait-tablet:!hidden">
           {/* Video meeting button */}
           <button
-            onClick={async () => {
-              if (meetingLoading) return;
-              setMeetingLoading(true);
-              const mobile = isMobileBridge();
-              const moderatorTab = mobile ? null : window.open('', '_blank');
-              if (moderatorTab) {
-                moderatorTab.document.write(`<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>Videokonferenz wird geladen…</title><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#1e293b;font-family:system-ui,sans-serif;color:#e2e8f0}.card{text-align:center;padding:2.5rem 3rem;background:#0f172a;border-radius:1.5rem;border:1px solid #334155;box-shadow:0 25px 50px #0006}.spinner{width:48px;height:48px;border:4px solid #334155;border-top-color:#6366f1;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1.5rem}.emoji{font-size:3rem;margin-bottom:1rem}h1{font-size:1.25rem;font-weight:600;color:#f1f5f9;margin-bottom:.5rem}p{font-size:.9rem;color:#94a3b8}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="card"><div class="emoji">📹</div><div class="spinner"></div><h1>Videokonferenz wird geladen…</h1><p>Bitte einen Moment warten.</p></div></body></html>`);
-                moderatorTab.document.close();
-              }
-              try {
-                const result = await api.startVideoMeeting(chat.id, chat.type);
-                const tabLink = result.moderatorLink ?? result.inviteLink;
-                if (mobile && tabLink) {
-                  bridge.jitsi(tabLink);
-                } else if (tabLink && moderatorTab) {
-                  moderatorTab.location.href = tabLink;
-                } else if (moderatorTab) {
-                  moderatorTab.close();
-                }
-                if (result.inviteLink) {
-                  const now = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-                  const text = `📹 Videokonferenz gestartet um ${now} Uhr\nJetzt beitreten: ${result.inviteLink}`;
-                  await api.sendMessage(chat.id, chat.type, text);
-                  await loadMessages();
-                }
-              } catch (err) {
-                moderatorTab?.close();
-                console.error('Failed to start meeting:', err);
-                alert(err instanceof Error ? err.message : 'Videokonferenz konnte nicht erstellt werden');
-              } finally {
-                setMeetingLoading(false);
-              }
-            }}
+            onClick={startMeeting}
             disabled={meetingLoading}
             className={clsx(
               'touch-target inline-flex items-center justify-center rounded-lg p-2 transition',
@@ -1777,35 +1796,12 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
               )}
               {/* Video meeting */}
               <button
-                onClick={async () => {
+                onClick={() => {
                   setMobileMenuOpen(false);
-                  if (meetingLoading) return;
-                  setMeetingLoading(true);
-                  const mobile = isMobileBridge();
-                  const moderatorTab = mobile ? null : window.open('', '_blank');
-                  if (moderatorTab) {
-                    moderatorTab.document.write(`<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>Videokonferenz wird geladen…</title><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#1e293b;font-family:system-ui,sans-serif;color:#e2e8f0}.card{text-align:center;padding:2.5rem 3rem;background:#0f172a;border-radius:1.5rem;border:1px solid #334155;box-shadow:0 25px 50px #0006}.spinner{width:48px;height:48px;border:4px solid #334155;border-top-color:#6366f1;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1.5rem}.emoji{font-size:3rem;margin-bottom:1rem}h1{font-size:1.25rem;font-weight:600;color:#f1f5f9;margin-bottom:.5rem}p{font-size:.9rem;color:#94a3b8}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div class="card"><div class="emoji">📹</div><div class="spinner"></div><h1>Videokonferenz wird geladen…</h1><p>Bitte einen Moment warten.</p></div></body></html>`);
-                    moderatorTab.document.close();
-                  }
-                  try {
-                    const result = await api.startVideoMeeting(chat.id, chat.type);
-                    const tabLink = result.moderatorLink ?? result.inviteLink;
-                    if (mobile && tabLink) bridge.jitsi(tabLink);
-                    else if (tabLink && moderatorTab) moderatorTab.location.href = tabLink;
-                    else if (moderatorTab) moderatorTab.close();
-                    if (result.inviteLink) {
-                      const now = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-                      await api.sendMessage(chat.id, chat.type, `📹 Videokonferenz gestartet um ${now} Uhr\nJetzt beitreten: ${result.inviteLink}`);
-                      await loadMessages();
-                    }
-                  } catch (err) {
-                    moderatorTab?.close();
-                    alert(err instanceof Error ? err.message : 'Fehler');
-                  } finally {
-                    setMeetingLoading(false);
-                  }
+                  void startMeeting();
                 }}
-                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
+                disabled={meetingLoading}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-surface-700 transition hover:bg-surface-100 disabled:opacity-60 dark:text-surface-200 dark:hover:bg-surface-700"
               >
                 <TvMinimalPlay size={18} className="text-surface-400" />
                 Videokonferenz starten
