@@ -115,6 +115,7 @@ export {
   deleteFile,
   deleteFiles,
   deleteFolder,
+  renameFolder,
   renameFile,
   moveFile,
   createFolder,

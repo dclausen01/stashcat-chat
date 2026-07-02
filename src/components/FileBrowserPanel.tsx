@@ -237,9 +237,30 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
     }
   };
 
-  const startRename = (f: FileEntry) => {
+  const startRename = (f: { id: string; name: string }) => {
     setRenamingId(f.id);
     setRenameValue(f.name);
+  };
+
+  const commitRenameFolder = async (f: FolderEntry) => {
+    const newName = renameValue.trim();
+    setRenamingId(null);
+    if (!newName || newName === f.name) return;
+    try {
+      if (tab === 'nextcloud') {
+        // WebDAV MOVE renames a collection just like a file.
+        await api.ncRename(f.id, newName);
+        const parent = f.id.substring(0, f.id.lastIndexOf('/')) || '/';
+        const newPath = parent.replace(/\/$/, '') + '/' + newName;
+        setFolders((prev) => prev.map((x) => x.id === f.id ? { ...x, id: newPath, name: newName } : x));
+      } else {
+        // Stashcat storage (context/personal): POST /folder/rename (folder_id + name).
+        await api.renameFolder(f.id, newName);
+        setFolders((prev) => prev.map((x) => x.id === f.id ? { ...x, name: newName } : x));
+      }
+    } catch (err) {
+      alert(`Fehler: ${err instanceof Error ? err.message : err}`);
+    }
   };
 
   const commitRename = async (f: FileEntry) => {
@@ -596,10 +617,13 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
     onRename: startRename,
     onDelete: handleDelete,
     onDeleteFolder: handleDeleteFolder,
+    onRenameFolder: startRename,
     renamingId,
     renameValue,
     setRenameValue,
     commitRename,
+    commitRenameFolder,
+    canRenameFolder: true,
     onDragFileStart: setDragFileId,
     onDragFileEnd: () => setDragFileId(null),
     onDropOnFolder: handleMoveToFolder,

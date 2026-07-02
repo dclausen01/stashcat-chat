@@ -142,6 +142,22 @@ router.post('/folder/delete', async (req, res) => {
   }
 });
 
+router.post('/folder/rename', async (req, res) => {
+  try {
+    const client = req.client!;
+    const { folderId, name } = req.body as { folderId: string; name: string };
+    if (!folderId || !name?.trim()) {
+      return res.status(400).json({ error: 'folderId and name required' });
+    }
+    // Stashcat exposes no wrapper for this; call the raw API like the search route.
+    const data = client.api.createAuthenticatedRequestData({ folder_id: String(folderId), name: name.trim() });
+    await client.api.post('/folder/rename', data);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err, 'Failed to rename folder') });
+  }
+});
+
 router.post('/files/delete', async (req, res) => {
   try {
     const client = req.client!;

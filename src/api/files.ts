@@ -65,6 +65,10 @@ export async function deleteFolder(folderId: string): Promise<void> {
   return post('/folder/delete', { folderId });
 }
 
+export async function renameFolder(folderId: string, name: string): Promise<void> {
+  return post('/folder/rename', { folderId, name });
+}
+
 export async function renameFile(fileId: string, name: string): Promise<void> {
   return patch(`/files/${fileId}`, { name });
 }

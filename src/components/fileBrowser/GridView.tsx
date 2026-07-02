@@ -5,14 +5,17 @@ import { fileIcon } from '../../utils/fileIcon';
 import { canPreview } from './helpers';
 import type { ViewProps } from './types';
 
-export function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, selectedIds, onToggleSelect, buildDownloadUrl, buildViewUrl, onShare, onOnlyOfficeClick }: ViewProps) {
+export function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, onRenameFolder, renamingId, renameValue, setRenameValue, commitRename, commitRenameFolder, canRenameFolder, onDragFileStart, onDragFileEnd, onDropOnFolder, selectedIds, onToggleSelect, buildDownloadUrl, buildViewUrl, onShare, onOnlyOfficeClick }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   return (
     <div className="grid grid-cols-3 gap-2 p-3">
-      {folders.map((f) => (
+      {folders.map((f) => {
+        const isRenamingFolder = renamingId === f.id;
+        const canRename = canRenameFolder && onRenameFolder && commitRenameFolder;
+        return (
         <div
           key={f.id}
-          onClick={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); onToggleSelect(f.id); } else { onFolderClick(f); } }}
+          onClick={(e) => { if (isRenamingFolder) return; if (e.ctrlKey || e.metaKey) { e.preventDefault(); onToggleSelect(f.id); } else { onFolderClick(f); } }}
           onDragOver={(e) => { e.preventDefault(); setDropTargetId(f.id); }}
           onDragLeave={() => setDropTargetId(null)}
           onDrop={(e) => {
@@ -44,18 +47,49 @@ export function GridView({ folders, files, onFolderClick, onFileOpen, onRename, 
             {selectedIds.has(f.id) ? <Check size={12} /> : <Square size={12} />}
           </button>
           <Folder size={40} className="text-amber-400" fill="currentColor" />
-          <span className="w-full truncate text-center text-xs text-surface-700 dark:text-surface-400">{f.name}</span>
-          {onDeleteFolder && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onDeleteFolder(f); }}
-              className="absolute right-1 top-1 rounded-full p-1 text-surface-500 opacity-0 transition hover:bg-red-100 hover:text-red-500 group-hover:opacity-100 dark:hover:bg-red-900/30"
-              title="Ordner löschen"
+          {isRenamingFolder ? (
+            <input
+              autoFocus
+              value={renameValue}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitRenameFolder!(f); if (e.key === 'Escape') commitRenameFolder!({ ...f, name: f.name }); }}
+              className="w-full rounded border border-primary-400 bg-white px-1.5 py-0.5 text-center text-xs text-surface-900 outline-none dark:bg-surface-700 dark:text-surface-100"
+            />
+          ) : (
+            <span
+              className="w-full truncate text-center text-xs text-surface-700 dark:text-surface-400"
+              onDoubleClick={canRename ? (e) => { e.stopPropagation(); onRenameFolder!(f); } : undefined}
+              title={canRename ? `${f.name} — Doppelklick zum Umbenennen` : f.name}
             >
-              <Trash2 size={14} />
-            </button>
+              {f.name}
+            </span>
+          )}
+          {!isRenamingFolder && (canRename || onDeleteFolder) && (
+            <div className="absolute right-1 top-1 flex items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
+              {canRename && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onRenameFolder!(f); }}
+                  className="rounded-full p-1 text-surface-500 transition hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
+                  title="Ordner umbenennen"
+                >
+                  <Pencil size={14} />
+                </button>
+              )}
+              {onDeleteFolder && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDeleteFolder(f); }}
+                  className="rounded-full p-1 text-surface-500 transition hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-900/30"
+                  title="Ordner löschen"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
           )}
         </div>
-      ))}
+        );
+      })}
       {files.map((f) => {
         const isImage = f.mime?.startsWith('image/');
         const downloadUrl = buildDownloadUrl(f);

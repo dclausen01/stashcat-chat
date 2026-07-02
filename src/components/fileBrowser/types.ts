@@ -34,10 +34,14 @@ export interface ViewProps {
   onRename: (f: FileEntry) => void;
   onDelete: (f: FileEntry) => void;
   onDeleteFolder?: (f: FolderEntry) => void;
+  onRenameFolder?: (f: FolderEntry) => void;
   renamingId: string | null;
   renameValue: string;
   setRenameValue: (v: string) => void;
   commitRename: (f: FileEntry) => void;
+  commitRenameFolder?: (f: FolderEntry) => void;
+  /** Whether folder renaming is supported for the current storage backend. */
+  canRenameFolder?: boolean;
   onDragFileStart?: (fileId: string) => void;
   onDragFileEnd?: () => void;
   onDropOnFolder?: (fileId: string, folderId: string) => void;
