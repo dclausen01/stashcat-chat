@@ -6,7 +6,7 @@ import type { SortField } from '../../hooks/useFileSorting';
 import { formatDate, canPreview } from './helpers';
 import type { ViewProps } from './types';
 
-export function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, renamingId, renameValue, setRenameValue, commitRename, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort, selectedIds, onToggleSelect, onSelectAll, buildDownloadUrl, buildViewUrl, onShare, onOnlyOfficeClick }: ViewProps) {
+export function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, onRenameFolder, renamingId, renameValue, setRenameValue, commitRename, commitRenameFolder, canRenameFolder, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort, selectedIds, onToggleSelect, onSelectAll, buildDownloadUrl, buildViewUrl, onShare, onOnlyOfficeClick }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   function SortHeader({ field, label, className = '' }: { field: SortField; label: string; className?: string }) {
@@ -58,10 +58,13 @@ export function ListView({ folders, files, onFolderClick, onFileOpen, onRename, 
       </div>
 
       <div className="flex flex-col divide-y divide-surface-100 px-1 dark:divide-surface-800">
-        {folders.map((f) => (
+        {folders.map((f) => {
+          const isRenamingFolder = renamingId === f.id;
+          const canRename = canRenameFolder && onRenameFolder && commitRenameFolder;
+          return (
           <div
             key={f.id}
-            onClick={(e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); onToggleSelect(f.id); } else { onFolderClick(f); } }}
+            onClick={(e) => { if (isRenamingFolder) return; if (e.ctrlKey || e.metaKey) { e.preventDefault(); onToggleSelect(f.id); } else { onFolderClick(f); } }}
             onDragOver={(e) => { e.preventDefault(); setDropTargetId(f.id); }}
             onDragLeave={() => setDropTargetId(null)}
             onDrop={(e) => {
@@ -96,22 +99,55 @@ export function ListView({ folders, files, onFolderClick, onFileOpen, onRename, 
             <div className="w-8 shrink-0 flex justify-center">
               <Folder size={18} className="text-amber-400" fill="currentColor" />
             </div>
-            <span className="min-w-0 flex-1 truncate text-left text-sm text-surface-800 dark:text-surface-200 px-2">{f.name}</span>
+            <div className="min-w-0 flex-1 px-2">
+              {isRenamingFolder ? (
+                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    autoFocus
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitRenameFolder!(f); if (e.key === 'Escape') commitRenameFolder!({ ...f, name: f.name }); }}
+                    className="min-w-0 flex-1 rounded border border-primary-400 bg-white px-2 py-0.5 text-sm text-surface-900 outline-none dark:bg-surface-700 dark:text-surface-100"
+                  />
+                  <button onClick={() => commitRenameFolder!(f)} className="shrink-0 text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"><Check size={13} /></button>
+                </div>
+              ) : (
+                <span
+                  className="block truncate text-left text-sm text-surface-800 dark:text-surface-200"
+                  onDoubleClick={canRename ? (e) => { e.stopPropagation(); onRenameFolder!(f); } : undefined}
+                  title={canRename ? `${f.name} — Doppelklick zum Umbenennen` : f.name}
+                >
+                  {f.name}
+                </span>
+              )}
+            </div>
             <span className="w-16 shrink-0 text-right text-xs text-surface-500" />
             <span className="w-20 shrink-0 text-right text-xs text-surface-500 pl-2">{formatDate(f.created)}</span>
-            {onDeleteFolder && (
+            {(onDeleteFolder || canRename) && !isRenamingFolder && (
               <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden items-center gap-0.5 rounded-md bg-surface-100/95 px-1 shadow-sm backdrop-blur-sm group-hover:flex dark:bg-surface-800/95">
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDeleteFolder(f); }}
-                  className="rounded-full p-1 text-surface-500 transition hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-900/30"
-                  title="Ordner löschen"
-                >
-                  <Trash2 size={14} />
-                </button>
+                {canRename && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onRenameFolder!(f); }}
+                    className="rounded-full p-1 text-surface-500 transition hover:bg-surface-200 hover:text-surface-600 dark:hover:bg-surface-700"
+                    title="Ordner umbenennen"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
+                {onDeleteFolder && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDeleteFolder(f); }}
+                    className="rounded-full p-1 text-surface-500 transition hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-900/30"
+                    title="Ordner löschen"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
         {files.map((f) => {
           const isImage = f.mime?.startsWith('image/');
           const downloadUrl = buildDownloadUrl(f);
