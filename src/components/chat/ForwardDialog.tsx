@@ -10,6 +10,7 @@ export function ForwardDialog({ message, onClose }: { message: Message; onClose:
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [forwarding, setForwarding] = useState<string | null>(null);
+  const [pendingTarget, setPendingTarget] = useState<{ id: string; name: string; type: 'channel' | 'conversation'; image?: string } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -83,45 +84,81 @@ export function ForwardDialog({ message, onClose }: { message: Message; onClose:
           </div>
         )}
 
-        <div className="px-5 pt-3">
-          <div className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
-            <Search size={14} className="shrink-0 text-surface-600" />
-            <input
-              type="text"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder="Channel oder Konversation suchen..."
-              autoFocus
-              className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:text-white"
-            />
-          </div>
-        </div>
-
-        <div className="max-h-64 overflow-y-auto px-3 py-2">
-          {loading ? (
-            <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-primary-400" /></div>
-          ) : filtered.length === 0 ? (
-            <p className="py-4 text-center text-xs text-surface-600">Keine Ziele gefunden</p>
-          ) : (
-            filtered.map((t) => (
+        {pendingTarget ? (
+          <div className="flex flex-col gap-4 px-5 py-5">
+            <div className="flex items-center gap-3 rounded-lg bg-surface-50 px-3 py-3 dark:bg-surface-800">
+              {pendingTarget.type === 'channel' ? (
+                pendingTarget.image ? <Avatar name={pendingTarget.name} image={pendingTarget.image} size="xs" /> : <Hash size={16} className="shrink-0 text-surface-600" />
+              ) : (
+                <Avatar name={pendingTarget.name} size="xs" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-surface-900 dark:text-white">{pendingTarget.name}</p>
+                <p className="text-[10px] uppercase text-surface-600">{pendingTarget.type === 'channel' ? 'Channel' : 'Chat'}</p>
+              </div>
+            </div>
+            <p className="text-sm text-surface-700 dark:text-surface-300">
+              Nachricht an <span className="font-semibold">{pendingTarget.name}</span> weiterleiten?
+            </p>
+            <div className="flex justify-end gap-2">
               <button
-                key={`${t.type}-${t.id}`}
-                onClick={() => handleForward(t)}
-                disabled={forwarding === t.id}
-                className="flex w-full items-center gap-2 rounded-lg px-2 py-2 hover:bg-surface-200 disabled:opacity-50 dark:hover:bg-surface-800"
+                onClick={() => setPendingTarget(null)}
+                disabled={forwarding !== null}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-surface-700 hover:bg-surface-200 disabled:opacity-50 dark:text-surface-300 dark:hover:bg-surface-800"
               >
-                {t.type === 'channel' ? (
-                  t.image ? <Avatar name={t.name} image={t.image} size="xs" /> : <Hash size={14} className="shrink-0 text-surface-600" />
-                ) : (
-                  <Avatar name={t.name} size="xs" />
-                )}
-                <span className="min-w-0 flex-1 truncate text-left text-sm text-surface-800 dark:text-surface-200">{t.name}</span>
-                <span className="shrink-0 text-[10px] uppercase text-surface-600">{t.type === 'channel' ? 'Channel' : 'Chat'}</span>
-                {forwarding === t.id && <Loader2 size={14} className="shrink-0 animate-spin text-primary-400" />}
+                Abbrechen
               </button>
-            ))
-          )}
-        </div>
+              <button
+                onClick={() => handleForward(pendingTarget)}
+                disabled={forwarding !== null}
+                className="flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50"
+              >
+                {forwarding !== null && <Loader2 size={14} className="animate-spin" />}
+                Weiterleiten
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="px-5 pt-3">
+              <div className="flex items-center gap-2 rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
+                <Search size={14} className="shrink-0 text-surface-600" />
+                <input
+                  type="text"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="Channel oder Konversation suchen..."
+                  autoFocus
+                  className="w-full bg-transparent text-sm text-surface-900 outline-none placeholder:text-surface-600 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="max-h-64 overflow-y-auto px-3 py-2">
+              {loading ? (
+                <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-primary-400" /></div>
+              ) : filtered.length === 0 ? (
+                <p className="py-4 text-center text-xs text-surface-600">Keine Ziele gefunden</p>
+              ) : (
+                filtered.map((t) => (
+                  <button
+                    key={`${t.type}-${t.id}`}
+                    onClick={() => setPendingTarget(t)}
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-2 hover:bg-surface-200 dark:hover:bg-surface-800"
+                  >
+                    {t.type === 'channel' ? (
+                      t.image ? <Avatar name={t.name} image={t.image} size="xs" /> : <Hash size={14} className="shrink-0 text-surface-600" />
+                    ) : (
+                      <Avatar name={t.name} size="xs" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-left text-sm text-surface-800 dark:text-surface-200">{t.name}</span>
+                    <span className="shrink-0 text-[10px] uppercase text-surface-600">{t.type === 'channel' ? 'Channel' : 'Chat'}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
