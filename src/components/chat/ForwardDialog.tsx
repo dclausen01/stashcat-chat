@@ -3,6 +3,7 @@ import { Forward, X, Search, Loader2, Hash } from 'lucide-react';
 import * as api from '../../api';
 import Avatar from '../Avatar';
 import { getCleanName } from '../../utils/subchannels';
+import { fileIcon } from '../../utils/fileIcon';
 import type { Message } from '../../types';
 
 export function ForwardDialog({ message, onClose }: { message: Message; onClose: () => void }) {
@@ -76,7 +77,7 @@ export function ForwardDialog({ message, onClose }: { message: Message; onClose:
           </button>
         </div>
 
-        {preview && (
+        {!pendingTarget && preview && (
           <div className="border-b border-surface-200 px-5 py-3 dark:border-surface-700">
             <div className="rounded-lg bg-surface-50 px-3 py-2 text-xs text-surface-600 dark:bg-surface-800 dark:text-surface-400">
               {preview}
@@ -98,8 +99,30 @@ export function ForwardDialog({ message, onClose }: { message: Message; onClose:
               </div>
             </div>
             <p className="text-sm text-surface-700 dark:text-surface-300">
-              Nachricht an <span className="font-semibold">{pendingTarget.name}</span> weiterleiten?
+              Diese Nachricht an <span className="font-semibold">{pendingTarget.name}</span> weiterleiten?
             </p>
+
+            <div className="rounded-lg border border-surface-200 bg-surface-50 px-3 py-2 dark:border-surface-700 dark:bg-surface-800">
+              {message.text && (
+                <p className="max-h-32 overflow-y-auto whitespace-pre-wrap break-words text-xs text-surface-700 dark:text-surface-300">
+                  {message.text}
+                </p>
+              )}
+              {message.files && message.files.length > 0 && (
+                <div className={message.text ? 'mt-2 flex flex-col gap-1' : 'flex flex-col gap-1'}>
+                  {message.files.map((f) => (
+                    <div key={f.id} className="flex items-center gap-2 text-xs text-surface-600 dark:text-surface-400">
+                      <span className="shrink-0">{fileIcon(f.mime, f.ext)}</span>
+                      <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                      {f.size_string && <span className="shrink-0 text-[10px] text-surface-500">{f.size_string}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!message.text && (!message.files || message.files.length === 0) && (
+                <p className="text-xs italic text-surface-500">Kein Textinhalt</p>
+              )}
+            </div>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setPendingTarget(null)}
