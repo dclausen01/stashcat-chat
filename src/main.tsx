@@ -10,11 +10,22 @@ import { AnnouncerProvider } from './context/AnnouncerContext';
 import { PanelProvider } from './context/PanelContext';
 import { ConfigProvider } from './context/ConfigContext';
 import ErrorBoundary from './components/ErrorBoundary';
-import { bootstrapMobileBridge } from './lib/mobileBridge';
+import { bootstrapMobileBridge, isMobileBridge } from './lib/mobileBridge';
 import { installBbzChatGlobal } from './lib/flutterBridge';
 
 bootstrapMobileBridge();
 installBbzChatGlobal();
+
+// PWA-Service-Worker nur im Desktop-/Browser-Betrieb registrieren. Im
+// Flutter-WebView (bridge=mobile) darf nie ein SW aktiv sein: ein veralteter
+// SW kann nach einem Deploy eine alte precachte index.html ausliefern, deren
+// Asset-Hashes auf dem Server nicht mehr existieren → weisser Screen bis zum
+// App-Neustart. bootstrapMobileBridge() raeumt bestehende Registrierungen ab.
+if (!isMobileBridge() && 'serviceWorker' in navigator) {
+  import('virtual:pwa-register')
+    .then(({ registerSW }) => registerSW({ immediate: true }))
+    .catch(() => {});
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
