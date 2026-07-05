@@ -9,6 +9,13 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Kein automatisch injiziertes registerSW.js: Die Registrierung passiert
+      // manuell in src/main.tsx und NUR ausserhalb des Mobile-WebView. Das
+      // injizierte Skript hat sonst im Flutter-WebView bei jedem Load einen
+      // Service Worker (re-)registriert, den bootstrapMobileBridge() zuvor
+      // deregistriert hatte — nach einem Deploy konnte ein veralteter SW eine
+      // alte index.html mit geloeschten Asset-Hashes ausliefern (weisser Screen).
+      injectRegister: false,
       includeAssets: ['bbz-logo-neu.png', 'icon.png', 'icon-192.png', 'icon-512.png'],
       manifest: {
         name: 'BBZ Chat',

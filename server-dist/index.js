@@ -1053,13 +1053,32 @@ app.post('/api/typing', (req, res) => {
     const cwd = process.cwd();
     const distPath = path_1.default.resolve(cwd, 'dist');
     console.log(`[Static] Serving frontend from ${distPath} and ${cwd}`);
+    // Cache-Header: Ohne explizites Cache-Control cachen Browser/WebViews
+    // (Android: cacheEnabled) index.html heuristisch — nach einem Deploy zeigt
+    // eine veraltete index.html dann auf geloeschte Asset-Hashes (weisser
+    // Screen). Gehashte Assets sind dagegen unveraenderlich und duerfen lange
+    // gecacht werden.
+    const staticOptions = {
+        setHeaders: (res, filePath) => {
+            if (filePath.includes(`${path_1.default.sep}assets${path_1.default.sep}`)) {
+                res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            }
+            else {
+                // index.html, sw.js, manifest, … — immer beim Server revalidieren
+                // (ETag/304 haelt den Traffic klein).
+                res.setHeader('Cache-Control', 'no-cache');
+            }
+        },
+    };
     // dist/ takes priority (contains built assets)
-    app.use(express_1.default.static(distPath));
+    app.use(express_1.default.static(distPath, staticOptions));
     // Also serve from project root (Plesk may set cwd to project root)
-    app.use(express_1.default.static(cwd));
+    app.use(express_1.default.static(cwd, staticOptions));
     // SPA fallback: serve the BUILT index.html (not the dev one)
     app.get('{*path}', (_req, res) => {
-        res.sendFile(path_1.default.join(distPath, 'index.html'));
+        res.sendFile(path_1.default.join(distPath, 'index.html'), {
+            headers: { 'Cache-Control': 'no-cache' },
+        });
     });
 }
 // ── Worker-Generation: Self-Shutdown wenn neuer Worker uebernimmt ───────────
