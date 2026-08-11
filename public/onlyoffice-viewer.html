@@ -50,6 +50,20 @@
           return;
         }
 
+        // Sicherheitsprüfung (P0, B1): Das OnlyOffice-API-Skript darf nur von
+        // der konfigurierten Instanz geladen werden. Vorher konnte ein Link
+        // auf diese Seite mit präpariertem #hash beliebiges JS auf der
+        // Chat-Origin ausführen (Token-Diebstahl). Muss mit ONLYOFFICE_URL
+        // des Servers synchron gehalten werden.
+        const ALLOWED_ONLYOFFICE_HOSTS = ['office.bbz-rd-eck.de'];
+        let parsedOoUrl;
+        try { parsedOoUrl = new URL(onlyofficeUrl); }
+        catch (e) { showError('Ungültige OnlyOffice-URL.'); return; }
+        if (parsedOoUrl.protocol !== 'https:' || ALLOWED_ONLYOFFICE_HOSTS.indexOf(parsedOoUrl.hostname) === -1) {
+          showError('OnlyOffice-Quelle nicht erlaubt.');
+          return;
+        }
+
         const script = document.createElement('script');
         script.src = onlyofficeUrl + '/web-apps/apps/api/documents/api.js';
         script.onerror = () => showError('OnlyOffice Document Server ist nicht erreichbar: ' + onlyofficeUrl);

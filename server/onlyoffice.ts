@@ -47,7 +47,7 @@ interface DownloadToken {
 }
 
 const downloadTokens = new Map<string, DownloadToken>();
-const TOKEN_TTL = 60 * 60 * 1000; // 1 hour — viewing session only
+const TOKEN_TTL = 5 * 60 * 1000; // 5 minutes — kurze Viewing-Session (P0, A3)
 
 setInterval(() => {
   const now = Date.now();
@@ -65,8 +65,12 @@ export function createDownloadToken(opts: { fileId?: string; ncPath?: string; nc
 export function validateDownloadToken(secret: string): DownloadToken | null {
   const entry = downloadTokens.get(secret);
   if (!entry) return null;
+  // Einmalgebrauch (P0, A3): Token wird bei der Validierung konsumiert.
+  // Die Download-URL geht an den OnlyOffice-Server und steht in dessen Logs
+  // sowie in allen Proxies dazwischen — ein 1-h-Replay-Fenster war dort
+  // ein offener Datei-Zugriff für jeden mit Log-Zugriff.
+  downloadTokens.delete(secret);
   if (Date.now() - entry.createdAt > TOKEN_TTL) {
-    downloadTokens.delete(secret);
     return null;
   }
   return entry;
