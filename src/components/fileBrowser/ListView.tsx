@@ -6,7 +6,7 @@ import type { SortField } from '../../hooks/useFileSorting';
 import { formatDate, canPreview } from './helpers';
 import type { ViewProps } from './types';
 
-export function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, onRenameFolder, renamingId, renameValue, setRenameValue, commitRename, commitRenameFolder, canRenameFolder, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort, selectedIds, onToggleSelect, onSelectAll, buildDownloadUrl, buildViewUrl, onShare, onOnlyOfficeClick }: ViewProps) {
+export function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, onRenameFolder, renamingId, renameValue, setRenameValue, commitRename, commitRenameFolder, cancelRename, canRenameFolder, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort, selectedIds, onToggleSelect, onSelectAll, buildDownloadUrl, buildViewUrl, onShare, onOnlyOfficeClick }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   function SortHeader({ field, label, className = '' }: { field: SortField; label: string; className?: string }) {
@@ -106,7 +106,7 @@ export function ListView({ folders, files, onFolderClick, onFileOpen, onRename, 
                     autoFocus
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') commitRenameFolder!(f); if (e.key === 'Escape') commitRenameFolder!({ ...f, name: f.name }); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitRenameFolder!(f); if (e.key === 'Escape') cancelRename(); }}
                     className="min-w-0 flex-1 rounded border border-primary-400 bg-white px-2 py-0.5 text-sm text-surface-900 outline-none dark:bg-surface-700 dark:text-surface-100"
                   />
                   <button onClick={() => commitRenameFolder!(f)} className="shrink-0 text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"><Check size={13} /></button>
@@ -199,7 +199,7 @@ export function ListView({ folders, files, onFolderClick, onFileOpen, onRename, 
                       autoFocus
                       value={renameValue}
                       onChange={(e) => setRenameValue(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') commitRename(f); if (e.key === 'Escape') commitRename({ ...f, name: f.name }); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') commitRename(f); if (e.key === 'Escape') cancelRename(); }}
                       className="min-w-0 flex-1 rounded border border-primary-400 bg-white px-2 py-0.5 text-xs text-surface-900 outline-none dark:bg-surface-700 dark:text-surface-100"
                     />
                     <button onClick={() => commitRename(f)} className="shrink-0 text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"><Check size={13} /></button>

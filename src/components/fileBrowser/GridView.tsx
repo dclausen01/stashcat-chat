@@ -5,7 +5,7 @@ import { fileIcon } from '../../utils/fileIcon';
 import { canPreview } from './helpers';
 import type { ViewProps } from './types';
 
-export function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, onRenameFolder, renamingId, renameValue, setRenameValue, commitRename, commitRenameFolder, canRenameFolder, onDragFileStart, onDragFileEnd, onDropOnFolder, selectedIds, onToggleSelect, buildDownloadUrl, buildViewUrl, onShare, onOnlyOfficeClick }: ViewProps) {
+export function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, onRenameFolder, renamingId, renameValue, setRenameValue, commitRename, commitRenameFolder, cancelRename, canRenameFolder, onDragFileStart, onDragFileEnd, onDropOnFolder, selectedIds, onToggleSelect, buildDownloadUrl, buildViewUrl, onShare, onOnlyOfficeClick }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   return (
     <div className="grid grid-cols-3 gap-2 p-3">
@@ -53,7 +53,7 @@ export function GridView({ folders, files, onFolderClick, onFileOpen, onRename, 
               value={renameValue}
               onClick={(e) => e.stopPropagation()}
               onChange={(e) => setRenameValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') commitRenameFolder!(f); if (e.key === 'Escape') commitRenameFolder!({ ...f, name: f.name }); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitRenameFolder!(f); if (e.key === 'Escape') cancelRename(); }}
               className="w-full rounded border border-primary-400 bg-white px-1.5 py-0.5 text-center text-xs text-surface-900 outline-none dark:bg-surface-700 dark:text-surface-100"
             />
           ) : (
@@ -189,7 +189,7 @@ export function GridView({ folders, files, onFolderClick, onFileOpen, onRename, 
                   autoFocus
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') commitRename(f); if (e.key === 'Escape') commitRename({ ...f, name: f.name }); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') commitRename(f); if (e.key === 'Escape') cancelRename(); }}
                   className="min-w-0 flex-1 rounded border border-primary-400 bg-white px-1 py-0.5 text-xs text-surface-900 outline-none dark:bg-surface-700 dark:text-surface-100"
                 />
                 <button onClick={() => commitRename(f)} className="shrink-0 text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"><Check size={13} /></button>

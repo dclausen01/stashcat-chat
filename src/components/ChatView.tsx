@@ -340,6 +340,8 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const [meetingLoading, setMeetingLoading] = useState(false);
   const [meetingError, setMeetingError] = useState<string | null>(null);
+  /** Moderatorenlink, den der Popup-Blocker verworfen hat — wird als Button angeboten. */
+  const [meetingPendingLink, setMeetingPendingLink] = useState<string | null>(null);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [muteMenuOpen, setMuteMenuOpen] = useState(false);
 
@@ -518,43 +520,57 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
 
   // Videokonferenz starten: zeigt ein In-App-Overlay (statt eines separaten
   // Warte-Fensters) und schliesst dieses automatisch, sobald der Einladungslink
-  // im Chat gepostet wurde. Der Moderatorenlink wird nach Erhalt geoeffnet
-  // (mobil via Bridge, sonst in neuem Tab; in BBZ Cloud 2 faengt der Electron-
-  // Wrapper die stash.cat/l-URL ab und oeffnet sie extern).
+  // im Chat gepostet wurde.
+  //
+  // Moderatorenlink: window.open() laeuft hier NACH einem await, also ohne
+  // User-Aktivierung — Browser-Popup-Blocker verhindern das und liefern null.
+  // In Electron (BBZ Cloud 2) und ueber die Mobile-Bridge klappt es weiterhin
+  // direkt; nur wenn der Aufruf blockiert wurde, bietet das Overlay den Link
+  // als Button an (Klick = User-Geste und damit erlaubt).
   const startMeeting = useCallback(async () => {
     if (meetingLoading) return;
     setMeetingError(null);
+    setMeetingPendingLink(null);
     setMeetingLoading(true);
     const mobile = isMobileBridge();
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
-      // Client-seitiger Timeout als Sicherheitsnetz — der Server pollt bis zu
-      // ~30s und liefert dann selbst einen 504-Fehler; dies faengt zusaetzlich
-      // haengende Verbindungen ab.
+      // Client-seitiger Timeout als Sicherheitsnetz. Muss ueber dem Worst Case
+      // des Servers liegen: der pollt 60x mit je 500ms plus API-Roundtrip, was
+      // unter Last deutlich mehr als 45s werden kann. Ein zu kurzer Timeout
+      // meldet hier einen Fehler, obwohl die Konferenz laeuft — und ein
+      // "Erneut versuchen" wuerde dann eine zweite Konferenz aufmachen.
       const result = await Promise.race([
         api.startVideoMeeting(chat.id, chat.type),
-        new Promise<never>((_, reject) =>
-          setTimeout(
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(
             () => reject(new Error('Zeitüberschreitung: Die Videokonferenz konnte nicht rechtzeitig gestartet werden.')),
-            45000,
-          ),
-        ),
+            90000,
+          );
+        }),
       ]);
-      const tabLink = result.moderatorLink ?? result.inviteLink;
-      if (tabLink) {
-        if (mobile) bridge.jitsi(tabLink);
-        else window.open(tabLink, '_blank', 'noopener,noreferrer');
-      }
       if (result.inviteLink) {
         const now = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
         const text = `📹 Videokonferenz gestartet um ${now} Uhr\nJetzt beitreten: ${result.inviteLink}`;
         await api.sendMessage(chat.id, chat.type, text);
         await loadMessages();
       }
-      // Erfolg: Link ist gepostet / Konferenz laeuft → Overlay schliessen.
+      const tabLink = result.moderatorLink ?? result.inviteLink;
       setMeetingLoading(false);
+      if (!tabLink) return;
+      if (mobile) {
+        bridge.jitsi(tabLink);
+        return;
+      }
+      const opened = window.open(tabLink, '_blank', 'noopener,noreferrer');
+      // null → vom Popup-Blocker verworfen. Ohne diesen Zweig wuerde der
+      // Moderatorenlink kommentarlos verschwinden.
+      if (!opened) setMeetingPendingLink(tabLink);
     } catch (err) {
       setMeetingLoading(false);
       setMeetingError(err instanceof Error ? err.message : 'Videokonferenz konnte nicht erstellt werden');
+    } finally {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
     }
   }, [meetingLoading, chat.id, chat.type, loadMessages]);
 
@@ -1384,11 +1400,17 @@ export default function ChatView({ chat, onGoHome, jumpToMessageId, jumpToMessag
           </div>
         </div>
       )}
-      {(meetingLoading || meetingError) && (
+      {(meetingLoading || meetingError || meetingPendingLink) && (
         <VideoMeetingOverlay
-          state={meetingError ? { status: 'error', message: meetingError } : { status: 'loading' }}
+          state={
+            meetingError
+              ? { status: 'error', message: meetingError }
+              : meetingPendingLink
+                ? { status: 'blocked', link: meetingPendingLink }
+                : { status: 'loading' }
+          }
           onRetry={startMeeting}
-          onClose={() => setMeetingError(null)}
+          onClose={() => { setMeetingError(null); setMeetingPendingLink(null); }}
         />
       )}
       {/* Header */}

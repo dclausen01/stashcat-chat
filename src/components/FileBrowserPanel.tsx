@@ -242,6 +242,11 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
     setRenameValue(f.name);
   };
 
+  // Escape darf NICHT ueber commitRename({...f, name: f.name}) laufen: das
+  // Objekt ist identisch mit f, die Guard `newName === f.name` greift also
+  // nicht und der getippte Name wurde gespeichert statt verworfen.
+  const cancelRename = () => setRenamingId(null);
+
   const commitRenameFolder = async (f: FolderEntry) => {
     const newName = renameValue.trim();
     setRenamingId(null);
@@ -623,6 +628,7 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
     setRenameValue,
     commitRename,
     commitRenameFolder,
+    cancelRename,
     canRenameFolder: true,
     onDragFileStart: setDragFileId,
     onDragFileEnd: () => setDragFileId(null),

@@ -40,6 +40,8 @@ export interface ViewProps {
   setRenameValue: (v: string) => void;
   commitRename: (f: FileEntry) => void;
   commitRenameFolder?: (f: FolderEntry) => void;
+  /** Umbenennen verwerfen (Escape) — speichert bewusst nicht. */
+  cancelRename: () => void;
   /** Whether folder renaming is supported for the current storage backend. */
   canRenameFolder?: boolean;
   onDragFileStart?: (fileId: string) => void;

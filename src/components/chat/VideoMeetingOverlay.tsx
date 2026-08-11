@@ -1,8 +1,10 @@
-import { Loader2, Video, RotateCw, X } from 'lucide-react';
+import { Loader2, Video, RotateCw, X, ExternalLink } from 'lucide-react';
 
 export type VideoMeetingOverlayState =
   | { status: 'loading' }
-  | { status: 'error'; message: string };
+  | { status: 'error'; message: string }
+  /** Konferenz laeuft, aber der Popup-Blocker hat das Fenster verworfen. */
+  | { status: 'blocked'; link: string };
 
 type Props = {
   state: VideoMeetingOverlayState;
@@ -17,9 +19,15 @@ type Props = {
  * Overlay wird vom aufrufenden ChatView geschlossen, sobald der Einladungslink
  * im Chat gepostet wurde (Erfolg). Im Fehler-/Timeout-Fall bleibt es mit einer
  * verstaendlichen Meldung sowie "Erneut versuchen"/"Schliessen" sichtbar.
+ *
+ * Im 'blocked'-Fall (Popup-Blocker hat den Moderatorenlink verworfen) wird der
+ * Link als <a target="_blank"> angeboten: ein echter Link-Klick ist eine
+ * User-Geste und wird daher nie blockiert — anders als ein window.open() nach
+ * einem await.
  */
 export function VideoMeetingOverlay({ state, onRetry, onClose }: Props) {
   const isError = state.status === 'error';
+  const isBlocked = state.status === 'blocked';
   return (
     <div
       className="absolute inset-0 z-50 flex items-center justify-center bg-surface-900/60 p-4 backdrop-blur-sm"
@@ -54,6 +62,38 @@ export function VideoMeetingOverlay({ state, onRetry, onClose }: Props) {
               >
                 <RotateCw size={16} /> Erneut versuchen
               </button>
+            </div>
+          </>
+        ) : isBlocked ? (
+          <>
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30">
+              <Video size={30} className="text-primary-600 dark:text-primary-400" />
+            </div>
+            <h2 className="mb-1 text-lg font-semibold text-surface-900 dark:text-surface-50">
+              Videokonferenz ist bereit
+            </h2>
+            <p className="mb-6 text-sm text-surface-500 dark:text-surface-400">
+              Der Einladungslink wurde im Chat gepostet. Dein Moderatorenlink konnte
+              nicht automatisch geöffnet werden — vermutlich hat der Browser das
+              Pop-up blockiert.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-surface-300 px-4 py-2.5 text-sm font-medium text-surface-700 transition hover:bg-surface-100 dark:border-surface-600 dark:text-surface-200 dark:hover:bg-surface-700"
+              >
+                <X size={16} /> Schließen
+              </button>
+              <a
+                href={state.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={onClose}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-700 active:scale-95"
+              >
+                <ExternalLink size={16} /> Jetzt beitreten
+              </a>
             </div>
           </>
         ) : (
