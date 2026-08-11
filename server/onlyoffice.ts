@@ -44,10 +44,23 @@ interface DownloadToken {
   ncAppPassword?: string;
   clientKey: string;
   createdAt: number;
+  /** Verbleibende erfolgreiche Downloads (siehe validateDownloadToken). */
+  usesLeft: number;
 }
 
 const downloadTokens = new Map<string, DownloadToken>();
 const TOKEN_TTL = 5 * 60 * 1000; // 5 minutes — kurze Viewing-Session (P0, A3)
+/**
+ * Erlaubte erfolgreiche Downloads pro Token.
+ *
+ * Nicht 1: der OnlyOffice Document Server holt das Dokument je nach Flow
+ * mehrfach (Konvertierung, kalter Cache, zweiter Betrachter) und wiederholt
+ * fehlgeschlagene Requests. Ein striktes Einmal-Token laesst diese legitimen
+ * Zugriffe in einen 403 laufen. Das Replay-Risiko (die Download-URL steht in
+ * den Logs des OnlyOffice-Servers und aller Proxies dazwischen) begrenzt
+ * primaer die kurze TTL, das Budget deckelt es zusaetzlich.
+ */
+const MAX_TOKEN_USES = 3;
 
 setInterval(() => {
   const now = Date.now();
@@ -58,22 +71,35 @@ setInterval(() => {
 
 export function createDownloadToken(opts: { fileId?: string; ncPath?: string; ncUsername?: string; ncAppPassword?: string; clientKey: string }): string {
   const secret = randomBytes(32).toString('hex');
-  downloadTokens.set(secret, { createdAt: Date.now(), clientKey: opts.clientKey, fileId: opts.fileId, ncPath: opts.ncPath, ncUsername: opts.ncUsername, ncAppPassword: opts.ncAppPassword });
+  downloadTokens.set(secret, { createdAt: Date.now(), clientKey: opts.clientKey, fileId: opts.fileId, ncPath: opts.ncPath, ncUsername: opts.ncUsername, ncAppPassword: opts.ncAppPassword, usesLeft: MAX_TOKEN_USES });
   return secret;
 }
 
+/**
+ * Prueft einen Token, ohne ihn zu verbrauchen.
+ *
+ * Der Verbrauch passiert bewusst erst in consumeDownloadToken() nach
+ * erfolgreicher Auslieferung: wuerde schon die Validierung konsumieren, wuerde
+ * ein einzelner transienter Fehler (Netzwerk, abgelaufene Stashcat-Session)
+ * den Token endgueltig verbrennen und der Retry des Document Servers liefe in
+ * einen 403 — das Dokument muesste neu geoeffnet werden.
+ */
 export function validateDownloadToken(secret: string): DownloadToken | null {
   const entry = downloadTokens.get(secret);
   if (!entry) return null;
-  // Einmalgebrauch (P0, A3): Token wird bei der Validierung konsumiert.
-  // Die Download-URL geht an den OnlyOffice-Server und steht in dessen Logs
-  // sowie in allen Proxies dazwischen — ein 1-h-Replay-Fenster war dort
-  // ein offener Datei-Zugriff für jeden mit Log-Zugriff.
-  downloadTokens.delete(secret);
-  if (Date.now() - entry.createdAt > TOKEN_TTL) {
+  if (Date.now() - entry.createdAt > TOKEN_TTL || entry.usesLeft <= 0) {
+    downloadTokens.delete(secret);
     return null;
   }
   return entry;
+}
+
+/** Bucht einen Zugriff ab — erst NACH erfolgreicher Auslieferung aufrufen. */
+export function consumeDownloadToken(secret: string): void {
+  const entry = downloadTokens.get(secret);
+  if (!entry) return;
+  entry.usesLeft -= 1;
+  if (entry.usesLeft <= 0) downloadTokens.delete(secret);
 }
 
 // ── Config builder ───────────────────────────────────────────────────────────

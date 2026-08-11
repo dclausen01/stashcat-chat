@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { decryptSession } from '../token-crypto';
 import { extractToken, touchCachedClient } from '../lib/get-client';
-import { getOfficeDocType, buildViewerConfig, validateDownloadToken, createDownloadToken, PUBLIC_URL } from '../onlyoffice';
+import { getOfficeDocType, buildViewerConfig, validateDownloadToken, consumeDownloadToken, createDownloadToken, PUBLIC_URL } from '../onlyoffice';
 import { ncDownload } from '../nextcloud';
 import { getNCCred } from '../lib/nextcloud-creds';
 import { errorMessage } from '../lib/logging';
@@ -82,6 +82,8 @@ router.get('/onlyoffice/dl-nc', async (req, res) => {
     res.setHeader('Content-Type', ncResp.headers.get('content-type') || 'application/octet-stream');
     res.setHeader('Content-Disposition', 'inline');
     res.send(buf);
+    // Erst jetzt abbuchen — ein Fehler oben soll den Token nicht verbrennen.
+    consumeDownloadToken(secret);
   } catch (err) {
     console.error('[OnlyOffice/dl-nc] Error:', err);
     res.status(500).json({ error: errorMessage(err, 'Download fehlgeschlagen') });
@@ -110,6 +112,8 @@ router.get('/onlyoffice/dl', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(info.name || 'document')}"`);
     res.setHeader('Content-Type', info.mime || 'application/octet-stream');
     res.send(buf);
+    // Erst jetzt abbuchen — ein Fehler oben soll den Token nicht verbrennen.
+    consumeDownloadToken(secret);
   } catch (err) {
     console.error('[OnlyOffice/dl] Error:', err);
     res.status(500).json({ error: errorMessage(err, 'Download failed') });
