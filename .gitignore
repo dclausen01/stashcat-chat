@@ -1,13 +1,38 @@
-```
 # Dependencies
 node_modules/
 
-# Build artifacts
+# Build outputs & artifacts (P0: wurden versehentlich committet — nie wieder)
 dist/
 build/
+server-dist/
+*.tsbuildinfo
+chunk-*.js
+build-errors.txt
+startup-error.log
 target/
 
-# Python
+# Local runtime state (sessions, keys, locks, logs)
+.sessions.json
+.mobile-tokens.json
+.push-tokens.json
+.session-secret
+.push-errors.log
+server.log
+e2e-debug.log
+.worker-generation
+.realtime-boot.lock
+*.log
+
+# Session dumps / analysis artifacts (nie committen)
+session-ses_*.md
+
+# Environment variables
+.env
+.env.local
+.env.*
+.ENV
+
+# Python (legacy)
 __pycache__/
 *.pyc
 *.pyo
@@ -16,16 +41,7 @@ __pycache__/
 env/
 venv/
 .venv/
-.ENV
 .python-version
-
-# Logs
-*.log
-
-# Environment variables
-.env
-.env.local
-.env.*
 
 # IDE
 .vscode/
@@ -65,4 +81,3 @@ htmlcov/
 *.tar.bz2
 *.tar.xz
 *.tar.zst
-```

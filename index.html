@@ -12,16 +12,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="BBZ Chat" />
     <title>BBZ Chat</title>
-    <script>
-      (function() {
-        try {
-          var saved = localStorage.getItem('schulchat_theme');
-          if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-          }
-        } catch (e) {}
-      })();
-    </script>
+    <!-- Externe Datei statt Inline-Script: die CSP (script-src 'self') blockt
+         Inline-Bloecke. Ohne defer/async, damit die Theme-Klasse vor dem
+         ersten Paint gesetzt ist. -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

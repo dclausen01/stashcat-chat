@@ -8,7 +8,12 @@ import { decryptSession } from '../token-crypto';
 import { debugLog, errorMessage, serverLog } from '../lib/logging';
 
 const router = Router();
-const upload = multer({ dest: os.tmpdir() });
+/** Upload-Größenlimit (P0, A6): Default 100 MB, per Env anpassbar. Vorher: unbegrenzt. */
+const UPLOAD_MAX_BYTES = (Number(process.env.UPLOAD_MAX_MB) || 100) * 1024 * 1024;
+const upload = multer({
+  dest: os.tmpdir(),
+  limits: { fileSize: UPLOAD_MAX_BYTES },
+});
 
 router.get('/files/folder', async (req, res) => {
   try {

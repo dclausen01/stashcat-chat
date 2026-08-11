@@ -26,46 +26,8 @@
   <div id="error"></div>
   <div id="editor"></div>
 
-  <script>
-    (function () {
-      const loadingEl = document.getElementById('loading');
-      const errorEl = document.getElementById('error');
-
-      function showError(msg) {
-        loadingEl.style.display = 'none';
-        errorEl.style.display = 'flex';
-        errorEl.textContent = msg;
-      }
-
-      try {
-        const hash = window.location.hash.slice(1);
-        if (!hash) {
-          showError('Keine Konfiguration gefunden. Bitte Dokument erneut öffnen.');
-          return;
-        }
-
-        const { config, onlyofficeUrl } = JSON.parse(decodeURIComponent(atob(hash)));
-        if (!config || !onlyofficeUrl) {
-          showError('Ungültige Konfiguration.');
-          return;
-        }
-
-        const script = document.createElement('script');
-        script.src = onlyofficeUrl + '/web-apps/apps/api/documents/api.js';
-        script.onerror = () => showError('OnlyOffice Document Server ist nicht erreichbar: ' + onlyofficeUrl);
-        script.onload = () => {
-          loadingEl.style.display = 'none';
-          try {
-            new DocsAPI.DocEditor('editor', config);
-          } catch (e) {
-            showError('Viewer konnte nicht gestartet werden: ' + e.message);
-          }
-        };
-        document.head.appendChild(script);
-      } catch (e) {
-        showError('Fehler beim Laden: ' + e.message);
-      }
-    })();
-  </script>
+  <!-- Externe Datei statt Inline-Script: die CSP (script-src 'self') blockt
+       Inline-Bloecke. Muss nach den Ziel-Divs stehen. -->
+  <script src="/onlyoffice-viewer.js"></script>
 </body>
 </html>

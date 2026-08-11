@@ -1,6 +1,8 @@
 import express from 'express';
 import type { Request as ExpressRequest } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import multer from 'multer';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { existsSync as fsExistsSync, readFileSync as fsReadFileSync, writeFileSync as fsWriteFileSync } from 'fs';
@@ -60,6 +62,31 @@ import { listForUser as listPushTokensForUser } from './push/token-store';
 const app = express();
 app.set('trust proxy', 1); // Trust first proxy (e.g. nginx) to get correct client IP for rate limiting
 app.use(cors());
+
+// ── Security-Header (P0-Härtung) ────────────────────────────────────────────
+// CSP blockt u.a. das Nachladen fremder Skripte im OnlyOffice-Viewer (B1).
+// Der OnlyOffice-Origin wird aus derselben Env gelesen wie in onlyoffice.ts.
+const onlyOfficeOrigin = (() => {
+  try { return new URL(process.env.ONLYOFFICE_URL || 'https://office.bbz-rd-eck.de').origin; }
+  catch { return 'https://office.bbz-rd-eck.de'; }
+})();
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      'default-src': ["'self'"],
+      'script-src': ["'self'", onlyOfficeOrigin],
+      'style-src': ["'self'", "'unsafe-inline'"],
+      'img-src': ["'self'", 'data:', 'https:'],
+      'connect-src': ["'self'"],
+      'font-src': ["'self'"],
+      'object-src': ["'none'"],
+      'frame-src': ["'self'", onlyOfficeOrigin],
+      'base-uri': ["'self'"],
+      'form-action': ["'self'"],
+    },
+  },
+  hsts: { maxAge: 31536000, includeSubDomains: true },
+}));
 app.use(express.json({ limit: '10mb' }));
 
 // Rate limiting — exempt SSE endpoint and file/image endpoints
@@ -96,6 +123,21 @@ app.use('/api', pushRouter);
 
 // Bootstrap the push dispatcher once the realtime listeners are wired below.
 initPushDispatcher();
+
+// ── Fehler-Middleware: Multer-Fehler (Upload-Limits) → sauberes JSON ────────
+// Ohne diese Middleware liefert Express bei LIMIT_FILE_SIZE eine HTML-Seite.
+app.use((err: unknown, _req: ExpressRequest, res: express.Response, next: express.NextFunction) => {
+  if (res.headersSent) { next(err); return; }
+  if (err instanceof multer.MulterError) {
+    const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    const msg = err.code === 'LIMIT_FILE_SIZE'
+      ? 'Datei zu groß für den Upload.'
+      : `Upload fehlgeschlagen: ${err.message}`;
+    res.status(status).json({ error: msg });
+    return;
+  }
+  next(err);
+});
 
 // ── Liveness-Konstanten ──────────────────────────────────────────────────────
 // Wenn `lastEventAt` aelter ist als STALE_AFTER_MS, gilt die Realtime als tot
@@ -950,7 +992,7 @@ app.post('/api/login/device/complete', async (req, res) => {
 
     serverLog('[DeviceComplete] Decrypting key with code...');
     const jwk = decryptJwkWithCode(encryptedKeyData, code);
-    client.unlockE2EWithPrivateKey(jwk);
+    await client.unlockE2EWithPrivateKey(jwk);
     serverLog('[DeviceComplete] E2E unlocked with decrypted JWK');
 
     const serialized = client.serialize();
@@ -1117,7 +1159,7 @@ app.post('/api/typing', (req, res) => {
 {
   const cwd = process.cwd();
   const distPath = path.resolve(cwd, 'dist');
-  console.log(`[Static] Serving frontend from ${distPath} and ${cwd}`);
+  console.log(`[Static] Serving frontend from ${distPath}`);
   // Cache-Header: Ohne explizites Cache-Control cachen Browser/WebViews
   // (Android: cacheEnabled) index.html heuristisch — nach einem Deploy zeigt
   // eine veraltete index.html dann auf geloeschte Asset-Hashes (weisser
@@ -1136,8 +1178,9 @@ app.post('/api/typing', (req, res) => {
   };
   // dist/ takes priority (contains built assets)
   app.use(express.static(distPath, staticOptions));
-  // Also serve from project root (Plesk may set cwd to project root)
-  app.use(express.static(cwd, staticOptions));
+  // WICHTIG (P0, A2): NUR dist/ statisch ausliefern. Der Projekt-Root wurde
+  // früher mit ausgeliefert — damit waren Quellcode (server/, server-dist/),
+  // CLAUDE.md und Log-/Session-Dumps öffentlich abrufbar.
   // SPA fallback: serve the BUILT index.html (not the dev one)
   app.get('{*path}', (_req, res) => {
     res.sendFile(path.join(distPath, 'index.html'), {
