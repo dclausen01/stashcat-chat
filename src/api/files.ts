@@ -231,3 +231,19 @@ export async function setShareLinkActive(target: ShareTarget, active: boolean): 
 export function isShareActive(share: ShareLink | null): boolean {
   return Boolean(share) && share!.status !== 'revoked';
 }
+
+/**
+ * Sucht Dateien und Ordner im aktuellen Ablage-Kontext. Liefert dieselbe Form
+ * wie `listFolder`, damit die Ansichten unveraendert damit umgehen koennen.
+ */
+export async function searchFiles(opts: {
+  searchtag: string;
+  type: string;
+  typeId?: string;
+  folderId?: string;
+}): Promise<FolderContent> {
+  const params = new URLSearchParams({ searchtag: opts.searchtag, type: opts.type });
+  if (opts.typeId) params.set('typeId', opts.typeId);
+  if (opts.folderId) params.set('folderId', opts.folderId);
+  return get<FolderContent>(`/files/search?${params.toString()}`);
+}

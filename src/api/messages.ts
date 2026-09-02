@@ -191,3 +191,15 @@ export async function getSeenCount(messageId: string): Promise<number> {
   const data = await get<{ count: number }>(`/messages/${messageId}/seen/count`);
   return data.count ?? 0;
 }
+
+// --- Übersetzung ---
+
+/**
+ * Übersetzt einen Text in die Zielsprache (Standard Deutsch). Liefert `null`,
+ * wenn der Dienst nichts zurückgibt — das ist kein Fehler, sondern heißt
+ * schlicht „keine Übersetzung verfügbar".
+ */
+export async function translateText(text: string, language = 'de'): Promise<string | null> {
+  const data = await post<{ translation: string | null }>('/translate', { text, language });
+  return data.translation ?? null;
+}

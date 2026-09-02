@@ -21,6 +21,7 @@ import { CalendarEventCard, isCalendarEventMessage } from './chat/CalendarEventC
 import { FileList } from './chat/FileList';
 import { LikeBadge } from './chat/LikeBadge';
 import SeenByBadge from './chat/SeenByBadge';
+import TranslateButton from './chat/TranslateButton';
 import { ForwardDialog } from './chat/ForwardDialog';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import Avatar from './Avatar';
@@ -2893,6 +2894,7 @@ function MessageGroup({
                   >
                     <Copy size={13} />
                   </button>
+                  {msg.text && <TranslateButton text={msg.text} />}
                   <button
                     onClick={() => onForward(msg)}
                     title="Weiterleiten"
@@ -3143,6 +3145,7 @@ function PlainTextMessage({
         <button onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }} title="Kopieren" className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 transition">
           <Copy size={13} />
         </button>
+        {msg.text && <TranslateButton text={msg.text} compact />}
         <button onClick={() => onForward(msg)} title="Weiterleiten" className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 transition">
           <Forward size={13} />
         </button>

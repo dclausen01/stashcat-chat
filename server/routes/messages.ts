@@ -246,4 +246,27 @@ router.get('/messages/:messageId/seen/count', async (req, res) => {
   }
 });
 
+/**
+ * Automatische Uebersetzung eines Textes.
+ *
+ * `/translate/auto` nimmt `text` und `language` (Zielsprache) und liefert
+ * `payload.translation`. Gibt der Dienst nichts zurueck, antworten wir mit
+ * `null` statt einem Fehler — der Aufrufer zeigt dann einen Hinweis.
+ */
+router.post('/translate', async (req, res) => {
+  try {
+    const client = req.client!;
+    const { text, language } = req.body as { text?: string; language?: string };
+    if (!text?.trim()) return res.status(400).json({ error: 'Kein Text uebergeben' });
+    const data = client.api.createAuthenticatedRequestData({
+      text: text.trim(),
+      language: language?.trim() || 'de',
+    });
+    const payload = await client.api.post<{ translation?: string }>('/translate/auto', data);
+    res.json({ translation: payload?.translation ?? null });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err, 'Uebersetzung fehlgeschlagen') });
+  }
+});
+
 export default router;

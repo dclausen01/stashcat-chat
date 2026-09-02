@@ -104,6 +104,7 @@ export {
   getFlaggedMessages,
   startVideoMeeting,
   uploadFile,
+  translateText,
   listSeenUsers,
   getSeenCount,
 } from './messages';
@@ -127,6 +128,7 @@ export {
   canViewInOnlyOffice,
   openInOnlyOffice,
   getLinkPreview,
+  searchFiles,
   getShareLink,
   createShareLink,
   deleteShareLink,
