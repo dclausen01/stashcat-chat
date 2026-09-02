@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Home, Bell, FolderOpen, Radio, CalendarDays, BarChart3,
+  Home, Bell, FolderOpen, Radio, CalendarDays, BarChart3, Users,
   MoreVertical, Settings, Sun, Moon, LogOut, Hash, Mail,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { usePanels } from '../context/PanelContext';
+import { useAdminAccess } from '../hooks/useAdminAccess';
 import Avatar from './Avatar';
 import type { ChatTarget } from '../types';
 import { getCleanName } from '../utils/subchannels';
@@ -44,11 +45,16 @@ export default function TopBar({
     toggleBroadcasts,
     openCalendar,
     openPolls,
+    openAdmin,
     toggleSettings,
     toggleProfile,
   } = usePanels();
   const calendarOpen = activeView === 'calendar';
   const pollsOpen = activeView === 'polls';
+  const adminOpen = activeView === 'admin';
+  // Nutzerverwaltung nur fuer Company-Admins. Die Pruefung laeuft einmal pro
+  // Session und ist modulweit gecached — der SidebarFooter nutzt denselben Hook.
+  const { isAdmin } = useAdminAccess();
   const fileBrowserActive = fileBrowserOpen && fileBrowserStandalone;
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -201,6 +207,18 @@ export default function TopBar({
         >
           <BarChart3 size={20} />
         </button>
+
+        {/* Nutzerverwaltung — nur fuer Company-Admins */}
+        {isAdmin && (
+          <button
+            onClick={openAdmin}
+            className={iconBtn(adminOpen)}
+            title="Nutzerverwaltung"
+            aria-label="Nutzerverwaltung"
+          >
+            <Users size={20} />
+          </button>
+        )}
       </div>
 
       {/* Spacer */}
