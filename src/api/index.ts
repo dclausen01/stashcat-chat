@@ -244,6 +244,15 @@ export {
   addUsersToGroup,
   removeUsersFromGroup,
   isFlagSet,
+  listAdminChannels,
+  getChannelCount,
+  createAdminChannel,
+  updateAdminChannel,
+  deleteAdminChannel,
+  setChannelsVisibility,
+  getAdminChannelMembers,
+  setChannelModerators,
+  getChannelStatistics,
 } from './admin';
 export type {
   AdminUser,
@@ -257,4 +266,7 @@ export type {
   AdminGroup,
   GroupInput,
   AdminGroupQuery,
+  AdminChannel,
+  ChannelInput,
+  AdminChannelQuery,
 } from './admin';

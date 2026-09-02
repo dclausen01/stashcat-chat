@@ -14,6 +14,7 @@ import { useAdminAccess } from '../hooks/useAdminAccess';
 import type { PermissionKey } from '../api/admin';
 import AdminUsersTab from './AdminUsersTab';
 import AdminGroupsTab from './AdminGroupsTab';
+import AdminChannelsTab from './AdminChannelsTab';
 
 type TabKey = 'users' | 'groups' | 'channels';
 
@@ -133,11 +134,7 @@ export default function AdminView({ onClose }: AdminViewProps) {
 
       {activeTab === 'users' && <AdminUsersTab companyId={companyId} has={has} />}
       {activeTab === 'groups' && <AdminGroupsTab companyId={companyId} has={has} />}
-      {activeTab === 'channels' && (
-        <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-surface-500">
-          Die Channel-Administration folgt in Kürze.
-        </div>
-      )}
+      {activeTab === 'channels' && <AdminChannelsTab companyId={companyId} has={has} />}
     </div>
   );
 }

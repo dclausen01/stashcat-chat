@@ -329,3 +329,129 @@ export async function removeUsersFromGroup(
 export function isFlagSet(value: boolean | number | string | undefined | null): boolean {
   return value === true || value === 1 || value === '1';
 }
+
+// --- Channels ---
+
+/**
+ * Channel aus `/manage/list_channels`. Companyweite Sicht — anders als die
+ * Channel-Endpunkte in `api/channels.ts`, die den eigenen Mitgliedschaften
+ * folgen. Feldnamen aus dem offiziellen Webclient abgeleitet, daher defensiv
+ * typisiert.
+ */
+export interface AdminChannel {
+  id: string;
+  name: string;
+  description?: string | null;
+  type?: string | null;
+  visible?: boolean | number | string;
+  /** 'all' | 'restricted' — wer schreiben darf. */
+  writable?: string | null;
+  inviteable?: boolean | number | string;
+  password?: boolean | number | string;
+  encrypted?: boolean | number | string;
+  user_count?: number;
+  image?: string | null;
+  created?: number;
+  last_activity?: number;
+  message_ttl?: number | null;
+  show_activities?: boolean | number | string;
+  show_membership_activities?: boolean | number | string;
+}
+
+export interface AdminChannelQuery {
+  search?: string;
+  sorting?: string;
+  /** '1' nur sichtbare, '0' nur unsichtbare, leer = alle. */
+  visible?: '' | '1' | '0';
+  type?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ChannelInput {
+  name: string;
+  description?: string;
+  password?: string;
+  type?: string;
+  visible?: boolean;
+  writable?: string;
+  inviteable?: boolean;
+  showActivities?: boolean;
+  showMembershipActivities?: boolean;
+  canLeave?: boolean;
+  messageTtl?: number | null;
+}
+
+export async function listAdminChannels(
+  companyId: string,
+  query: AdminChannelQuery = {},
+): Promise<AdminChannel[]> {
+  const params = new URLSearchParams();
+  if (query.search) params.set('search', query.search);
+  if (query.sorting) params.set('sorting', query.sorting);
+  if (query.visible) params.set('visible', query.visible);
+  if (query.type) params.set('type', query.type);
+  params.set('limit', String(query.limit ?? 50));
+  params.set('offset', String(query.offset ?? 0));
+  return get<AdminChannel[]>(`/admin/channels/${companyId}?${params.toString()}`);
+}
+
+export async function getChannelCount(companyId: string): Promise<Record<string, unknown>> {
+  return get<Record<string, unknown>>(`/admin/channels/${companyId}/count`);
+}
+
+export async function createAdminChannel(
+  companyId: string,
+  input: ChannelInput,
+): Promise<AdminChannel> {
+  return post<AdminChannel>(`/admin/channels/${companyId}`, { ...input });
+}
+
+export async function updateAdminChannel(
+  companyId: string,
+  channelId: string,
+  input: ChannelInput,
+): Promise<AdminChannel> {
+  return patch<AdminChannel>(`/admin/channels/${companyId}/${channelId}`, { ...input });
+}
+
+export async function deleteAdminChannel(companyId: string, channelId: string): Promise<void> {
+  await del(`/admin/channels/${companyId}/${channelId}`);
+}
+
+export async function setChannelsVisibility(
+  companyId: string,
+  channelIds: string[],
+  visible: boolean,
+): Promise<void> {
+  await post(`/admin/channels/${companyId}/visibility`, { channelIds, visible });
+}
+
+export async function getAdminChannelMembers(
+  companyId: string,
+  channelId: string,
+  query: AdminUserQuery = {},
+): Promise<AdminUser[]> {
+  const params = new URLSearchParams();
+  if (query.search) params.set('search', query.search);
+  if (query.sorting) params.set('sorting', query.sorting);
+  params.set('limit', String(query.limit ?? 50));
+  params.set('offset', String(query.offset ?? 0));
+  return get<AdminUser[]>(`/admin/channels/${companyId}/${channelId}/members?${params.toString()}`);
+}
+
+export async function setChannelModerators(
+  companyId: string,
+  channelId: string,
+  userIds: string[],
+  moderator: boolean,
+): Promise<void> {
+  await post(`/admin/channels/${companyId}/${channelId}/moderators`, { userIds, moderator });
+}
+
+export async function getChannelStatistics(
+  companyId: string,
+  channelId: string,
+): Promise<Record<string, unknown>> {
+  return get<Record<string, unknown>>(`/admin/channels/${companyId}/${channelId}/statistics`);
+}

@@ -611,4 +611,239 @@ router.delete(
   },
 );
 
+// --- Channels --------------------------------------------------------------
+// Anders als die Channel-Routen in `routes/channels.ts` (die den eigenen
+// Mitgliedschaften des Nutzers folgen) arbeiten diese hier companyweit ueber
+// den /manage/*-Namespace: ein Admin sieht auch Channels, in denen er nicht ist.
+
+interface ManageChannelsPayload {
+  channels?: unknown[];
+}
+
+/**
+ * Channels der Company. Query: `search`, `sorting`, `limit`, `offset`,
+ * `visible` ('1' / '0' — leer heisst "egal"), `type`.
+ */
+router.get(
+  '/admin/channels/:companyId',
+  requirePermission('admin_list_channels', 'admin_edit_channels'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const { search, limit, offset, visible, type } = req.query;
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        limit: Math.min(Number(limit) || 50, 500),
+        offset: Number(offset) || 0,
+        search: typeof search === 'string' ? search : '',
+        sorting: [normalizeSorting(req.query.sorting, 'name_asc')],
+        // Nur mitschicken, wenn wirklich gefiltert werden soll — sonst
+        // schraenkt ein `false` die Liste ungewollt ein.
+        ...(visible === '1' || visible === '0' ? { visible: visible === '1' } : {}),
+        ...(typeof type === 'string' && type ? { type } : {}),
+      });
+      const payload = await client.api.post<ManageChannelsPayload>('/manage/list_channels', data);
+      res.json(payload?.channels ?? []);
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Channels konnten nicht geladen werden') });
+    }
+  },
+);
+
+/** Gesamtzahl der Channels — die Liste selbst liefert keine. */
+router.get(
+  '/admin/channels/:companyId/count',
+  requirePermission('admin_list_channels', 'admin_edit_channels'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const data = client.api.createAuthenticatedRequestData({ company_id: req.params.companyId });
+      const payload = await client.api.post<Record<string, unknown>>('/manage/get_channel_count', data);
+      res.json(payload ?? {});
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Anzahl konnte nicht geladen werden') });
+    }
+  },
+);
+
+router.post(
+  '/admin/channels/:companyId',
+  requirePermission('admin_create_company_channels', 'admin_edit_channels'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const b = req.body as Record<string, unknown>;
+      const channelName = typeof b.name === 'string' ? b.name.trim() : '';
+      if (!channelName) return res.status(400).json({ error: 'Name ist ein Pflichtfeld' });
+      const password = typeof b.password === 'string' ? b.password : '';
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        channel_name: channelName,
+        description: typeof b.description === 'string' ? b.description.trim() : '',
+        password,
+        password_repeat: password,
+        type: typeof b.type === 'string' && b.type ? b.type : 'company',
+        visible: Boolean(b.visible),
+        writable: typeof b.writable === 'string' ? b.writable : 'all',
+        inviteable: Boolean(b.inviteable),
+        show_membership_activities: Boolean(b.showMembershipActivities),
+        can_leave: b.canLeave === undefined ? true : Boolean(b.canLeave),
+      });
+      const payload = await client.api.post<{ channel?: unknown }>('/manage/create_channel', data);
+      serverLog(`[Admin] Channel angelegt: ${channelName}`);
+      res.json(payload?.channel ?? { success: true });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Channel konnte nicht angelegt werden') });
+    }
+  },
+);
+
+router.patch(
+  '/admin/channels/:companyId/:channelId',
+  requirePermission('admin_edit_channels'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const b = req.body as Record<string, unknown>;
+      const channelName = typeof b.name === 'string' ? b.name.trim() : '';
+      if (!channelName) return res.status(400).json({ error: 'Name ist ein Pflichtfeld' });
+      // Passwort nur mitschicken, wenn eines gesetzt werden soll — ein leeres
+      // Feld wuerde sonst ein bestehendes Passwort entfernen.
+      const password = typeof b.password === 'string' && b.password ? b.password : undefined;
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        channel_id: req.params.channelId,
+        channel_name: channelName,
+        description: typeof b.description === 'string' ? b.description.trim() : '',
+        visible: Boolean(b.visible),
+        writable: typeof b.writable === 'string' ? b.writable : 'all',
+        inviteable: Boolean(b.inviteable),
+        show_activities: Boolean(b.showActivities),
+        show_membership_activities: Boolean(b.showMembershipActivities),
+        ...(password ? { password, password_repeat: password } : {}),
+        ...(b.messageTtl !== undefined && b.messageTtl !== null
+          ? { message_ttl: Number(b.messageTtl) }
+          : {}),
+      });
+      const payload = await client.api.post<{ channel?: unknown }>('/manage/edit_channel', data);
+      serverLog(`[Admin] Channel ${req.params.channelId} bearbeitet`);
+      res.json(payload?.channel ?? { success: true });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Channel konnte nicht bearbeitet werden') });
+    }
+  },
+);
+
+router.delete(
+  '/admin/channels/:companyId/:channelId',
+  requirePermission('admin_delete_channels'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        channel_id: req.params.channelId,
+      });
+      await client.api.post('/manage/delete_channel', data);
+      serverLog(`[Admin] Channel ${req.params.channelId} geloescht`);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Channel konnte nicht geloescht werden') });
+    }
+  },
+);
+
+/** Sichtbarkeit mehrerer Channels auf einmal setzen. */
+router.post(
+  '/admin/channels/:companyId/visibility',
+  requirePermission('admin_edit_channels'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const body = req.body as { channelIds?: unknown; visible?: boolean };
+      const channelIds = parseIdList(body.channelIds);
+      if (!channelIds.length) return res.status(400).json({ error: 'Keine Channels ausgewaehlt' });
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        channel_ids: channelIds,
+        visible: Boolean(body.visible),
+      });
+      await client.api.post('/manage/set_channels_visibility', data);
+      serverLog(`[Admin] Sichtbarkeit fuer ${channelIds.length} Channel(s) gesetzt`);
+      res.json({ success: true, count: channelIds.length });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Sichtbarkeit konnte nicht gesetzt werden') });
+    }
+  },
+);
+
+router.get(
+  '/admin/channels/:companyId/:channelId/members',
+  requirePermission('admin_list_channels', 'admin_edit_channels'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const { search, limit, offset, filter } = req.query;
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        channel_id: req.params.channelId,
+        limit: Math.min(Number(limit) || 50, 500),
+        offset: Number(offset) || 0,
+        search: typeof search === 'string' ? search : '',
+        sorting: [normalizeSorting(req.query.sorting)],
+        ...(typeof filter === 'string' && filter ? { filter } : {}),
+      });
+      const payload = await client.api.post<ManageUsersPayload>('/manage/list_channel_members', data);
+      res.json(payload?.users ?? []);
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Mitglieder konnten nicht geladen werden') });
+    }
+  },
+);
+
+/** Moderatorenstatus setzen oder entziehen (Body: `userIds`, `moderator`). */
+router.post(
+  '/admin/channels/:companyId/:channelId/moderators',
+  requirePermission('admin_edit_channels'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const body = req.body as { userIds?: unknown; moderator?: boolean };
+      const userIds = parseIdList(body.userIds);
+      if (!userIds.length) return res.status(400).json({ error: 'Keine Nutzer ausgewaehlt' });
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        channel_id: req.params.channelId,
+        user_ids: userIds,
+      });
+      const path = body.moderator
+        ? '/manage/set_channel_moderator_status'
+        : '/manage/remove_channel_moderator_status';
+      await client.api.post(path, data);
+      serverLog(`[Admin] Moderatorstatus ${body.moderator ? 'gesetzt' : 'entzogen'} fuer ${userIds.length} Nutzer`);
+      res.json({ success: true, count: userIds.length });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Moderatorstatus konnte nicht geaendert werden') });
+    }
+  },
+);
+
+router.get(
+  '/admin/channels/:companyId/:channelId/statistics',
+  requirePermission('admin_list_channels', 'admin_edit_channels'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        channel_id: req.params.channelId,
+      });
+      const payload = await client.api.post<Record<string, unknown>>('/manage/get_channel_statistics', data);
+      res.json(payload ?? {});
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Statistik konnte nicht geladen werden') });
+    }
+  },
+);
+
 export default router;

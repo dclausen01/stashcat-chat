@@ -774,3 +774,32 @@ enthalten den Begriff wörtlich, Diakritika normalisiert) und **„Ähnliche Tre
 Hartes Filtern wäre die Alternative gewesen, würde aber die Blätterfunktion beschädigen:
 Sie leitet aus `users.length < PAGE_SIZE` ab, ob es eine weitere Seite gibt, weil die API
 keine Gesamtzahl liefert.
+
+### Channel-Routen (companyweit)
+
+Diese Routen arbeiten über den `/manage/*`-Namespace und zeigen dem Admin **alle**
+Channels der Company — auch solche, in denen er selbst kein Mitglied ist. Das ist der
+Unterschied zu `server/routes/channels.ts`, das den eigenen Mitgliedschaften folgt.
+
+| Method | Path | Recht |
+|---|---|---|
+| GET | `/api/admin/channels/:companyId` | `admin_list_channels` |
+| GET | `/api/admin/channels/:companyId/count` | `admin_list_channels` |
+| POST | `/api/admin/channels/:companyId` | `admin_create_company_channels` |
+| PATCH | `/api/admin/channels/:companyId/:channelId` | `admin_edit_channels` |
+| DELETE | `/api/admin/channels/:companyId/:channelId` | `admin_delete_channels` |
+| POST | `/api/admin/channels/:companyId/visibility` | `admin_edit_channels` |
+| GET | `/api/admin/channels/:companyId/:channelId/members` | `admin_list_channels` |
+| POST | `/api/admin/channels/:companyId/:channelId/moderators` | `admin_edit_channels` |
+| GET | `/api/admin/channels/:companyId/:channelId/statistics` | `admin_list_channels` |
+
+Fallstricke:
+
+- **Passwort beim Bearbeiten**: `password` wird nur mitgeschickt, wenn das Feld gefüllt
+  ist. Ein leeres Feld würde sonst ein bestehendes Channel-Passwort entfernen.
+- **`visible` als Filter**: Nur mitschicken, wenn wirklich gefiltert werden soll — ein
+  mitgesendetes `false` schränkt die Liste sonst ungewollt ein.
+- **Feldnamen**: Sichtbarkeit nimmt `channel_ids` (Plural), Moderatoren nehmen `user_ids`.
+  Die Gruppen-Endpunkte nehmen dagegen `users`.
+- **Moderatorstatus** steht wie überall im `manager`-Feld des Mitglieds, nicht in einem
+  eigenen Flag (siehe „isManager Detection").
