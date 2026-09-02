@@ -803,3 +803,35 @@ Fallstricke:
   Die Gruppen-Endpunkte nehmen dagegen `users`.
 - **Moderatorstatus** steht wie überall im `manager`-Feld des Mitglieds, nicht in einem
   eigenen Flag (siehe „isManager Detection").
+
+---
+
+## Share-Links für Dateien (`/share/*`)
+
+Öffentliche Links auf Dateien der Stashcat-Dateiablage. Nicht von `stashcat-api`
+gewrappt — `server/routes/shares.ts` spricht die Endpunkte direkt an.
+
+| Method | Path | Stashcat-Endpunkt |
+|---|---|---|
+| GET | `/api/shares?fileId=…` | `/share/get` |
+| POST | `/api/shares` | `/share/create` |
+| DELETE | `/api/shares` | `/share/delete` |
+| POST | `/api/shares/status` | `/share/revoke` bzw. `/share/reactivate` |
+
+Antwortform (gegen den Webclient verifiziert): `payload.share` mit `id`, `file_id`,
+`folder_id`, `status`, `key`, **`url`** (der teilbare Link), `created`, `created_by`,
+`protected` (Passwort gesetzt), `views`, `downloads`.
+
+Fallstricke:
+
+- **Beide Zielfelder immer senden.** Die API adressiert über `file_id` *und* `folder_id`
+  gleichzeitig — für eine Datei ist `folder_id` null und umgekehrt. Genau so macht es
+  der offizielle Client.
+- **Leerantwort erkennen.** `/share/get` liefert auch ohne existierenden Share ein
+  `payload.share`-Objekt. Nur wenn es eine `id` hat, ist es ein echter Share.
+- **Company-Einstellung `share_links`.** Sind Share-Links für die Company abgeschaltet,
+  antwortet die API mit einem Fehler. Der wird durchgereicht und im Modal angezeigt.
+
+UI: `src/components/fileBrowser/ShareLinkModal.tsx`, erreichbar über das Link-Symbol
+in der Dateizeile. Der Slot heißt `onShareLink` und ist bewusst getrennt von `onShare`
+— letzteres teilt eine Nextcloud-Datei *in einen Chat*, nicht per öffentlichem Link.

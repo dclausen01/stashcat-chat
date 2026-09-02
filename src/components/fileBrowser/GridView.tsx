@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Folder, Trash2, Pencil, Check, Square, Eye, Send, ExternalLink } from 'lucide-react';
+import { Folder, Trash2, Pencil, Check, Square, Eye, Send, ExternalLink , Link2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { fileIcon } from '../../utils/fileIcon';
 import { canPreview } from './helpers';
 import type { ViewProps } from './types';
 
-export function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, onRenameFolder, renamingId, renameValue, setRenameValue, commitRename, commitRenameFolder, cancelRename, canRenameFolder, onDragFileStart, onDragFileEnd, onDropOnFolder, selectedIds, onToggleSelect, buildDownloadUrl, buildViewUrl, onShare, onOnlyOfficeClick }: ViewProps) {
+export function GridView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, onRenameFolder, renamingId, renameValue, setRenameValue, commitRename, commitRenameFolder, cancelRename, canRenameFolder, onDragFileStart, onDragFileEnd, onDropOnFolder, selectedIds, onToggleSelect, buildDownloadUrl, buildViewUrl, onShare, onShareLink, onOnlyOfficeClick }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   return (
     <div className="grid grid-cols-3 gap-2 p-3">
@@ -146,6 +146,15 @@ export function GridView({ folders, files, onFolderClick, onFileOpen, onRename, 
                     title="In OnlyOffice ansehen"
                   >
                     <Eye size={13} />
+                  </button>
+                )}
+                {onShareLink && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onShareLink(f); }}
+                    className="rounded-md p-1.5 text-surface-500 hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-primary-900/30 dark:hover:text-primary-300"
+                    title="Link teilen"
+                  >
+                    <Link2 size={14} />
                   </button>
                 )}
                 {onShare && (

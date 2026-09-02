@@ -2,7 +2,7 @@
  * File browser and storage API endpoints.
  */
 
-import { get, post, patch, getToken, BACKEND } from './core';
+import { get, post, patch, del, getToken, BACKEND } from './core';
 
 // --- Folder / File Browser ---
 
@@ -175,4 +175,59 @@ export interface LinkPreview {
 
 export async function getLinkPreview(url: string): Promise<LinkPreview> {
   return get<LinkPreview>(`/link-preview?url=${encodeURIComponent(url)}`);
+}
+
+// --- Share-Links (oeffentliche Links auf Dateien und Ordner) ---
+
+/**
+ * Share-Objekt aus `/share/*`. Feldnamen gegen den offiziellen Webclient
+ * verifiziert. `url` ist der teilbare Link, `protected` zeigt an, ob ein
+ * Passwort gesetzt ist.
+ */
+export interface ShareLink {
+  id: string | number;
+  file_id?: string | number | null;
+  folder_id?: string | number | null;
+  status?: string;
+  key?: string;
+  url?: string;
+  created?: number | string;
+  protected?: boolean | number | string;
+  views?: number | null;
+  downloads?: number | null;
+}
+
+/** Adressiert eine Datei *oder* einen Ordner. */
+export interface ShareTarget {
+  fileId?: string;
+  folderId?: string;
+}
+
+/** Bestehenden Share abrufen — `null`, wenn es keinen gibt. */
+export async function getShareLink(target: ShareTarget): Promise<ShareLink | null> {
+  const params = new URLSearchParams();
+  if (target.fileId) params.set('fileId', target.fileId);
+  if (target.folderId) params.set('folderId', target.folderId);
+  return get<ShareLink | null>(`/shares?${params.toString()}`);
+}
+
+export async function createShareLink(
+  target: ShareTarget,
+  password?: string,
+): Promise<ShareLink> {
+  return post<ShareLink>('/shares', { ...target, password });
+}
+
+export async function deleteShareLink(target: ShareTarget): Promise<void> {
+  await del('/shares', { ...target });
+}
+
+/** Sperrt (`false`) oder reaktiviert (`true`) einen bestehenden Share. */
+export async function setShareLinkActive(target: ShareTarget, active: boolean): Promise<void> {
+  await post('/shares/status', { ...target, active });
+}
+
+/** Der Status kommt als String; alles ausser 'revoked' gilt als aktiv. */
+export function isShareActive(share: ShareLink | null): boolean {
+  return Boolean(share) && share!.status !== 'revoked';
 }

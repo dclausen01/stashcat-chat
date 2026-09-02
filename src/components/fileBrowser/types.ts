@@ -60,6 +60,8 @@ export interface ViewProps {
   buildViewUrl: (f: FileEntry) => string;
   // Share to chat (Nextcloud only)
   onShare?: (f: FileEntry) => void;
+  // Oeffentlichen Share-Link erzeugen/verwalten (Stashcat-Dateiablage)
+  onShareLink?: (f: FileEntry) => void;
   // OnlyOffice preview (per-system)
   onOnlyOfficeClick?: (f: FileEntry) => void;
 }
