@@ -125,6 +125,11 @@ export {
   canViewInOnlyOffice,
   openInOnlyOffice,
   getLinkPreview,
+  getShareLink,
+  createShareLink,
+  deleteShareLink,
+  setShareLinkActive,
+  isShareActive,
 } from './files';
 export type { FolderContent, FileQuota, FileQuotaEntry, LinkPreview } from './files';
 

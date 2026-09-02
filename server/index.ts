@@ -47,6 +47,7 @@ import onlyOfficeRouter from './routes/onlyoffice';
 import nextcloudRouter from './routes/nextcloud';
 import configRouter from './routes/config';
 import adminRouter from './routes/admin';
+import sharesRouter from './routes/shares';
 import { invalidatePermissions } from './lib/admin';
 import { isBotConversation, findChatBot } from './lib/bot';
 import {
@@ -147,6 +148,7 @@ app.use('/api', onlyOfficeRouter);
 app.use('/api', nextcloudRouter);
 app.use('/api', configRouter);
 app.use('/api', adminRouter);
+app.use('/api', sharesRouter);
 app.use('/api', pushRouter);
 
 // Bootstrap the push dispatcher once the realtime listeners are wired below.

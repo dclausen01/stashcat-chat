@@ -11,6 +11,7 @@ import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { useConfirm } from '../context/ConfirmContext';
 import type { ChatTarget } from '../types';
+import ShareLinkModal from './fileBrowser/ShareLinkModal';
 import ShareToChatModal from './ShareToChatModal';
 import { QuotaBar } from './fileBrowser/QuotaBar';
 import { NCQuotaBar } from './fileBrowser/NCQuotaBar';
@@ -121,6 +122,8 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
     if (storedUser) setNcUsernameInput(storedUser);
   }, []);
   const [shareFile, setShareFile] = useState<FileEntry | null>(null);
+  // Oeffentlicher Share-Link — nur fuer die Stashcat-Dateiablage, nicht fuer Nextcloud.
+  const [shareLinkFile, setShareLinkFile] = useState<FileEntry | null>(null);
 
   const currentFolderId = useMemo(() => crumbs[crumbs.length - 1].id ?? undefined, [crumbs]);
 
@@ -642,6 +645,7 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
     buildDownloadUrl,
     buildViewUrl,
     onShare: tab === 'nextcloud' ? (f) => setShareFile(f) : undefined,
+    onShareLink: tab === 'nextcloud' ? undefined : (f) => setShareLinkFile(f),
     onOnlyOfficeClick:
       api.canViewInOnlyOffice('')
         ? (f) => tab === 'nextcloud'
@@ -1136,6 +1140,10 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
       {/* Share to chat modal */}
       {shareFile && (
         <ShareToChatModal file={shareFile} onClose={() => setShareFile(null)} />
+      )}
+
+      {shareLinkFile && (
+        <ShareLinkModal file={shareLinkFile} onClose={() => setShareLinkFile(null)} />
       )}
 
       {/* Move modal */}

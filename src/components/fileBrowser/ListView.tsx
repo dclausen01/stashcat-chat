@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Folder, Trash2, Pencil, Check, Square, ArrowUp, ArrowDown, Eye, Send, ExternalLink } from 'lucide-react';
+import { Folder, Trash2, Pencil, Check, Square, ArrowUp, ArrowDown, Eye, Send, ExternalLink , Link2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { fileIcon } from '../../utils/fileIcon';
 import type { SortField } from '../../hooks/useFileSorting';
 import { formatDate, canPreview } from './helpers';
 import type { ViewProps } from './types';
 
-export function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, onRenameFolder, renamingId, renameValue, setRenameValue, commitRename, commitRenameFolder, cancelRename, canRenameFolder, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort, selectedIds, onToggleSelect, onSelectAll, buildDownloadUrl, buildViewUrl, onShare, onOnlyOfficeClick }: ViewProps) {
+export function ListView({ folders, files, onFolderClick, onFileOpen, onRename, onDelete, onDeleteFolder, onRenameFolder, renamingId, renameValue, setRenameValue, commitRename, commitRenameFolder, cancelRename, canRenameFolder, onDragFileStart, onDragFileEnd, onDropOnFolder, sortField, sortDirection, onSort, selectedIds, onToggleSelect, onSelectAll, buildDownloadUrl, buildViewUrl, onShare, onShareLink, onOnlyOfficeClick }: ViewProps) {
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   function SortHeader({ field, label, className = '' }: { field: SortField; label: string; className?: string }) {
@@ -224,6 +224,15 @@ export function ListView({ folders, files, onFolderClick, onFileOpen, onRename, 
               </span>
 
               <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden items-center gap-0.5 rounded-md bg-surface-100/95 px-1 shadow-sm backdrop-blur-sm group-hover:flex dark:bg-surface-800/95">
+                {onShareLink && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onShareLink(f); }}
+                    className="rounded-md p-1.5 text-surface-500 hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-primary-900/30 dark:hover:text-primary-300"
+                    title="Link teilen"
+                  >
+                    <Link2 size={14} />
+                  </button>
+                )}
                 {onShare && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onShare(f); }}
