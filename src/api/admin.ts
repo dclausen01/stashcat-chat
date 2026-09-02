@@ -231,3 +231,101 @@ export function userDisplayName(user: AdminUser): string {
   const name = `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim();
   return name || user.email || `Nutzer ${user.id}`;
 }
+
+// --- Gruppen ---
+
+/**
+ * Gruppe aus `/manage/list_groups`. Die Feldnamen sind aus dem offiziellen
+ * Webclient abgeleitet; unbekannte Zusatzfelder werden unveraendert
+ * durchgereicht, daher die optionale Typisierung.
+ */
+export interface AdminGroup {
+  id: string;
+  name: string;
+  description?: string | null;
+  /** Gruppe legt automatisch einen zugehoerigen Channel an. */
+  create_channel?: boolean | number | string;
+  /** Kommunikation der Mitglieder ist auf bestimmte Gruppen beschraenkt. */
+  limit_communication?: boolean | number | string;
+  user_count?: number;
+  time?: number;
+}
+
+export interface GroupInput {
+  name: string;
+  description?: string;
+  createChannel?: boolean;
+  limitCommunication?: boolean;
+}
+
+export interface AdminGroupQuery {
+  search?: string;
+  sorting?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export async function listAdminGroups(
+  companyId: string,
+  query: AdminGroupQuery = {},
+): Promise<AdminGroup[]> {
+  const params = new URLSearchParams();
+  if (query.search) params.set('search', query.search);
+  if (query.sorting) params.set('sorting', query.sorting);
+  params.set('limit', String(query.limit ?? 50));
+  params.set('offset', String(query.offset ?? 0));
+  return get<AdminGroup[]>(`/admin/groups/${companyId}?${params.toString()}`);
+}
+
+export async function createAdminGroup(
+  companyId: string,
+  input: GroupInput,
+): Promise<AdminGroup> {
+  return post<AdminGroup>(`/admin/groups/${companyId}`, { ...input });
+}
+
+export async function updateAdminGroup(
+  companyId: string,
+  groupId: string,
+  input: GroupInput,
+): Promise<AdminGroup> {
+  return patch<AdminGroup>(`/admin/groups/${companyId}/${groupId}`, { ...input });
+}
+
+export async function deleteAdminGroup(companyId: string, groupId: string): Promise<void> {
+  await del(`/admin/groups/${companyId}/${groupId}`);
+}
+
+export async function getAdminGroupMembers(
+  companyId: string,
+  groupId: string,
+  query: AdminUserQuery = {},
+): Promise<AdminUser[]> {
+  const params = new URLSearchParams();
+  if (query.search) params.set('search', query.search);
+  if (query.sorting) params.set('sorting', query.sorting);
+  params.set('limit', String(query.limit ?? 50));
+  params.set('offset', String(query.offset ?? 0));
+  return get<AdminUser[]>(`/admin/groups/${companyId}/${groupId}/members?${params.toString()}`);
+}
+
+export async function addUsersToGroup(
+  companyId: string,
+  groupId: string,
+  userIds: string[],
+): Promise<void> {
+  await post(`/admin/groups/${companyId}/${groupId}/members`, { userIds });
+}
+
+export async function removeUsersFromGroup(
+  companyId: string,
+  groupId: string,
+  userIds: string[],
+): Promise<void> {
+  await del(`/admin/groups/${companyId}/${groupId}/members`, { userIds });
+}
+
+/** Normalisiert die uneinheitlichen Wahrheitswerte der API (true/1/"1"). */
+export function isFlagSet(value: boolean | number | string | undefined | null): boolean {
+  return value === true || value === 1 || value === '1';
+}

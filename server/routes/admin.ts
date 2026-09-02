@@ -433,4 +433,182 @@ router.delete(
   },
 );
 
+// --- Gruppen ---------------------------------------------------------------
+// Die Antwortformen von /manage/list_groups und /manage/list_users_by_group
+// wurden aus dem offiziellen Webclient abgeleitet (payload.groups /
+// payload.users) und werden unveraendert durchgereicht.
+
+interface ManageGroupsPayload {
+  groups?: unknown[];
+}
+
+/** Gruppen der Company, paginiert. Query: `search`, `sorting`, `limit`, `offset`. */
+router.get(
+  '/admin/groups/:companyId',
+  requirePermission('admin_view_company_groups', 'admin_edit_company_groups', 'admin_list_users'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const { search, limit, offset } = req.query;
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        limit: Math.min(Number(limit) || 50, 500),
+        offset: Number(offset) || 0,
+        search: typeof search === 'string' ? search : '',
+        sorting: [normalizeSorting(req.query.sorting, 'name_asc')],
+      });
+      const payload = await client.api.post<ManageGroupsPayload>('/manage/list_groups', data);
+      res.json(payload?.groups ?? []);
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Gruppen konnten nicht geladen werden') });
+    }
+  },
+);
+
+router.post(
+  '/admin/groups/:companyId',
+  requirePermission('admin_edit_company_groups'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const { name, description, createChannel, limitCommunication } = req.body as {
+        name?: string;
+        description?: string;
+        createChannel?: boolean;
+        limitCommunication?: boolean;
+      };
+      if (!name?.trim()) return res.status(400).json({ error: 'Name ist ein Pflichtfeld' });
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        name: name.trim(),
+        description: description?.trim() ?? '',
+        create_channel: Boolean(createChannel),
+        limit_communication: Boolean(limitCommunication),
+      });
+      const payload = await client.api.post<{ group?: unknown }>('/manage/create_group', data);
+      serverLog(`[Admin] Gruppe angelegt: ${name.trim()}`);
+      res.json(payload?.group ?? { success: true });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Gruppe konnte nicht angelegt werden') });
+    }
+  },
+);
+
+router.patch(
+  '/admin/groups/:companyId/:groupId',
+  requirePermission('admin_edit_company_groups'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const { name, description, createChannel, limitCommunication } = req.body as {
+        name?: string;
+        description?: string;
+        createChannel?: boolean;
+        limitCommunication?: boolean;
+      };
+      if (!name?.trim()) return res.status(400).json({ error: 'Name ist ein Pflichtfeld' });
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        group_id: req.params.groupId,
+        name: name.trim(),
+        description: description?.trim() ?? '',
+        create_channel: Boolean(createChannel),
+        limit_communication: Boolean(limitCommunication),
+      });
+      const payload = await client.api.post<{ group?: unknown }>('/manage/edit_group', data);
+      serverLog(`[Admin] Gruppe ${req.params.groupId} bearbeitet`);
+      res.json(payload?.group ?? { success: true });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Gruppe konnte nicht bearbeitet werden') });
+    }
+  },
+);
+
+router.delete(
+  '/admin/groups/:companyId/:groupId',
+  requirePermission('admin_edit_company_groups'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        group_id: req.params.groupId,
+      });
+      await client.api.post('/manage/delete_group', data);
+      serverLog(`[Admin] Gruppe ${req.params.groupId} geloescht`);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Gruppe konnte nicht geloescht werden') });
+    }
+  },
+);
+
+/** Mitglieder einer Gruppe. Query: `search`, `sorting`, `limit`, `offset`. */
+router.get(
+  '/admin/groups/:companyId/:groupId/members',
+  requirePermission('admin_view_company_groups', 'admin_edit_company_groups', 'admin_list_users'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const { search, limit, offset } = req.query;
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        group_id: req.params.groupId,
+        limit: Math.min(Number(limit) || 50, 500),
+        offset: Number(offset) || 0,
+        search: typeof search === 'string' ? search : '',
+        sorting: [normalizeSorting(req.query.sorting)],
+      });
+      const payload = await client.api.post<ManageUsersPayload>('/manage/list_users_by_group', data);
+      res.json(payload?.users ?? []);
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Mitglieder konnten nicht geladen werden') });
+    }
+  },
+);
+
+router.post(
+  '/admin/groups/:companyId/:groupId/members',
+  requirePermission('admin_edit_company_groups'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const userIds = parseIdList((req.body as { userIds?: unknown }).userIds);
+      if (!userIds.length) return res.status(400).json({ error: 'Keine Nutzer ausgewaehlt' });
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        group_id: req.params.groupId,
+        users: userIds,
+      });
+      await client.api.post('/manage/add_users_to_group', data);
+      serverLog(`[Admin] ${userIds.length} Nutzer zu Gruppe ${req.params.groupId} hinzugefuegt`);
+      res.json({ success: true, count: userIds.length });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Hinzufuegen fehlgeschlagen') });
+    }
+  },
+);
+
+router.delete(
+  '/admin/groups/:companyId/:groupId/members',
+  requirePermission('admin_edit_company_groups'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const userIds = parseIdList((req.body as { userIds?: unknown }).userIds);
+      if (!userIds.length) return res.status(400).json({ error: 'Keine Nutzer ausgewaehlt' });
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        group_id: req.params.groupId,
+        users: userIds,
+      });
+      await client.api.post('/manage/remove_users_from_group', data);
+      serverLog(`[Admin] ${userIds.length} Nutzer aus Gruppe ${req.params.groupId} entfernt`);
+      res.json({ success: true, count: userIds.length });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Entfernen fehlgeschlagen') });
+    }
+  },
+);
+
 export default router;

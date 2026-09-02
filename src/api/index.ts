@@ -236,6 +236,14 @@ export {
   removeAllUserDevices,
   isUserActive,
   userDisplayName,
+  listAdminGroups,
+  createAdminGroup,
+  updateAdminGroup,
+  deleteAdminGroup,
+  getAdminGroupMembers,
+  addUsersToGroup,
+  removeUsersFromGroup,
+  isFlagSet,
 } from './admin';
 export type {
   AdminUser,
@@ -246,4 +254,7 @@ export type {
   CreateUserInput,
   UpdateUserInput,
   PermissionKey,
+  AdminGroup,
+  GroupInput,
+  AdminGroupQuery,
 } from './admin';
