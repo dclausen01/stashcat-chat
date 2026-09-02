@@ -41,7 +41,12 @@ export default function AdminView({ onClose }: AdminViewProps) {
   const confirm = useConfirm();
 
   const [users, setUsers] = useState<AdminUser[]>([]);
-  const [roles, setRoles] = useState<AdminRole[]>([]);
+  // Zwei Rollenlisten mit unterschiedlichem Zweck:
+  // - allRoles: ALLE Rollen der Company (/permissions/get) → Filter und Namensanzeige
+  // - assignableRoles: nur die, die dieser Admin vergeben darf (/users/available_roles)
+  //   → Auswahl beim Anlegen, Bearbeiten und in der Sammelaktion
+  const [allRoles, setAllRoles] = useState<AdminRole[]>([]);
+  const [assignableRoles, setAssignableRoles] = useState<AdminRole[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -93,13 +98,21 @@ export default function AdminView({ onClose }: AdminViewProps) {
   useEffect(() => { void loadUsers(); }, [loadUsers]);
 
   // Rollen einmalig laden — sie aendern sich waehrend einer Sitzung praktisch nie.
+  // Beide Listen werden parallel geholt; faellt eine wegen fehlender Rechte aus,
+  // tritt die andere an ihre Stelle, damit das UI nicht leer bleibt.
   const rolesLoadedRef = useRef(false);
   useEffect(() => {
     if (!companyId || !canList || rolesLoadedRef.current) return;
     rolesLoadedRef.current = true;
-    api.getAvailableRoles(companyId)
-      .then(setRoles)
-      .catch(() => setRoles([]));
+    void Promise.allSettled([
+      api.getAdminRoles(companyId),
+      api.getAvailableRoles(companyId),
+    ]).then(([all, assignable]) => {
+      const allList = all.status === 'fulfilled' ? all.value : [];
+      const assignableList = assignable.status === 'fulfilled' ? assignable.value : [];
+      setAllRoles(allList.length ? allList : assignableList);
+      setAssignableRoles(assignableList.length ? assignableList : allList);
+    });
   }, [companyId, canList]);
 
   // Auswahl verwerfen, sobald sich die angezeigte Menge aendert.
@@ -143,9 +156,9 @@ export default function AdminView({ onClose }: AdminViewProps) {
 
   const roleNameById = useMemo(() => {
     const map = new Map<string, string>();
-    for (const r of roles) map.set(String(r.id), r.name);
+    for (const r of allRoles) map.set(String(r.id), r.name);
     return map;
-  }, [roles]);
+  }, [allRoles]);
 
   if (accessLoading) {
     return (
@@ -234,7 +247,7 @@ export default function AdminView({ onClose }: AdminViewProps) {
           <option value="">Alle Status</option>
           <option value="active">Nur aktive</option>
         </select>
-        {roles.length > 0 && (
+        {allRoles.length > 0 && (
           <select
             value={roleFilter}
             onChange={(e) => { setRoleFilter(e.target.value); setPage(0); }}
@@ -242,7 +255,7 @@ export default function AdminView({ onClose }: AdminViewProps) {
             className="rounded-lg border border-surface-300 bg-white px-2 py-1.5 text-sm text-surface-700 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-200"
           >
             <option value="">Alle Rollen</option>
-            {roles.map((role) => (
+            {allRoles.map((role) => (
               <option key={String(role.id)} value={String(role.id)}>{role.name}</option>
             ))}
           </select>
@@ -273,7 +286,7 @@ export default function AdminView({ onClose }: AdminViewProps) {
           >
             <UserCheck size={13} /> Aktivieren
           </button>
-          {canAssignRoles && roles.length > 0 && (
+          {canAssignRoles && assignableRoles.length > 0 && (
             <button
               disabled={busy}
               onClick={() => setBulkRolesOpen(true)}
@@ -404,7 +417,7 @@ export default function AdminView({ onClose }: AdminViewProps) {
 
       {bulkRolesOpen && (
         <BulkRolesDialog
-          roles={roles}
+          roles={assignableRoles}
           count={selected.size}
           busy={busy}
           onClose={() => setBulkRolesOpen(false)}
@@ -429,7 +442,7 @@ export default function AdminView({ onClose }: AdminViewProps) {
         <AdminUserModal
           companyId={companyId}
           user={editing}
-          roles={roles}
+          roles={assignableRoles}
           has={has}
           onClose={() => { setCreating(false); setEditing(null); }}
           onSaved={() => void loadUsers()}
