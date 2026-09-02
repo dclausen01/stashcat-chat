@@ -293,4 +293,50 @@ router.post('/upload/:type/:targetId', upload.single('file'), async (req, res) =
   }
 });
 
+/**
+ * Datei- und Ordnersuche.
+ *
+ * `/search/files` und `/search/folders` liefern beide `payload.results`. Das
+ * Ergebnis wird zu `{ folder, files }` zusammengefasst — dieselbe Form, die
+ * `/api/files/folder` zurueckgibt, damit das Frontend dieselben Ansichten
+ * ohne Sonderfall rendern kann. Genau so macht es auch der offizielle Client.
+ *
+ * Achtung: Der Suchbegriff heisst hier `searchtag`, nicht `search`.
+ */
+router.get('/files/search', async (req, res) => {
+  try {
+    const client = req.client!;
+    const { searchtag, type, typeId, folderId } = req.query;
+    const term = typeof searchtag === 'string' ? searchtag.trim() : '';
+    if (!term) return res.json({ folder: [], files: [] });
+
+    const base = {
+      searchtag: term,
+      folder_id: (folderId as string | undefined) ?? '0',
+      type: (type as string | undefined) ?? 'personal',
+      type_id: typeId as string | undefined,
+    };
+    const payloadOf = (p: { results?: unknown[] } | null | undefined) => p?.results ?? [];
+
+    // Beide Abfragen parallel; faellt eine aus, bleibt die andere nutzbar.
+    const [folders, files] = await Promise.allSettled([
+      client.api.post<{ results?: unknown[] }>(
+        '/search/folders',
+        client.api.createAuthenticatedRequestData(base),
+      ),
+      client.api.post<{ results?: unknown[] }>(
+        '/search/files',
+        client.api.createAuthenticatedRequestData(base),
+      ),
+    ]);
+
+    res.json({
+      folder: folders.status === 'fulfilled' ? payloadOf(folders.value) : [],
+      files: files.status === 'fulfilled' ? payloadOf(files.value) : [],
+    });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err, 'Suche fehlgeschlagen') });
+  }
+});
+
 export default router;

@@ -104,6 +104,9 @@ export {
   getFlaggedMessages,
   startVideoMeeting,
   uploadFile,
+  translateText,
+  listSeenUsers,
+  getSeenCount,
 } from './messages';
 export type { LikeInfo } from './messages';
 
@@ -125,6 +128,7 @@ export {
   canViewInOnlyOffice,
   openInOnlyOffice,
   getLinkPreview,
+  searchFiles,
   getShareLink,
   createShareLink,
   deleteShareLink,
@@ -218,6 +222,7 @@ export type { NCEntry, NCQuota, NCStatus } from './nextcloud';
 // Public runtime config
 export { getPublicConfig } from './config';
 export type { PublicConfig } from './config';
+export type { SeenUser } from './messages';
 
 // Admin (Company-Nutzerverwaltung)
 export {

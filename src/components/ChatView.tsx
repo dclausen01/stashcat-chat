@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useReducer, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Star, Bell, BellOff, ChevronDown, MoreHorizontal, ImageIcon, Info, Type as TypeIcon, Download, LogOut, Plus } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, Pencil, Forward, Search, Reply, Check, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Star, Bell, BellOff, ChevronDown, MoreHorizontal, ImageIcon, Info, Type as TypeIcon, Download, LogOut, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +20,8 @@ import { PollInviteMessage, isPollInviteMessage } from './chat/PollInviteMessage
 import { CalendarEventCard, isCalendarEventMessage } from './chat/CalendarEventCard';
 import { FileList } from './chat/FileList';
 import { LikeBadge } from './chat/LikeBadge';
+import SeenByBadge from './chat/SeenByBadge';
+import TranslateButton from './chat/TranslateButton';
 import { ForwardDialog } from './chat/ForwardDialog';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import Avatar from './Avatar';
@@ -2892,6 +2894,7 @@ function MessageGroup({
                   >
                     <Copy size={13} />
                   </button>
+                  {msg.text && <TranslateButton text={msg.text} />}
                   <button
                     onClick={() => onForward(msg)}
                     title="Weiterleiten"
@@ -2930,7 +2933,7 @@ function MessageGroup({
                       {timeDisplay}
                       {isOwn && (
                         msg.seen_by_others
-                          ? <CheckCheck size={13} className="text-primary-500" />
+                          ? <SeenByBadge messageId={String(msg.id)} />
                           : <Check size={13} />
                       )}
                     </span>
@@ -3099,7 +3102,7 @@ function PlainTextMessage({
             {timeDisplay}
             {isOwn && (
               msg.seen_by_others
-                ? <CheckCheck size={13} className="text-primary-500" />
+                ? <SeenByBadge messageId={String(msg.id)} />
                 : <Check size={13} />
             )}
           </span>
@@ -3142,6 +3145,7 @@ function PlainTextMessage({
         <button onClick={() => { if (msg.text) navigator.clipboard.writeText(msg.text).catch(() => {}); }} title="Kopieren" className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 transition">
           <Copy size={13} />
         </button>
+        {msg.text && <TranslateButton text={msg.text} compact />}
         <button onClick={() => onForward(msg)} title="Weiterleiten" className="flex items-center justify-center rounded-md p-1 text-surface-600 hover:bg-surface-200 dark:hover:bg-surface-700 transition">
           <Forward size={13} />
         </button>

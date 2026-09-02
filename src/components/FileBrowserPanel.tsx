@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, type CSSProperties } from 'react';
 import {
   X, Grid3x3, List, Upload, Folder, ChevronRight, Home,
-  Trash2, Loader2, Plus, Cloud, ArrowLeft, ExternalLink, Check, HardDrive, ArrowUp,
-} from 'lucide-react';
+  Trash2, Loader2, Plus, Cloud, ArrowLeft, ExternalLink, Check, HardDrive, ArrowUp, Search as SearchIcon } from 'lucide-react';
 import { useFileSorting } from '../hooks/useFileSorting';
 import { FolderUploadProgress, type FolderUploadProgressData } from './FolderUploadProgress';
 import { clsx } from 'clsx';
@@ -124,8 +123,17 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
   const [shareFile, setShareFile] = useState<FileEntry | null>(null);
   // Oeffentlicher Share-Link — nur fuer die Stashcat-Dateiablage, nicht fuer Nextcloud.
   const [shareLinkFile, setShareLinkFile] = useState<FileEntry | null>(null);
+  // Dateisuche im aktuellen Ablage-Kontext. Nicht fuer Nextcloud — das ist
+  // ein anderes Backend ohne diesen Endpunkt.
+  const [fileSearch, setFileSearch] = useState('');
+  const [debouncedFileSearch, setDebouncedFileSearch] = useState('');
 
   const currentFolderId = useMemo(() => crumbs[crumbs.length - 1].id ?? undefined, [crumbs]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedFileSearch(fileSearch.trim()), 350);
+    return () => clearTimeout(t);
+  }, [fileSearch]);
 
   const loadFolder = useCallback(async () => {
     setLoading(true);
@@ -147,11 +155,19 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
           modified: e.modified,
         })));
       } else {
-        const result = tab === 'personal'
-          ? await api.listPersonalFiles(currentFolderId)
-          : chat
-            ? await api.listFolder(chat.type, chat.id, currentFolderId)
-            : { folder: [], files: [] };
+        const searching = debouncedFileSearch.length > 0;
+        const result = searching
+          ? await api.searchFiles({
+              searchtag: debouncedFileSearch,
+              type: tab === 'personal' ? 'personal' : (chat?.type ?? 'personal'),
+              typeId: tab === 'personal' ? String(user?.id ?? '') : chat?.id,
+              folderId: currentFolderId,
+            })
+          : tab === 'personal'
+            ? await api.listPersonalFiles(currentFolderId)
+            : chat
+              ? await api.listFolder(chat.type, chat.id, currentFolderId)
+              : { folder: [], files: [] };
         setFolders(result.folder as unknown as FolderEntry[]);
         setFiles(result.files as unknown as FileEntry[]);
       }
@@ -160,7 +176,7 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
     } finally {
       setLoading(false);
     }
-  }, [tab, chat, crumbs]);
+  }, [tab, chat, crumbs, debouncedFileSearch, user?.id]);
 
   // Load quotas when tab or chat changes
   useEffect(() => {
@@ -877,6 +893,29 @@ export default function FileBrowserPanel({ chat, onClose, fullscreen = false }: 
             </span>
           ))}
         </div>
+
+        {/* Dateisuche — Nextcloud kennt diesen Endpunkt nicht */}
+        {tab !== 'nextcloud' && (
+          <div className="relative w-28 shrink-0 sm:w-40">
+            <SearchIcon size={12} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-surface-400" />
+            <input
+              value={fileSearch}
+              onChange={(e) => setFileSearch(e.target.value)}
+              placeholder="Suchen…"
+              aria-label="Dateien und Ordner suchen"
+              className="w-full rounded-md border border-surface-200 bg-white py-1 pl-6 pr-6 text-xs text-surface-900 dark:border-surface-700 dark:bg-surface-800 dark:text-white"
+            />
+            {fileSearch && (
+              <button
+                onClick={() => setFileSearch('')}
+                aria-label="Suche zurücksetzen"
+                className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-surface-400 hover:text-surface-600"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* View mode toggle */}
         <button

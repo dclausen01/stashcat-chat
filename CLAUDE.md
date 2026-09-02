@@ -835,3 +835,35 @@ Fallstricke:
 UI: `src/components/fileBrowser/ShareLinkModal.tsx`, erreichbar über das Link-Symbol
 in der Dateizeile. Der Slot heißt `onShareLink` und ist bewusst getrennt von `onShare`
 — letzteres teilt eine Nextcloud-Datei *in einen Chat*, nicht per öffentlichem Link.
+
+---
+
+## Lesebestätigungen, Dateisuche, Übersetzung
+
+Drei kleinere Funktionen, deren Antwortformen gegen den offiziellen Webclient
+verifiziert sind — die Feldnamen weichen jeweils von der naheliegenden Vermutung ab.
+
+| Funktion | Stashcat-Endpunkt | Antwortfeld |
+|---|---|---|
+| Wer hat gelesen | `/message/list_message_seen_users` | `payload.message_seen_users` |
+| Anzahl Leser | `/message/get_message_seen_users_count` | `payload.message_seen_count` |
+| Dateisuche | `/search/files` | `payload.results` |
+| Ordnersuche | `/search/folders` | `payload.results` |
+| Übersetzung | `/translate/auto` | `payload.translation` |
+
+Fallstricke:
+
+- **`searchtag`, nicht `search`.** Die Dateisuche nennt ihren Parameter anders als
+  alle `/manage/list_*`-Endpunkte.
+- **Einträge der Leseliste** haben `user_id` (nicht `id`), dazu `first_name`,
+  `last_name`, `image`, `deleted` und `time` in Unix-Sekunden.
+- **Suche liefert dieselbe Form wie das Ordner-Listing.** `GET /api/files/search`
+  fasst Datei- und Ordnersuche zu `{ folder, files }` zusammen, damit `ListView` und
+  `GridView` ohne Sonderfall damit umgehen. Genau so macht es der offizielle Client
+  (`filesAndFolders()`).
+- **Nextcloud kennt diese Suche nicht** — das Suchfeld erscheint dort nicht.
+
+UI-Muster: `SeenByBadge` und `TranslateButton` liegen in `src/components/chat/` und
+folgen bewusst dem Aufbau von `LikeBadge` (Popover, Laden erst beim Öffnen, Ergebnis
+danach im State). Die Übersetzung ersetzt den Nachrichtentext **nicht** — das Original
+bleibt stehen, damit Zitieren und Kopieren weiter den Originaltext liefern.

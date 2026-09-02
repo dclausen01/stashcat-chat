@@ -204,4 +204,69 @@ router.post('/messages/:type/:targetId/unread', async (req, res) => {
   }
 });
 
+/**
+ * Wer hat diese Nachricht gelesen.
+ *
+ * `/message/list_message_seen_users` liefert `payload.message_seen_users` mit
+ * den Feldern user_id, first_name, last_name, image, deleted und time
+ * (Unix-Sekunden). Die Gesamtzahl steht in `payload.message_seen_count` eines
+ * eigenen Endpunkts — die Liste selbst kennt sie nicht.
+ */
+router.get('/messages/:messageId/seen', async (req, res) => {
+  try {
+    const client = req.client!;
+    const { limit, offset } = req.query;
+    const data = client.api.createAuthenticatedRequestData({
+      message_id: req.params.messageId,
+      limit: Math.min(Number(limit) || 50, 200),
+      offset: Number(offset) || 0,
+    });
+    const payload = await client.api.post<{ message_seen_users?: unknown[] }>(
+      '/message/list_message_seen_users',
+      data,
+    );
+    res.json({ users: payload?.message_seen_users ?? [] });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err, 'Leseliste konnte nicht geladen werden') });
+  }
+});
+
+/** Nur die Anzahl — guenstiger als die volle Liste. */
+router.get('/messages/:messageId/seen/count', async (req, res) => {
+  try {
+    const client = req.client!;
+    const data = client.api.createAuthenticatedRequestData({ message_id: req.params.messageId });
+    const payload = await client.api.post<{ message_seen_count?: number }>(
+      '/message/get_message_seen_users_count',
+      data,
+    );
+    res.json({ count: payload?.message_seen_count ?? 0 });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err, 'Anzahl konnte nicht geladen werden') });
+  }
+});
+
+/**
+ * Automatische Uebersetzung eines Textes.
+ *
+ * `/translate/auto` nimmt `text` und `language` (Zielsprache) und liefert
+ * `payload.translation`. Gibt der Dienst nichts zurueck, antworten wir mit
+ * `null` statt einem Fehler — der Aufrufer zeigt dann einen Hinweis.
+ */
+router.post('/translate', async (req, res) => {
+  try {
+    const client = req.client!;
+    const { text, language } = req.body as { text?: string; language?: string };
+    if (!text?.trim()) return res.status(400).json({ error: 'Kein Text uebergeben' });
+    const data = client.api.createAuthenticatedRequestData({
+      text: text.trim(),
+      language: language?.trim() || 'de',
+    });
+    const payload = await client.api.post<{ translation?: string }>('/translate/auto', data);
+    res.json({ translation: payload?.translation ?? null });
+  } catch (err) {
+    res.status(500).json({ error: errorMessage(err, 'Uebersetzung fehlgeschlagen') });
+  }
+});
+
 export default router;
