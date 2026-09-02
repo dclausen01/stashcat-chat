@@ -853,6 +853,11 @@ verifiziert sind — die Feldnamen weichen jeweils von der naheliegenden Vermutu
 
 Fallstricke:
 
+- **Route-Reihenfolge in `messages.ts`.** Die `/messages/:messageId/*`-Routen müssen
+  **vor** den generischen `/messages/:type/:targetId`-Routen stehen. Sonst matcht Express
+  `/messages/123/seen` als `type=123`, `targetId=seen` und ruft `getMessages` auf — sichtbar
+  als API-Fehler `no_source_defined – source kind is undefined`. Derselbe Fallstrick wie bei
+  den `bulk/*`-Admin-Routen.
 - **`searchtag`, nicht `search`.** Die Dateisuche nennt ihren Parameter anders als
   alle `/manage/list_*`-Endpunkte.
 - **Einträge der Leseliste** haben `user_id` (nicht `id`), dazu `first_name`,
