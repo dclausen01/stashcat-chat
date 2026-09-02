@@ -6,12 +6,13 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { X, Loader2, AlertCircle, Shield, ShieldOff } from 'lucide-react';
+import { X, Loader2, AlertCircle, Shield, ShieldOff, Search, UserPlus, UserMinus } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { AdminChannel, AdminUser } from '../api/admin';
 import { isFlagSet, userDisplayName } from '../api/admin';
 import Avatar from './Avatar';
+import { useConfirm } from '../context/ConfirmContext';
 
 interface AdminChannelModalProps {
   companyId: string;
@@ -22,13 +23,23 @@ interface AdminChannelModalProps {
   onSaved: () => void;
 }
 
-/** Formatiert Statistikwerte, ohne Annahmen ueber die genauen Feldnamen. */
-function formatStatValue(value: unknown): string {
-  if (value === null || value === undefined) return '–';
-  if (typeof value === 'number') return value.toLocaleString('de-DE');
-  if (typeof value === 'boolean') return value ? 'ja' : 'nein';
-  if (typeof value === 'string') return value;
-  return JSON.stringify(value);
+/**
+ * Kennzahlen aus `/manage/get_channel_statistics`. Feldnamen gegen den
+ * offiziellen Webclient verifiziert.
+ */
+interface ChannelStatistics {
+  num_messages_sent_total?: number;
+  num_messages_read_total?: number;
+  num_messages_sent_historical?: Array<{ year: number; month: number; num_messages: number }>;
+}
+
+const MONTHS = [
+  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
+];
+
+function formatCount(value: number | undefined): string {
+  return typeof value === 'number' ? value.toLocaleString('de-DE') : '–';
 }
 
 export default function AdminChannelModal({
@@ -52,7 +63,14 @@ export default function AdminChannelModal({
 
   const [members, setMembers] = useState<AdminUser[] | null>(null);
   const [membersLoading, setMembersLoading] = useState(false);
-  const [stats, setStats] = useState<Record<string, unknown> | null>(null);
+  const [stats, setStats] = useState<ChannelStatistics | null>(null);
+
+  // Nutzersuche zum Einschreiben. Es gibt keinen /manage/*-Endpunkt dafuer —
+  // wir nutzen den regulaeren Channel-Einladungsweg, siehe Serverroute.
+  const [userSearch, setUserSearch] = useState('');
+  const [candidates, setCandidates] = useState<AdminUser[]>([]);
+  const [searching, setSearching] = useState(false);
+  const confirm = useConfirm();
 
   const loadMembers = useCallback(async () => {
     if (isCreate || !channel) return;
@@ -72,9 +90,62 @@ export default function AdminChannelModal({
   useEffect(() => {
     if (isCreate || !channel) return;
     api.getChannelStatistics(companyId, String(channel.id))
-      .then(setStats)
+      .then((s) => setStats(s as ChannelStatistics))
       .catch(() => setStats(null));
   }, [companyId, channel, isCreate]);
+
+  useEffect(() => {
+    if (isCreate || userSearch.trim().length < 2) {
+      setCandidates([]);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const found = await api.listAdminUsers(companyId, { search: userSearch.trim(), limit: 20 });
+        if (!cancelled) setCandidates(found);
+      } catch {
+        if (!cancelled) setCandidates([]);
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    }, 350);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [userSearch, companyId, isCreate]);
+
+  async function addMember(user: AdminUser) {
+    if (!channel) return;
+    setError('');
+    setSaving(true);
+    try {
+      await api.addChannelMembers(companyId, String(channel.id), [user.id]);
+      setUserSearch('');
+      setCandidates([]);
+      await loadMembers();
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Einladen fehlgeschlagen');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeMember(user: AdminUser) {
+    if (!channel) return;
+    if (!await confirm(`${userDisplayName(user)} aus „${channel.name}" entfernen?`, 'Entfernen')) return;
+    setError('');
+    setSaving(true);
+    try {
+      await api.removeChannelMember(companyId, String(channel.id), user.id);
+      await loadMembers();
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Entfernen fehlgeschlagen');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -201,14 +272,40 @@ export default function AdminChannelModal({
           {!isCreate && stats && Object.keys(stats).length > 0 && (
             <div className="mt-6 border-t border-surface-200 pt-5 dark:border-surface-700">
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-surface-500">Statistik</h3>
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-                {Object.entries(stats).map(([key, value]) => (
-                  <div key={key}>
-                    <dt className="truncate text-surface-500">{key.replace(/_/g, ' ')}</dt>
-                    <dd className="text-surface-800 dark:text-surface-200">{formatStatValue(value)}</dd>
-                  </div>
-                ))}
-              </dl>
+              <div className="mb-4 grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-surface-50 px-3 py-2 dark:bg-surface-800/50">
+                  <p className="text-lg font-semibold text-surface-900 dark:text-white">
+                    {formatCount(stats.num_messages_sent_total)}
+                  </p>
+                  <p className="text-[11px] text-surface-500">Nachrichten gesendet</p>
+                </div>
+                <div className="rounded-lg bg-surface-50 px-3 py-2 dark:bg-surface-800/50">
+                  <p className="text-lg font-semibold text-surface-900 dark:text-white">
+                    {formatCount(stats.num_messages_read_total)}
+                  </p>
+                  <p className="text-[11px] text-surface-500">Nachrichten gelesen</p>
+                </div>
+              </div>
+              {stats.num_messages_sent_historical && stats.num_messages_sent_historical.length > 0 && (
+                <>
+                  <p className="mb-1.5 text-[11px] font-medium text-surface-500">Verlauf</p>
+                  <ul className="space-y-0.5">
+                    {stats.num_messages_sent_historical.map((entry) => (
+                      <li
+                        key={`${entry.year}-${entry.month}`}
+                        className="flex items-baseline justify-between gap-2 text-xs"
+                      >
+                        <span className="text-surface-600 dark:text-surface-400">
+                          {MONTHS[entry.month - 1] ?? entry.month} {entry.year}
+                        </span>
+                        <span className="tabular-nums text-surface-800 dark:text-surface-200">
+                          {formatCount(entry.num_messages)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
           )}
 
@@ -218,6 +315,44 @@ export default function AdminChannelModal({
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-surface-500">
                 Mitglieder {members ? `(${members.length})` : ''}
               </h3>
+              {canEdit && (
+                <div className="mb-3">
+                  <div className="relative">
+                    <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
+                    <input
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      placeholder="Nutzer suchen und einschreiben…"
+                      className="w-full rounded-lg border border-surface-300 bg-white py-1.5 pl-9 pr-3 text-sm text-surface-900 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
+                    />
+                  </div>
+                  {searching && <Loader2 size={14} className="mt-2 animate-spin text-surface-400" />}
+                  {candidates.length > 0 && (
+                    <ul className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-surface-200 dark:border-surface-700">
+                      {candidates.map((user) => {
+                        const alreadyIn = (members ?? []).some((m) => m.id === user.id);
+                        return (
+                          <li key={user.id}>
+                            <button
+                              type="button"
+                              disabled={saving || alreadyIn}
+                              onClick={() => void addMember(user)}
+                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-surface-50 disabled:opacity-40 dark:hover:bg-surface-800"
+                            >
+                              <Avatar name={userDisplayName(user)} image={user.image} size="xs" />
+                              <span className="min-w-0 flex-1 truncate">{userDisplayName(user)}</span>
+                              {alreadyIn
+                                ? <span className="shrink-0 text-xs text-surface-400">bereits drin</span>
+                                : <UserPlus size={14} className="shrink-0 text-primary-500" />}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )}
+
               {membersLoading ? (
                 <Loader2 size={16} className="animate-spin text-surface-400" />
               ) : !members?.length ? (
@@ -257,6 +392,18 @@ export default function AdminChannelModal({
                             )}
                           >
                             {isModerator ? <ShieldOff size={14} /> : <Shield size={14} />}
+                          </button>
+                        )}
+                        {canEdit && (
+                          <button
+                            type="button"
+                            disabled={saving}
+                            title="Aus dem Channel entfernen"
+                            aria-label={`${userDisplayName(user)} aus dem Channel entfernen`}
+                            onClick={() => void removeMember(user)}
+                            className="shrink-0 rounded-lg p-1 text-surface-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-900/20"
+                          >
+                            <UserMinus size={14} />
                           </button>
                         )}
                       </li>
