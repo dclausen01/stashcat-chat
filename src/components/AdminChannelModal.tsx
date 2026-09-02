@@ -6,10 +6,10 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { X, Loader2, AlertCircle, Shield, ShieldOff, Search, UserPlus, UserMinus } from 'lucide-react';
+import { X, Loader2, AlertCircle, Shield, ShieldOff, Search, UserPlus, UserMinus, UsersRound, Check } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
-import type { AdminChannel, AdminUser } from '../api/admin';
+import type { AdminChannel, AdminGroup, AdminUser } from '../api/admin';
 import { isFlagSet, userDisplayName } from '../api/admin';
 import Avatar from './Avatar';
 import { useConfirm } from '../context/ConfirmContext';
@@ -72,6 +72,13 @@ export default function AdminChannelModal({
   const [searching, setSearching] = useState(false);
   const confirm = useConfirm();
 
+  // Ganze Gruppen (z. B. Klassen) einschreiben. Der Server loest die Gruppe in
+  // ihre Mitglieder auf — einen nativen Endpunkt dafuer gibt es nicht.
+  const [groupSearch, setGroupSearch] = useState('');
+  const [groupCandidates, setGroupCandidates] = useState<AdminGroup[]>([]);
+  const [groupSearching, setGroupSearching] = useState(false);
+  const [notice, setNotice] = useState('');
+
   const loadMembers = useCallback(async () => {
     if (isCreate || !channel) return;
     setMembersLoading(true);
@@ -113,6 +120,56 @@ export default function AdminChannelModal({
     }, 350);
     return () => { cancelled = true; clearTimeout(t); };
   }, [userSearch, companyId, isCreate]);
+
+  useEffect(() => {
+    if (isCreate || groupSearch.trim().length < 2) {
+      setGroupCandidates([]);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setGroupSearching(true);
+      try {
+        const found = await api.listAdminGroups(companyId, { search: groupSearch.trim(), limit: 20 });
+        if (!cancelled) setGroupCandidates(found);
+      } catch {
+        if (!cancelled) setGroupCandidates([]);
+      } finally {
+        if (!cancelled) setGroupSearching(false);
+      }
+    }, 350);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [groupSearch, companyId, isCreate]);
+
+  async function inviteGroup(group: AdminGroup) {
+    if (!channel) return;
+    if (!await confirm(
+      `Alle Mitglieder von „${group.name}" in „${channel.name}" einschreiben?`,
+      'Einschreiben',
+    )) return;
+    setError('');
+    setNotice('');
+    setSaving(true);
+    try {
+      const result = await api.inviteGroupToChannel(companyId, String(channel.id), String(group.id));
+      setGroupSearch('');
+      setGroupCandidates([]);
+      if (result.alreadyComplete) {
+        setNotice(`Alle Mitglieder von „${group.name}" sind bereits im Channel.`);
+      } else {
+        setNotice(
+          `${result.invited} Mitglied(er) aus „${group.name}" eingeladen`
+          + (result.skipped ? `, ${result.skipped} waren bereits drin.` : '.'),
+        );
+      }
+      await loadMembers();
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gruppe konnte nicht eingeladen werden');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function addMember(user: AdminUser) {
     if (!channel) return;
@@ -222,6 +279,11 @@ export default function AdminChannelModal({
               <AlertCircle size={16} className="mt-0.5 shrink-0" /> {error}
             </p>
           )}
+          {notice && (
+            <p className="mb-4 flex items-start gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-400">
+              <Check size={16} className="mt-0.5 shrink-0" /> {notice}
+            </p>
+          )}
 
           <form id="admin-channel-form" onSubmit={handleSubmit} className="space-y-4">
             <label className="block">
@@ -315,6 +377,39 @@ export default function AdminChannelModal({
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-surface-500">
                 Mitglieder {members ? `(${members.length})` : ''}
               </h3>
+              {canEdit && (
+                <div className="mb-3">
+                  <div className="relative">
+                    <UsersRound size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
+                    <input
+                      value={groupSearch}
+                      onChange={(e) => setGroupSearch(e.target.value)}
+                      placeholder="Ganze Gruppe einschreiben (z. B. Klasse)…"
+                      className="w-full rounded-lg border border-surface-300 bg-white py-1.5 pl-9 pr-3 text-sm text-surface-900 dark:border-surface-600 dark:bg-surface-800 dark:text-white"
+                    />
+                  </div>
+                  {groupSearching && <Loader2 size={14} className="mt-2 animate-spin text-surface-400" />}
+                  {groupCandidates.length > 0 && (
+                    <ul className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-surface-200 dark:border-surface-700">
+                      {groupCandidates.map((group) => (
+                        <li key={String(group.id)}>
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => void inviteGroup(group)}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-surface-50 disabled:opacity-40 dark:hover:bg-surface-800"
+                          >
+                            <UsersRound size={14} className="shrink-0 text-surface-400" />
+                            <span className="min-w-0 flex-1 truncate">{group.name}</span>
+                            <UserPlus size={14} className="shrink-0 text-primary-500" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
               {canEdit && (
                 <div className="mb-3">
                   <div className="relative">

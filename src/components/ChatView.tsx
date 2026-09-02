@@ -2732,6 +2732,9 @@ function MessageGroup({
             : time;
           const isFirst = i === 0;
           const isLast = i === messages.length - 1;
+          // Der Lese-Haken soll auch an aelteren eigenen Nachrichten anklickbar
+          // sein, nicht nur an der letzten. Die Uhrzeit bleibt der letzten
+          // vorbehalten — sonst wird die Blasenansicht unruhig.
           const content = msg.deleted || msg.is_deleted_by_manager
             ? '*`Nachricht wurde gelöscht`*'
             : msg.text || (msg.encrypted ? '🔒 *Verschlüsselte Nachricht*' : '');
@@ -2926,15 +2929,15 @@ function MessageGroup({
                 </div>
               </div>
 
-              {(isLast || (msg.likes ?? 0) > 0) && (
+              {(isLast || (isOwn && msg.seen_by_others) || (msg.likes ?? 0) > 0) && (
                 <div className={clsx('relative z-10 flex items-center gap-1.5 px-1', isOwn ? 'flex-row-reverse' : 'flex-row')}>
-                  {isLast && (
+                  {(isLast || (isOwn && msg.seen_by_others)) && (
                     <span className="flex items-center gap-0.5 text-xs text-surface-600">
-                      {timeDisplay}
+                      {isLast && timeDisplay}
                       {isOwn && (
                         msg.seen_by_others
                           ? <SeenByBadge messageId={String(msg.id)} />
-                          : <Check size={13} />
+                          : isLast ? <Check size={13} /> : null
                       )}
                     </span>
                   )}
