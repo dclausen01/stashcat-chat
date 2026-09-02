@@ -47,6 +47,7 @@ import onlyOfficeRouter from './routes/onlyoffice';
 import nextcloudRouter from './routes/nextcloud';
 import configRouter from './routes/config';
 import adminRouter from './routes/admin';
+import { invalidatePermissions } from './lib/admin';
 import { isBotConversation, findChatBot } from './lib/bot';
 import {
   generateMobileToken,
@@ -1047,6 +1048,9 @@ app.post('/api/logout', async (req, res) => {
       const payload = decryptSession(token);
       // Clean up cache and SSE
       invalidateClient(payload.clientKey);
+      // Admin-Rechte sind nutzerspezifisch — Cache-Eintraege dieser Session
+      // verwerfen, damit ein spaeterer Login nicht fremde Rechte sieht.
+      invalidatePermissions(payload.clientKey);
       const sse = activeSSE.get(payload.clientKey);
       if (sse) {
         void Promise.resolve(sse.realtime?.disconnect?.()).catch(() => {});
