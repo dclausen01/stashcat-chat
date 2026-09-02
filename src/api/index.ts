@@ -104,6 +104,8 @@ export {
   getFlaggedMessages,
   startVideoMeeting,
   uploadFile,
+  listSeenUsers,
+  getSeenCount,
 } from './messages';
 export type { LikeInfo } from './messages';
 
@@ -218,6 +220,7 @@ export type { NCEntry, NCQuota, NCStatus } from './nextcloud';
 // Public runtime config
 export { getPublicConfig } from './config';
 export type { PublicConfig } from './config';
+export type { SeenUser } from './messages';
 
 // Admin (Company-Nutzerverwaltung)
 export {

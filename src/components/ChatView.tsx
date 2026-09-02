@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useReducer, useCallback, type ReactNode } from 'react';
-import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, Pencil, Forward, Search, Reply, Check, CheckCheck, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Star, Bell, BellOff, ChevronDown, MoreHorizontal, ImageIcon, Info, Type as TypeIcon, Download, LogOut, Plus } from 'lucide-react';
+import { Hash, Users, FolderOpen, ArrowDown, Loader2, Trash2, Copy, ThumbsUp, X, ExternalLink, Pencil, Forward, Search, Reply, Check, Clock, Video, CalendarDays, ArrowLeft, GraduationCap, Bookmark, Phone, TvMinimalPlay, Cloud, BookOpen, Star, Bell, BellOff, ChevronDown, MoreHorizontal, ImageIcon, Info, Type as TypeIcon, Download, LogOut, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +20,7 @@ import { PollInviteMessage, isPollInviteMessage } from './chat/PollInviteMessage
 import { CalendarEventCard, isCalendarEventMessage } from './chat/CalendarEventCard';
 import { FileList } from './chat/FileList';
 import { LikeBadge } from './chat/LikeBadge';
+import SeenByBadge from './chat/SeenByBadge';
 import { ForwardDialog } from './chat/ForwardDialog';
 import { useRealtimeEvents } from '../hooks/useRealtimeEvents';
 import Avatar from './Avatar';
@@ -2930,7 +2931,7 @@ function MessageGroup({
                       {timeDisplay}
                       {isOwn && (
                         msg.seen_by_others
-                          ? <CheckCheck size={13} className="text-primary-500" />
+                          ? <SeenByBadge messageId={String(msg.id)} />
                           : <Check size={13} />
                       )}
                     </span>
@@ -3099,7 +3100,7 @@ function PlainTextMessage({
             {timeDisplay}
             {isOwn && (
               msg.seen_by_others
-                ? <CheckCheck size={13} className="text-primary-500" />
+                ? <SeenByBadge messageId={String(msg.id)} />
                 : <Check size={13} />
             )}
           </span>

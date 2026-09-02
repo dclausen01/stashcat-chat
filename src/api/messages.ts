@@ -166,3 +166,28 @@ export async function uploadFile(
     xhr.send(formData);
   });
 }
+
+// --- Lesebestätigungen ---
+
+/**
+ * Ein Eintrag aus `/message/list_message_seen_users`. `time` sind
+ * Unix-Sekunden, `user_id` ist die ID (nicht `id`).
+ */
+export interface SeenUser {
+  user_id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  image?: string | null;
+  deleted?: boolean;
+  time?: number;
+}
+
+export async function listSeenUsers(messageId: string): Promise<SeenUser[]> {
+  const data = await get<{ users: SeenUser[] }>(`/messages/${messageId}/seen`);
+  return data.users ?? [];
+}
+
+export async function getSeenCount(messageId: string): Promise<number> {
+  const data = await get<{ count: number }>(`/messages/${messageId}/seen/count`);
+  return data.count ?? 0;
+}
