@@ -247,7 +247,12 @@ export interface AdminGroup {
   create_channel?: boolean | number | string;
   /** Kommunikation der Mitglieder ist auf bestimmte Gruppen beschraenkt. */
   limit_communication?: boolean | number | string;
-  user_count?: number;
+  /** Mitgliederzahl. Heisst `count` — nicht `user_count`. */
+  count?: number | string;
+  /** Aus dem AD/LDAP synchronisierte Gruppe: Mitglieder sind dort nicht aenderbar. */
+  ldap_group?: boolean | number | string;
+  /** Kommt nur mit, wenn die API die Mitglieder mitliefert. */
+  members?: unknown[];
   time?: number;
 }
 
@@ -323,6 +328,19 @@ export async function removeUsersFromGroup(
   userIds: string[],
 ): Promise<void> {
   await del(`/admin/groups/${companyId}/${groupId}/members`, { userIds });
+}
+
+/**
+ * Mitgliederzahl einer Gruppe. Die API liefert sie als `count` (teils als
+ * String); fehlt sie, wird auf die mitgelieferte Mitgliederliste
+ * zurueckgegriffen — so macht es auch der offizielle Client.
+ */
+export function groupMemberCount(group: AdminGroup): number | null {
+  if (group.count !== undefined && group.count !== null) {
+    const n = typeof group.count === 'string' ? parseInt(group.count, 10) : group.count;
+    if (!Number.isNaN(n)) return n;
+  }
+  return Array.isArray(group.members) ? group.members.length : null;
 }
 
 /** Normalisiert die uneinheitlichen Wahrheitswerte der API (true/1/"1"). */
@@ -454,4 +472,20 @@ export async function getChannelStatistics(
   channelId: string,
 ): Promise<Record<string, unknown>> {
   return get<Record<string, unknown>>(`/admin/channels/${companyId}/${channelId}/statistics`);
+}
+
+export async function addChannelMembers(
+  companyId: string,
+  channelId: string,
+  userIds: string[],
+): Promise<void> {
+  await post(`/admin/channels/${companyId}/${channelId}/members`, { userIds });
+}
+
+export async function removeChannelMember(
+  companyId: string,
+  channelId: string,
+  userId: string,
+): Promise<void> {
+  await del(`/admin/channels/${companyId}/${channelId}/members/${userId}`);
 }

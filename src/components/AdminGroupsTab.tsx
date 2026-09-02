@@ -14,7 +14,7 @@ import {
 import { clsx } from 'clsx';
 import * as api from '../api';
 import type { AdminGroup, PermissionKey } from '../api/admin';
-import { isFlagSet } from '../api/admin';
+import { isFlagSet, groupMemberCount } from '../api/admin';
 import { useConfirm } from '../context/ConfirmContext';
 import AdminGroupModal from './AdminGroupModal';
 
@@ -190,9 +190,17 @@ export default function AdminGroupsTab({ companyId, has }: AdminGroupsTabProps) 
                         <Lock size={11} /> Begrenzt
                       </span>
                     )}
-                    {typeof group.user_count === 'number' && (
+                    {isFlagSet(group.ldap_group) && (
+                      <span
+                        title="Aus dem Active Directory synchronisiert — Mitglieder lassen sich hier nicht ändern"
+                        className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:bg-sky-900/30 dark:text-sky-400"
+                      >
+                        AD
+                      </span>
+                    )}
+                    {groupMemberCount(group) !== null && (
                       <span className="rounded-full bg-surface-100 px-2 py-0.5 text-[11px] font-medium text-surface-600 dark:bg-surface-800 dark:text-surface-400">
-                        {group.user_count}
+                        {groupMemberCount(group)}
                       </span>
                     )}
                   </div>

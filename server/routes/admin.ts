@@ -793,8 +793,13 @@ router.get(
         sorting: [normalizeSorting(req.query.sorting)],
         ...(typeof filter === 'string' && filter ? { filter } : {}),
       });
-      const payload = await client.api.post<ManageUsersPayload>('/manage/list_channel_members', data);
-      res.json(payload?.users ?? []);
+      // Achtung: Dieser Endpunkt liefert `members` — die uebrigen list_*
+      // Endpunkte liefern `users`.
+      const payload = await client.api.post<{ members?: unknown[] }>(
+        '/manage/list_channel_members',
+        data,
+      );
+      res.json(payload?.members ?? []);
     } catch (err) {
       res.status(500).json({ error: errorMessage(err, 'Mitglieder konnten nicht geladen werden') });
     }
@@ -838,10 +843,56 @@ router.get(
         company_id: req.params.companyId,
         channel_id: req.params.channelId,
       });
-      const payload = await client.api.post<Record<string, unknown>>('/manage/get_channel_statistics', data);
-      res.json(payload ?? {});
+      // Die Kennzahlen stecken in payload.statistics, nicht direkt im Payload.
+      const payload = await client.api.post<{ statistics?: Record<string, unknown> }>(
+        '/manage/get_channel_statistics',
+        data,
+      );
+      res.json(payload?.statistics ?? {});
     } catch (err) {
       res.status(500).json({ error: errorMessage(err, 'Statistik konnte nicht geladen werden') });
+    }
+  },
+);
+
+/**
+ * Nutzer in einen Channel einladen.
+ *
+ * Es gibt hierfuer *keinen* /manage/*-Endpunkt — auch die offizielle
+ * Admin-Oberflaeche kann nur Moderatorenrechte setzen. Wir nutzen deshalb den
+ * regulaeren Channel-Endpunkt. Ob das auch fuer Channels gilt, in denen der
+ * Admin selbst kein Mitglied ist, entscheidet der Stashcat-Server; ein
+ * Ablehnen wird als Fehler durchgereicht.
+ */
+router.post(
+  '/admin/channels/:companyId/:channelId/members',
+  requirePermission('admin_edit_channels'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const userIds = parseIdList((req.body as { userIds?: unknown }).userIds);
+      if (!userIds.length) return res.status(400).json({ error: 'Keine Nutzer ausgewaehlt' });
+      await client.inviteUsersToChannel(String(req.params.channelId), userIds);
+      serverLog(`[Admin] ${userIds.length} Nutzer in Channel ${req.params.channelId} eingeladen`);
+      res.json({ success: true, count: userIds.length });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Einladen fehlgeschlagen') });
+    }
+  },
+);
+
+/** Nutzer aus einem Channel entfernen. Gleiche Einschraenkung wie oben. */
+router.delete(
+  '/admin/channels/:companyId/:channelId/members/:userId',
+  requirePermission('admin_edit_channels'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      await client.removeUserFromChannel(String(req.params.channelId), String(req.params.userId));
+      serverLog(`[Admin] Nutzer ${req.params.userId} aus Channel ${req.params.channelId} entfernt`);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Entfernen fehlgeschlagen') });
     }
   },
 );

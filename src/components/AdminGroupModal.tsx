@@ -6,10 +6,11 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { X, Loader2, AlertCircle, UserPlus, UserMinus, Search } from 'lucide-react';
+import { X, Loader2, AlertCircle, UserPlus, UserMinus, Search, Check, Info } from 'lucide-react';
 import * as api from '../api';
 import type { AdminGroup, AdminUser } from '../api/admin';
 import { isFlagSet, userDisplayName } from '../api/admin';
+import { useConfirm } from '../context/ConfirmContext';
 import Avatar from './Avatar';
 
 interface AdminGroupModalProps {
@@ -25,6 +26,10 @@ export default function AdminGroupModal({
   companyId, group, canEdit, onClose, onSaved,
 }: AdminGroupModalProps) {
   const isCreate = group === null;
+  const confirm = useConfirm();
+  // AD-Gruppen werden aus dem Verzeichnis synchronisiert — Aenderungen an den
+  // Mitgliedern greifen dort nicht dauerhaft.
+  const isLdapGroup = isFlagSet(group?.ldap_group);
 
   const [name, setName] = useState(group?.name ?? '');
   const [description, setDescription] = useState(group?.description ?? '');
@@ -34,6 +39,7 @@ export default function AdminGroupModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const [notice, setNotice] = useState('');
   const [members, setMembers] = useState<AdminUser[] | null>(null);
   const [membersLoading, setMembersLoading] = useState(false);
 
@@ -114,7 +120,15 @@ export default function AdminGroupModal({
       await api.addUsersToGroup(companyId, String(group.id), [user.id]);
       setUserSearch('');
       setCandidates([]);
-      await loadMembers();
+      const after = await api.getAdminGroupMembers(companyId, String(group.id), { limit: 200 });
+      setMembers(after);
+      if (after.some((m) => m.id === user.id)) {
+        setNotice(`${userDisplayName(user)} wurde hinzugefügt.`);
+      } else {
+        setError(
+          `${userDisplayName(user)} erscheint nicht in der Mitgliederliste. Die Gruppe wird vermutlich aus dem Active Directory verwaltet.`,
+        );
+      }
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hinzufügen fehlgeschlagen');
@@ -125,11 +139,30 @@ export default function AdminGroupModal({
 
   async function removeMember(user: AdminUser) {
     if (!group) return;
+    const warning = isLdapGroup
+      ? ` Diese Gruppe kommt aus dem Active Directory — die Änderung wird dort voraussichtlich wieder überschrieben.`
+      : '';
+    if (!await confirm(
+      `${userDisplayName(user)} aus „${group.name}" entfernen?${warning}`,
+      'Entfernen',
+    )) return;
+
     setError('');
+    setNotice('');
     setSaving(true);
     try {
       await api.removeUsersFromGroup(companyId, String(group.id), [user.id]);
-      await loadMembers();
+      // Die API meldet auch dann Erfolg, wenn die Aenderung nicht greift (etwa
+      // bei AD-Gruppen). Deshalb nachladen und pruefen, ob es wirklich wirkte.
+      const after = await api.getAdminGroupMembers(companyId, String(group.id), { limit: 200 });
+      setMembers(after);
+      if (after.some((m) => m.id === user.id)) {
+        setError(
+          `${userDisplayName(user)} ist weiterhin Mitglied. Die Gruppe wird vermutlich aus dem Active Directory verwaltet und dort nicht geändert.`,
+        );
+      } else {
+        setNotice(`${userDisplayName(user)} wurde entfernt.`);
+      }
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Entfernen fehlgeschlagen');
@@ -163,6 +196,18 @@ export default function AdminGroupModal({
           {error && (
             <p className="mb-4 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
               <AlertCircle size={16} className="mt-0.5 shrink-0" /> {error}
+            </p>
+          )}
+          {notice && (
+            <p className="mb-4 flex items-start gap-2 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-400">
+              <Check size={16} className="mt-0.5 shrink-0" /> {notice}
+            </p>
+          )}
+          {!isCreate && isLdapGroup && (
+            <p className="mb-4 flex items-start gap-2 rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:bg-sky-900/20 dark:text-sky-300">
+              <Info size={15} className="mt-0.5 shrink-0" />
+              Diese Gruppe wird aus dem Active Directory synchronisiert. Änderungen an den
+              Mitgliedern werden von dort voraussichtlich wieder überschrieben.
             </p>
           )}
 
