@@ -20,12 +20,26 @@ import AdminGroupModal from './AdminGroupModal';
 
 const PAGE_SIZE = 50;
 
+/**
+ * `/manage/list_groups` kennt nur diese vier Sortierungen — nach Mitgliederzahl
+ * kann der Server nicht sortieren, er ignoriert solche Werte stillschweigend.
+ */
 const SORT_OPTIONS: [string, string][] = [
   ['name_asc', 'Name A–Z'],
   ['name_desc', 'Name Z–A'],
-  ['user_count_desc', 'Meiste Mitglieder'],
-  ['user_count_asc', 'Wenigste Mitglieder'],
+  ['id_desc', 'Neueste zuerst'],
+  ['id_asc', 'Älteste zuerst'],
 ];
+
+/**
+ * Die API liefert eine fehlende Beschreibung teils als "0" oder 0 statt als
+ * leeren Wert. Ohne diese Prüfung stünde unter jedem Gruppennamen eine „0".
+ */
+function groupDescription(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  const text = String(value).trim();
+  return text === '0' ? '' : text;
+}
 
 interface AdminGroupsTabProps {
   companyId: string;
@@ -169,8 +183,10 @@ export default function AdminGroupsTab({ companyId, has }: AdminGroupsTabProps) 
                     <p className="truncate text-sm font-medium text-surface-900 dark:text-white">
                       {group.name}
                     </p>
-                    {group.description && (
-                      <p className="truncate text-xs text-surface-500">{group.description}</p>
+                    {groupDescription(group.description) && (
+                      <p className="truncate text-xs text-surface-500">
+                        {groupDescription(group.description)}
+                      </p>
                     )}
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">

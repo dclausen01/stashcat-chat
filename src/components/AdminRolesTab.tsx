@@ -15,6 +15,7 @@ import { clsx } from 'clsx';
 import * as api from '../api';
 import type { AdminRole, PermissionKey } from '../api/admin';
 import { isRoleEditable, rolePermissions } from '../api/admin';
+import { roleDisplayName } from '../lib/permissionLabels';
 import { useConfirm } from '../context/ConfirmContext';
 import AdminRoleModal from './AdminRoleModal';
 
@@ -53,7 +54,7 @@ export default function AdminRolesTab({ companyId, has }: AdminRolesTabProps) {
 
   async function handleDelete(role: AdminRole) {
     const ok = await confirm(
-      `Rolle „${role.name}" löschen? Nutzer mit dieser Rolle verlieren die daran hängenden Rechte.`,
+      `Rolle „${roleDisplayName(role.name)}" löschen? Nutzer mit dieser Rolle verlieren die daran hängenden Rechte.`,
       'Löschen',
     );
     if (!ok) return;
@@ -125,7 +126,7 @@ export default function AdminRolesTab({ companyId, has }: AdminRolesTabProps) {
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-1.5 truncate text-sm font-medium text-surface-900 dark:text-white">
-                        {role.name}
+                        {roleDisplayName(role.name)}
                         {!editable && (
                           <Lock size={12} className="shrink-0 text-surface-400" aria-label="Systemrolle, nicht änderbar" />
                         )}
@@ -147,7 +148,7 @@ export default function AdminRolesTab({ companyId, has }: AdminRolesTabProps) {
                     <button
                       disabled={busy}
                       onClick={() => void handleDelete(role)}
-                      aria-label={`Rolle ${role.name} löschen`}
+                      aria-label={`Rolle ${roleDisplayName(role.name)} löschen`}
                       className="shrink-0 rounded-lg p-1.5 text-surface-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-900/20"
                     >
                       <Trash2 size={15} />

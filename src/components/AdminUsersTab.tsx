@@ -15,6 +15,7 @@ import { clsx } from 'clsx';
 import * as api from '../api';
 import type { AdminRole, AdminUser, PermissionKey } from '../api/admin';
 import { isUserActive, userDisplayName } from '../api/admin';
+import { roleDisplayName } from '../lib/permissionLabels';
 import { useConfirm } from '../context/ConfirmContext';
 import Avatar from './Avatar';
 import AdminUserModal from './AdminUserModal';
@@ -191,7 +192,7 @@ export default function AdminUsersTab({ companyId, has }: AdminUsersTabProps) {
 
   const roleNameById = useMemo(() => {
     const map = new Map<string, string>();
-    for (const r of allRoles) map.set(String(r.id), r.name);
+    for (const r of allRoles) map.set(String(r.id), roleDisplayName(r.name));
     return map;
   }, [allRoles]);
 
@@ -200,7 +201,7 @@ export default function AdminUsersTab({ companyId, has }: AdminUsersTabProps) {
       key={user.id}
       user={user}
       roleNames={(user.roles ?? [])
-        .map((r) => roleNameById.get(String(r.id)) ?? r.name)
+        .map((r) => roleNameById.get(String(r.id)) ?? roleDisplayName(r.name))
         .filter(Boolean)}
       checked={selected.has(user.id)}
       onToggle={() => toggleOne(user.id)}
@@ -239,7 +240,7 @@ export default function AdminUsersTab({ companyId, has }: AdminUsersTabProps) {
           >
             <option value="">Alle Rollen</option>
             {allRoles.map((role) => (
-              <option key={String(role.id)} value={String(role.id)}>{role.name}</option>
+              <option key={String(role.id)} value={String(role.id)}>{roleDisplayName(role.name)}</option>
             ))}
           </select>
         )}
@@ -469,7 +470,7 @@ function BulkRolesDialog({
                     : 'bg-surface-100 text-surface-600 hover:bg-surface-200 dark:bg-surface-800 dark:text-surface-400 dark:hover:bg-surface-700',
                 )}
               >
-                {role.name}
+                {roleDisplayName(role.name)}
               </button>
             );
           })}
