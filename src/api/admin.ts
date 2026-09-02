@@ -15,7 +15,7 @@ export interface AdminRole {
   id: string;
   name: string;
   company_id?: string;
-  editable?: boolean | number;
+  editable?: boolean | number | string;
   global?: boolean | string;
   permissions?: PermissionKey[];
   time?: number;
@@ -509,4 +509,48 @@ export async function inviteGroupToChannel(
     `/admin/channels/${companyId}/${channelId}/members/group`,
     { groupId },
   );
+}
+
+// --- Rollen verwalten ---
+
+export interface RoleInput {
+  name: string;
+  /** Rechte als snake_case-Schlüssel, wie die API sie liefert. */
+  permissions: string[];
+  isGlobal?: boolean;
+}
+
+export async function createAdminRole(companyId: string, input: RoleInput): Promise<AdminRole> {
+  return post<AdminRole>(`/admin/roles/${companyId}`, { ...input });
+}
+
+export async function updateAdminRole(
+  companyId: string,
+  roleId: string,
+  input: RoleInput,
+): Promise<AdminRole> {
+  return patch<AdminRole>(`/admin/roles/${companyId}/${roleId}`, { ...input });
+}
+
+export async function deleteAdminRole(companyId: string, roleId: string): Promise<void> {
+  await del(`/admin/roles/${companyId}/${roleId}`);
+}
+
+/**
+ * Rechte einer Rolle als String-Array. Die API liefert sie je nach Endpunkt
+ * als Array oder als Objekt mit String-Werten — beides wird normalisiert.
+ */
+export function rolePermissions(role: AdminRole): string[] {
+  const raw: unknown = role.permissions;
+  if (Array.isArray(raw)) return raw.filter((p): p is string => typeof p === 'string');
+  if (raw && typeof raw === 'object') {
+    return Object.values(raw as Record<string, unknown>)
+      .filter((p): p is string => typeof p === 'string');
+  }
+  return [];
+}
+
+/** Systemrollen (z. B. `{{admins}}`) sind nicht bearbeitbar. */
+export function isRoleEditable(role: AdminRole): boolean {
+  return role.editable === true || role.editable === 1 || role.editable === '1';
 }

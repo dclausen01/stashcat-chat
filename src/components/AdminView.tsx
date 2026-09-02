@@ -8,15 +8,16 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Users, Loader2, X, ArrowLeft, ShieldCheck, UsersRound, Hash } from 'lucide-react';
+import { Users, Loader2, X, ArrowLeft, ShieldCheck, UsersRound, Hash, KeyRound } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAdminAccess } from '../hooks/useAdminAccess';
 import type { PermissionKey } from '../api/admin';
 import AdminUsersTab from './AdminUsersTab';
 import AdminGroupsTab from './AdminGroupsTab';
 import AdminChannelsTab from './AdminChannelsTab';
+import AdminRolesTab from './AdminRolesTab';
 
-type TabKey = 'users' | 'groups' | 'channels';
+type TabKey = 'users' | 'groups' | 'channels' | 'roles';
 
 interface TabDef {
   key: TabKey;
@@ -39,6 +40,12 @@ const TABS: TabDef[] = [
     label: 'Channels',
     icon: Hash,
     needs: ['admin_list_channels', 'admin_edit_channels'],
+  },
+  {
+    key: 'roles',
+    label: 'Rollen',
+    icon: KeyRound,
+    needs: ['admin_view_company_roles', 'admin_edit_company_roles'],
   },
 ];
 
@@ -135,6 +142,7 @@ export default function AdminView({ onClose }: AdminViewProps) {
       {activeTab === 'users' && <AdminUsersTab companyId={companyId} has={has} />}
       {activeTab === 'groups' && <AdminGroupsTab companyId={companyId} has={has} />}
       {activeTab === 'channels' && <AdminChannelsTab companyId={companyId} has={has} />}
+      {activeTab === 'roles' && <AdminRolesTab companyId={companyId} has={has} />}
     </div>
   );
 }

@@ -972,4 +972,83 @@ router.post(
   },
 );
 
+// --- Rollen und Rechte ------------------------------------------------------
+// `/permissions/*` liefert und erwartet Rechte als flaches Array von
+// snake_case-Strings. Achtung beim Parameternamen: `isGlobal` ist camelCase —
+// als einziger in diesem Namespace.
+
+router.post(
+  '/admin/roles/:companyId',
+  requirePermission('admin_edit_company_roles'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const { name, permissions, isGlobal } = req.body as {
+        name?: string;
+        permissions?: unknown;
+        isGlobal?: boolean;
+      };
+      if (!name?.trim()) return res.status(400).json({ error: 'Name ist ein Pflichtfeld' });
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        name: name.trim(),
+        permissions: parseIdList(permissions),
+        isGlobal: Boolean(isGlobal),
+      });
+      const payload = await client.api.post<{ role?: unknown }>('/permissions/create', data);
+      serverLog(`[Admin] Rolle angelegt: ${name.trim()}`);
+      res.json(payload?.role ?? { success: true });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Rolle konnte nicht angelegt werden') });
+    }
+  },
+);
+
+router.patch(
+  '/admin/roles/:companyId/:roleId',
+  requirePermission('admin_edit_company_roles'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const { name, permissions, isGlobal } = req.body as {
+        name?: string;
+        permissions?: unknown;
+        isGlobal?: boolean;
+      };
+      if (!name?.trim()) return res.status(400).json({ error: 'Name ist ein Pflichtfeld' });
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        role_id: req.params.roleId,
+        name: name.trim(),
+        permissions: parseIdList(permissions),
+        isGlobal: Boolean(isGlobal),
+      });
+      const payload = await client.api.post<{ role?: unknown }>('/permissions/edit', data);
+      serverLog(`[Admin] Rolle ${req.params.roleId} bearbeitet`);
+      res.json(payload?.role ?? { success: true });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Rolle konnte nicht bearbeitet werden') });
+    }
+  },
+);
+
+router.delete(
+  '/admin/roles/:companyId/:roleId',
+  requirePermission('admin_edit_company_roles'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        role_id: req.params.roleId,
+      });
+      await client.api.post('/permissions/delete', data);
+      serverLog(`[Admin] Rolle ${req.params.roleId} geloescht`);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Rolle konnte nicht geloescht werden') });
+    }
+  },
+);
+
 export default router;

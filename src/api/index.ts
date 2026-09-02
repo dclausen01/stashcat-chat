@@ -258,6 +258,11 @@ export {
   addChannelMembers,
   removeChannelMember,
   inviteGroupToChannel,
+  createAdminRole,
+  updateAdminRole,
+  deleteAdminRole,
+  rolePermissions,
+  isRoleEditable,
   listAdminChannels,
   getChannelCount,
   createAdminChannel,
@@ -284,4 +289,5 @@ export type {
   ChannelInput,
   AdminChannelQuery,
   GroupInviteResult,
+  RoleInput,
 } from './admin';

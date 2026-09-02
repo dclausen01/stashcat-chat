@@ -882,3 +882,34 @@ UI-Muster: `SeenByBadge` und `TranslateButton` liegen in `src/components/chat/` 
 folgen bewusst dem Aufbau von `LikeBadge` (Popover, Laden erst beim Öffnen, Ergebnis
 danach im State). Die Übersetzung ersetzt den Nachrichtentext **nicht** — das Original
 bleibt stehen, damit Zitieren und Kopieren weiter den Originaltext liefern.
+
+---
+
+## Rollen und Rechte (`/permissions/*`)
+
+Vierter Tab im Admin-Bereich. Rechte sind ein **flaches Array von snake_case-Strings** —
+dieselbe Form wie bei `get_users_permissions`.
+
+| Method | Path | Stashcat-Endpunkt |
+|---|---|---|
+| GET | `/api/admin/roles/:companyId` | `/permissions/get` → `payload.roles` |
+| POST | `/api/admin/roles/:companyId` | `/permissions/create` |
+| PATCH | `/api/admin/roles/:companyId/:roleId` | `/permissions/edit` |
+| DELETE | `/api/admin/roles/:companyId/:roleId` | `/permissions/delete` |
+
+Rollenmodell: `id`, `name`, `company_id`, `editable`, `global`, `permissions`, `time`.
+
+Fallstricke:
+
+- **`isGlobal` ist camelCase** — als einziger Parameter in diesem Namespace. Alle
+  anderen Felder sind snake_case.
+- **`editable: false` kennzeichnet Systemrollen** (`{{admins}}`, `{{user}}`, `{{guests}}`,
+  `{{inviter}}`, `{{basicadmins}}`). Die API lehnt Änderungen daran ab; das UI zeigt sie
+  deshalb nur an und blendet Löschen aus.
+- **Unbekannte Rechte nicht verschlucken.** `src/lib/permissionLabels.ts` kennt die 37
+  Schlüssel aus dem Webclient mit deutschen Bezeichnungen und Gruppierung.
+  `buildPermissionGroups()` hängt Schlüssel, die die API zusätzlich liefert, als Gruppe
+  „Weitere Rechte" an — sonst gingen sie beim Speichern verloren, weil das Formular nur
+  die angezeigten Häkchen zurückschickt.
+- **Selbstaussperrung möglich.** Wer sich `admin_edit_company_roles` entzieht, kommt nicht
+  mehr in diesen Tab. Das Modal weist darauf hin.
