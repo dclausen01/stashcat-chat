@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import * as api from '../api';
 import { closeRealtimeConnection } from '../hooks/useRealtimeEvents';
+import { resetAdminAccess } from '../hooks/useAdminAccess';
 import { on, BridgeEvents } from '../lib/bridgeBus';
 import { bridge } from '../lib/flutterBridge';
 import { isMobileBridge } from '../lib/mobileBridge';
@@ -71,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     await api.logout();
     closeRealtimeConnection(); // Close SSE connection on logout
+    resetAdminAccess(); // Admin-Rechte sind nutzerspezifisch — Cache verwerfen
     setState({ loggedIn: false, user: null });
     bridge.logout();
   }, []);

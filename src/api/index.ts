@@ -213,3 +213,37 @@ export type { NCEntry, NCQuota, NCStatus } from './nextcloud';
 // Public runtime config
 export { getPublicConfig } from './config';
 export type { PublicConfig } from './config';
+
+// Admin (Company-Nutzerverwaltung)
+export {
+  getAdminPermissions,
+  getAdminRoles,
+  getAvailableRoles,
+  listAdminUsers,
+  getAdminUser,
+  createAdminUser,
+  updateAdminUser,
+  deleteAdminUser,
+  activateUsers,
+  deactivateUsers,
+  deleteUsers,
+  assignRoles,
+  setUserAdmin,
+  setUserReadOnly,
+  resendInvite,
+  getUserDevices,
+  removeUserDevice,
+  removeAllUserDevices,
+  isUserActive,
+  userDisplayName,
+} from './admin';
+export type {
+  AdminUser,
+  AdminRole,
+  AdminDevice,
+  AdminPermissionsResult,
+  AdminUserQuery,
+  CreateUserInput,
+  UpdateUserInput,
+  PermissionKey,
+} from './admin';
