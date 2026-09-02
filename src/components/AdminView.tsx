@@ -32,6 +32,27 @@ const SORT_OPTIONS: [string, string][] = [
   ['time_joined_asc', 'Älteste zuerst'],
 ];
 
+/** Gemeinsames Styling der beiden Gruppenüberschriften in der Trefferliste. */
+const GROUP_HEADING =
+  'border-b border-surface-200 bg-surface-50 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-surface-500 sm:px-6 dark:border-surface-700 dark:bg-surface-800/50';
+
+/** Kleinschreibung ohne Diakritika, damit „Müller“ auch auf „muller“ passt. */
+function normalizeForSearch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+/** true, wenn Name oder E-Mail den Suchbegriff wörtlich enthalten. */
+function matchesLiterally(user: AdminUser, term: string): boolean {
+  const haystack = normalizeForSearch(
+    `${user.first_name ?? ''} ${user.last_name ?? ''} ${user.email ?? ''}`,
+  );
+  return haystack.includes(term);
+}
+
 interface AdminViewProps {
   onClose?: () => void;
 }
@@ -154,11 +175,39 @@ export default function AdminView({ onClose }: AdminViewProps) {
     }
   }
 
+  // Der Stashcat-Server sucht unscharf: "Krey" liefert auch "Krebs", "Kremer" usw.
+  // Das laesst sich serverseitig nicht abschalten (es gibt nur den einen
+  // `search`-Parameter, der offizielle Client verhaelt sich identisch). Wir
+  // trennen die Antwort deshalb in woertliche und nur aehnliche Treffer.
+  const searchGroups = useMemo(() => {
+    const term = normalizeForSearch(debouncedSearch);
+    if (!term) return null;
+    const exact: AdminUser[] = [];
+    const similar: AdminUser[] = [];
+    for (const user of users) {
+      (matchesLiterally(user, term) ? exact : similar).push(user);
+    }
+    return { exact, similar };
+  }, [users, debouncedSearch]);
+
   const roleNameById = useMemo(() => {
     const map = new Map<string, string>();
     for (const r of allRoles) map.set(String(r.id), r.name);
     return map;
   }, [allRoles]);
+
+  const renderRow = (user: AdminUser) => (
+    <UserRow
+      key={user.id}
+      user={user}
+      roleNames={(user.roles ?? [])
+        .map((r) => roleNameById.get(String(r.id)) ?? r.name)
+        .filter(Boolean)}
+      checked={selected.has(user.id)}
+      onToggle={() => toggleOne(user.id)}
+      onOpen={() => setEditing(user)}
+    />
+  );
 
   if (accessLoading) {
     return (
@@ -338,59 +387,29 @@ export default function AdminView({ onClose }: AdminViewProps) {
               <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded" />
               Alle auf dieser Seite
             </label>
-            <ul>
-              {users.map((user) => {
-                const active = isUserActive(user);
-                const roleNames = (user.roles ?? [])
-                  .map((r) => roleNameById.get(String(r.id)) ?? r.name)
-                  .filter(Boolean);
-                return (
-                  <li
-                    key={user.id}
-                    className="flex items-center gap-3 border-b border-surface-100 px-4 py-3 transition hover:bg-surface-50 sm:px-6 dark:border-surface-800 dark:hover:bg-surface-800/50"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selected.has(user.id)}
-                      onChange={() => toggleOne(user.id)}
-                      aria-label={`${userDisplayName(user)} auswählen`}
-                      className="rounded"
-                    />
-                    <button
-                      onClick={() => setEditing(user)}
-                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                    >
-                      <Avatar name={userDisplayName(user)} image={user.image} size="sm" />
-                      <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-1.5 truncate text-sm font-medium text-surface-900 dark:text-white">
-                          {userDisplayName(user)}
-                          {user.admin && <ShieldCheck size={13} className="shrink-0 text-primary-500" aria-label="Administrator" />}
-                          {user.read_only && <PenOff size={13} className="shrink-0 text-surface-400" aria-label="Nur lesend" />}
-                        </p>
-                        <p className="truncate text-xs text-surface-500">{user.email || '–'}</p>
-                      </div>
-                      {roleNames.length > 0 && (
-                        <span className="hidden max-w-[180px] truncate text-xs text-surface-500 lg:block">
-                          {roleNames.join(', ')}
-                        </span>
-                      )}
-                      <span
-                        className={clsx(
-                          'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
-                          active
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            : user.deactivated
-                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                              : 'bg-surface-100 text-surface-600 dark:bg-surface-800 dark:text-surface-400',
-                        )}
-                      >
-                        {active ? 'Aktiv' : user.deactivated ? 'Deaktiviert' : 'Eingeladen'}
+            {searchGroups ? (
+              <>
+                {searchGroups.exact.length > 0 && (
+                  <>
+                    <p className={GROUP_HEADING}>Genaue Treffer</p>
+                    <ul>{searchGroups.exact.map(renderRow)}</ul>
+                  </>
+                )}
+                {searchGroups.similar.length > 0 && (
+                  <>
+                    <p className={GROUP_HEADING}>
+                      Ähnliche Treffer
+                      <span className="ml-2 font-normal normal-case tracking-normal text-surface-400">
+                        enthalten „{debouncedSearch}“ nicht wörtlich
                       </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+                    </p>
+                    <ul>{searchGroups.similar.map(renderRow)}</ul>
+                  </>
+                )}
+              </>
+            ) : (
+              <ul>{users.map(renderRow)}</ul>
+            )}
           </>
         )}
       </div>
@@ -523,5 +542,57 @@ function BulkRolesDialog({
         </div>
       </div>
     </div>
+  );
+}
+
+/** Eine Zeile der Nutzerliste. Ausgelagert, weil sie in beiden Trefferguppen verwendet wird. */
+function UserRow({
+  user, roleNames, checked, onToggle, onOpen,
+}: {
+  user: AdminUser;
+  roleNames: string[];
+  checked: boolean;
+  onToggle: () => void;
+  onOpen: () => void;
+}) {
+  const active = isUserActive(user);
+  return (
+    <li className="flex items-center gap-3 border-b border-surface-100 px-4 py-3 transition hover:bg-surface-50 sm:px-6 dark:border-surface-800 dark:hover:bg-surface-800/50">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onToggle}
+        aria-label={`${userDisplayName(user)} auswählen`}
+        className="rounded"
+      />
+      <button onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <Avatar name={userDisplayName(user)} image={user.image} size="sm" />
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 truncate text-sm font-medium text-surface-900 dark:text-white">
+            {userDisplayName(user)}
+            {user.admin && <ShieldCheck size={13} className="shrink-0 text-primary-500" aria-label="Administrator" />}
+            {user.read_only && <PenOff size={13} className="shrink-0 text-surface-400" aria-label="Nur lesend" />}
+          </p>
+          <p className="truncate text-xs text-surface-500">{user.email || '–'}</p>
+        </div>
+        {roleNames.length > 0 && (
+          <span className="hidden max-w-[180px] truncate text-xs text-surface-500 lg:block">
+            {roleNames.join(', ')}
+          </span>
+        )}
+        <span
+          className={clsx(
+            'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
+            active
+              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+              : user.deactivated
+                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                : 'bg-surface-100 text-surface-600 dark:bg-surface-800 dark:text-surface-400',
+          )}
+        >
+          {active ? 'Aktiv' : user.deactivated ? 'Deaktiviert' : 'Eingeladen'}
+        </span>
+      </button>
+    </li>
   );
 }
