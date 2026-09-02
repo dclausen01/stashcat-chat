@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Users, Plus, Search, Loader2, X, ArrowLeft, ShieldCheck, PenOff,
-  UserCheck, UserX, Trash2, RefreshCw, AlertCircle, ChevronLeft, ChevronRight,
+  UserCheck, UserX, Trash2, RefreshCw, AlertCircle, ChevronLeft, ChevronRight, Tag,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
@@ -49,7 +49,9 @@ export default function AdminView({ onClose }: AdminViewProps) {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('');
   const [sorting, setSorting] = useState('last_name_asc');
+  const [roleFilter, setRoleFilter] = useState('');
   const [page, setPage] = useState(0);
+  const [bulkRolesOpen, setBulkRolesOpen] = useState(false);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<AdminUser | null>(null);
@@ -59,6 +61,7 @@ export default function AdminView({ onClose }: AdminViewProps) {
   const canList = has('admin_list_users');
   const canAdd = has('admin_add_users');
   const canDelete = has('admin_delete_users');
+  const canAssignRoles = has('admin_edit_company_roles', 'admin_rename_users');
 
   // Suche entprellen, damit jede Eingabe nicht sofort einen Request ausloest.
   useEffect(() => {
@@ -75,6 +78,7 @@ export default function AdminView({ onClose }: AdminViewProps) {
         search: debouncedSearch,
         status: status || undefined,
         sorting,
+        roles: roleFilter ? [roleFilter] : undefined,
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
       }));
@@ -84,7 +88,7 @@ export default function AdminView({ onClose }: AdminViewProps) {
     } finally {
       setLoading(false);
     }
-  }, [companyId, canList, debouncedSearch, status, sorting, page]);
+  }, [companyId, canList, debouncedSearch, status, sorting, roleFilter, page]);
 
   useEffect(() => { void loadUsers(); }, [loadUsers]);
 
@@ -230,6 +234,19 @@ export default function AdminView({ onClose }: AdminViewProps) {
           <option value="">Alle Status</option>
           <option value="active">Nur aktive</option>
         </select>
+        {roles.length > 0 && (
+          <select
+            value={roleFilter}
+            onChange={(e) => { setRoleFilter(e.target.value); setPage(0); }}
+            aria-label="Rolle filtern"
+            className="rounded-lg border border-surface-300 bg-white px-2 py-1.5 text-sm text-surface-700 dark:border-surface-600 dark:bg-surface-800 dark:text-surface-200"
+          >
+            <option value="">Alle Rollen</option>
+            {roles.map((role) => (
+              <option key={String(role.id)} value={String(role.id)}>{role.name}</option>
+            ))}
+          </select>
+        )}
         <select
           value={sorting}
           onChange={(e) => { setSorting(e.target.value); setPage(0); }}
@@ -256,6 +273,15 @@ export default function AdminView({ onClose }: AdminViewProps) {
           >
             <UserCheck size={13} /> Aktivieren
           </button>
+          {canAssignRoles && roles.length > 0 && (
+            <button
+              disabled={busy}
+              onClick={() => setBulkRolesOpen(true)}
+              className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-surface-700 hover:bg-white disabled:opacity-50 dark:text-surface-200 dark:hover:bg-surface-800"
+            >
+              <Tag size={13} /> Rollen zuweisen
+            </button>
+          )}
           {canDelete && (
             <>
               <button
@@ -376,6 +402,29 @@ export default function AdminView({ onClose }: AdminViewProps) {
         </button>
       </div>
 
+      {bulkRolesOpen && (
+        <BulkRolesDialog
+          roles={roles}
+          count={selected.size}
+          busy={busy}
+          onClose={() => setBulkRolesOpen(false)}
+          onApply={async (roleIds) => {
+            setBusy(true);
+            setError('');
+            try {
+              await api.assignRoles(companyId, [...selected], roleIds);
+              setBulkRolesOpen(false);
+              setSelected(new Set());
+              await loadUsers();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : 'Rollenzuweisung fehlgeschlagen');
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      )}
+
       {(creating || editing) && (
         <AdminUserModal
           companyId={companyId}
@@ -386,6 +435,80 @@ export default function AdminView({ onClose }: AdminViewProps) {
           onSaved={() => void loadUsers()}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Kleiner Dialog zum Setzen der Rollen mehrerer Nutzer auf einmal.
+ *
+ * `assign_roles` **ersetzt** die bisherige Zuordnung vollstaendig — darauf
+ * weist der Dialog explizit hin, damit niemand versehentlich Rollen entfernt.
+ */
+function BulkRolesDialog({
+  roles, count, busy, onClose, onApply,
+}: {
+  roles: AdminRole[];
+  count: number;
+  busy: boolean;
+  onClose: () => void;
+  onApply: (roleIds: string[]) => void;
+}) {
+  const [picked, setPicked] = useState<string[]>([]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl dark:bg-surface-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="mb-1 text-base font-semibold text-surface-900 dark:text-white">
+          Rollen zuweisen
+        </h2>
+        <p className="mb-4 text-xs text-surface-500">
+          Die Auswahl <strong>ersetzt</strong> die bisherigen Rollen von {count}{' '}
+          {count === 1 ? 'Nutzer' : 'Nutzern'}. Ohne Auswahl werden alle Rollen entfernt.
+        </p>
+        <div className="mb-5 flex flex-wrap gap-1.5">
+          {roles.map((role) => {
+            const id = String(role.id);
+            const selected = picked.includes(id);
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setPicked((prev) => (
+                  prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]
+                ))}
+                className={clsx(
+                  'rounded-full px-3 py-1 text-xs font-medium transition',
+                  selected
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-surface-100 text-surface-600 hover:bg-surface-200 dark:bg-surface-800 dark:text-surface-400 dark:hover:bg-surface-700',
+                )}
+              >
+                {role.name}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-lg px-4 py-2 text-sm text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800"
+          >
+            Abbrechen
+          </button>
+          <button
+            disabled={busy}
+            onClick={() => onApply(picked)}
+            className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
+          >
+            {busy && <Loader2 size={14} className="animate-spin" />}
+            Zuweisen
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
