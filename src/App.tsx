@@ -15,6 +15,7 @@ import FileBrowserPanel from './components/FileBrowserPanel';
 import BroadcastsPanel from './components/BroadcastsPanel';
 import CalendarView from './components/CalendarView';
 import PollsView from './components/PollsView';
+import AdminView from './components/AdminView';
 import NotificationsPanel from './components/NotificationsPanel';
 import FavoriteCardsView from './components/FavoriteCardsView';
 import ProfileModal from './components/ProfileModal';
@@ -314,6 +315,8 @@ export default function App() {
             <CalendarView eventIdToOpen={eventIdToOpen} onEventOpened={clearEventIdToOpen} onClose={goToChat} />
           ) : activeView === 'polls' ? (
             <PollsView pollIdToOpen={pollIdToOpen} onPollOpened={clearPollIdToOpen} onClose={goToChat} />
+          ) : activeView === 'admin' ? (
+            <AdminView onClose={goToChat} />
           ) : fileBrowserStandalone && fileBrowserOpen ? (
             // Standalone FileBrowser — full main area
             <FileBrowserPanel

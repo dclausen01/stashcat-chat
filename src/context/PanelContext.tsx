@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
-export type ActiveView = 'chat' | 'calendar' | 'polls';
+export type ActiveView = 'chat' | 'calendar' | 'polls' | 'admin';
 
 interface PanelState {
   settings: boolean;
@@ -43,6 +43,7 @@ export interface PanelContextValue extends PanelState {
   closeFlagged: () => void;
   openCalendar: () => void;
   openPolls: () => void;
+  openAdmin: () => void;
   openPoll: (pollId: string) => void;
   openEvent: (eventId: string) => void;
   goToChat: () => void;
@@ -138,6 +139,11 @@ export function PanelProvider({ children }: { children: ReactNode }) {
     setActiveView((v) => (v === 'polls' ? 'chat' : 'polls'));
   }, [closeAllPanels]);
 
+  const openAdmin = useCallback(() => {
+    closeAllPanels();
+    setActiveView((v) => (v === 'admin' ? 'chat' : 'admin'));
+  }, [closeAllPanels]);
+
   const openPoll = useCallback((pollId: string) => {
     closeAllPanels();
     setPollIdToOpen(pollId);
@@ -176,7 +182,7 @@ export function PanelProvider({ children }: { children: ReactNode }) {
     toggleNotifications, closeNotifications,
     toggleProfile, closeProfile,
     toggleFlagged, closeFlagged,
-    openCalendar, openPolls, openPoll, openEvent,
+    openCalendar, openPolls, openAdmin, openPoll, openEvent,
     goToChat,
     clearPollIdToOpen, clearEventIdToOpen,
   }), [
@@ -187,7 +193,7 @@ export function PanelProvider({ children }: { children: ReactNode }) {
     toggleNotifications, closeNotifications,
     toggleProfile, closeProfile,
     toggleFlagged, closeFlagged,
-    openCalendar, openPolls, openPoll, openEvent,
+    openCalendar, openPolls, openAdmin, openPoll, openEvent,
     goToChat, clearPollIdToOpen, clearEventIdToOpen,
   ]);
 

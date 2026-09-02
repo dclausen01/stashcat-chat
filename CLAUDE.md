@@ -664,3 +664,72 @@ Die Content-Formatierung (`formatNotificationContent`) unterscheidet Objekt-Type
 - **Polls**: `privacy_type`, `start_time`/`end_time`, `hidden_results`
 - **Events**: `start`/`end`/`location` (nicht `start_time`/`end_time`)
 - **Devices**: `device_id`, `app_name`
+
+---
+
+## Admin-Bereich: Nutzerverwaltung (`/manage/*`)
+
+Die Company-Administration nutzt die `/manage/*`-Endpunkte der Stashcat-API.
+Diese sind in `stashcat-api` **nicht** gewrappt — die Routen sprechen sie direkt
+über `client.api.post()` an (Pattern wie `server/routes/calls.ts`).
+
+Die vollständige API-Oberfläche inkl. Request-Parameter ist in
+`docs/schulcloud-api-reference.md` dokumentiert (statisch aus dem offiziellen
+schul.cloud-Webclient extrahiert, 318 Endpunkte).
+
+### Rechte-Modell
+
+`POST /manage/get_users_permissions` liefert `payload.permissions` als **flaches
+Array von snake_case-Strings** (z. B. `admin_list_users`, `admin_add_users`,
+`admin_delete_user_devices`). Es gibt kein `isAdmin`-Flag — Admin-Status wird
+daraus abgeleitet, ob mindestens ein `admin_*`-Recht vorliegt.
+
+| Ebene | Datei | Aufgabe |
+|---|---|---|
+| Server | `server/lib/admin.ts` | Rechte laden + 5-Min-Cache pro Session/Company, `requirePermission()`-Middleware, Sortier-Whitelist |
+| Server | `server/routes/admin.ts` | Alle `/api/admin/*`-Routen |
+| Client | `src/api/admin.ts` | Typisierter HTTP-Client |
+| Client | `src/hooks/useAdminAccess.ts` | Einmalige Rechte-Auflösung pro Session (modulweit gecached) |
+| Client | `src/components/AdminView.tsx` | Liste, Filter, Sammelaktionen |
+| Client | `src/components/AdminUserModal.tsx` | Anlegen/Bearbeiten, Konto-Aktionen, Geräte |
+
+**Wichtig:** Die Rechteprüfungen im Frontend blenden nur UI aus. Die
+Autorisierung passiert serverseitig in `requirePermission()` — jede schreibende
+Route hängt dahinter und antwortet sonst mit 403.
+
+### Admin-Routen
+
+| Method | Path | Recht |
+|---|---|---|
+| GET | `/api/admin/permissions/:companyId` | — (jeder darf die eigenen Rechte lesen) |
+| GET | `/api/admin/roles/:companyId` | `admin_view_company_roles` |
+| GET | `/api/admin/available-roles/:companyId` | `admin_list_users` |
+| GET | `/api/admin/users/:companyId` | `admin_list_users` |
+| POST | `/api/admin/users/:companyId` | `admin_add_users` |
+| POST | `/api/admin/users/:companyId/bulk/activate` | `admin_add_users` |
+| POST | `/api/admin/users/:companyId/bulk/deactivate` | `admin_delete_users` |
+| POST | `/api/admin/users/:companyId/bulk/delete` | `admin_delete_users` |
+| POST | `/api/admin/users/:companyId/bulk/roles` | `admin_edit_company_roles` |
+| GET/PATCH/DELETE | `/api/admin/users/:companyId/:userId` | `admin_list_users` / `admin_rename_users` / `admin_delete_users` |
+| POST | `/api/admin/users/:companyId/:userId/admin` | `admin_rename_users` |
+| POST | `/api/admin/users/:companyId/:userId/read-only` | `admin_rename_users` |
+| POST | `/api/admin/users/:companyId/:userId/invite` | `admin_add_users` |
+| GET | `/api/admin/users/:companyId/:userId/devices` | `admin_list_user_devices` |
+| DELETE | `/api/admin/users/:companyId/:userId/devices[/:deviceId]` | `admin_delete_user_devices` |
+
+### Fallstricke
+
+- **Route-Reihenfolge**: Die `bulk/*`-Routen müssen vor `/:userId` registriert
+  werden, sonst matcht der Parameter sie weg.
+- **`deviceID`**: `/manage/remove_device` erwartet das Feld tatsächlich in
+  camelCase — als einziges im gesamten `/manage/*`-Namespace.
+- **`expiry_set`**: erwartet den *String* `"null"`, wenn der Filter aus ist —
+  nicht `null`.
+- **Array-Parameter** (`user_ids`, `role_ids`, `sorting`, `status`, `roles`)
+  gehen als JSON-Strings raus; `client.api.post()` serialisiert Arrays
+  automatisch, sie werden also als echte Arrays übergeben.
+- **Nutzer-Status**: Es gibt kein Status-Feld. `active` (Unix-Zeitstempel)
+  gesetzt **und** `deactivated === null` bedeutet "aktives Mitglied";
+  `active === null` heißt "eingeladen, noch nicht aktiviert".
+- **Keine Gesamtzahl**: `/manage/list_users` liefert kein Total, daher
+  Pagination per "volle Seite zurückbekommen = es gibt wahrscheinlich mehr".
