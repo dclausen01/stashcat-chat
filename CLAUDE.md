@@ -733,3 +733,44 @@ Route hängt dahinter und antwortet sonst mit 403.
   `active === null` heißt "eingeladen, noch nicht aktiviert".
 - **Keine Gesamtzahl**: `/manage/list_users` liefert kein Total, daher
   Pagination per "volle Seite zurückbekommen = es gibt wahrscheinlich mehr".
+
+### Aufbau der Oberfläche
+
+`AdminView` ist seit der Gruppenverwaltung nur noch eine **Hülle mit Tab-Navigation**.
+Sie löst Company-Kontext und Rechte einmal über `useAdminAccess` auf und reicht beides
+an die Tabs weiter. Ein Tab erscheint nur, wenn mindestens eines der zugehörigen Rechte
+vorliegt; bei nur einem sichtbaren Tab wird die Tab-Leiste ausgeblendet.
+
+| Datei | Inhalt |
+|---|---|
+| `AdminView.tsx` | Hülle: Kopfzeile, Tab-Leiste, Rechte-Gating |
+| `AdminUsersTab.tsx` | Nutzerliste, Filter, Sammelaktionen |
+| `AdminUserModal.tsx` | Nutzer anlegen/bearbeiten, Konto-Aktionen, Geräte |
+| `AdminGroupsTab.tsx` | Gruppenliste, Suche, Sortierung |
+| `AdminGroupModal.tsx` | Gruppe anlegen/bearbeiten, Mitgliederpflege |
+
+### Gruppen-Routen
+
+| Method | Path | Recht |
+|---|---|---|
+| GET | `/api/admin/groups/:companyId` | `admin_view_company_groups` |
+| POST | `/api/admin/groups/:companyId` | `admin_edit_company_groups` |
+| PATCH/DELETE | `/api/admin/groups/:companyId/:groupId` | `admin_edit_company_groups` |
+| GET | `/api/admin/groups/:companyId/:groupId/members` | `admin_view_company_groups` |
+| POST/DELETE | `/api/admin/groups/:companyId/:groupId/members` | `admin_edit_company_groups` |
+
+Beim Hinzufügen und Entfernen heißt das Feld **`users`** (nicht `user_ids`) — anders als
+bei den Nutzer-Sammelaktionen, die `user_ids` erwarten.
+
+### Unscharfe Suche ist Serververhalten
+
+`/manage/list_users` kennt genau **einen** Suchparameter (`search`), und der Stashcat-Server
+matcht darauf **unscharf**: Die Suche nach „Krey" liefert auch Krebs, Krehmke, Kremer und
+Kretschmer. Das ist kein Fehler im Client — der offizielle Webclient verhält sich identisch,
+sein einziger clientseitiger Filter greift auf `status`, nicht auf die Suche.
+
+`AdminUsersTab` trennt die Antwort deshalb in **„Genaue Treffer"** (Name oder E-Mail
+enthalten den Begriff wörtlich, Diakritika normalisiert) und **„Ähnliche Treffer"**.
+Hartes Filtern wäre die Alternative gewesen, würde aber die Blätterfunktion beschädigen:
+Sie leitet aus `users.length < PAGE_SIZE` ab, ob es eine weitere Seite gibt, weil die API
+keine Gesamtzahl liefert.

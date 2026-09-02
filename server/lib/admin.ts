@@ -32,6 +32,12 @@ export type AdminPermission =
   | 'admin_manage_invite_links'
   | 'admin_view_company_roles'
   | 'admin_edit_company_roles'
+  | 'admin_view_company_groups'
+  | 'admin_edit_company_groups'
+  | 'admin_list_channels'
+  | 'admin_edit_channels'
+  | 'admin_delete_channels'
+  | 'admin_create_company_channels'
   | 'list_users';
 
 interface PermissionEntry {
@@ -138,12 +144,24 @@ export function requirePermission(...needed: AdminPermission[]) {
   };
 }
 
-/** Sortier-Schluessel, die `/manage/list_users` akzeptiert. */
-const USER_SORTINGS = new Set([
+/**
+ * Sortier-Schluessel, die die `/manage/list_*`-Endpunkte akzeptieren.
+ * Verifiziert gegen die Stringtabelle des offiziellen Webclients; eine
+ * Whitelist, damit keine unbekannten Werte an die API durchgereicht werden.
+ */
+const ALLOWED_SORTINGS = new Set([
+  // Nutzer
   'first_name_asc', 'first_name_desc',
   'last_name_asc', 'last_name_desc',
   'time_joined_asc', 'time_joined_desc',
   'last_action_asc', 'last_action_desc',
+  // Gruppen und Channels
+  'name_asc', 'name_desc',
+  'user_count_asc', 'user_count_desc',
+  'created_asc', 'created_desc',
+  'type_asc', 'type_desc',
+  'last_activity_asc', 'last_activity_desc',
+  // allgemein
   'id_asc', 'id_desc',
 ]);
 
@@ -152,7 +170,7 @@ const USER_SORTINGS = new Set([
  * Die API erwartet das Feld als JSON-Array, das uebernimmt der Aufrufer.
  */
 export function normalizeSorting(value: unknown, fallback = 'last_name_asc'): string {
-  return typeof value === 'string' && USER_SORTINGS.has(value) ? value : fallback;
+  return typeof value === 'string' && ALLOWED_SORTINGS.has(value) ? value : fallback;
 }
 
 /**
