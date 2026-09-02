@@ -803,6 +803,16 @@ Fallstricke:
   Die Gruppen-Endpunkte nehmen dagegen `users`.
 - **Moderatorstatus** steht wie überall im `manager`-Feld des Mitglieds, nicht in einem
   eigenen Flag (siehe „isManager Detection").
+- **Mitglieder ein-/ausschreiben** hat *keinen* `/manage/*`-Endpunkt — auch die offizielle
+  Admin-Oberfläche kann dort nur Moderatorenrechte setzen. Wir nutzen den regulären
+  Einladungsweg (`/channels/createInvite`, `/channels/removeUser`).
+- **Ganze Gruppe einschreiben**: ebenfalls kein nativer Endpunkt. `POST
+  /api/admin/channels/:companyId/:channelId/members/group` löst die Gruppe serverseitig
+  über `/manage/list_users_by_group` auf, filtert bereits vorhandene Mitglieder heraus und
+  lädt den Rest gesammelt ein. Die Antwort meldet `invited` und `skipped` zurück.
+- **`createInvite` erwartet Objekte mit Public Key**, wenn der Channel verschlüsselt ist —
+  im offiziellen Client bricht der Aufruf sonst ohne Request ab. `stashcat-api` sendet
+  reine IDs; falls Einladungen in verschlüsselte Channels scheitern, liegt es daran.
 
 ---
 

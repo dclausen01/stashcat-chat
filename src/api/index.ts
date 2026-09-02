@@ -257,6 +257,7 @@ export {
   groupMemberCount,
   addChannelMembers,
   removeChannelMember,
+  inviteGroupToChannel,
   listAdminChannels,
   getChannelCount,
   createAdminChannel,
@@ -282,4 +283,5 @@ export type {
   AdminChannel,
   ChannelInput,
   AdminChannelQuery,
+  GroupInviteResult,
 } from './admin';

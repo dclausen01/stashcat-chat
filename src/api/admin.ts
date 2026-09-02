@@ -489,3 +489,24 @@ export async function removeChannelMember(
 ): Promise<void> {
   await del(`/admin/channels/${companyId}/${channelId}/members/${userId}`);
 }
+
+export interface GroupInviteResult {
+  /** Wie viele tatsächlich eingeladen wurden. */
+  invited: number;
+  /** Wie viele übersprungen wurden, weil sie schon Mitglied sind. */
+  skipped: number;
+  /** true, wenn bereits alle Gruppenmitglieder im Channel waren. */
+  alreadyComplete: boolean;
+}
+
+/** Lädt alle Mitglieder einer Gruppe in einen Channel ein. */
+export async function inviteGroupToChannel(
+  companyId: string,
+  channelId: string,
+  groupId: string,
+): Promise<GroupInviteResult> {
+  return post<GroupInviteResult>(
+    `/admin/channels/${companyId}/${channelId}/members/group`,
+    { groupId },
+  );
+}

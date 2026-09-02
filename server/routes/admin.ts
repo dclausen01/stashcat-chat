@@ -897,4 +897,79 @@ router.delete(
   },
 );
 
+/**
+ * Alle Mitglieder einer Gruppe in einen Channel einladen.
+ *
+ * Einen nativen Endpunkt dafuer gibt es nicht — weder im /manage/*-Namespace
+ * noch bei den Channel-Endpunkten. Wir loesen die Gruppe deshalb serverseitig
+ * in ihre Mitglieder auf und laden diese gesammelt ein. Das spart dem Browser
+ * den Umweg und haelt die Nutzerliste aus dem Frontend heraus.
+ *
+ * Bereits vorhandene Mitglieder werden uebersprungen, damit die Einladung
+ * nicht an ihnen scheitert.
+ */
+router.post(
+  '/admin/channels/:companyId/:channelId/members/group',
+  requirePermission('admin_edit_channels'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const groupId = (req.body as { groupId?: unknown }).groupId;
+      if (!groupId) return res.status(400).json({ error: 'Keine Gruppe angegeben' });
+
+      const groupData = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        group_id: String(groupId),
+        limit: 1000,
+        offset: 0,
+        search: '',
+        sorting: ['last_name_asc'],
+      });
+      const groupPayload = await client.api.post<ManageUsersPayload>(
+        '/manage/list_users_by_group',
+        groupData,
+      );
+      const groupUsers = (groupPayload?.users ?? []) as Array<{ id?: unknown }>;
+      const groupUserIds = groupUsers.map((u) => String(u?.id)).filter((id) => id && id !== 'undefined');
+      if (!groupUserIds.length) {
+        return res.status(400).json({ error: 'Die Gruppe hat keine Mitglieder' });
+      }
+
+      // Vorhandene Mitglieder herausfiltern.
+      const memberData = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        channel_id: req.params.channelId,
+        limit: 1000,
+        offset: 0,
+        search: '',
+        sorting: ['last_name_asc'],
+      });
+      const memberPayload = await client.api.post<{ members?: unknown[] }>(
+        '/manage/list_channel_members',
+        memberData,
+      );
+      const existing = new Set(
+        ((memberPayload?.members ?? []) as Array<{ id?: unknown }>).map((m) => String(m?.id)),
+      );
+      const toInvite = groupUserIds.filter((id) => !existing.has(id));
+
+      if (!toInvite.length) {
+        return res.json({ invited: 0, skipped: groupUserIds.length, alreadyComplete: true });
+      }
+
+      await client.inviteUsersToChannel(String(req.params.channelId), toInvite);
+      serverLog(
+        `[Admin] Gruppe ${groupId}: ${toInvite.length} von ${groupUserIds.length} in Channel ${req.params.channelId} eingeladen`,
+      );
+      res.json({
+        invited: toInvite.length,
+        skipped: groupUserIds.length - toInvite.length,
+        alreadyComplete: false,
+      });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Gruppe konnte nicht eingeladen werden') });
+    }
+  },
+);
+
 export default router;
