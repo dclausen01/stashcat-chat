@@ -32,7 +32,11 @@ export default function AdminGroupModal({
   const isLdapGroup = isFlagSet(group?.ldap_group);
 
   const [name, setName] = useState(group?.name ?? '');
-  const [description, setDescription] = useState(group?.description ?? '');
+  // Fehlende Beschreibungen kommen teils als "0" zurueck — nicht ins Formular uebernehmen.
+  const [description, setDescription] = useState(() => {
+    const raw = String(group?.description ?? '').trim();
+    return raw === '0' ? '' : raw;
+  });
   const [createChannel, setCreateChannel] = useState(isFlagSet(group?.create_channel));
   const [limitCommunication, setLimitCommunication] = useState(isFlagSet(group?.limit_communication));
 

@@ -14,6 +14,7 @@ import { clsx } from 'clsx';
 import * as api from '../api';
 import type { AdminDevice, AdminRole, AdminUser, PermissionKey } from '../api/admin';
 import { useConfirm } from '../context/ConfirmContext';
+import { roleDisplayName } from '../lib/permissionLabels';
 
 interface AdminUserModalProps {
   companyId: string;
@@ -211,7 +212,7 @@ export default function AdminUserModal({
                             : 'bg-surface-100 text-surface-600 hover:bg-surface-200 dark:bg-surface-800 dark:text-surface-400 dark:hover:bg-surface-700',
                         )}
                       >
-                        {role.name}
+                        {roleDisplayName(role.name)}
                       </button>
                     );
                   })}

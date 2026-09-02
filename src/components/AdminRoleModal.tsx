@@ -15,7 +15,7 @@ import { clsx } from 'clsx';
 import * as api from '../api';
 import type { AdminRole } from '../api/admin';
 import { isRoleEditable, rolePermissions } from '../api/admin';
-import { buildPermissionGroups, permissionLabel } from '../lib/permissionLabels';
+import { buildPermissionGroups, permissionLabel, isSystemRoleName, roleDisplayName } from '../lib/permissionLabels';
 
 interface AdminRoleModalProps {
   companyId: string;
@@ -33,7 +33,12 @@ export default function AdminRoleModal({
   const editable = isCreate || isRoleEditable(role);
   const writable = canEdit && editable;
 
-  const [name, setName] = useState(role?.name ?? '');
+  // Systemrollen zeigen wir mit ihrem Klartextnamen; sie sind ohnehin nicht
+  // aenderbar, und `{{admins}}` sagt niemandem etwas.
+  const systemRole = !isCreate && isSystemRoleName(role.name ?? '');
+  const [name, setName] = useState(
+    systemRole ? roleDisplayName(role?.name) : (role?.name ?? ''),
+  );
   const [isGlobal, setIsGlobal] = useState(Boolean(role?.global) && role?.global !== '0');
   const [selected, setSelected] = useState<string[]>(() => (role ? rolePermissions(role) : []));
   const [saving, setSaving] = useState(false);
@@ -61,6 +66,8 @@ export default function AdminRoleModal({
     }
     setSaving(true);
     try {
+      // Bei Systemrollen waere `name` der uebersetzte Anzeigename — die sind
+      // aber nicht speicherbar, deshalb kann das hier nicht greifen.
       const input = { name: name.trim(), permissions: selected, isGlobal };
       if (isCreate) {
         await api.createAdminRole(companyId, input);
@@ -104,7 +111,9 @@ export default function AdminRoleModal({
           {!isCreate && !editable && (
             <p className="mb-4 flex items-start gap-2 rounded-lg bg-surface-100 px-3 py-2 text-xs text-surface-700 dark:bg-surface-800 dark:text-surface-300">
               <Lock size={15} className="mt-0.5 shrink-0" />
-              Systemrolle — kann nur angesehen werden.
+              {systemRole
+                ? 'Vordefinierte Rolle der Organisation — kann nur angesehen werden.'
+                : 'Systemrolle — kann nur angesehen werden.'}
             </p>
           )}
 
@@ -131,7 +140,7 @@ export default function AdminRoleModal({
               <span>
                 Organisationsweite Rolle
                 <span className="block text-xs text-surface-500">
-                  Gilt dann nicht nur für diese Company.
+                  Gilt dann nicht nur für dieses Unternehmen.
                 </span>
               </span>
             </label>
