@@ -70,6 +70,26 @@ const onlyOfficeOrigin = (() => {
   try { return new URL(process.env.ONLYOFFICE_URL || 'https://office.bbz-rd-eck.de').origin; }
   catch { return 'https://office.bbz-rd-eck.de'; }
 })();
+
+// Origins, die den Chat per <iframe> einbetten duerfen (Nextcloud-Integration).
+// Quelle: NEXTCLOUD_URL plus optionale Zusatz-Origins aus FRAME_ANCESTORS
+// (kommagetrennt). Ohne Zusatz-Origins bleibt es beim bisherigen 'self'.
+const embedOrigins = (() => {
+  const raw = [process.env.NEXTCLOUD_URL, ...(process.env.FRAME_ANCESTORS || '').split(',')];
+  const origins = new Set<string>();
+  for (const entry of raw) {
+    const value = entry?.trim();
+    if (!value) continue;
+    try { origins.add(new URL(value).origin); }
+    catch { console.warn(`[CSP] Ungueltige Frame-Ancestor-Origin ignoriert: ${value}`); }
+  }
+  return [...origins];
+})();
+const frameAncestors = ["'self'", ...embedOrigins];
+if (embedOrigins.length > 0) {
+  console.log(`[CSP] Einbettung erlaubt fuer: ${embedOrigins.join(', ')}`);
+}
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -81,10 +101,15 @@ app.use(helmet({
       'font-src': ["'self'"],
       'object-src': ["'none'"],
       'frame-src': ["'self'", onlyOfficeOrigin],
+      'frame-ancestors': frameAncestors,
       'base-uri': ["'self'"],
       'form-action': ["'self'"],
     },
   },
+  // X-Frame-Options kennt keine Whitelist fuer Fremd-Origins — sobald eine
+  // Einbettung erlaubt sein soll, wuerde das SAMEORIGIN-Default den iframe
+  // blocken. Dann uebernimmt allein CSP frame-ancestors die Kontrolle.
+  frameguard: embedOrigins.length > 0 ? false : undefined,
   hsts: { maxAge: 31536000, includeSubDomains: true },
 }));
 app.use(express.json({ limit: '10mb' }));

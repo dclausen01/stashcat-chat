@@ -314,6 +314,34 @@ All catch blocks in `server/index.ts` use the `errorMessage(err, fallback)` help
 
 ---
 
+### Iframe-Einbettung (Nextcloud-Integration)
+
+Der Chat kann von fremden Origins per `<iframe>` eingebettet werden, damit er als
+Menüeintrag in Nextcloud laufen kann (Ansatz analog zur Rocket.Chat-Integration:
+Nextcloud liefert nur den Rahmen, die App bleibt diese Anwendung).
+
+Gesteuert wird das in `server/index.ts` über zwei Env-Variablen:
+
+| Variable | Wirkung |
+|---|---|
+| `NEXTCLOUD_URL` | Deren Origin darf den Chat automatisch einbetten (dieselbe Env, die auch WebDAV/OnlyOffice konfiguriert). |
+| `FRAME_ANCESTORS` | Optionale weitere Origins, kommagetrennt (z. B. eine Test-Instanz). Ungültige Werte werden mit Warnung ignoriert. |
+
+Verhalten:
+
+- **Ohne** erlaubte Fremd-Origin bleibt alles wie vorher: CSP `frame-ancestors 'self'`
+  plus `X-Frame-Options: SAMEORIGIN`.
+- **Mit** mindestens einer Fremd-Origin wird `frame-ancestors` um diese erweitert und
+  `frameguard` abgeschaltet. Das ist notwendig, weil `X-Frame-Options` keine Whitelist
+  für Fremd-Origins kennt — ein `SAMEORIGIN`-Header würde den iframe unabhängig von der
+  CSP blocken. Die Zugriffskontrolle liegt dann allein bei CSP `frame-ancestors`, das
+  von allen aktuellen Browsern unterstützt wird.
+
+Für den produktiven Einsatz empfiehlt sich zusätzlich, den Chat unter derselben Domain
+wie Nextcloud zu reverse-proxien. Sonst partitionieren Chrome und Safari das
+`localStorage` des Frames pro Top-Level-Site, und der Session-Token aus dem
+Direktaufruf gilt im eingebetteten Chat nicht.
+
 ## Known Patterns
 
 ### isManager Detection
