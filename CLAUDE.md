@@ -797,6 +797,12 @@ Fallstricke:
 
 - **Passwort beim Bearbeiten**: `password` wird nur mitgeschickt, wenn das Feld gefüllt
   ist. Ein leeres Feld würde sonst ein bestehendes Channel-Passwort entfernen.
+- **`/manage/edit_channel` verlangt `type` und `message_ttl` immer.** Der offizielle
+  Client schickt beide bei jedem Aufruf mit; fehlen sie, antwortet die API mit
+  `missing_values`. Der Typ wird **nicht geraten** — ein falscher Wert würde einen
+  verschlüsselten Channel in einen offenen verwandeln. Das Formular reicht den
+  bestehenden Typ durch; fehlt er, holt die Route ihn über `getChannelInfo` und bricht
+  sonst mit 400 ab.
 - **`visible` als Filter**: Nur mitschicken, wenn wirklich gefiltert werden soll — ein
   mitgesendetes `false` schränkt die Liste sonst ungewollt ein.
 - **Feldnamen**: Sichtbarkeit nimmt `channel_ids` (Plural), Moderatoren nehmen `user_ids`.

@@ -314,7 +314,15 @@ export default function AdminChannelModal({
       if (isCreate) {
         await api.createAdminChannel(companyId, input);
       } else {
-        await api.updateAdminChannel(companyId, String(channel.id), input);
+        // `type` und `messageTtl` mitschicken: /manage/edit_channel verlangt
+        // beide. Der Typ bleibt unveraendert — das Formular bietet ihn beim
+        // Bearbeiten bewusst nicht an, damit ein verschluesselter Channel
+        // nicht versehentlich geoeffnet wird.
+        await api.updateAdminChannel(companyId, String(channel.id), {
+          ...input,
+          type: channel.type ?? undefined,
+          messageTtl: channel.message_ttl ?? undefined,
+        });
       }
       onSaved();
       onClose();

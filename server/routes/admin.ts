@@ -711,6 +711,33 @@ router.patch(
       // Passwort nur mitschicken, wenn eines gesetzt werden soll — ein leeres
       // Feld wuerde sonst ein bestehendes Passwort entfernen.
       const password = typeof b.password === 'string' && b.password ? b.password : undefined;
+
+      // `/manage/edit_channel` verlangt `type` und `message_ttl` **immer** —
+      // der offizielle Client schickt beide bei jedem Aufruf mit. Fehlen sie,
+      // antwortet die API mit `missing_values`.
+      //
+      // `type` wird bewusst nicht geraten: ein falscher Wert wuerde einen
+      // verschluesselten Channel in einen offenen verwandeln. Kommt er nicht
+      // aus dem Formular, holen wir den aktuellen Typ vom Server; geht auch
+      // das nicht, brechen wir ab statt zu raten.
+      let channelType = typeof b.type === 'string' && b.type ? b.type : '';
+      let messageTtl = b.messageTtl !== undefined && b.messageTtl !== null ? Number(b.messageTtl) : null;
+      if (!channelType || messageTtl === null) {
+        try {
+          const info = (await client.getChannelInfo(String(req.params.channelId), true)) as unknown as Record<string, unknown>;
+          if (!channelType && typeof info.type === 'string') channelType = info.type;
+          if (messageTtl === null && info.message_ttl != null) messageTtl = Number(info.message_ttl);
+        } catch (infoErr) {
+          serverLog(`[Admin] Channel-Typ nicht ermittelbar fuer ${req.params.channelId}:`, errorMessage(infoErr));
+        }
+      }
+      if (!channelType) {
+        return res.status(400).json({
+          error: 'Der Channel-Typ liess sich nicht ermitteln. Speichern wurde abgebrochen, '
+            + 'weil ein falscher Typ die Verschluesselung des Channels aufheben koennte.',
+        });
+      }
+
       const data = client.api.createAuthenticatedRequestData({
         company_id: req.params.companyId,
         channel_id: req.params.channelId,
@@ -719,12 +746,11 @@ router.patch(
         visible: Boolean(b.visible),
         writable: typeof b.writable === 'string' ? b.writable : 'all',
         inviteable: Boolean(b.inviteable),
+        type: channelType,
         show_activities: Boolean(b.showActivities),
         show_membership_activities: Boolean(b.showMembershipActivities),
+        message_ttl: messageTtl ?? 0,
         ...(password ? { password, password_repeat: password } : {}),
-        ...(b.messageTtl !== undefined && b.messageTtl !== null
-          ? { message_ttl: Number(b.messageTtl) }
-          : {}),
       });
       const payload = await client.api.post<{ channel?: unknown }>('/manage/edit_channel', data);
       serverLog(`[Admin] Channel ${req.params.channelId} bearbeitet`);
