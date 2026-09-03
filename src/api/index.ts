@@ -291,3 +291,6 @@ export type {
   GroupInviteResult,
   RoleInput,
 } from './admin';
+
+// Security / Signierung
+export { getSigningStatus, type SigningStatus } from './security';

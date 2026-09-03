@@ -1,9 +1,10 @@
 import { useState, useRef, useCallback, useEffect, type CSSProperties } from 'react';
-import { X, ArrowLeft } from 'lucide-react';
+import { X, ArrowLeft, ShieldCheck, ShieldAlert, ShieldQuestion, Loader2 } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useTheme, LIGHT_PRESETS, DARK_PRESETS, type PresetId } from '../context/ThemeContext';
 import { isMobileBridge } from '../lib/mobileBridge';
 import { getMobilePushPreview, setMobilePushPreview, type PushPreviewMode } from '../api/push';
+import { getSigningStatus, type SigningStatus } from '../api/security';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -94,6 +95,75 @@ function PresetChip({
       />
       {label}
     </button>
+  );
+}
+
+/**
+ * Zeigt an, ob Chat-Schluessel signiert verteilt werden koennen.
+ *
+ * Ohne den privaten Signierschluessel gehen sie unsigniert raus — der
+ * offizielle Client meldet dann „Signatur fehlt oder ungueltig".
+ * Hintergrund: `docs/signing-keys.md`.
+ */
+function SigningStatusRow() {
+  const [status, setStatus] = useState<SigningStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const check = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    getSigningStatus()
+      .then(setStatus)
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Pruefung fehlgeschlagen'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // `ok` ist bewusst dreiwertig: `matchesStoredPublicKey === null` heisst
+  // „Schluessel da, Gegenprobe nicht moeglich" — das ist kein Fehler.
+  const ok = status?.available && status.matchesStoredPublicKey !== false;
+  const Icon = loading ? Loader2 : error || status?.available === false ? ShieldAlert : ok ? ShieldCheck : ShieldQuestion;
+
+  let detail: string;
+  if (loading) detail = 'Wird geprüft …';
+  else if (error) detail = error;
+  else if (!status) detail = 'Prüft, ob Chat-Schlüssel signiert verteilt werden können.';
+  else if (!status.available) detail = status.reason ?? 'Kein Signierschlüssel verfügbar.';
+  else if (status.matchesStoredPublicKey === false) detail = 'Der Schlüssel passt nicht zum hinterlegten öffentlichen Signierschlüssel.';
+  else if (status.matchesStoredPublicKey === null) detail = 'Signierschlüssel vorhanden. Gegenprobe mit dem Server war nicht möglich.';
+  else detail = 'Signierschlüssel vorhanden und passend — Chat-Schlüssel werden signiert verteilt.';
+
+  return (
+    <div className="flex items-start gap-3">
+      <Icon
+        size={18}
+        className={`mt-0.5 shrink-0 ${
+          loading
+            ? 'animate-spin text-surface-500'
+            : error || status?.available === false || status?.matchesStoredPublicKey === false
+              ? 'text-red-500'
+              : ok
+                ? 'text-green-600'
+                : 'text-surface-500'
+        }`}
+      />
+      <div className="flex-1">
+        <div className="text-sm font-medium text-surface-900 dark:text-surface-100">Schlüssel-Signierung</div>
+        <div className="mt-0.5 text-xs text-surface-600">{detail}</div>
+        {status?.fingerprint && (
+          <div className="mt-1 break-all font-mono text-[10px] text-surface-500">
+            {status.fingerprint.slice(0, 32)}…
+          </div>
+        )}
+      </div>
+      <button
+        onClick={check}
+        disabled={loading}
+        className="mt-0.5 shrink-0 rounded-md border border-surface-300 px-2 py-1 text-xs text-surface-700 hover:bg-surface-100 disabled:opacity-50 dark:border-surface-600 dark:text-surface-200 dark:hover:bg-surface-700"
+      >
+        {status || error ? 'Erneut prüfen' : 'Prüfen'}
+      </button>
+    </div>
   );
 }
 
@@ -386,6 +456,12 @@ export default function SettingsPanel({ onClose }: SettingsPanelProps) {
               onChange={setOtherBubbleColorDark}
             />
           </div>
+        </div>
+
+        <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wider text-surface-600">Verschlüsselung</p>
+
+        <div className="rounded-lg bg-white p-3 shadow-sm dark:bg-surface-800">
+          <SigningStatusRow />
         </div>
       </div>
     </div>
