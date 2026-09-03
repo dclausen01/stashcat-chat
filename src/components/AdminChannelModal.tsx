@@ -130,11 +130,14 @@ export default function AdminChannelModal({
       // entstanden ist — `success` allein sagt nur, dass er den Aufruf
       // angenommen hat.
       if (!result.member) {
+        // Der Beitritt ist der eigentliche Hebel — schlägt er fehl, nennt der
+        // Server den Grund, und der ist aussagekräftiger als jede Vermutung.
         setEnrollNote(
-          result.success
-            ? 'Der Server hat den Aufruf angenommen, dich aber nicht als Mitglied eingetragen. '
-              + 'Über den Admin-Bereich lässt sich dieser Channel damit nicht betreten.'
-            : 'Der Server hat das Einschreiben abgelehnt.',
+          result.joinError
+            ? `Beitritt abgelehnt: ${result.joinError}. `
+              + 'Geschlossene Channels lassen sich nur per Einladung durch ein Mitglied betreten — '
+              + 'das ist eine Serverregel, keine Einschränkung dieser Oberfläche.'
+            : 'Der Server hat den Aufruf angenommen, dich aber nicht als Mitglied eingetragen.',
         );
       } else if (result.hasKey) {
         setEnrollNote('Du bist jetzt eingeschrieben und hast den Chat-Schlüssel — Einladen ist möglich.');
