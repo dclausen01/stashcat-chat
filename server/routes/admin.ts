@@ -924,22 +924,39 @@ router.post(
         '/manage/set_channel_moderator_status',
         data,
       );
-      if (payload?.success !== true) {
-        return res.status(400).json({
-          error: 'Der Server hat das Einschreiben abgelehnt.',
-        });
-      }
+      const accepted = payload?.success === true;
+
+      // Nicht auf `success` vertrauen: nachsehen, ob wirklich eine
+      // Mitgliedschaft entstanden ist. `set_channel_moderator_status` ist ein
+      // Moderator-Endpunkt — ob er auch einschreibt, entscheidet der Server.
+      const checkData = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        channel_id: channelId,
+        limit: 1000,
+        offset: 0,
+        search: '',
+        sorting: ['last_name_asc'],
+      });
+      const memberPayload = await client.api.post<{ members?: Array<{ id?: unknown }> }>(
+        '/manage/list_channel_members',
+        checkData,
+      );
+      const member = (memberPayload?.members ?? []).some((m) => String(m?.id) === myId);
 
       let hasKey = false;
-      try {
-        await client.getChannelAesKey(channelId);
-        hasKey = true;
-      } catch {
-        hasKey = false;
+      if (member) {
+        try {
+          await client.getChannelAesKey(channelId);
+          hasKey = true;
+        } catch {
+          hasKey = false;
+        }
       }
 
-      serverLog(`[Admin] Selbst in Channel ${channelId} eingeschrieben (Schluessel: ${hasKey ? 'ja' : 'nein'})`);
-      res.json({ success: true, hasKey });
+      serverLog(
+        `[Admin] Selbsteinschreiben Channel ${channelId}: akzeptiert=${accepted} mitglied=${member} schluessel=${hasKey}`,
+      );
+      res.json({ success: accepted, member, hasKey });
     } catch (err) {
       res.status(500).json({ error: errorMessage(err, 'Einschreiben fehlgeschlagen') });
     }

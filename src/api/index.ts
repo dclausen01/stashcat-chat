@@ -276,6 +276,7 @@ export {
   selfEnrollInChannel,
   selfUnenrollFromChannel,
   type ChannelAccess,
+  type SelfEnrollResult,
 } from './admin';
 export type {
   AdminUser,
