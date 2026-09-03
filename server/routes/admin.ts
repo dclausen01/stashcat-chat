@@ -12,6 +12,7 @@
 import { Router } from 'express';
 import { errorMessage, serverLog } from '../lib/logging';
 import { getPermissions, normalizeSorting, parseIdList, requirePermission } from '../lib/admin';
+import { InviteError, inviteUsersToChannel } from '../lib/channel-invite';
 
 const router = Router();
 
@@ -872,11 +873,12 @@ router.post(
       const client = req.client!;
       const userIds = parseIdList((req.body as { userIds?: unknown }).userIds);
       if (!userIds.length) return res.status(400).json({ error: 'Keine Nutzer ausgewaehlt' });
-      await client.inviteUsersToChannel(String(req.params.channelId), userIds);
+      const result = await inviteUsersToChannel(client, String(req.params.channelId), userIds);
       serverLog(`[Admin] ${userIds.length} Nutzer in Channel ${req.params.channelId} eingeladen`);
-      res.json({ success: true, count: userIds.length });
+      res.json({ success: true, count: result.invited });
     } catch (err) {
-      res.status(500).json({ error: errorMessage(err, 'Einladen fehlgeschlagen') });
+      const status = err instanceof InviteError ? 400 : 500;
+      res.status(status).json({ error: errorMessage(err, 'Einladen fehlgeschlagen') });
     }
   },
 );
@@ -957,7 +959,7 @@ router.post(
         return res.json({ invited: 0, skipped: groupUserIds.length, alreadyComplete: true });
       }
 
-      await client.inviteUsersToChannel(String(req.params.channelId), toInvite);
+      await inviteUsersToChannel(client, String(req.params.channelId), toInvite);
       serverLog(
         `[Admin] Gruppe ${groupId}: ${toInvite.length} von ${groupUserIds.length} in Channel ${req.params.channelId} eingeladen`,
       );
@@ -967,7 +969,8 @@ router.post(
         alreadyComplete: false,
       });
     } catch (err) {
-      res.status(500).json({ error: errorMessage(err, 'Gruppe konnte nicht eingeladen werden') });
+      const status = err instanceof InviteError ? 400 : 500;
+      res.status(status).json({ error: errorMessage(err, 'Gruppe konnte nicht eingeladen werden') });
     }
   },
 );

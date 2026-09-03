@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { StashcatClient } from 'stashcat-api';
 import { debugLog, errorMessage, serverLog } from '../lib/logging';
 import { DEFAULT_KEY_TTL, encryptAndSignChatKey } from '../lib/signing';
+import { InviteError, inviteUsersToChannel } from '../lib/channel-invite';
 
 const router = Router();
 
@@ -170,10 +171,12 @@ router.post('/channels/:channelId/invite', async (req, res) => {
   try {
     const client = req.client!;
     const { userIds } = req.body as { userIds: string[] };
-    await client.inviteUsersToChannel(req.params.channelId, userIds);
-    res.json({ ok: true });
+    const result = await inviteUsersToChannel(client, req.params.channelId, userIds);
+    res.json({ ok: true, ...result });
   } catch (err) {
-    res.status(500).json({ error: errorMessage(err) });
+    // Eine InviteError traegt eine Erklaerung, die direkt angezeigt werden kann.
+    const status = err instanceof InviteError ? 400 : 500;
+    res.status(status).json({ error: errorMessage(err) });
   }
 });
 

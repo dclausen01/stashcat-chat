@@ -805,7 +805,9 @@ Fallstricke:
   eigenen Flag (siehe „isManager Detection").
 - **Mitglieder ein-/ausschreiben** hat *keinen* `/manage/*`-Endpunkt — auch die offizielle
   Admin-Oberfläche kann dort nur Moderatorenrechte setzen. Wir nutzen den regulären
-  Einladungsweg (`/channels/createInvite`, `/channels/removeUser`).
+  Einladungsweg (`/channels/createInvite`, `/channels/removeUser`). Dessen Grenzen siehe
+  „Channel-Einladungen" weiter unten: eine Einladung ist keine Mitgliedschaft, und in
+  verschlüsselte Channels kann nur einladen, wer selbst den Chat-Schlüssel hat.
 - **Ganze Gruppe einschreiben**: ebenfalls kein nativer Endpunkt. `POST
   /api/admin/channels/:companyId/:channelId/members/group` löst die Gruppe serverseitig
   über `/manage/list_users_by_group` auf, filtert bereits vorhandene Mitglieder heraus und
@@ -946,3 +948,30 @@ so verhält sich der Originalclient ebenfalls.
 |---|---|---|
 | GET | `/api/security/signing-status` | Diagnose: Schlüssel vorhanden, passt er zum hinterlegten Public Key, Fingerprint |
 | POST | `/api/channels/:channelId/keys` | Verteilt den Channel-Schlüssel signiert an Nachzügler (ohne `userIds`: an alle, denen er laut Server fehlt) |
+
+---
+
+## Channel-Einladungen (`/channels/createInvite`)
+
+`server/lib/channel-invite.ts` baut `ChannelsService.createChannelInvite` des
+Webclients nach. Drei Dinge weichen von der naheliegenden Annahme ab:
+
+- **`users` ist eine Liste von Objekten**, nicht von IDs:
+  `[{ id, key, expiry, userVerified, signature? }]`. `stashcat-api` schickt blanke
+  IDs — bei verschlüsselten Channels kommt so nie ein brauchbarer Schlüssel an.
+  Bei klassisch verschlüsselten Channels (`type: "closed"`, `encrypted: true`)
+  wird der Chat-Schlüssel pro Empfänger verschlüsselt und signiert mitgegeben;
+  beim neueren Typ `"encrypted"` (Megolm) und bei offenen Channels ist `key: null`.
+- **`payload.success` prüfen.** `api.post` wirft nur bei `status.value !== "OK"`.
+  Der Server kann mit OK antworten und trotzdem `success: false` melden — ohne die
+  Prüfung meldet die Oberfläche Erfolg, obwohl nichts passiert ist.
+- **Eine Einladung ist keine Mitgliedschaft.** Eingeladene sind *ausstehend*
+  (`addPendingMembersTemp` im Original) und tauchen in `/manage/list_channel_members`
+  **nicht** auf, bis sie annehmen. Ein erfolgreicher Aufruf sieht sonst wirkungslos
+  aus — die Oberfläche muss das sagen.
+
+**Grenze, die kein Client umgehen kann:** In einen Ende-zu-Ende-verschlüsselten
+Channel kann nur einladen, wer selbst den Chat-Schlüssel besitzt, also Mitglied ist.
+Der offizielle Client arbeitet dort ausschließlich auf `this.chat` — dem geöffneten,
+eigenen Channel. Fehlt der Schlüssel, bricht er ohne Request ab. Wir werfen an der
+Stelle eine `InviteError` mit Erklärung statt einer stillen Erfolgsmeldung.

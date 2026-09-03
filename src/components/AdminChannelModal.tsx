@@ -159,7 +159,8 @@ export default function AdminChannelModal({
       } else {
         setNotice(
           `${result.invited} Mitglied(er) aus „${group.name}" eingeladen`
-          + (result.skipped ? `, ${result.skipped} waren bereits drin.` : '.'),
+          + (result.skipped ? `, ${result.skipped} waren bereits drin. ` : '. ')
+          + 'Eingeladene erscheinen erst in der Liste, wenn sie die Einladung angenommen haben.',
         );
       }
       await loadMembers();
@@ -174,11 +175,19 @@ export default function AdminChannelModal({
   async function addMember(user: AdminUser) {
     if (!channel) return;
     setError('');
+    setNotice('');
     setSaving(true);
     try {
       await api.addChannelMembers(companyId, String(channel.id), [user.id]);
       setUserSearch('');
       setCandidates([]);
+      // Eine Einladung macht noch kein Mitglied — bis zur Annahme taucht der
+      // Nutzer in `list_channel_members` nicht auf. Ohne diesen Hinweis sieht
+      // ein erfolgreicher Aufruf wie ein wirkungsloser aus.
+      setNotice(
+        `${userDisplayName(user)} wurde eingeladen. Die Einladung muss noch angenommen werden — `
+        + 'bis dahin erscheint der Eintrag nicht in der Mitgliederliste.',
+      );
       await loadMembers();
       onSaved();
     } catch (err) {
