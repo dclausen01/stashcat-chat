@@ -752,9 +752,18 @@ router.patch(
         message_ttl: messageTtl ?? 0,
         ...(password ? { password, password_repeat: password } : {}),
       });
-      const payload = await client.api.post<{ channel?: unknown }>('/manage/edit_channel', data);
-      serverLog(`[Admin] Channel ${req.params.channelId} bearbeitet`);
-      res.json(payload?.channel ?? { success: true });
+      try {
+        const payload = await client.api.post<{ channel?: unknown }>('/manage/edit_channel', data);
+        serverLog(`[Admin] Channel ${req.params.channelId} bearbeitet`);
+        res.json(payload?.channel ?? { success: true });
+      } catch (apiErr) {
+        // `missing_values` nennt nicht, welcher Parameter fehlt. Damit ein
+        // Fehlerbericht ohne Serverlog auskommt, haengen wir die gesendeten
+        // Feldnamen an — Werte bleiben draussen.
+        const sentKeys = Object.keys(data as Record<string, unknown>).sort().join(', ');
+        serverLog(`[Admin] edit_channel fehlgeschlagen fuer ${req.params.channelId}. Gesendet: ${sentKeys}`);
+        throw new Error(`${errorMessage(apiErr, 'Bearbeiten fehlgeschlagen')} — gesendet wurden: ${sentKeys}`);
+      }
     } catch (err) {
       res.status(500).json({ error: errorMessage(err, 'Channel konnte nicht bearbeitet werden') });
     }
