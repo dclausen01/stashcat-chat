@@ -499,8 +499,12 @@ export interface SelfEnrollResult {
   success: boolean;
   /** Nachgeprüft: Bin ich danach wirklich Mitglied? */
   member: boolean;
+  /** Beigetreten — erst dann erscheint der Channel in der Seitenleiste. */
+  joined: boolean;
   /** Habe ich den Chat-Schlüssel? */
   hasKey: boolean;
+  /** Grund, falls der Beitritt scheiterte. */
+  joinError?: string;
 }
 
 export async function selfEnrollInChannel(
