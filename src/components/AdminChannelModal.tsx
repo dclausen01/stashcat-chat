@@ -94,7 +94,10 @@ export default function AdminChannelModal({
     setMembersLoading(true);
     try {
       setMembers(await api.getAdminChannelMembers(companyId, String(channel.id), { limit: 200 }));
-    } catch {
+    } catch (err) {
+      // Nicht stillschweigend verschlucken: eine leere Mitgliederliste sieht
+      // sonst aus wie „Channel ohne Mitglieder" statt wie ein Fehler.
+      console.error('[AdminChannelModal] Mitglieder konnten nicht geladen werden:', err);
       setMembers([]);
     } finally {
       setMembersLoading(false);
@@ -107,7 +110,8 @@ export default function AdminChannelModal({
     if (isCreate || !channel) return;
     try {
       setAccess(await api.getChannelAccess(companyId, String(channel.id)));
-    } catch {
+    } catch (err) {
+      console.error('[AdminChannelModal] Zugang konnte nicht geprueft werden:', err);
       setAccess(null);
     }
   }, [companyId, channel, isCreate]);
@@ -177,7 +181,10 @@ export default function AdminChannelModal({
     if (isCreate || !channel) return;
     api.getChannelStatistics(companyId, String(channel.id))
       .then((s) => setStats(s as ChannelStatistics))
-      .catch(() => setStats(null));
+      .catch((err: unknown) => {
+        console.error('[AdminChannelModal] Statistik konnte nicht geladen werden:', err);
+        setStats(null);
+      });
   }, [companyId, channel, isCreate]);
 
   useEffect(() => {
