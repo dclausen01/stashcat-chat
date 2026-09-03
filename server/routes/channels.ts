@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { StashcatClient } from 'stashcat-api';
 import { debugLog, errorMessage, serverLog } from '../lib/logging';
+import { DEFAULT_KEY_TTL, encryptAndSignChatKey } from '../lib/signing';
 
 const router = Router();
 
@@ -378,8 +379,14 @@ router.post('/channels', async (req, res) => {
       const keyBase64 = encryptedKey.toString('base64');
       channelOpts.encryption_key = keyBase64;
 
+      // Der Originalclient signiert den Channel-Schluessel mit dem privaten
+      // Signierschluessel ueber `<key>$<unique_identifier>` — ohne Ablauf und
+      // ohne Mitgliederliste (`generateKeyObject(..., ttl = null)`).
+      const signed = await encryptAndSignChatKey(client, keyBase64, { chatId: uniqueIdentifier });
+      if (signed.signature) channelOpts.encryption_key_signature = signed.signature;
+
       debugLog(`[channels/create] encryptedKey length=${encryptedKey.length} keyBase64 length=${keyBase64.length}`);
-      debugLog(`[channels/create] skipping signature (server accepts without)`);
+      debugLog(`[channels/create] signature=${signed.signature ? `${signed.signature.length} hex chars` : 'none (kein Signierschluessel)'}`);
     }
 
     const channel = await client.createChannel(channelOpts);
@@ -402,17 +409,92 @@ router.post('/channels', async (req, res) => {
   }
 });
 
+/**
+ * Verteilt den AES-Schluessel eines verschluesselten Channels an Mitglieder,
+ * denen er fehlt.
+ *
+ * Ohne `userIds` fragt die Route den Server, wem der Schluessel fehlt
+ * (`/security/get_missing_keys`), und bedient genau diese Nutzer.
+ *
+ * Der Schluessel wird pro Empfaenger mit dessen Public Key verschluesselt und
+ * mit dem eigenen **Signierschluessel** signiert — Feldnamen und signierte
+ * Zeichenkette wie im offiziellen Client (siehe `docs/signing-keys.md`).
+ */
 router.post('/channels/:channelId/keys', async (req, res) => {
   try {
     const client = req.client!;
     const channelId = req.params.channelId;
-    const { keys } = req.body as { keys: Array<{ user_id: string; key: string; key_signature: string }> };
-    if (!keys || !Array.isArray(keys)) {
-      return res.status(400).json({ error: 'keys array required' });
+    const { userIds } = req.body as { userIds?: Array<string | number> };
+
+    if (!client.isE2EUnlocked()) {
+      return res.status(400).json({ error: 'E2E not unlocked' });
     }
-    await (client as unknown as { setMissingKey: (type: string, id: string, keys: unknown[]) => Promise<void> }).setMissingKey('channel', channelId, keys);
-    console.log(`[channels/keys] distributed ${keys.length} keys for channel ${channelId}`);
-    res.json({ ok: true });
+
+    const channel = await client.getChannelInfo(channelId, true);
+    const uniqueIdentifier = (channel as unknown as Record<string, unknown>).unique_identifier as string | undefined;
+    const aesKey = await client.getChannelAesKey(channelId);
+
+    let targets = (userIds ?? []).map(String).filter(Boolean);
+    if (targets.length === 0) {
+      // Niemand explizit genannt: den Server fragen, wem der Schluessel fehlt.
+      const missing = await client.api.post<{ content: { channels?: Array<{ id: string; foreign_user_id?: string }> } }>(
+        '/security/get_missing_keys',
+        client.api.createAuthenticatedRequestData({}),
+      );
+      targets = (missing.content.channels ?? [])
+        .filter((c) => String(c.id) === String(channelId) && c.foreign_user_id)
+        .map((c) => String(c.foreign_user_id));
+    }
+    if (targets.length === 0) {
+      return res.json({ ok: true, processed: 0, errors: 0, message: 'Keine offenen Schluessel' });
+    }
+
+    // Public Keys der Empfaenger holen — zum Verschluesseln zaehlt der
+    // Verschluesselungsschluessel im PEM-Format.
+    const keyData = client.api.createAuthenticatedRequestData({
+      user_ids: JSON.stringify(targets),
+      type: 'encryption',
+    });
+    const keyResp = await client.api.post<{ public_keys?: Array<{ user_id: string; type: string; format: string; public_key: string }> }>(
+      '/security/get_public_keys',
+      keyData,
+    );
+    const publicKeys = new Map(
+      (keyResp.public_keys ?? [])
+        .filter((k) => k.type === 'encryption' && k.format === 'pem')
+        .map((k) => [String(k.user_id), k.public_key] as const),
+    );
+
+    let processed = 0;
+    let errors = 0;
+    for (const userId of targets) {
+      try {
+        const publicKey = publicKeys.get(userId);
+        if (!publicKey) { errors++; continue; }
+
+        const keyBase64 = StashcatClient.encryptWithPublicKey(publicKey, aesKey).toString('base64');
+        const signed = await encryptAndSignChatKey(client, keyBase64, {
+          chatId: uniqueIdentifier,
+          ttl: DEFAULT_KEY_TTL,
+        });
+
+        await client.api.post('/security/set_missing_key', client.api.createAuthenticatedRequestData({
+          user_id: userId,
+          type: 'channel',
+          type_id: channelId,
+          key: signed.encrypted,
+          signature: signed.signature ?? '',
+          expiry: signed.expiryTimestamp != null ? String(signed.expiryTimestamp) : '',
+        }));
+        processed++;
+      } catch (itemErr) {
+        errors++;
+        serverLog(`[channels/keys] user ${userId} failed:`, errorMessage(itemErr));
+      }
+    }
+
+    serverLog(`[channels/keys] channel ${channelId}: ${processed} verteilt, ${errors} Fehler`);
+    res.json({ ok: true, processed, errors });
   } catch (err) {
     res.status(500).json({ error: errorMessage(err, 'Failed to set channel keys') });
   }

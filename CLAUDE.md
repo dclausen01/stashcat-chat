@@ -913,3 +913,36 @@ Fallstricke:
   die angezeigten Häkchen zurückschickt.
 - **Selbstaussperrung möglich.** Wer sich `admin_edit_company_roles` entzieht, kommt nicht
   mehr in diesen Tab. Das Modal weist darauf hin.
+
+---
+
+## Signierung von Chat-Schlüsseln
+
+Stashcat hält pro Nutzer **zwei** RSA-4096-Schlüsselpaare: eines zum
+Verschlüsseln (RSA-OAEP, `public_key`) und eines zum Signieren (RS256,
+`public_signing_key`). `stashcat-api` kennt nur das erste — `client.signData()`
+signiert daher mit dem *falschen* Schlüssel. Für Chat-Schlüssel darf es nicht
+mehr verwendet werden.
+
+`server/lib/signing.ts` beschafft den privaten Signierschlüssel selbst:
+
+1. `POST /security/get_private_key {type:'signing', format:'jwk'}` →
+   `payload.keys.private_key` (ein **JSON-String**) mit
+   `{ ciphertext, iv, encryptedKEK, encryption_func }`
+2. `encryptedKEK` per RSA-OAEP mit dem privaten *Verschlüsselungs*schlüssel
+   entpacken (`client.exportPrivateKey()`) — **`oaepHash: 'sha1'`**, weil der
+   Webclient den Schlüssel mit `hash: "SHA-1"` importiert
+3. `ciphertext` per AES-256-CBC mit diesem KEK entschlüsseln → Signier-JWK
+
+Signiert wird `<encryptedKeyBase64>$<unique_identifier>[$<expiry>][$<memberId>…]`
+mit SHA-256, Ausgabe hex. **`unique_identifier`, nicht die numerische Chat-ID.**
+Mitglieder-IDs nur bei Konversationen (dedupliziert, numerisch sortiert, eigene
+ID inklusive); Channels ohne. Vollständige Herleitung: `docs/signing-keys.md`.
+
+Fehlt der Signierschlüssel, wird **unsigniert** gesendet statt falsch signiert —
+so verhält sich der Originalclient ebenfalls.
+
+| Method | Path | Zweck |
+|---|---|---|
+| GET | `/api/security/signing-status` | Diagnose: Schlüssel vorhanden, passt er zum hinterlegten Public Key, Fingerprint |
+| POST | `/api/channels/:channelId/keys` | Verteilt den Channel-Schlüssel signiert an Nachzügler (ohne `userIds`: an alle, denen er laut Server fehlt) |
