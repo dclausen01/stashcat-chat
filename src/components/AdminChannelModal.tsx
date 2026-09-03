@@ -79,6 +79,12 @@ export default function AdminChannelModal({
   const [groupSearching, setGroupSearching] = useState(false);
   const [notice, setNotice] = useState('');
 
+  // Eigener Zugang: Einladen setzt Mitgliedschaft voraus, bei verschluesselten
+  // Channels zusaetzlich den Chat-Schluessel. Ohne den laesst sich niemand
+  // einladen — siehe CLAUDE.md, Abschnitt „Channel-Einladungen".
+  const [access, setAccess] = useState<api.ChannelAccess | null>(null);
+  const [enrolling, setEnrolling] = useState(false);
+
   const loadMembers = useCallback(async () => {
     if (isCreate || !channel) return;
     setMembersLoading(true);
@@ -92,6 +98,57 @@ export default function AdminChannelModal({
   }, [companyId, channel, isCreate]);
 
   useEffect(() => { void loadMembers(); }, [loadMembers]);
+
+  const loadAccess = useCallback(async () => {
+    if (isCreate || !channel) return;
+    try {
+      setAccess(await api.getChannelAccess(companyId, String(channel.id)));
+    } catch {
+      setAccess(null);
+    }
+  }, [companyId, channel, isCreate]);
+
+  useEffect(() => { void loadAccess(); }, [loadAccess]);
+
+  async function selfEnroll() {
+    if (!channel) return;
+    setError('');
+    setNotice('');
+    setEnrolling(true);
+    try {
+      const result = await api.selfEnrollInChannel(companyId, String(channel.id));
+      setNotice(
+        result.hasKey
+          ? 'Du bist jetzt eingeschrieben und hast den Chat-Schlüssel — Einladen ist möglich.'
+          : 'Du bist eingeschrieben, hast aber noch keinen Chat-Schlüssel. '
+            + 'Ein bestehendes Mitglied muss ihn freigeben; danach hier auf „Erneut prüfen" klicken.',
+      );
+      await Promise.all([loadAccess(), loadMembers()]);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Einschreiben fehlgeschlagen');
+    } finally {
+      setEnrolling(false);
+    }
+  }
+
+  async function selfUnenroll() {
+    if (!channel) return;
+    if (!await confirm(`Dich selbst aus „${channel.name}" austragen?`, 'Austragen')) return;
+    setError('');
+    setNotice('');
+    setEnrolling(true);
+    try {
+      await api.selfUnenrollFromChannel(companyId, String(channel.id));
+      setNotice('Du wurdest aus dem Channel ausgetragen.');
+      await Promise.all([loadAccess(), loadMembers()]);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Austragen fehlgeschlagen');
+    } finally {
+      setEnrolling(false);
+    }
+  }
 
   // Statistik ist ein Extra — schlaegt sie fehl, bleibt der Rest nutzbar.
   useEffect(() => {
@@ -386,7 +443,56 @@ export default function AdminChannelModal({
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-surface-500">
                 Mitglieder {members ? `(${members.length})` : ''}
               </h3>
-              {canEdit && (
+              {canEdit && !access?.canInvite && (
+                <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700/60 dark:bg-amber-900/20 dark:text-amber-200">
+                  {!access?.member ? (
+                    <>
+                      <p>
+                        Du bist kein Mitglied dieses Channels. Einladungen setzen eine eigene
+                        Mitgliedschaft voraus — bei verschlüsselten Channels zusätzlich den
+                        Chat-Schlüssel, den nur Mitglieder besitzen.
+                      </p>
+                      <button
+                        type="button"
+                        disabled={enrolling}
+                        onClick={() => void selfEnroll()}
+                        className="mt-2 rounded-md bg-amber-600 px-2.5 py-1 font-medium text-white transition hover:bg-amber-700 disabled:opacity-50"
+                      >
+                        {enrolling ? 'Wird eingeschrieben…' : 'Selbst einschreiben'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p>
+                        Du bist eingeschrieben, hast aber noch keinen Chat-Schlüssel. Ein
+                        bestehendes Mitglied muss ihn freigeben — erst danach kannst du
+                        andere einladen.
+                      </p>
+                      <button
+                        type="button"
+                        disabled={enrolling}
+                        onClick={() => void loadAccess()}
+                        className="mt-2 rounded-md border border-amber-500 px-2.5 py-1 font-medium transition hover:bg-amber-100 disabled:opacity-50 dark:hover:bg-amber-900/40"
+                      >
+                        Erneut prüfen
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {canEdit && access?.member && (
+                <button
+                  type="button"
+                  disabled={enrolling}
+                  onClick={() => void selfUnenroll()}
+                  className="mb-3 text-xs text-surface-500 underline transition hover:text-surface-700 disabled:opacity-50 dark:hover:text-surface-300"
+                >
+                  Mich selbst aus diesem Channel austragen
+                </button>
+              )}
+
+              {canEdit && access?.canInvite && (
                 <div className="mb-3">
                   <div className="relative">
                     <UsersRound size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
@@ -419,7 +525,7 @@ export default function AdminChannelModal({
                 </div>
               )}
 
-              {canEdit && (
+              {canEdit && access?.canInvite && (
                 <div className="mb-3">
                   <div className="relative">
                     <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />

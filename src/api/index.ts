@@ -272,6 +272,10 @@ export {
   getAdminChannelMembers,
   setChannelModerators,
   getChannelStatistics,
+  getChannelAccess,
+  selfEnrollInChannel,
+  selfUnenrollFromChannel,
+  type ChannelAccess,
 } from './admin';
 export type {
   AdminUser,

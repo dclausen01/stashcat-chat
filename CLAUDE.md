@@ -975,3 +975,21 @@ Channel kann nur einladen, wer selbst den Chat-Schlüssel besitzt, also Mitglied
 Der offizielle Client arbeitet dort ausschließlich auf `this.chat` — dem geöffneten,
 eigenen Channel. Fehlt der Schlüssel, bricht er ohne Request ab. Wir werfen an der
 Stelle eine `InviteError` mit Erklärung statt einer stillen Erfolgsmeldung.
+
+### Selbsteinschreiben von Admins
+
+Es gibt keinen `/manage/*`-Endpunkt für Channel-Mitgliedschaft. Der einzige Hebel,
+der sie überhaupt berührt, ist `set_channel_moderator_status` — er nimmt beliebige
+`user_ids`, nicht nur bestehende Mitglieder.
+
+| Method | Path | Zweck |
+|---|---|---|
+| GET | `/api/admin/channels/:companyId/:channelId/access` | `{ member, encrypted, hasKey, canInvite }` |
+| POST | `/api/admin/channels/:companyId/:channelId/self-enroll` | Sich selbst einschreiben |
+| DELETE | `/api/admin/channels/:companyId/:channelId/self-enroll` | Moderatorstatus entziehen + `quitChannel` |
+
+**Einschreiben allein reicht bei verschlüsselten Channels nicht.** Der Chat-Schlüssel
+liegt nur bei den Mitgliedern; ein frisch eingeschriebener Admin bekommt ihn erst,
+wenn ein bestehendes Mitglied ihn per Key-Sync freigibt. Deshalb meldet `self-enroll`
+`hasKey` zurück, und `AdminChannelModal` blendet die Einladefelder erst ein, wenn
+`canInvite` erfüllt ist — statt Bedienelemente anzubieten, die nichts bewirken.
