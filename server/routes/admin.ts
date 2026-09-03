@@ -10,6 +10,7 @@
  */
 
 import { Router } from 'express';
+import type { StashcatClient } from 'stashcat-api';
 import { errorMessage, serverLog } from '../lib/logging';
 import { getPermissions, normalizeMemberFilter, normalizeSorting, parseIdList, requirePermission } from '../lib/admin';
 import { InviteError, inviteUsersToChannel } from '../lib/channel-invite';
@@ -871,6 +872,29 @@ router.post(
   },
 );
 
+/** Liest die Mitgliederliste und prueft, ob `userId` darin steht. */
+async function isMemberNow(
+  client: StashcatClient,
+  companyId: string,
+  channelId: string,
+  userId: string,
+): Promise<boolean> {
+  const data = client.api.createAuthenticatedRequestData({
+    company_id: companyId,
+    channel_id: channelId,
+    limit: 500,
+    offset: 0,
+    search: '',
+    sorting: ['last_name_asc'],
+    filter: 'members',
+  });
+  const payload = await client.api.post<{ members?: Array<{ id?: unknown }> }>(
+    '/manage/list_channel_members',
+    data,
+  );
+  return (payload?.members ?? []).some((m) => String(m?.id) === userId);
+}
+
 /**
  * Fuehrt einen Teilschritt aus und benennt ihn im Fehlerfall.
  *
@@ -993,25 +1017,29 @@ router.post(
         client.api.post<{ members?: Array<{ id?: unknown }> }>('/manage/list_channel_members', checkData));
       const member = (memberPayload?.members ?? []).some((m) => String(m?.id) === myId);
 
-      // Mitglied zu sein reicht nicht: die Seitenleiste speist sich aus
-      // /channels/subscripted, und dort landet der Channel erst durch einen
-      // Beitritt. Der Beitritt ist ausserdem der Moment, in dem der Server den
-      // fehlenden Chat-Schluessel als angefordert vermerkt — einen eigenen
-      // „Schluessel anfordern"-Endpunkt gibt es nicht.
+      // `/channels/join` ist der eigentliche Beitritt — nicht der
+      // Moderatorstatus. Er wird deshalb *immer* versucht, auch wenn oben noch
+      // keine Mitgliedschaft zu sehen war. Bei offenen Channels gelingt er; bei
+      // geschlossenen lehnt der Server ihn mit einer Begruendung ab, die wir
+      // durchreichen.
       let joined = false;
       let joinError: string | undefined;
-      if (member) {
-        try {
-          await client.joinChannel(channelId);
-          joined = true;
-        } catch (err) {
-          joinError = errorMessage(err, 'Beitritt fehlgeschlagen');
-          serverLog(`[Admin] Beitritt zu ${channelId} fehlgeschlagen:`, joinError);
-        }
+      try {
+        await client.joinChannel(channelId);
+        joined = true;
+      } catch (err) {
+        joinError = errorMessage(err, 'Beitritt fehlgeschlagen');
+        serverLog(`[Admin] Beitritt zu ${channelId} fehlgeschlagen:`, joinError);
       }
 
+      // Nach dem Beitritt nochmal nachsehen — vorher war die Antwort nur eine
+      // Momentaufnahme von vor dem Versuch.
+      const finalMember = member || joined
+        ? await isMemberNow(client, String(req.params.companyId), channelId, myId)
+        : false;
+
       let hasKey = false;
-      if (member) {
+      if (finalMember) {
         try {
           await client.getChannelAesKey(channelId);
           hasKey = true;
@@ -1021,9 +1049,10 @@ router.post(
       }
 
       serverLog(
-        `[Admin] Selbsteinschreiben Channel ${channelId}: akzeptiert=${accepted} mitglied=${member} beigetreten=${joined} schluessel=${hasKey}`,
+        `[Admin] Selbsteinschreiben Channel ${channelId}: akzeptiert=${accepted} `
+        + `mitglied_vorher=${member} beigetreten=${joined} mitglied_nachher=${finalMember} schluessel=${hasKey}`,
       );
-      res.json({ success: accepted, member, joined, hasKey, joinError });
+      res.json({ success: accepted, member: finalMember, joined, hasKey, joinError });
     } catch (err) {
       res.status(500).json({ error: errorMessage(err, 'Einschreiben fehlgeschlagen') });
     }
