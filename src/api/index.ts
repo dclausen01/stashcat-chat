@@ -272,6 +272,10 @@ export {
   getAdminChannelMembers,
   setChannelModerators,
   getChannelStatistics,
+  getChannelAccess,
+  selfEnrollInChannel,
+  selfUnenrollFromChannel,
+  type ChannelAccess,
 } from './admin';
 export type {
   AdminUser,
@@ -291,3 +295,6 @@ export type {
   GroupInviteResult,
   RoleInput,
 } from './admin';
+
+// Security / Signierung
+export { getSigningStatus, type SigningStatus } from './security';

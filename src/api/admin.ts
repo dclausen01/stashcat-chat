@@ -474,6 +474,44 @@ export async function getChannelStatistics(
   return get<Record<string, unknown>>(`/admin/channels/${companyId}/${channelId}/statistics`);
 }
 
+export interface ChannelAccess {
+  /** Bin ich selbst Mitglied des Channels? */
+  member: boolean;
+  /** Ist der Channel Ende-zu-Ende-verschlüsselt? */
+  encrypted: boolean;
+  /** Habe ich den Chat-Schlüssel? */
+  hasKey: boolean;
+  /** Erst dann lassen sich andere einladen. */
+  canInvite: boolean;
+}
+
+/** Prüft, ob der eigene Zugang zum Channel zum Einladen reicht. */
+export async function getChannelAccess(
+  companyId: string,
+  channelId: string,
+): Promise<ChannelAccess> {
+  return get<ChannelAccess>(`/admin/channels/${companyId}/${channelId}/access`);
+}
+
+/** Schreibt den angemeldeten Admin selbst in den Channel ein. */
+export async function selfEnrollInChannel(
+  companyId: string,
+  channelId: string,
+): Promise<{ success: boolean; hasKey: boolean }> {
+  return post<{ success: boolean; hasKey: boolean }>(
+    `/admin/channels/${companyId}/${channelId}/self-enroll`,
+    {},
+  );
+}
+
+/** Trägt den angemeldeten Admin wieder aus dem Channel aus. */
+export async function selfUnenrollFromChannel(
+  companyId: string,
+  channelId: string,
+): Promise<void> {
+  await del(`/admin/channels/${companyId}/${channelId}/self-enroll`);
+}
+
 export async function addChannelMembers(
   companyId: string,
   channelId: string,

@@ -12,6 +12,7 @@
 import { Router } from 'express';
 import { errorMessage, serverLog } from '../lib/logging';
 import { getPermissions, normalizeSorting, parseIdList, requirePermission } from '../lib/admin';
+import { InviteError, inviteUsersToChannel } from '../lib/channel-invite';
 
 const router = Router();
 
@@ -833,6 +834,149 @@ router.post(
   },
 );
 
+/**
+ * Eigener Zugang zu einem Channel: Bin ich Mitglied, und habe ich den
+ * Chat-Schluessel?
+ *
+ * Beides ist noetig, um jemanden einladen zu koennen — bei verschluesselten
+ * Channels braucht die Einladung den Chat-Schluessel, und den bekommt nur, wer
+ * drin ist. Die Oberflaeche blendet die Einladefelder danach ein oder aus.
+ */
+router.get(
+  '/admin/channels/:companyId/:channelId/access',
+  requirePermission('admin_list_channels', 'admin_edit_channels'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const channelId = String(req.params.channelId);
+
+      const me = await client.getMe();
+      const myId = String((me as unknown as Record<string, unknown>).id ?? '');
+
+      const memberData = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        channel_id: channelId,
+        limit: 1000,
+        offset: 0,
+        search: '',
+        sorting: ['last_name_asc'],
+      });
+      const memberPayload = await client.api.post<{ members?: Array<{ id?: unknown }> }>(
+        '/manage/list_channel_members',
+        memberData,
+      );
+      const member = (memberPayload?.members ?? []).some((m) => String(m?.id) === myId);
+
+      let encrypted = false;
+      try {
+        const info = await client.getChannelInfo(channelId, true);
+        encrypted = Boolean((info as unknown as Record<string, unknown>).encrypted);
+      } catch {
+        // Bei fremden Channels kann /channels/info verweigert werden — dann
+        // entscheidet allein der Schluesseltest unten.
+      }
+
+      let hasKey = false;
+      try {
+        await client.getChannelAesKey(channelId);
+        hasKey = true;
+      } catch {
+        hasKey = false;
+      }
+
+      res.json({ member, encrypted, hasKey, canInvite: member && (!encrypted || hasKey) });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Zugang konnte nicht geprueft werden') });
+    }
+  },
+);
+
+/**
+ * Sich selbst in einen Channel einschreiben.
+ *
+ * Es gibt keinen `/manage/*`-Endpunkt fuer Channel-Mitgliedschaft. Der einzige
+ * Hebel, der sie ueberhaupt beruehrt, ist der Moderatorstatus — er nimmt
+ * beliebige `user_ids`, nicht nur bestehende Mitglieder.
+ *
+ * **Bei verschluesselten Channels reicht das nicht zum Einladen.** Der
+ * Chat-Schluessel liegt nur bei den Mitgliedern; ein neu eingeschriebener Admin
+ * bekommt ihn erst, wenn ein bestehendes Mitglied ihn freigibt (Key-Sync). Das
+ * ist keine Luecke, sondern der Zweck der Ende-zu-Ende-Verschluesselung. Die
+ * Antwort meldet deshalb ehrlich zurueck, ob der Schluessel da ist.
+ */
+router.post(
+  '/admin/channels/:companyId/:channelId/self-enroll',
+  requirePermission('admin_edit_channels'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const channelId = String(req.params.channelId);
+      const me = await client.getMe();
+      const myId = String((me as unknown as Record<string, unknown>).id ?? '');
+      if (!myId) return res.status(500).json({ error: 'Eigene Nutzer-ID nicht ermittelbar' });
+
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        channel_id: channelId,
+        user_ids: [myId],
+      });
+      const payload = await client.api.post<{ success?: boolean }>(
+        '/manage/set_channel_moderator_status',
+        data,
+      );
+      if (payload?.success !== true) {
+        return res.status(400).json({
+          error: 'Der Server hat das Einschreiben abgelehnt.',
+        });
+      }
+
+      let hasKey = false;
+      try {
+        await client.getChannelAesKey(channelId);
+        hasKey = true;
+      } catch {
+        hasKey = false;
+      }
+
+      serverLog(`[Admin] Selbst in Channel ${channelId} eingeschrieben (Schluessel: ${hasKey ? 'ja' : 'nein'})`);
+      res.json({ success: true, hasKey });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Einschreiben fehlgeschlagen') });
+    }
+  },
+);
+
+/** Sich selbst wieder austragen — Moderatorstatus weg, Channel verlassen. */
+router.delete(
+  '/admin/channels/:companyId/:channelId/self-enroll',
+  requirePermission('admin_edit_channels'),
+  async (req, res) => {
+    try {
+      const client = req.client!;
+      const channelId = String(req.params.channelId);
+      const me = await client.getMe();
+      const myId = String((me as unknown as Record<string, unknown>).id ?? '');
+
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: req.params.companyId,
+        channel_id: channelId,
+        user_ids: [myId],
+      });
+      await client.api.post('/manage/remove_channel_moderator_status', data);
+      // Der Moderatorstatus allein beendet die Mitgliedschaft nicht.
+      try {
+        await client.quitChannel(channelId);
+      } catch (quitErr) {
+        serverLog(`[Admin] Austragen aus ${channelId}: quitChannel fehlgeschlagen:`, errorMessage(quitErr));
+      }
+      serverLog(`[Admin] Selbst aus Channel ${channelId} ausgetragen`);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: errorMessage(err, 'Austragen fehlgeschlagen') });
+    }
+  },
+);
+
 router.get(
   '/admin/channels/:companyId/:channelId/statistics',
   requirePermission('admin_list_channels', 'admin_edit_channels'),
@@ -872,11 +1016,12 @@ router.post(
       const client = req.client!;
       const userIds = parseIdList((req.body as { userIds?: unknown }).userIds);
       if (!userIds.length) return res.status(400).json({ error: 'Keine Nutzer ausgewaehlt' });
-      await client.inviteUsersToChannel(String(req.params.channelId), userIds);
+      const result = await inviteUsersToChannel(client, String(req.params.channelId), userIds);
       serverLog(`[Admin] ${userIds.length} Nutzer in Channel ${req.params.channelId} eingeladen`);
-      res.json({ success: true, count: userIds.length });
+      res.json({ success: true, count: result.invited });
     } catch (err) {
-      res.status(500).json({ error: errorMessage(err, 'Einladen fehlgeschlagen') });
+      const status = err instanceof InviteError ? 400 : 500;
+      res.status(status).json({ error: errorMessage(err, 'Einladen fehlgeschlagen') });
     }
   },
 );
@@ -957,7 +1102,7 @@ router.post(
         return res.json({ invited: 0, skipped: groupUserIds.length, alreadyComplete: true });
       }
 
-      await client.inviteUsersToChannel(String(req.params.channelId), toInvite);
+      await inviteUsersToChannel(client, String(req.params.channelId), toInvite);
       serverLog(
         `[Admin] Gruppe ${groupId}: ${toInvite.length} von ${groupUserIds.length} in Channel ${req.params.channelId} eingeladen`,
       );
@@ -967,7 +1112,8 @@ router.post(
         alreadyComplete: false,
       });
     } catch (err) {
-      res.status(500).json({ error: errorMessage(err, 'Gruppe konnte nicht eingeladen werden') });
+      const status = err instanceof InviteError ? 400 : 500;
+      res.status(status).json({ error: errorMessage(err, 'Gruppe konnte nicht eingeladen werden') });
     }
   },
 );
