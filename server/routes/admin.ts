@@ -11,7 +11,7 @@
 
 import { Router } from 'express';
 import { errorMessage, serverLog } from '../lib/logging';
-import { getPermissions, normalizeSorting, parseIdList, requirePermission } from '../lib/admin';
+import { getPermissions, normalizeMemberFilter, normalizeSorting, parseIdList, requirePermission } from '../lib/admin';
 import { InviteError, inviteUsersToChannel } from '../lib/channel-invite';
 
 const router = Router();
@@ -827,7 +827,9 @@ router.get(
         offset: Number(offset) || 0,
         search: typeof search === 'string' ? search : '',
         sorting: [normalizeSorting(req.query.sorting)],
-        ...(typeof filter === 'string' && filter ? { filter } : {}),
+        // `filter` ist Pflicht — ohne ihn antwortet die API mit
+        // `missing_values`. Siehe normalizeMemberFilter().
+        filter: normalizeMemberFilter(filter),
       });
       // Achtung: Dieser Endpunkt liefert `members` — die uebrigen list_*
       // Endpunkte liefern `users`.
@@ -911,6 +913,7 @@ router.get(
         offset: 0,
         search: '',
         sorting: ['last_name_asc'],
+        filter: 'members',
       });
       const memberPayload = await step('Mitgliederliste lesen', () =>
         client.api.post<{ members?: Array<{ id?: unknown }> }>('/manage/list_channel_members', memberData));
@@ -984,6 +987,7 @@ router.post(
         offset: 0,
         search: '',
         sorting: ['last_name_asc'],
+        filter: 'members',
       });
       const memberPayload = await step('Mitgliederliste lesen', () =>
         client.api.post<{ members?: Array<{ id?: unknown }> }>('/manage/list_channel_members', checkData));
@@ -1149,6 +1153,7 @@ router.post(
         offset: 0,
         search: '',
         sorting: ['last_name_asc'],
+        filter: 'members',
       });
       const groupPayload = await client.api.post<ManageUsersPayload>(
         '/manage/list_users_by_group',
@@ -1168,6 +1173,7 @@ router.post(
         offset: 0,
         search: '',
         sorting: ['last_name_asc'],
+        filter: 'members',
       });
       const memberPayload = await client.api.post<{ members?: unknown[] }>(
         '/manage/list_channel_members',
