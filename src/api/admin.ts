@@ -494,11 +494,20 @@ export async function getChannelAccess(
 }
 
 /** Schreibt den angemeldeten Admin selbst in den Channel ein. */
+export interface SelfEnrollResult {
+  /** Hat der Server den Aufruf angenommen? */
+  success: boolean;
+  /** Nachgeprüft: Bin ich danach wirklich Mitglied? */
+  member: boolean;
+  /** Habe ich den Chat-Schlüssel? */
+  hasKey: boolean;
+}
+
 export async function selfEnrollInChannel(
   companyId: string,
   channelId: string,
-): Promise<{ success: boolean; hasKey: boolean }> {
-  return post<{ success: boolean; hasKey: boolean }>(
+): Promise<SelfEnrollResult> {
+  return post<SelfEnrollResult>(
     `/admin/channels/${companyId}/${channelId}/self-enroll`,
     {},
   );

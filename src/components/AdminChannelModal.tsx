@@ -84,6 +84,10 @@ export default function AdminChannelModal({
   // einladen — siehe CLAUDE.md, Abschnitt „Channel-Einladungen".
   const [access, setAccess] = useState<api.ChannelAccess | null>(null);
   const [enrolling, setEnrolling] = useState(false);
+  // Eigene Meldung direkt am Einschreib-Knopf. `notice`/`error` stehen ganz
+  // oben im Modal — bei aufgeklapptem Mitgliederbereich ausserhalb des
+  // sichtbaren Bereichs, die Rueckmeldung ginge dort unter.
+  const [enrollNote, setEnrollNote] = useState('');
 
   const loadMembers = useCallback(async () => {
     if (isCreate || !channel) return;
@@ -114,19 +118,32 @@ export default function AdminChannelModal({
     if (!channel) return;
     setError('');
     setNotice('');
+    setEnrollNote('');
     setEnrolling(true);
     try {
       const result = await api.selfEnrollInChannel(companyId, String(channel.id));
-      setNotice(
-        result.hasKey
-          ? 'Du bist jetzt eingeschrieben und hast den Chat-Schlüssel — Einladen ist möglich.'
-          : 'Du bist eingeschrieben, hast aber noch keinen Chat-Schlüssel. '
-            + 'Ein bestehendes Mitglied muss ihn freigeben; danach hier auf „Erneut prüfen" klicken.',
-      );
+      // Der Server meldet nachgeprüft zurück, ob wirklich eine Mitgliedschaft
+      // entstanden ist — `success` allein sagt nur, dass er den Aufruf
+      // angenommen hat.
+      if (!result.member) {
+        setEnrollNote(
+          result.success
+            ? 'Der Server hat den Aufruf angenommen, dich aber nicht als Mitglied eingetragen. '
+              + 'Über den Admin-Bereich lässt sich dieser Channel damit nicht betreten.'
+            : 'Der Server hat das Einschreiben abgelehnt.',
+        );
+      } else {
+        setEnrollNote(
+          result.hasKey
+            ? 'Du bist jetzt eingeschrieben und hast den Chat-Schlüssel — Einladen ist möglich.'
+            : 'Du bist eingeschrieben, hast aber noch keinen Chat-Schlüssel. '
+              + 'Ein bestehendes Mitglied muss ihn freigeben; danach auf „Erneut prüfen" klicken.',
+        );
+      }
       await Promise.all([loadAccess(), loadMembers()]);
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Einschreiben fehlgeschlagen');
+      setEnrollNote(err instanceof Error ? err.message : 'Einschreiben fehlgeschlagen');
     } finally {
       setEnrolling(false);
     }
@@ -137,14 +154,15 @@ export default function AdminChannelModal({
     if (!await confirm(`Dich selbst aus „${channel.name}" austragen?`, 'Austragen')) return;
     setError('');
     setNotice('');
+    setEnrollNote('');
     setEnrolling(true);
     try {
       await api.selfUnenrollFromChannel(companyId, String(channel.id));
-      setNotice('Du wurdest aus dem Channel ausgetragen.');
+      setEnrollNote('Du wurdest aus dem Channel ausgetragen.');
       await Promise.all([loadAccess(), loadMembers()]);
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Austragen fehlgeschlagen');
+      setEnrollNote(err instanceof Error ? err.message : 'Austragen fehlgeschlagen');
     } finally {
       setEnrolling(false);
     }
@@ -460,6 +478,7 @@ export default function AdminChannelModal({
                       >
                         {enrolling ? 'Wird eingeschrieben…' : 'Selbst einschreiben'}
                       </button>
+                      {enrollNote && <p className="mt-2 font-medium">{enrollNote}</p>}
                     </>
                   ) : (
                     <>
@@ -476,6 +495,7 @@ export default function AdminChannelModal({
                       >
                         Erneut prüfen
                       </button>
+                      {enrollNote && <p className="mt-2 font-medium">{enrollNote}</p>}
                     </>
                   )}
                 </div>
@@ -490,6 +510,10 @@ export default function AdminChannelModal({
                 >
                   Mich selbst aus diesem Channel austragen
                 </button>
+              )}
+
+              {canEdit && access?.canInvite && enrollNote && (
+                <p className="mb-3 text-xs text-surface-600 dark:text-surface-400">{enrollNote}</p>
               )}
 
               {canEdit && access?.canInvite && (
