@@ -807,6 +807,11 @@ Fallstricke:
   mitgesendetes `false` schränkt die Liste sonst ungewollt ein.
 - **Feldnamen**: Sichtbarkeit nimmt `channel_ids` (Plural), Moderatoren nehmen `user_ids`.
   Die Gruppen-Endpunkte nehmen dagegen `users`.
+- **`/manage/list_channel_members` verlangt `filter`.** Der offizielle Client übergibt ihn
+  an *jeder* Aufrufstelle (`go.Members` bzw. eine Auswahl daraus). Ohne ihn antwortet die
+  API mit `missing_values` — irreführend, weil der Fehler nach einem fehlenden Pflichtfeld
+  an ganz anderer Stelle aussieht. Gültige Werte: `members`, `members_only`,
+  `membership_requested`, `membership_pending`, `managers` (`normalizeMemberFilter()`).
 - **Moderatorstatus** steht wie überall im `manager`-Feld des Mitglieds, nicht in einem
   eigenen Flag (siehe „isManager Detection").
 - **Mitglieder ein-/ausschreiben** hat *keinen* `/manage/*`-Endpunkt — auch die offizielle

@@ -174,6 +174,27 @@ export function normalizeSorting(value: unknown, fallback = 'last_name_asc'): st
 }
 
 /**
+ * Gueltige `filter`-Werte fuer `/manage/list_channel_members`.
+ *
+ * Der Parameter ist **Pflicht** — der offizielle Client uebergibt ihn an jeder
+ * Aufrufstelle (`go.Members` bzw. eine Auswahl daraus). Ohne ihn antwortet die
+ * API mit `missing_values`, was wie ein fehlendes Pflichtfeld irgendwo anders
+ * aussieht.
+ */
+const ALLOWED_MEMBER_FILTERS = new Set([
+  'members',
+  'members_only',
+  'membership_requested',
+  'membership_pending',
+  'managers',
+]);
+
+/** Validiert den Mitglieder-Filter; Vorgabe ist die volle Mitgliederliste. */
+export function normalizeMemberFilter(value: unknown, fallback = 'members'): string {
+  return typeof value === 'string' && ALLOWED_MEMBER_FILTERS.has(value) ? value : fallback;
+}
+
+/**
  * Parst eine kommaseparierte oder JSON-Liste von IDs aus Query/Body in ein
  * String-Array. Leere Eintraege werden verworfen.
  */
