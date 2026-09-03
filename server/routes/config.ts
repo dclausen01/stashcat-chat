@@ -1,6 +1,18 @@
 import { Router } from 'express';
+import fs from 'node:fs';
 
 const router = Router();
+
+/**
+ * Kennzeichnet den Codestand. Beim Aendern serverseitiger Logik mit
+ * hochzaehlen, damit `/api/config` beantworten kann, welche Version wirklich
+ * laeuft — der Plesk/Passenger-Prozess behaelt seine Module im Speicher, bis
+ * er neu startet, und ein Deploy allein sieht von aussen genauso aus.
+ */
+const BUILD_MARKER = 'admin-edit-channel-type';
+
+/** Startzeit des Prozesses — daraus laesst sich der letzte Neustart ablesen. */
+const STARTED_AT = new Date().toISOString();
 
 const DEFAULT_NEXTCLOUD_URL = 'https://cloud.bbz-rd-eck.de';
 const DEFAULT_ONLYOFFICE_URL = 'https://office.bbz-rd-eck.de';
@@ -17,7 +29,23 @@ router.get('/config', (_req, res) => {
   // CSP gebaut wird. Muss oeffentlich lesbar bleiben, sonst kann der Viewer
   // nicht mehr fail-closed pruefen.
   const onlyofficeUrl = (process.env.ONLYOFFICE_URL || DEFAULT_ONLYOFFICE_URL).replace(/\/+$/, '');
-  res.json({ nextcloudUrl, onlyofficeUrl });
+  // Zeitstempel der laufenden Serverdatei. Ist sie neuer als `startedAt`,
+  // liegt neuer Code auf der Platte, den der Prozess noch nicht geladen hat.
+  let serverFileTime: string | null = null;
+  try {
+    serverFileTime = fs.statSync(__filename).mtime.toISOString();
+  } catch {
+    serverFileTime = null;
+  }
+
+  res.json({
+    nextcloudUrl,
+    onlyofficeUrl,
+    buildMarker: BUILD_MARKER,
+    startedAt: STARTED_AT,
+    serverFileTime,
+    stale: serverFileTime !== null && serverFileTime > STARTED_AT,
+  });
 });
 
 export default router;
