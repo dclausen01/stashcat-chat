@@ -872,27 +872,50 @@ router.post(
   },
 );
 
-/** Liest die Mitgliederliste und prueft, ob `userId` darin steht. */
-async function isMemberNow(
+/** In welchem Zustand steckt die eigene Mitgliedschaft? */
+export type MembershipState = 'member' | 'requested' | 'pending' | 'none';
+
+/**
+ * Schlaegt den eigenen Mitgliedschaftszustand nach.
+ *
+ * `/manage/list_channel_members` filtert scharf: Wer einen Beitritt beantragt
+ * hat, taucht unter `members` **nicht** auf, sondern unter
+ * `membership_requested` bzw. `membership_pending`. Ohne diese Runde sieht ein
+ * beantragter Beitritt aus wie „nichts passiert".
+ */
+async function membershipState(
   client: StashcatClient,
   companyId: string,
   channelId: string,
   userId: string,
-): Promise<boolean> {
-  const data = client.api.createAuthenticatedRequestData({
-    company_id: companyId,
-    channel_id: channelId,
-    limit: 500,
-    offset: 0,
-    search: '',
-    sorting: ['last_name_asc'],
-    filter: 'members',
-  });
-  const payload = await client.api.post<{ members?: Array<{ id?: unknown }> }>(
-    '/manage/list_channel_members',
-    data,
-  );
-  return (payload?.members ?? []).some((m) => String(m?.id) === userId);
+): Promise<MembershipState> {
+  const buckets: Array<[string, MembershipState]> = [
+    ['members', 'member'],
+    ['membership_requested', 'requested'],
+    ['membership_pending', 'pending'],
+  ];
+
+  for (const [filter, state] of buckets) {
+    try {
+      const data = client.api.createAuthenticatedRequestData({
+        company_id: companyId,
+        channel_id: channelId,
+        limit: 500,
+        offset: 0,
+        search: '',
+        sorting: ['last_name_asc'],
+        filter,
+      });
+      const payload = await client.api.post<{ members?: Array<{ id?: unknown }> }>(
+        '/manage/list_channel_members',
+        data,
+      );
+      if ((payload?.members ?? []).some((m) => String(m?.id) === userId)) return state;
+    } catch (err) {
+      serverLog(`[Admin] Mitgliedschaftszustand „${filter}" nicht lesbar:`, errorMessage(err));
+    }
+  }
+  return 'none';
 }
 
 /**
@@ -1034,9 +1057,8 @@ router.post(
 
       // Nach dem Beitritt nochmal nachsehen — vorher war die Antwort nur eine
       // Momentaufnahme von vor dem Versuch.
-      const finalMember = member || joined
-        ? await isMemberNow(client, String(req.params.companyId), channelId, myId)
-        : false;
+      const state = await membershipState(client, String(req.params.companyId), channelId, myId);
+      const finalMember = state === 'member';
 
       let hasKey = false;
       if (finalMember) {
@@ -1050,9 +1072,9 @@ router.post(
 
       serverLog(
         `[Admin] Selbsteinschreiben Channel ${channelId}: akzeptiert=${accepted} `
-        + `mitglied_vorher=${member} beigetreten=${joined} mitglied_nachher=${finalMember} schluessel=${hasKey}`,
+        + `mitglied_vorher=${member} beigetreten=${joined} zustand=${state} schluessel=${hasKey}`,
       );
-      res.json({ success: accepted, member: finalMember, joined, hasKey, joinError });
+      res.json({ success: accepted, member: finalMember, state, joined, hasKey, joinError });
     } catch (err) {
       res.status(500).json({ error: errorMessage(err, 'Einschreiben fehlgeschlagen') });
     }

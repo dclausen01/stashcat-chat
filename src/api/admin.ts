@@ -494,9 +494,14 @@ export async function getChannelAccess(
 }
 
 /** Schreibt den angemeldeten Admin selbst in den Channel ein. */
+/** Zustand der eigenen Mitgliedschaft nach dem Einschreibversuch. */
+export type MembershipState = 'member' | 'requested' | 'pending' | 'none';
+
 export interface SelfEnrollResult {
   /** Hat der Server den Aufruf angenommen? */
   success: boolean;
+  /** Nachgeschlagen über alle Mitglieder-Filter. */
+  state: MembershipState;
   /** Nachgeprüft: Bin ich danach wirklich Mitglied? */
   member: boolean;
   /** Beigetreten — erst dann erscheint der Channel in der Seitenleiste. */

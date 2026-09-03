@@ -130,15 +130,25 @@ export default function AdminChannelModal({
       // entstanden ist — `success` allein sagt nur, dass er den Aufruf
       // angenommen hat.
       if (!result.member) {
-        // Der Beitritt ist der eigentliche Hebel — schlägt er fehl, nennt der
-        // Server den Grund, und der ist aussagekräftiger als jede Vermutung.
-        setEnrollNote(
-          result.joinError
-            ? `Beitritt abgelehnt: ${result.joinError}. `
-              + 'Geschlossene Channels lassen sich nur per Einladung durch ein Mitglied betreten — '
-              + 'das ist eine Serverregel, keine Einschränkung dieser Oberfläche.'
-            : 'Der Server hat den Aufruf angenommen, dich aber nicht als Mitglied eingetragen.',
-        );
+        // Ein Beitritt in einen geschlossenen Channel wird zur Anfrage, nicht
+        // zur Mitgliedschaft — dann steht man unter `membership_requested`
+        // bzw. `membership_pending` statt unter `members`.
+        if (result.state === 'requested' || result.state === 'pending') {
+          setEnrollNote(
+            'Dein Beitritt wurde als Anfrage hinterlegt und muss von einem Moderator des '
+            + 'Channels bestätigt werden. Danach hier auf „Erneut prüfen" klicken.',
+          );
+        } else {
+          setEnrollNote(
+            result.joinError
+              ? `Beitritt abgelehnt: ${result.joinError}. `
+                + 'Geschlossene Channels lassen sich nur per Einladung durch ein Mitglied betreten — '
+                + 'das ist eine Serverregel, keine Einschränkung dieser Oberfläche.'
+              : 'Der Server hat den Aufruf angenommen, dich aber weder als Mitglied noch als '
+                + 'Beitrittsanfrage eingetragen. In diesen Channel kommst du über den '
+                + 'Admin-Bereich nicht hinein — ein Mitglied muss dich einladen.',
+          );
+        }
       } else if (result.hasKey) {
         setEnrollNote('Du bist jetzt eingeschrieben und hast den Chat-Schlüssel — Einladen ist möglich.');
       } else {
