@@ -943,6 +943,23 @@ router.post(
       );
       const member = (memberPayload?.members ?? []).some((m) => String(m?.id) === myId);
 
+      // Mitglied zu sein reicht nicht: die Seitenleiste speist sich aus
+      // /channels/subscripted, und dort landet der Channel erst durch einen
+      // Beitritt. Der Beitritt ist ausserdem der Moment, in dem der Server den
+      // fehlenden Chat-Schluessel als angefordert vermerkt — einen eigenen
+      // „Schluessel anfordern"-Endpunkt gibt es nicht.
+      let joined = false;
+      let joinError: string | undefined;
+      if (member) {
+        try {
+          await client.joinChannel(channelId);
+          joined = true;
+        } catch (err) {
+          joinError = errorMessage(err, 'Beitritt fehlgeschlagen');
+          serverLog(`[Admin] Beitritt zu ${channelId} fehlgeschlagen:`, joinError);
+        }
+      }
+
       let hasKey = false;
       if (member) {
         try {
@@ -954,9 +971,9 @@ router.post(
       }
 
       serverLog(
-        `[Admin] Selbsteinschreiben Channel ${channelId}: akzeptiert=${accepted} mitglied=${member} schluessel=${hasKey}`,
+        `[Admin] Selbsteinschreiben Channel ${channelId}: akzeptiert=${accepted} mitglied=${member} beigetreten=${joined} schluessel=${hasKey}`,
       );
-      res.json({ success: accepted, member, hasKey });
+      res.json({ success: accepted, member, joined, hasKey, joinError });
     } catch (err) {
       res.status(500).json({ error: errorMessage(err, 'Einschreiben fehlgeschlagen') });
     }

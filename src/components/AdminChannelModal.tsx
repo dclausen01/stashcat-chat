@@ -132,12 +132,16 @@ export default function AdminChannelModal({
               + 'Über den Admin-Bereich lässt sich dieser Channel damit nicht betreten.'
             : 'Der Server hat das Einschreiben abgelehnt.',
         );
+      } else if (result.hasKey) {
+        setEnrollNote('Du bist jetzt eingeschrieben und hast den Chat-Schlüssel — Einladen ist möglich.');
       } else {
         setEnrollNote(
-          result.hasKey
-            ? 'Du bist jetzt eingeschrieben und hast den Chat-Schlüssel — Einladen ist möglich.'
-            : 'Du bist eingeschrieben, hast aber noch keinen Chat-Schlüssel. '
-              + 'Ein bestehendes Mitglied muss ihn freigeben; danach auf „Erneut prüfen" klicken.',
+          'Du bist eingeschrieben'
+          + (result.joined
+            ? ' und der Channel steht jetzt in deiner Seitenleiste.'
+            : `, der Beitritt zur Channel-Liste hat aber nicht geklappt${result.joinError ? ` (${result.joinError})` : ''}.`)
+          + ' Der Chat-Schlüssel fehlt noch — ein bestehendes Mitglied muss ihn freigeben. '
+          + 'Danach auf „Erneut prüfen" klicken.',
         );
       }
       await Promise.all([loadAccess(), loadMembers()]);
