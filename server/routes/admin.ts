@@ -870,6 +870,22 @@ router.post(
 );
 
 /**
+ * Fuehrt einen Teilschritt aus und benennt ihn im Fehlerfall.
+ *
+ * Mehrere API-Aufrufe hintereinander liefern sonst nur eine nackte Meldung wie
+ * `missing_values`, ohne zu verraten, welcher Aufruf sie ausgeloest hat.
+ */
+async function step<T>(label: string, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    const msg = errorMessage(err, 'Fehlgeschlagen');
+    serverLog(`[Admin] Schritt „${label}" fehlgeschlagen:`, msg);
+    throw new Error(`Schritt „${label}": ${msg}`);
+  }
+}
+
+/**
  * Eigener Zugang zu einem Channel: Bin ich Mitglied, und habe ich den
  * Chat-Schluessel?
  *
@@ -891,15 +907,13 @@ router.get(
       const memberData = client.api.createAuthenticatedRequestData({
         company_id: req.params.companyId,
         channel_id: channelId,
-        limit: 1000,
+        limit: 500,
         offset: 0,
         search: '',
         sorting: ['last_name_asc'],
       });
-      const memberPayload = await client.api.post<{ members?: Array<{ id?: unknown }> }>(
-        '/manage/list_channel_members',
-        memberData,
-      );
+      const memberPayload = await step('Mitgliederliste lesen', () =>
+        client.api.post<{ members?: Array<{ id?: unknown }> }>('/manage/list_channel_members', memberData));
       const member = (memberPayload?.members ?? []).some((m) => String(m?.id) === myId);
 
       let encrypted = false;
@@ -939,6 +953,7 @@ router.get(
  * ist keine Luecke, sondern der Zweck der Ende-zu-Ende-Verschluesselung. Die
  * Antwort meldet deshalb ehrlich zurueck, ob der Schluessel da ist.
  */
+
 router.post(
   '/admin/channels/:companyId/:channelId/self-enroll',
   requirePermission('admin_edit_channels'),
@@ -946,7 +961,7 @@ router.post(
     try {
       const client = req.client!;
       const channelId = String(req.params.channelId);
-      const me = await client.getMe();
+      const me = await step('Eigenen Nutzer laden', () => client.getMe());
       const myId = String((me as unknown as Record<string, unknown>).id ?? '');
       if (!myId) return res.status(500).json({ error: 'Eigene Nutzer-ID nicht ermittelbar' });
 
@@ -955,10 +970,8 @@ router.post(
         channel_id: channelId,
         user_ids: [myId],
       });
-      const payload = await client.api.post<{ success?: boolean }>(
-        '/manage/set_channel_moderator_status',
-        data,
-      );
+      const payload = await step('Moderatorstatus setzen', () =>
+        client.api.post<{ success?: boolean }>('/manage/set_channel_moderator_status', data));
       const accepted = payload?.success === true;
 
       // Nicht auf `success` vertrauen: nachsehen, ob wirklich eine
@@ -967,15 +980,13 @@ router.post(
       const checkData = client.api.createAuthenticatedRequestData({
         company_id: req.params.companyId,
         channel_id: channelId,
-        limit: 1000,
+        limit: 500,
         offset: 0,
         search: '',
         sorting: ['last_name_asc'],
       });
-      const memberPayload = await client.api.post<{ members?: Array<{ id?: unknown }> }>(
-        '/manage/list_channel_members',
-        checkData,
-      );
+      const memberPayload = await step('Mitgliederliste lesen', () =>
+        client.api.post<{ members?: Array<{ id?: unknown }> }>('/manage/list_channel_members', checkData));
       const member = (memberPayload?.members ?? []).some((m) => String(m?.id) === myId);
 
       // Mitglied zu sein reicht nicht: die Seitenleiste speist sich aus
@@ -1134,7 +1145,7 @@ router.post(
       const groupData = client.api.createAuthenticatedRequestData({
         company_id: req.params.companyId,
         group_id: String(groupId),
-        limit: 1000,
+        limit: 500,
         offset: 0,
         search: '',
         sorting: ['last_name_asc'],
@@ -1153,7 +1164,7 @@ router.post(
       const memberData = client.api.createAuthenticatedRequestData({
         company_id: req.params.companyId,
         channel_id: req.params.channelId,
-        limit: 1000,
+        limit: 500,
         offset: 0,
         search: '',
         sorting: ['last_name_asc'],
