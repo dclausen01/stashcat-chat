@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bell, X, Loader2, Hash, CalendarDays, Smartphone, Shield, UserPlus, MessageSquare, Trash2, BarChart3, Key, Check, Ban, ArrowLeft } from 'lucide-react';
+import { Bell, X, Loader2, Hash, CalendarDays, Smartphone, Shield, UserPlus, UserMinus, MessageSquare, Trash2, BarChart3, Key, Check, Ban, ArrowLeft } from 'lucide-react';
 import { clsx } from 'clsx';
 import * as api from '../api';
 import Avatar from './Avatar';
@@ -34,6 +34,16 @@ const TYPE_MAP: Record<string, { label: string; icon: React.ReactNode }> = {
   event_changed:           { label: 'Termin aktualisiert',             icon: <CalendarDays size={16} className="text-amber-500" /> },
   event_deleted:           { label: 'Termin abgesagt',                 icon: <CalendarDays size={16} className="text-red-400" /> },
   message_sync:            { label: 'Neue Nachricht',                  icon: <MessageSquare size={16} className="text-primary-500" /> },
+  // Membership types — content carries the affected channel/group object
+  membership_granted:      { label: 'Mitgliedschaft bestätigt',        icon: <UserPlus size={16} className="text-green-500" /> },
+  membership_gained:       { label: 'Mitgliedschaft bestätigt',        icon: <UserPlus size={16} className="text-green-500" /> },
+  membership_accepted:     { label: 'Mitgliedschaft bestätigt',        icon: <UserPlus size={16} className="text-green-500" /> },
+  membership_revoked:      { label: 'Mitgliedschaft beendet',          icon: <UserMinus size={16} className="text-surface-500" /> },
+  membership_lost:         { label: 'Mitgliedschaft beendet',          icon: <UserMinus size={16} className="text-surface-500" /> },
+  membership_expired:      { label: 'Mitgliedschaft abgelaufen',       icon: <UserMinus size={16} className="text-amber-500" /> },
+  membership_request:      { label: 'Beitrittsanfrage',                icon: <UserPlus size={16} className="text-amber-500" /> },
+  membership_requested:    { label: 'Beitrittsanfrage',                icon: <UserPlus size={16} className="text-amber-500" /> },
+  membership_declined:     { label: 'Beitrittsanfrage abgelehnt',      icon: <Ban size={16} className="text-red-400" /> },
   notification:            { label: 'Benachrichtigung',                icon: <Bell size={16} className="text-primary-500" /> },
   // Poll / Survey types
   survey_invite:           { label: 'Einladung zu einer Umfrage',      icon: <BarChart3 size={16} className="text-primary-500" /> },
@@ -53,6 +63,7 @@ function getTypeInfo(type: string): { label: string; icon: React.ReactNode } {
   // Fuzzy match
   if (safeType.includes('key')) return { label: 'Schlüsselanfrage', icon: <Key size={16} className="text-amber-500" /> };
   if (safeType.includes('survey') || safeType.includes('poll')) return { label: 'Umfrage', icon: <BarChart3 size={16} className="text-primary-500" /> };
+  if (safeType.includes('membership')) return { label: 'Mitgliedschaft', icon: <UserPlus size={16} className="text-primary-500" /> };
   if (safeType.includes('channel')) return { label: 'Channel-Benachrichtigung', icon: <Hash size={16} className="text-primary-500" /> };
   if (safeType.includes('event') || safeType.includes('calendar')) return { label: 'Kalender-Benachrichtigung', icon: <CalendarDays size={16} className="text-amber-500" /> };
   if (safeType.includes('device') || safeType.includes('login')) return { label: 'Geräte-Benachrichtigung', icon: <Smartphone size={16} className="text-green-500" /> };
@@ -206,8 +217,135 @@ function formatDeviceNotification(data: unknown): { title: string; details: stri
   };
 }
 
+/** Narrow unknown content (plain object or JSON string) to a record. */
+function asObject(value: unknown): Record<string, unknown> | null {
+  let parsed = value;
+  if (typeof value === 'string') {
+    try { parsed = JSON.parse(value); } catch { return null; }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  return parsed as Record<string, unknown>;
+}
+
+type NamedKind = 'channel' | 'group' | 'company' | 'unknown';
+
+/** Article forms per object kind, so the sentences below read as German. */
+const KIND_NOUNS: Record<Exclude<NamedKind, 'unknown'>, { dative: string; accusative: string; label: string }> = {
+  channel: { dative: 'dem Channel',       accusative: 'den Channel',      label: 'Channel' },
+  group:   { dative: 'der Gruppe',        accusative: 'die Gruppe',       label: 'Gruppe' },
+  company: { dative: 'der Organisation',  accusative: 'die Organisation', label: 'Organisation' },
+};
+
+/**
+ * Recognize the "named object" shapes the API drops into `content`
+ * (channel, group, company) and return kind + display name.
+ */
+function describeNamedObject(obj: Record<string, unknown>): { kind: NamedKind; name: string } | null {
+  if (typeof obj.name !== 'string' || !obj.name.trim()) return null;
+  const name = getCleanName(obj.name);
+  const has = (key: string) => key in obj;
+  if (has('unique_identifier') || has('encrypted') || has('visible') || has('writable') ||
+      has('channel_id') || has('group_id')) return { kind: 'channel', name };
+  if (has('user_count') || has('create_channel') || has('limit_communication')) return { kind: 'group', name };
+  if (has('domain') || has('quota') || has('freemium')) return { kind: 'company', name };
+  return { kind: 'unknown', name };
+}
+
+/**
+ * Membership notifications (`membership_granted`, `membership_revoked`, …) carry the
+ * affected channel/group as `content` — without this they render as raw JSON.
+ */
+function formatMembershipNotification(type: string, content: unknown): { text: string; subtext?: string } | null {
+  if (!type.includes('membership')) return null;
+  const obj = asObject(content);
+  const named = obj ? describeNamedObject(obj) : null;
+  const target = named ? `„${named.name}"` : null;
+  const nouns = named && named.kind !== 'unknown' ? KIND_NOUNS[named.kind] : null;
+
+  // Order matters: `membership_request_declined` is a rejection, not a removal.
+  const declined = /declined|rejected/.test(type);
+  const granted = /granted|gained|accepted|activated/.test(type);
+  const expired = type.includes('expired');
+  const lost = /revoked|lost|removed|deactivated/.test(type);
+  const requested = /request|pending/.test(type);
+
+  let text: string;
+  if (!target) {
+    text = declined ? 'Deine Beitrittsanfrage wurde abgelehnt.'
+      : granted ? 'Deine Mitgliedschaft wurde bestätigt.'
+      : expired ? 'Deine Mitgliedschaft ist abgelaufen.'
+      : lost ? 'Deine Mitgliedschaft wurde beendet.'
+      : requested ? 'Es liegt eine Beitrittsanfrage vor.'
+      : 'Deine Mitgliedschaft hat sich geändert.';
+  } else if (declined) {
+    text = nouns
+      ? `Deine Beitrittsanfrage für ${nouns.accusative} ${target} wurde abgelehnt.`
+      : `Deine Beitrittsanfrage für ${target} wurde abgelehnt.`;
+  } else if (granted) {
+    text = nouns
+      ? `Du wurdest ${nouns.dative} ${target} hinzugefügt.`
+      : `Du bist jetzt Mitglied von ${target}.`;
+  } else if (expired) {
+    text = nouns
+      ? `Deine Mitgliedschaft in ${nouns.dative} ${target} ist abgelaufen.`
+      : `Deine Mitgliedschaft bei ${target} ist abgelaufen.`;
+  } else if (lost) {
+    text = nouns
+      ? `Du wurdest aus ${nouns.dative} ${target} entfernt.`
+      : `Deine Mitgliedschaft bei ${target} wurde beendet.`;
+  } else if (requested) {
+    text = nouns
+      ? `Beitrittsanfrage für ${nouns.accusative} ${target}.`
+      : `Beitrittsanfrage für ${target}.`;
+  } else {
+    text = nouns
+      ? `Mitgliedschaft in ${nouns.dative} ${target} geändert.`
+      : `Mitgliedschaft bei ${target} geändert.`;
+  }
+
+  const description = obj && typeof obj.description === 'string' ? obj.description.trim() : '';
+  return { text, subtext: description || undefined };
+}
+
+/** Content that is just a user record → the plain name. */
+function formatUserObject(obj: Record<string, unknown>): { text: string } | null {
+  if (typeof obj.first_name !== 'string' && typeof obj.last_name !== 'string') return null;
+  const name = `${obj.first_name ?? ''} ${obj.last_name ?? ''}`.trim();
+  return name ? { text: name } : null;
+}
+
+/** German labels for the scalar fields that turn up in otherwise unknown content. */
+const FIELD_LABELS: Record<string, string> = {
+  description: 'Beschreibung',
+  text: 'Text',
+  message: 'Nachricht',
+  title: 'Titel',
+  email: 'E-Mail',
+  ip_address: 'IP',
+  app_name: 'App',
+  reason: 'Grund',
+  status: 'Status',
+};
+
+/** Technical fields that carry nothing a reader would want to see. */
+const NOISE_FIELD = /(^|_)id$|^image$|^type$|key|hash|signature|token/i;
+
+/** Last resort: a readable key/value line instead of dumping raw JSON at the user. */
+function formatGenericObject(obj: Record<string, unknown>): { text: string } {
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(obj)) {
+    if (parts.length >= 3) break;
+    if (NOISE_FIELD.test(key)) continue;
+    if (value === null || value === undefined || typeof value === 'object' || typeof value === 'boolean') continue;
+    const str = String(value).trim();
+    if (!str) continue;
+    parts.push(`${FIELD_LABELS[key] ?? key.replace(/_/g, ' ')}: ${str}`);
+  }
+  return { text: parts.join(' · ') || 'Keine weiteren Angaben' };
+}
+
 /** Try to parse content as JSON and format it nicely */
-function formatNotificationContent(content: unknown): { text: string; subtext?: string } {
+function formatNotificationContent(content: unknown, type = ''): { text: string; subtext?: string } {
   if (!content) return { text: '' };
 
   // Parse JSON strings
@@ -215,6 +353,10 @@ function formatNotificationContent(content: unknown): { text: string; subtext?: 
   if (typeof content === 'string') {
     try { parsed = JSON.parse(content); } catch { return { text: content }; }
   }
+
+  // Membership notifications need the type to pick the right sentence
+  const membershipInfo = formatMembershipNotification(type || '', parsed);
+  if (membershipInfo) return membershipInfo;
 
   // Try event/calendar notification first
   const eventInfo = formatEventNotification(parsed);
@@ -243,13 +385,26 @@ function formatNotificationContent(content: unknown): { text: string; subtext?: 
     };
   }
 
-  // Fallback: stringify but truncate
-  try {
-    const str = JSON.stringify(parsed);
-    return { text: str.length > 120 ? str.slice(0, 120) + '…' : str };
-  } catch {
-    return { text: '[Objekt]' };
+  const obj = asObject(parsed);
+  if (obj) {
+    const userInfo = formatUserObject(obj);
+    if (userInfo) return userInfo;
+
+    // Channel / group / company objects — show the name, not the record
+    const named = describeNamedObject(obj);
+    if (named) {
+      const label = named.kind === 'unknown' ? null : KIND_NOUNS[named.kind].label;
+      const description = typeof obj.description === 'string' ? obj.description.trim() : '';
+      return {
+        text: label ? `${label}: „${named.name}"` : `„${named.name}"`,
+        subtext: description || undefined,
+      };
+    }
+
+    return formatGenericObject(obj);
   }
+
+  return { text: String(parsed) };
 }
 
 export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, onOpenCalendar, onOpenEvent, onChannelJoined }: NotificationsPanelProps) {
@@ -425,7 +580,7 @@ export default function NotificationsPanel({ onClose, onOpenPolls, onOpenPoll, o
               // Channel invite: parse invite_id, channel, sender
               const invite = isChannelInvite ? parseChannelInviteNotification(rawContent) : null;
 
-              const formatted = (keyUser || invite) ? null : formatNotificationContent(rawContent);
+              const formatted = (keyUser || invite) ? null : formatNotificationContent(rawContent, n.type);
 
               // Safely extract channel/event names (suppressed for invites — already shown inline)
               const channelName = invite ? undefined : (n.channel && typeof n.channel.name === 'string' ? n.channel.name : undefined);

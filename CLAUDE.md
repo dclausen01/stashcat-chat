@@ -664,6 +664,24 @@ Die Content-Formatierung (`formatNotificationContent`) unterscheidet Objekt-Type
 - **Polls**: `privacy_type`, `start_time`/`end_time`, `hidden_results`
 - **Events**: `start`/`end`/`location` (nicht `start_time`/`end_time`)
 - **Devices**: `device_id`, `app_name`
+- **Channels/Gruppen/Companies** (`describeNamedObject`): Objekte mit `name`. Die Art
+  ergibt sich aus Begleitfeldern — `unique_identifier`/`encrypted`/`visible`/`writable`/
+  `channel_id`/`group_id` → Channel, `user_count`/`create_channel` → Gruppe,
+  `domain`/`quota` → Organisation.
+- **Nutzer**: `first_name`/`last_name`
+
+`formatNotificationContent(content, type)` bekommt den Notification-Type mit, weil
+Mitgliedschafts-Meldungen (`membership_granted`, `membership_revoked`,
+`membership_expired`, `membership_request_declined`, …) im `content` nur das betroffene
+Channel-/Gruppenobjekt liefern — der Satz („Du wurdest dem Channel „X" hinzugefügt.")
+lässt sich erst aus Type **und** Content bilden. `KIND_NOUNS` hält dafür die
+Artikelformen, damit Dativ und Akkusativ je nach Objektart stimmen.
+
+**Kein JSON mehr als Fallback.** Unbekannte Content-Objekte landen in
+`formatGenericObject()`, das bis zu drei skalare Felder als „Label: Wert" ausgibt und
+technische Felder (`*_id`, `image`, `type`, `key`, `hash`, `signature`, `token`)
+überspringt. Vorher wurde an dieser Stelle `JSON.stringify()` angezeigt — sichtbar z. B.
+bei `membership_granted`, das in keiner `TYPE_MAP` stand.
 
 ---
 
