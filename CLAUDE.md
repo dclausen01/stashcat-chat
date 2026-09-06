@@ -989,15 +989,27 @@ Stelle eine `InviteError` mit Erklärung statt einer stillen Erfolgsmeldung.
 
 ### Selbsteinschreiben von Admins
 
-Es gibt keinen `/manage/*`-Endpunkt für Channel-Mitgliedschaft. Der einzige Hebel,
-der sie überhaupt berührt, ist `set_channel_moderator_status` — er nimmt beliebige
-`user_ids`, nicht nur bestehende Mitglieder.
+Es gibt keinen `/manage/*`-Endpunkt für Channel-Mitgliedschaft. Der wirksame Weg ist
+**`/channels/join`** — und zwar unabhängig davon, ob man vorher Mitglied war; der
+Beitritt ist ja gerade das Mittel, es zu *werden*.
 
 | Method | Path | Zweck |
 |---|---|---|
 | GET | `/api/admin/channels/:companyId/:channelId/access` | `{ member, encrypted, hasKey, canInvite }` |
-| POST | `/api/admin/channels/:companyId/:channelId/self-enroll` | Sich selbst einschreiben |
+| POST | `/api/admin/channels/:companyId/:channelId/self-enroll` | Moderatorstatus + `joinChannel`, danach Zustand nachlesen |
 | DELETE | `/api/admin/channels/:companyId/:channelId/self-enroll` | Moderatorstatus entziehen + `quitChannel` |
+
+Am Livetest verifiziert:
+
+- **`set_channel_moderator_status` legt *keine* Mitgliedschaft an.** Der Server nimmt
+  den Aufruf mit `success: true` an und trägt trotzdem niemanden ein. Der Aufruf bleibt
+  drin, weil er den Moderatorstatus setzt, ist aber nicht der Hebel für Mitgliedschaft.
+- **Ein Beitritt in einen geschlossenen Channel wird zur Anfrage, nicht zur
+  Mitgliedschaft.** `joinChannel` wirft dabei *keinen* Fehler. Der Beitretende steht
+  danach unter `membership_requested` bzw. `membership_pending` — unter `members`
+  erscheint er erst, wenn ein Moderator bestätigt. Ohne diese Unterscheidung sieht ein
+  erfolgreicher Antrag aus wie „nichts passiert"; `membershipState()` geht deshalb alle
+  drei Töpfe durch.
 
 **Einschreiben allein reicht bei verschlüsselten Channels nicht.** Der Chat-Schlüssel
 liegt nur bei den Mitgliedern; ein frisch eingeschriebener Admin bekommt ihn erst,
