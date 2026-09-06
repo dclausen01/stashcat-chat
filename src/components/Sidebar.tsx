@@ -959,7 +959,9 @@ export default function Sidebar({ activeChat, onSelectChat, loggedIn, triggerFoc
                   className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-surface-500 transition hover:text-primary-600 dark:hover:text-primary-400"
                   title="Alle Channels anzeigen"
                 >
-                  <Hash size={13} /> Channels ({channels.length})
+                  {/* Wie bei den Direktnachrichten die *gefilterte* Anzahl —
+                      sonst zeigt die Kopfzeile bei aktiver Suche weiter alle an. */}
+                  <Hash size={13} /> Channels ({filtered(channels).length})
                 </button>
                 <button
                   onClick={() => setShowNewChannel(true)}

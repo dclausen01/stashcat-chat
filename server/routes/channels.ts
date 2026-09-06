@@ -86,10 +86,66 @@ router.post('/channels/:channelId/favorite', async (req, res) => {
   } catch (e) { res.status(500).json({ error: errorMessage(e) }); }
 });
 
+/**
+ * Abonnierte Channels — vollstaendig, ueber alle Seiten.
+ *
+ * `client.getChannels()` schickt weder `limit` noch `offset`; der Stashcat-Server
+ * liefert dann seine Vorgabe von 100 Eintraegen. Wer mehr Channels abonniert
+ * hat, sah die uebrigen gar nicht — und die Kopfzeile blieb bei „100" stehen.
+ * Deshalb sprechen wir `/channels/subscripted` hier direkt an und blaettern
+ * durch.
+ */
+const CHANNEL_PAGE_SIZE = 100;
+/** Notbremse, falls der Server `offset` ignorieren sollte. */
+const CHANNEL_PAGE_LIMIT = 50;
+
+interface SubscriptedChannel {
+  id?: string | number;
+  unread_count?: number;
+  unread_messages?: number;
+}
+
+async function fetchAllChannels(
+  client: StashcatClient,
+  companyId: string,
+): Promise<SubscriptedChannel[]> {
+  const all: SubscriptedChannel[] = [];
+  const seen = new Set<string>();
+
+  for (let page = 0; page < CHANNEL_PAGE_LIMIT; page++) {
+    const data = client.api.createAuthenticatedRequestData({
+      company: companyId,
+      limit: CHANNEL_PAGE_SIZE,
+      offset: page * CHANNEL_PAGE_SIZE,
+    });
+    const payload = await client.api.post<{ channels?: SubscriptedChannel[] }>(
+      '/channels/subscripted',
+      data,
+    );
+    const batch = payload?.channels ?? [];
+
+    // Nur wirklich neue IDs uebernehmen: Ignoriert der Server `offset`,
+    // kaeme sonst dieselbe Seite immer wieder.
+    const before = seen.size;
+    for (const ch of batch) {
+      const id = String(ch?.id ?? '');
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      all.push(ch);
+    }
+    if (batch.length < CHANNEL_PAGE_SIZE || seen.size === before) break;
+  }
+
+  return all.map((ch) => ({
+    ...ch,
+    unread_count: ch.unread_count ?? ch.unread_messages ?? 0,
+  }));
+}
+
 router.get('/channels/:companyId', async (req, res) => {
   try {
     const client = req.client!;
-    const channels = await client.getChannels(req.params.companyId);
+    const channels = await fetchAllChannels(client, String(req.params.companyId));
     const mapped = channels.map((ch) => {
       const membership = (ch as any).membership;
       return {
